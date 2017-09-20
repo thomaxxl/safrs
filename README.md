@@ -1,5 +1,5 @@
 
-# safrs API Framework
+# SAFRS API Framework
 
 ## Overview
 
