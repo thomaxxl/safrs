@@ -1,0 +1,11 @@
+Flask
+Flask-Admin
+Flask-SQLAlchemy
+flask_swagger_ui
+flask_restful_swagger_2==0.33
+flask_restplus
+flask_login
+flask_cors
+validate_email
+pymysql
+pyaml

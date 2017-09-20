@@ -5,13 +5,28 @@
 
 SAFRS is an acronym of SqlAlchemy Flask Restful Swagger. Its purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
 
-The safrs_rest directory contains the code to construct documented REST APIs
+The safrs directory contains the code to construct documented REST APIs
 It consists of 
 - db.py : sqlalchemy database definitions 
 - restful.py : REST web bindings
 - swagger_doc.py : API documentation, implemented as decorators
+
+The examples directory contains two small examples:
 - demo.py : a small sample application 
 - demo_relationship.py : an extension of the demo.py to demonstrate relationship functionality
+
+## Installation
+
+The usual:
+
+```bash
+git clone https://github.com/thomaxxl/safrs
+pip install -r requirements.txt
+python setup.py build
+python setup.py install
+```
+
+
 
 ## HTTP Methods
 
