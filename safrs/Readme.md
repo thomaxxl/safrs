@@ -1,3 +1,11 @@
+##
+
+This directory contains the code to construct documented REST APIs
+It consists of
+- db.py : sqlalchemy database definitions
+- restful.py : REST web bindings
+- swagger_doc.py : API documentation, implemented as decorators
+
 ## Implementation details
 This section describes on a high level how safrs_rest is implemented (for low level details you can check the code and comments)
 
