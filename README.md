@@ -1,11 +1,11 @@
 
-# eye_rest API Framework
+# safrs API Framework
 
 ## Overview
 
 SAFRS_rest purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
 
-The eye_rest directory contains the code to construct documented REST APIs
+The safrs_rest directory contains the code to construct documented REST APIs
 It consists of 
 - db.py : sqlalchemy database definitions 
 - restful.py : REST web bindings
@@ -144,7 +144,7 @@ HTTP status codes are used to signal success or failure of a REST operation:
 In case of errors( status codes 400+ ), the log file contains a stacktrace.
 
 ## Implementation details
-This section describes on a high level how eye_rest is implemented (for low level details you can check the code and comments)
+This section describes on a high level how safrs_rest is implemented (for low level details you can check the code and comments)
 
 ### Variables for SQLAlchemy, Flask, MarshMallow, Logging
 
@@ -191,8 +191,12 @@ SAFRSRestAPI is a superclass for dynamically generated flask-restful endpoints.
 ### Serialization
 
 - MarshMallow
-- ```eye_serialize``` 
+- ``safrs_serialize``` 
 - The restful ```SAFRSJSONEncoder``` class calls the SAFRSBase subclass to_dict method to convert object attributes to a python dictionary which is then converted to JSON.
+
+## Limitations
+
+lots
 
 ## TODOs
 
