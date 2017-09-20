@@ -143,7 +143,7 @@ The relationship REST API works similarly for one-to-many relationships.
 
 ## Endpoint Naming
 As can be seen in the swagger UI:
-- the endpoint collection names are the SQLAlchemy __tablename__ properties (e.g. /Users )
+- the endpoint collection names are the SQLAlchemy _\_tablename_\_ properties (e.g. /Users )
 - the parameter names are derived from the SAFRSBase class names (e.g. {UserId} )
 - the the relationship names are the SAFRSbase class relationship names (e.g /books )
 
