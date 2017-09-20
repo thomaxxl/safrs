@@ -3,7 +3,7 @@
 
 ## Overview
 
-SAFRS_rest purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
+SAFRS is an acronym of SqlAlchemy Flask Restful Swagger. Its purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
 
 The safrs_rest directory contains the code to construct documented REST APIs
 It consists of 
