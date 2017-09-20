@@ -3,7 +3,7 @@
 
 ## Overview
 
-SAFRS is an acronym of *S*ql*A*lchemy *F*lask *R*estful *S*wagger. Its purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
+SAFRS is an acronym of **S**ql**A**lchemy **F**lask **R**estful **S**wagger. Its purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
 
 The safrs directory contains the code to construct documented REST APIs
 
