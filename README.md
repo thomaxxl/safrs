@@ -65,7 +65,7 @@ api.expose_object(User)
 ``` 
 
 The User object REST methods are available on /User, the swagger schema is available on /api/swagger.json and the UI is available on /api/:
-![User Swagger](images/USER_swagger.png)
+![User Swagger](doc/images/USER_swagger.png)
 
 ## Methods
 
@@ -73,7 +73,7 @@ The ```send_mail``` method is documented with the ```documented_api_method``` de
 This function generates a schema based on the function documentation. This documentation contains yaml specification of the API which is used by the swagger UI. 
 This method can then be invoked with following HTTP POST Json payload:
 
-![User Swagger](images/POST_swagger.png)
+![User Swagger](doc/images/POST_swagger.png)
 
 The yaml specification has to be in the first part of the function and class comments. These parts are delimited by four dashes ("----") . The rest of the comment may contain additional documentation.
 
@@ -118,7 +118,7 @@ class Book(SAFRSBase, db.Model):
 ```
 
 The User.book relationship can be queried in the API through the following endpoints:
-![Relations Swagger](images/Relations_swagger.png)
+![Relations Swagger](doc/images/Relations_swagger.png)
 
 - POST adds an item to the relationship
 - DELETE removes an item from the relationship
