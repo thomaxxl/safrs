@@ -9,5 +9,10 @@ setup(
   url = 'https://github.com/thomaxxl/safrs',
   download_url = 'https://github.com/thomaxxl/safrs/archive/0.1.tar.gz', 
   keywords = ['SqlAlchemy', 'Flask', 'REST', 'Swagger'], 
-  classifiers = [],
+  python_requires='>=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4',
+  classifiers = [
+        'Development Status :: 3 - Alpha',
+        'License :: OSI Approved :: MIT License',
+        'Intended Audience :: Developers',
+        ],
 )
