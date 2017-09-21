@@ -1,11 +1,8 @@
-
 # SAFRS API Framework
 
 ## Overview
 
 SAFRS is an acronym of **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the REST API. Class methods can be exposed and invoked using JSON HTTP requests as well. Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface.
-
-The safrs directory contains the code to construct documented REST APIs
 
 The examples directory contains two small examples that are explained below:
 - demo.py : a small sample application 
@@ -23,7 +20,6 @@ python setup.py build
 python setup.py install
 ```
 
-
 ## HTTP Methods
 
 The objects can be queried using a REST API. The APIs support following HTTP operations:
@@ -37,7 +33,7 @@ The objects can be queried using a REST API. The APIs support following HTTP ope
 
 Database objects are implemented as subclasses of the SAFRSBase and SQLAlchemy model classes. The SQLAlchemy columns are serialized to JSON when the corresponding REST API is invoked. 
 
-code from demo.py illustrates how the API is built and documented:
+Following example from (demo.py)[examples/demo.py] illustrates how the API is built and documented:
 
 ```python
 class User(SAFRSBase, db.Model):
