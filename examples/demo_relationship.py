@@ -2,6 +2,9 @@
 #
 # This is a demo application to demonstrate the functionality of the safrs_rest REST API
 #
+# It can be ran standalone like this:
+# ./demo_relationship.py [Listener-IP]
+#
 # - A database is created and a user is added
 # - A rest api is available
 # - swagger2 documentation is generated
