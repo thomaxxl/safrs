@@ -1,8 +1,8 @@
-# SAFRS API Framework
+# SAFRS python REST API Framework
 
 ## Overview
 
-SAFRS is an acronym of **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the REST API. Class methods can be exposed and invoked using JSON HTTP requests as well. Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface.
+SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting REST API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the REST API. Class methods can be exposed and invoked using JSON HTTP requests as well. Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface.
 
 The examples directory contains two small examples that are explained below:
 - demo.py : a small sample application 
@@ -150,14 +150,12 @@ HTTP status codes are used to signal success or failure of a REST operation:
 
 In case of errors( status codes 400+ ), the log file contains a stacktrace.
 
-## Limitations
+## Limitations & TODOs
 
-- All objects must have an "id" as a primary key and composite keys don't work well
+This code was developed for a specific use-case and may not be flexible enough for everyone's needs. 
+
+- All objects must have an "id" as a primary key and composite keys might not work well.
 - Only python 2 for now
-
-## TODOs
-
-GET on a collection should only return a list of object ids. Maybe use query params for dictionary items
 
 ## Thanks
 
