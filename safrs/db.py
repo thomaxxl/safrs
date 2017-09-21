@@ -15,7 +15,11 @@ from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
 from sqlalchemy.orm import synonym
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer
-from validate_email import validate_email
+try:
+    from validate_email import validate_email
+except:
+    pass
+
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
@@ -60,17 +64,17 @@ class JSONType(PickleType):
     impl = Text
 
     def __init__(self, *args, **kwargs):        
+        
         #kwargs['pickler'] = json
         super(JSONType, self).__init__(*args, **kwargs)
 
     def process_bind_param(self, value, dialect):
-        print 1111
+        
         if value is not None:
             value = json.dumps(value, ensure_ascii=True)
         return value
 
     def process_result_value(self, value, dialect):
-        print value
 
         if value is not None:
             value = json.loads(value)
