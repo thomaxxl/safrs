@@ -161,4 +161,4 @@ GET on a collection should only return a list of object ids. Maybe use query par
 
 ## Thanks
 
-This code was developed when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to publish it when I stopped working there. 
+I developed this code when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to open source it when I stopped working there. 
