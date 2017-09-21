@@ -33,7 +33,7 @@ The objects can be queried using a REST API. The APIs support following HTTP ope
 
 Database objects are implemented as subclasses of the SAFRSBase and SQLAlchemy model classes. The SQLAlchemy columns are serialized to JSON when the corresponding REST API is invoked. 
 
-Following example from (demo.py)[examples/demo.py] illustrates how the API is built and documented:
+Following example from [demo.py](examples/demo.py) illustrates how the API is built and documented:
 
 ```python
 class User(SAFRSBase, db.Model):
