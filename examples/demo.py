@@ -55,10 +55,6 @@ class User(SAFRSBase, db.Model):
         return { 'result' : 'sent {}'.format(content)}
 
 
-class UserSchema(ma.ModelSchema):
-    class Meta:
-        model = User
-
 HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
 PORT = 5000
 
@@ -71,11 +67,6 @@ db.create_all()
 # Create a user
 user = User(name='test',email='em@il')
 db.session.add(user)
-
-user_schema = UserSchema()
-print dir(user_schema)
-print user_schema.fields
-print user_schema.dump(user).data
 
 api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
 # Expose the User object 

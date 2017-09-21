@@ -20,6 +20,17 @@ python setup.py build
 python setup.py install
 ```
 
+or to run the example within virtualenv:
+
+```bash
+git clone https://github.com/thomaxxl/safrs
+cd safrs
+virtualenv safrs
+source safrs/bin/activate
+pip install -r requirements.txt
+python examples/demo.py
+```
+
 ## HTTP Methods
 
 The objects can be queried using a REST API. The APIs support following HTTP operations:
@@ -156,6 +167,7 @@ This code was developed for a specific use-case and may not be flexible enough f
 
 - All objects must have an "id" as a primary key and composite keys might not work well.
 - Only python 2 for now (Due to apache mod_wsgi & flask compatibility issues)
+- The use of \_\_builtin\_\_ for the global variables log, db and app is a bit of a dirty hack (I'll try to work around that but it's harder than it seems)
 
 ## Thanks
 
