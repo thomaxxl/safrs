@@ -8,6 +8,8 @@ Welcome to safrs's documentation!
 
 Contents:
 
+Check https://github.com/thomaxxl/safrs/blob/master/README.md
+
 .. toctree::
    :maxdepth: 2
 
