@@ -5,6 +5,8 @@
 # It can be ran standalone like this:
 # python demo_relationship.py [Listener-IP]
 #
+# This will run the example on http://Listener-Ip:5000
+#
 # - A database is created and a user is added
 # - A rest api is available
 # - swagger2 documentation is generated
