@@ -28,7 +28,7 @@ cd safrs
 virtualenv safrs
 source safrs/bin/activate
 pip install -r requirements.txt
-python examples/demo.py
+python examples/demo.py [web-ip]
 ```
 
 ## HTTP Methods
@@ -148,7 +148,7 @@ The relationship REST API works similarly for one-to-many relationships.
 As can be seen in the swagger UI:
 - the endpoint collection names are the SQLAlchemy \_\_tablename\_\_ properties (e.g. /Users )
 - the parameter names are derived from the SAFRSBase class names (e.g. {UserId} )
-- the the relationship names are the SAFRSbase class relationship names (e.g /books )
+- the the relationship names are the SAFRSBase class relationship names (e.g /books )
 
 ## HTTP Status Codes
 
