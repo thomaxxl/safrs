@@ -153,8 +153,12 @@ In case of errors( status codes 400+ ), the log file contains a stacktrace.
 ## Limitations
 
 - All objects must have an "id" as a primary key and composite keys don't work well
-- ...
+- Only python 2 for now
 
 ## TODOs
 
 GET on a collection should only return a list of object ids. Maybe use query params for dictionary items
+
+## Thanks
+
+This code was developed when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to publish it when I stopped working there. 
