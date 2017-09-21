@@ -3,11 +3,11 @@
 
 ## Overview
 
-SAFRS is an acronym of **S**ql**A**lchemy **F**lask **R**estful **S**wagger. Its purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
+SAFRS is an acronym of **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. Its purpose is to create a self-documenting API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, deleted and updated through the REST API. class and method description and examples are parsed and shown in the swagger web interface.
 
 The safrs directory contains the code to construct documented REST APIs
 
-The examples directory contains two small examples:
+The examples directory contains two small examples that are explained below:
 - demo.py : a small sample application 
 - demo_relationship.py : an extension of the demo.py to demonstrate relationship functionality
 
@@ -21,7 +21,6 @@ pip install -r requirements.txt
 python setup.py build
 python setup.py install
 ```
-
 
 
 ## HTTP Methods
@@ -44,7 +43,7 @@ class User(SAFRSBase, db.Model):
     '''
         description: User description
     '''
-    __tablename__ = 'users'
+    __tablename__ = 'Users'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     email = Column(String, default = '')
@@ -156,7 +155,8 @@ In case of errors( status codes 400+ ), the log file contains a stacktrace.
 
 ## Limitations
 
-lots
+- All objects must have an "id" as a primary key and composite keys don't work well
+- ...
 
 ## TODOs
 
