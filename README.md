@@ -97,7 +97,7 @@ The yaml specification has to be in the first part of the function and class com
 
 ## Relationships
 
-Database object such as the User class from the demo.py example can be extended to include relationships with other objects. The demo_relationship.py contains following extension of the User clalss where a relationship with the Book class is implemented:
+Database object such as the User class from the demo.py example can be extended to include relationships with other objects. The demo_relationship.py contains following extension of the User class where a relationship with the Book class is implemented:
 
 ```python
 class User(SAFRSBase, db.Model):
