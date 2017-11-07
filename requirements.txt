@@ -11,7 +11,8 @@ argparse==1.2.1
 click==6.7
 flask-marshmallow==0.8.0
 flask-restful-swagger-2==0.33
-flask-swagger-ui==3.0.12
+#flask-swagger-ui==3.0.12
+flask-swagger-ui==0.0.3
 itsdangerous==0.24
 marshmallow==2.13.5
 marshmallow-sqlalchemy==0.13.1

@@ -295,6 +295,7 @@ class SAFRSBase(object):
             description: Retrieve a list of objects with the ids in id_list.
             args:
                 id_list:
+                    type: list
                     example: 
                         - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
                         - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
@@ -307,6 +308,56 @@ class SAFRSBase(object):
                 result.append(instance)
 
         return result
+
+    @classmethod
+    @documented_api_method
+    def and_query(self, attr_list, operator_list, value_list):
+        '''
+            description : (todo) Query an object, given an attribute, operator and value
+            args:
+                attr_list:
+                    type : string 
+                    example : 
+                        - id
+                        - name
+                operator_list:
+                    type : string 
+                    example : 
+                        - like
+                        - equals
+
+                value_list:
+                    type : string 
+                    example : 
+                        - "%a%"
+                        - name
+        '''
+
+
+    @classmethod
+    @documented_api_method
+    def or_query(self, attr_list, operator_list, value_list):
+        '''
+            description : (todo) Query an object, given an attribute, operator and value
+            args:
+                attr_list:
+                    type : string 
+                    example : 
+                        - id
+                        - name
+                operator_list:
+                    type : string 
+                    example : 
+                        - like
+                        - equals
+
+                value_list:
+                    type : string 
+                    example : 
+                        - "%a%"
+                        - name
+        '''
+
 
     @classmethod
     def get_instance(cls, id = None, failsafe = False):
