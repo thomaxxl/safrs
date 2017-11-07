@@ -11,7 +11,8 @@
 # - A rest api is available
 # - swagger2 documentation is generated
 #
-import __builtin__, sys
+import builtins as __builtin__, sys
+__builtins__.unicode = str
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String

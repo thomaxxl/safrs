@@ -22,9 +22,9 @@ from flask_restful_swagger_2 import Resource, swagger
 from flask_restful_swagger_2 import Api as ApiBase
 from functools import wraps
 # safrs_rest dependencies:
-from db import SAFRSBase, ValidationError
-from swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_relationship_doc
-from errors import ValidationError, GenericError
+from safrs.db import SAFRSBase, ValidationError
+from safrs.swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_relationship_doc
+from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 
 
@@ -201,9 +201,15 @@ class Api(ApiBase):
                         object_id = '{%s}'%parameter.get('name')
 
                         if method == 'get' and not swagger_url.endswith('Id}') :
+                            # details parameter specifies to which details to show
                             param = {'default': 'all', 'type': 'string', 'name': 'details', 'in': 'query'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
+                            # limit parameter specifies the number of items to return
+                            param = {'default': '100', 'type': 'int', 'name': 'limit', 'in': 'query'}
+                            if not param in filtered_parameters:
+                                filtered_parameters.append(param)
+                        
                         
                         if method == 'post' and not swagger_url.endswith('Id}') and not parameter.get('description','').endswith('(classmethod)'):
                             # Only classmethods should be added when there's no {id} in the POST path for this method
@@ -332,6 +338,8 @@ class SAFRSRestAPI(Resource, object):
             # If no id is given, check if it's passed through a request arg
             id = request.args.get('id')
 
+        limit = request.args.get('limit', -1)
+
         if id:
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
@@ -341,7 +349,7 @@ class SAFRSRestAPI(Resource, object):
             #result = { 'result' : method() }
             result = instance
         else:
-            instances = self.SAFRSObject.query.all()
+            instances = self.SAFRSObject.query.limit(limit).all()
             details = request.args.get('details',None)
             if details == None:
                 result = [ item.id for item in instances ]

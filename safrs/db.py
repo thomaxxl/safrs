@@ -3,11 +3,19 @@
 # SQLAlchemy database schemas
 #
 
+# Python3 compatibility
+import sys
+
+if sys.version_info[0] == 3:
+    unicode = str
+
 import re
 import json
 import time
 import uuid
 import inspect
+import hashlib
+import datetime
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
@@ -23,8 +31,8 @@ except:
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
-from swagger_doc import SchemaClassFactory, documented_api_method, get_doc
-from errors import ValidationError
+from safrs.swagger_doc import SchemaClassFactory, documented_api_method, get_doc
+from safrs.errors import ValidationError
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -155,6 +163,48 @@ def init_object_schema(obj):
     obj.json_params = [ col.name for col in obj.__table__.columns ]
     return obj.object_schema
 
+
+class SAFRSID(object):
+    '''
+        - gen_id
+        - validate_id
+    '''
+
+    def __new__(cls, id = None):
+        
+        if id == None:
+            return cls.gen_id()
+        else:
+            return cls.validate_id(id)
+
+    @classmethod
+    def gen_id(cls):
+        return str(uuid.uuid4())
+
+    @classmethod
+    def validate_id(cls, id):
+        try:
+            uuid.UUID(id, version=4)
+        except:
+            raise ValidationError('Invalid ID')
+
+
+class SAFRSSHA256HashID(SAFRSID):
+
+    @classmethod
+    def gen_id(self):
+        '''
+            Create a hash based on the current time
+            This is just an example 
+            Not cryptographically secure and might cause collisions!
+        '''
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").encode('utf-8')
+        return hashlib.sha256(now).hexdigest()
+
+    @classmethod
+    def validate_id(self):
+        pass
+
 #
 # SAFRSBase superclass
 #
@@ -168,6 +218,7 @@ class SAFRSBase(object):
     '''
     object_schema = None
     json_params = None
+    id_type = SAFRSID
 
     def __new__(cls, **kwargs):
         '''
@@ -196,18 +247,12 @@ class SAFRSBase(object):
             - create relationships 
         '''
 
-        if not kwargs.get('id'):
-            # All SAFRSBase subclasses have an id, 
-            # if no id is supplied, generate a new uuid 
-            # todo: use uuid for all subclasses
-            kwargs['id'] = str(uuid.uuid4())
+    
+        # All SAFRSBase subclasses have an id, 
+        # if no id is supplied, generate a new safrs id (uuid4)
+        # todo: use uuid for all subclasses
+        kwargs['id'] = self.id_type(kwargs.get('id', None))
 
-        # Check if the id is a valid uuid
-        try:
-            uuid.UUID(kwargs['id'], version=4)
-        except:
-            raise ValidationError('Invalid ID')
-        
         # Set the json parameters
         init_object_schema(self)
         # Initialize the attribute values: these have been passed as key-value pairs in the
@@ -242,7 +287,6 @@ class SAFRSBase(object):
 
         db.session.add(self)
         db.session.commit()
-
 
     @classmethod
     @documented_api_method
@@ -291,7 +335,7 @@ class SAFRSBase(object):
         '''
 
         make_transient(self)
-        self.id = str(uuid.uuid4())
+        self.id = self.id_type()
         for parameter in self.json_params:
             value = kwargs.get(parameter, None)
             if value != None:
@@ -334,7 +378,7 @@ class SAFRSBase(object):
         if sample:
             return sample.id
         else:
-            return str(uuid.uuid4())
+            return cls.id_type()
 
     @classmethod
     def sample(cls):

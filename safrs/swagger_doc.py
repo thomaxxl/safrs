@@ -3,7 +3,7 @@
 #
 import inspect, yaml, uuid
 from flask_restful_swagger_2 import Schema, swagger
-from errors import ValidationError
+from safrs.errors import ValidationError
 
 REST_DOC  = '__rest_doc' # swagger doc attribute name. If this attribute is set 
                         # this means that the function is reachable through HTTP POST
