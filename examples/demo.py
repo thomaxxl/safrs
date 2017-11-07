@@ -11,8 +11,14 @@
 # - A rest api is available
 # - swagger2 documentation is generated
 #
-import builtins as __builtin__, sys
-__builtins__.unicode = str
+import sys
+
+if sys.version_info[0] == 3:
+    import builtins as __builtin__
+    __builtins__.unicode = str
+else:
+    import __builtin__
+
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String

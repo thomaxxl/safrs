@@ -11,14 +11,19 @@
 # - A rest api is available
 # - swagger2 documentation is generated
 #
-import __builtin__, sys
+import sys
+if sys.version_info[0] == 3:
+    import builtins as __builtin__
+    __builtins__.unicode = str
+else:
+    import __builtin__
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, ForeignKey, Table
-from db import SAFRSBase, documented_api_method
+from safrs.db import SAFRSBase, documented_api_method
+from safrs.restful import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_marshmallow import Marshmallow
-from restful import SAFRSRestAPI, SAFRSJSONEncoder, Api
 
 app = Flask('safrs_demo_app')
 __builtin__.app = app

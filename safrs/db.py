@@ -507,7 +507,8 @@ class SAFRSBase(object):
 
         parameters = []
 
-        for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
+        #for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
+        for method_name, method in inspect.getmembers(cls):
             fields = {}
             rest_doc = get_doc(method)
             if rest_doc != None:
