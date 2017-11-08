@@ -27,6 +27,8 @@ from safrs.swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_
 from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 
+# used for the limit parameter. -1 works for sqlite but not for mysql
+UNLIMITED = 1<<64
 
 class Api(ApiBase):
     '''
@@ -338,7 +340,7 @@ class SAFRSRestAPI(Resource, object):
             # If no id is given, check if it's passed through a request arg
             id = request.args.get('id')
 
-        limit = request.args.get('limit', -1)
+        limit = request.args.get('limit', UNLIMITED)
 
         if id:
             instance = self.SAFRSObject.get_instance(id)

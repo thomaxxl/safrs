@@ -33,12 +33,6 @@ app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 
-users_books_table = Table('users_books_table', db.Model.metadata,
-    Column('user_id', String, ForeignKey('Users.id', onupdate="CASCADE")),
-    Column('book_id', String, ForeignKey('Books.id', onupdate="CASCADE")),
-    extend_existing=True
-)
-
 # Example sqla database object
 class User(SAFRSBase, db.Model):
     '''
@@ -48,7 +42,7 @@ class User(SAFRSBase, db.Model):
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     email = Column(String, default = '')
-    books = db.relationship('Book', secondary = users_books_table)
+    books = db.relationship('Book', back_populates = "user")
 
     # Following method is exposed through the REST API 
     # This means it can be invoked with a HTTP POST
@@ -74,6 +68,8 @@ class Book(SAFRSBase, db.Model):
     __tablename__ = 'Books'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
+    user_id = Column(String, ForeignKey('Users.id'))
+    user = db.relationship('User', back_populates='books')
 
 
 HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
