@@ -108,21 +108,11 @@ class User(SAFRSBase, db.Model):
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     email = Column(String, default = '')
-    books = db.relationship('Book', secondary = users_books_table)
-
+    books = db.relationship('Book', back_populates = "user")
 ...
 ``` 
 
-A many-to-many database association table is defined which links users with books as follows:
-
-```python
-users_books_table = Table('users_books_table', db.Model.metadata,
-    Column('user_id', String, ForeignKey('Users.id', onupdate="CASCADE")),
-    Column('book_id', String, ForeignKey('Books.id', onupdate="CASCADE")),
-    extend_existing=True
-)
-```
-
+A many-to-one database association is declared by the back_populates relationship argument.
 The Book class is simply another subclass of SAFRSBase and db.Model, similar to the previous User class:
 
 ```python
@@ -133,6 +123,8 @@ class Book(SAFRSBase, db.Model):
     __tablename__ = 'Books'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
+    user_id = Column(String, ForeignKey('Users.id'))
+    user = db.relationship('User', back_populates='books')
 ```
 
 The User.book relationship can be queried in the API through the following endpoints:
