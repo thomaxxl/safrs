@@ -1,4 +1,4 @@
-# Expose an existing Database
+# Expose an Existing Database
 
 skype_rest.py contains example code where I expose an existing database (skype's main.db) as a webservice
 
