@@ -27,8 +27,8 @@ from safrs.swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_
 from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 
-# used for the limit parameter. -1 works for sqlite but not for mysql
-UNLIMITED = 1<<64
+UNLIMITED = 1<<63 # used as sqla limit parameter. -1 works for sqlite but not for mysql
+SAFRSPK = 'PK}'
 
 class Api(ApiBase):
     '''
@@ -202,7 +202,7 @@ class Api(ApiBase):
                     for parameter in method_doc.get('parameters',[]):
                         object_id = '{%s}'%parameter.get('name')
 
-                        if method == 'get' and not swagger_url.endswith('Id}') :
+                        if method == 'get' and not swagger_url.endswith(SAFRSPK) :
                             # details parameter specifies to which details to show
                             param = {'default': 'all', 'type': 'string', 'name': 'details', 'in': 'query'}
                             if not param in filtered_parameters:
@@ -213,7 +213,7 @@ class Api(ApiBase):
                                 filtered_parameters.append(param)
                         
                         
-                        if method == 'post' and not swagger_url.endswith('Id}') and not parameter.get('description','').endswith('(classmethod)'):
+                        if method == 'post' and not swagger_url.endswith(SAFRSPK) and not parameter.get('description','').endswith('(classmethod)'):
                             # Only classmethods should be added when there's no {id} in the POST path for this method
                             continue
                         if not ( parameter.get('in') == 'path' and not object_id in swagger_url ):
@@ -224,10 +224,10 @@ class Api(ApiBase):
                     method_doc['parameters'] = filtered_parameters
                     path_item[method] = method_doc
 
-                    if method == 'get' and not swagger_url.endswith('Id}'):
+                    if method == 'get' and not swagger_url.endswith(SAFRSPK):
                         # If no {id} was provided, we return a list of all the objects
                         try:
-                            method_doc['description'] += ' list (See GET /{id} for details)'
+                            method_doc['description'] += ' list (See GET /{{} for details)'.format(SAFRSPK)
                             method_doc['responses']['200']['schema'] = ''
                         except:
                             pass
@@ -670,11 +670,23 @@ class SAFRSJSONEncoder(JSONEncoder, object):
     '''
 
     def default(self,object):
+        
         if isinstance(object, SAFRSBase):
             return object.to_dict()
         if isinstance(object, datetime.datetime):
             return object.isoformat()
-        return JSONEncoder.default(self, object)
+
+        # Poor man's serialization
+        result = {}
+        for col in object.__table__.columns:
+            value = getattr(object, col.name)
+            if not ( type(value) in (int, float, type(None) ) ):
+                value = unicode(value)
+
+            result [col.name ] = value
+
+        return result
+        #return JSONEncoder.default(self, result)
 
 
 def safrs_serialize(obj):

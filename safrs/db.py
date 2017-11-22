@@ -186,7 +186,8 @@ class SAFRSID(object):
         try:
             uuid.UUID(id, version=4)
         except:
-            raise ValidationError('Invalid ID')
+            log.error('Invalid ID "{}"').format(id)
+            #raise ValidationError('Invalid ID')
 
 
 class SAFRSSHA256HashID(SAFRSID):
@@ -205,6 +206,37 @@ class SAFRSSHA256HashID(SAFRSID):
     def validate_id(self):
         pass
 
+
+class ClassPropertyDescriptor(object):
+
+    def __init__(self, fget, fset=None):
+        self.fget = fget
+        self.fset = fset
+
+    def __get__(self, obj, klass=None):
+        if klass is None:
+            klass = type(obj)
+        return self.fget.__get__(obj, klass)()
+
+    def __set__(self, obj, value):
+        if not self.fset:
+            raise AttributeError("can't set attribute")
+        type_ = type(obj)
+        return self.fset.__get__(obj, type_)(value)
+
+    def setter(self, func):
+        if not isinstance(func, (classmethod, staticmethod)):
+            func = classmethod(func)
+        self.fset = func
+        return self    
+
+def classproperty(func):
+    if not isinstance(func, (classmethod, staticmethod)):
+        func = classmethod(func)
+
+    return ClassPropertyDescriptor(func)
+
+
 #
 # SAFRSBase superclass
 #
@@ -216,9 +248,17 @@ class SAFRSBase(object):
 
         all instances have an id (uuid) and a name
     '''
+
     object_schema = None
     json_params = None
     id_type = SAFRSID
+    
+    @classproperty
+    def query(cls):
+        _table = getattr(cls,'_table', None)
+        if _table:
+            return db.session.query(_table)    
+        return db.session.query(cls)
 
     def __new__(cls, **kwargs):
         '''
@@ -247,7 +287,6 @@ class SAFRSBase(object):
             - create relationships 
         '''
 
-    
         # All SAFRSBase subclasses have an id, 
         # if no id is supplied, generate a new safrs id (uuid4)
         # todo: use uuid for all subclasses
@@ -288,6 +327,7 @@ class SAFRSBase(object):
         db.session.add(self)
         db.session.commit()
 
+    
     @classmethod
     @documented_api_method
     def get_list(self, id_list):
@@ -358,27 +398,44 @@ class SAFRSBase(object):
                         - name
         '''
 
-
     @classmethod
-    def get_instance(cls, id = None, failsafe = False):
+    def get_instance(cls, pk = None, failsafe = False):
         '''
             Parameters:
-                campaign_id: id of a campaign
+                id: instance id
 
             Returns:
-                Campaign instance or None. An error is raised if an invalid id is used
+                Instance or None. An error is raised if an invalid id is used
         '''
 
         instance = None
 
-        if id:
-            instance = cls.query.filter_by(id = id).first()
+        if pk:
+            try:
+                instance = cls.query.get(pk)
+            except Exception as e:
+                log.critical(e)
+
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
                 raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
 
+    @classmethod
+    @documented_api_method
+    def get_instance_by_name(cls, name):
+        '''
+            description : Retrieve the list of objects with the specified name
+            args:
+                name: 
+                    type: str
+                    example: instance_name
+
+        '''
+        
+        instances = cls.query.filter_by(name = name).all()
+        return instances
 
     def clone(self, *args, **kwargs):
         '''
@@ -426,7 +483,7 @@ class SAFRSBase(object):
         '''
 
         sample = cls.sample()
-        if sample:
+        if sample and getattr(sample, 'id', None):
             return sample.id
         else:
             return cls.id_type()
@@ -573,4 +630,3 @@ class SAFRSBase(object):
         model = SchemaClassFactory(model_name, fields)
             
         return model
-

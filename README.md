@@ -153,12 +153,16 @@ HTTP status codes are used to signal success or failure of a REST operation:
 
 In case of errors( status codes 400+ ), the log file contains a stacktrace.
 
+## More Examples and Use Cases
+The examples folder contains more examples:
+- Exposing an exisitng sqlite database as a REST service
+- Using a sha hash as primary key (id)
+
 ## Limitations & TODOs
 
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. 
 
-- All objects must have an "id" as a primary key and composite keys might not work well.
-- Only python 2 for now (Due to apache mod_wsgi & flask compatibility issues)
+- Composite keys might not work well.
 - The use of \_\_builtin\_\_ for the global variables log, db and app is a bit of a dirty hack (I'll try to work around that but it's harder than it seems)
 
 ## Thanks
