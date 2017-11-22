@@ -1,10 +1,10 @@
-# Basic Use Case
+## Basic Use Case
 demo.py : a small sample application
 
-# Relationships
+## Relationships
 demo_relationship.py : an extension of the demo.py to demonstrate relationship functionality
 
-# Expose an Existing Database
+## Expose an Existing Database
 
 skype_rest.py contains example code where I expose an existing database (skype's main.db) as a webservice
 
