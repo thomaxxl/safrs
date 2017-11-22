@@ -15,18 +15,15 @@ from safrs.db import SAFRSBase, documented_api_method
 from safrs.restful import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_marshmallow import Marshmallow
+from sqlalchemy.ext.automap import automap_base
 
-app = Flask('Skype DB API')
+app = Flask('Imported SQLite DB API')
 __builtin__.app = app
 
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite:////home/tpollet/main.db.sqlitedb',         
                    DEBUG = True)
 
 db = SQLAlchemy(app)
-
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy import create_engine, inspect
-
 
 def expose_tables():
     from sqlalchemy.orm import scoped_session
@@ -45,15 +42,6 @@ def expose_tables():
 
         session = scoped_session(sessionmaker(bind=db.engine))
         api.expose_object(sclass)
-        continue
-        try:
-            api.expose_object(sclass)
-        except UnicodeDecodeError as exc:
-            print(exc)
-        except AttributeError as exc:
-            print(exc)
-            print(sclass)
-            print(dir(sclass))
 
 
 

@@ -154,7 +154,7 @@ HTTP status codes are used to signal success or failure of a REST operation:
 In case of errors( status codes 400+ ), the log file contains a stacktrace.
 
 ## More Examples and Use Cases
-The examples folder contains more examples:
+The [examples](examples) folder contains more examples:
 - Exposing an exisitng sqlite database as a REST service
 - Using a sha hash as primary key (id)
 
