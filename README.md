@@ -161,6 +161,7 @@ This code was developed for a specific use-case and may not be flexible enough f
 
 - Composite keys might not work well.
 - The use of \_\_builtin\_\_ for the global variables log, db and app is a bit of a dirty hack (I'll try to work around that but it's harder than it seems)
+- Not all of the documentation available in swagger1 is shown with swagger2
 
 ## Thanks
 

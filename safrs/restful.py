@@ -338,11 +338,12 @@ class SAFRSRestAPI(Resource, object):
 
         if not id:
             # If no id is given, check if it's passed through a request arg
-            id = request.args.get('id')
+            id = request.args.get('id', None)
 
         limit = request.args.get('limit', UNLIMITED)
 
         if id:
+            log.info(id)
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
                 raise ValidationError('Invalid {}'.format(self.object_id))

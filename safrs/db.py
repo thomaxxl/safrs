@@ -59,6 +59,8 @@ sqlalchemy_swagger2_type = {
     'BIGINT'    : 'integer',
     'ENUM'      : 'string',
     'INTERVAL'  : 'string',
+    'CHAR'      : 'string',
+    'TIMESTAMP' : 'string'
 }
 
 
@@ -186,7 +188,7 @@ class SAFRSID(object):
         try:
             uuid.UUID(id, version=4)
         except:
-            log.error('Invalid ID "{}"').format(id)
+            log.error('Invalid ID "{}"'.format(id))
             #raise ValidationError('Invalid ID')
 
 
@@ -412,14 +414,14 @@ class SAFRSBase(object):
 
         if pk:
             try:
-                instance = cls.query.get(pk)
+                instance = cls.query.filter_by(id=pk).first()
             except Exception as e:
                 log.critical(e)
 
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
-                raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
+                raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, pk))
         return instance
 
     @classmethod
