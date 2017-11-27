@@ -94,7 +94,7 @@ This method can then be invoked with following HTTP POST Json payload:
 
 The yaml specification has to be in the first part of the function and class comments. These parts are delimited by four dashes ("----") . The rest of the comment may contain additional documentation.
 
-### ClassMethods
+### Class Methods
 
 Two class-level methods have been defined to facilitate object retrieval:
 
