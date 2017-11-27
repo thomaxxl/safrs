@@ -363,10 +363,11 @@ class SAFRSBase(object):
         '''
         
         try:
-            result = cls.query.filter_by(**kwargs)
+            result = cls.query.filter_by(**kwargs).all()
         except Exception as exc:
             raise GenericError("Failed to execute query {}".format(exc))
 
+        return result
     
     @classmethod
     def get_instance(cls, pk = None, failsafe = False):
@@ -391,21 +392,6 @@ class SAFRSBase(object):
                 # or let the client handle it?
                 raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, pk))
         return instance
-
-    @classmethod
-    @documented_api_method
-    def get_instance_by_name(cls, name):
-        '''
-            description : Retrieve the list of objects with the specified name
-            args:
-                name: 
-                    type: str
-                    example: instance_name
-
-        '''
-        
-        instances = cls.query.filter_by(name = name).all()
-        return instances
 
     def clone(self, *args, **kwargs):
         '''

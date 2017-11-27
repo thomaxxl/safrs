@@ -84,6 +84,8 @@ The User object REST methods are available on /User, the swagger schema is avail
 
 ## Methods
 
+### Custom Methods
+
 The ```send_mail``` method is documented with the ```documented_api_method``` decorator. 
 This function generates a schema based on the function documentation. This documentation contains yaml specification of the API which is used by the swagger UI. 
 This method can then be invoked with following HTTP POST Json payload:
@@ -91,6 +93,23 @@ This method can then be invoked with following HTTP POST Json payload:
 ![User Swagger](docs/images/POST_swagger.png)
 
 The yaml specification has to be in the first part of the function and class comments. These parts are delimited by four dashes ("----") . The rest of the comment may contain additional documentation.
+
+### ClassMethods
+
+Two class-level methods have been defined to facilitate object retrieval:
+
+* **lookup** : retrieve a list of objects that match the argument list. For example, following HTTP POST request to a container will retrieve a list of itemswhere the name is "thomas"
+```json
+{
+  "method": "lookup",
+  "args": {
+    "name": "thomas"
+  }
+}
+```
+
+* **get_list** : retrieve a list of the items with the specified ID's
+
 
 ## Relationships
 
