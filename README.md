@@ -148,7 +148,15 @@ HTTP status codes are used to signal success or failure of a REST operation:
 - 400 : The services raised an exception, for example in case of invalid input
 - 500 : Internal Server Error
 
-In case of errors( status codes 400+ ), the log file contains a stacktrace.
+In case of errors( status codes 400+ ), the log file contains a stacktrace. 
+Two custom exceptions are defined in errors.py: ValidationError and GenericError. 
+In case of errors, the webservice will return a default HTTP status code 500 and a customizable error message, for example
+
+```
+{
+  "error": "Failed to execute query Entity '<class 'C2_server.Image'>' has no property 'namex'"
+}
+```
 
 ## More Examples and Use Cases
 The [examples](examples) folder contains more example scripts:
