@@ -32,7 +32,7 @@ from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
 from safrs.swagger_doc import SchemaClassFactory, documented_api_method, get_doc
-from safrs.errors import ValidationError
+from safrs.errors import ValidationError, GenericError
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -353,53 +353,21 @@ class SAFRSBase(object):
 
     @classmethod
     @documented_api_method
-    def and_query(self, attr_list, operator_list, value_list):
+    def lookup(cls,  *args, **kwargs):
         '''
             description : (todo) Query an object, given an attribute, operator and value
             args:
-                attr_list:
+                name:
                     type : string 
-                    example : 
-                        - id
-                        - name
-                operator_list:
-                    type : string 
-                    example : 
-                        - like
-                        - equals
-
-                value_list:
-                    type : string 
-                    example : 
-                        - "%a%"
-                        - name
+                    example : thomas
         '''
+        
+        try:
+            result = cls.query.filter_by(**kwargs)
+        except Exception as exc:
+            raise GenericError("Failed to execute query {}".format(exc))
 
-
-    @classmethod
-    @documented_api_method
-    def or_query(self, attr_list, operator_list, value_list):
-        '''
-            description : (todo) Query an object, given an attribute, operator and value
-            args:
-                attr_list:
-                    type : string 
-                    example : 
-                        - id
-                        - name
-                operator_list:
-                    type : string 
-                    example : 
-                        - like
-                        - equals
-
-                value_list:
-                    type : string 
-                    example : 
-                        - "%a%"
-                        - name
-        '''
-
+    
     @classmethod
     def get_instance(cls, pk = None, failsafe = False):
         '''

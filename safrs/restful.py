@@ -259,14 +259,20 @@ def http_method_decorator(fun):
             result = fun(*args, **kwargs)
             db.session.commit()
             return result
-        except ValidationError as e:
-            status_code = getattr(e, 'status_code')
-            abort( status_code, error = e.message )
-        except Exception as e:
-            status_code = getattr(e, 'status_code', 400)
-            traceback.print_exc()
-            abort( status_code, error = 'Unknown Error' )
 
+        except ( ValidationError, GenericError ) as exc:
+            traceback.print_exc()
+            status_code = getattr(exc, 'status_code', 500)
+            message = exc.message
+
+        except Exception as exc:
+            status_code = getattr(exc, 'status_code', 500)
+            traceback.print_exc()
+            message = 'Unknown Error'
+            #abort( status_code, error = 'Unknown Error' )
+
+        abort(status_code , error = message)
+        
     return method_wrapper
 
 
