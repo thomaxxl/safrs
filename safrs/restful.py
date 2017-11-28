@@ -10,6 +10,7 @@ import inspect
 import uuid
 import traceback
 import datetime
+import logging
 
 from flask import Flask, make_response, url_for
 from flask import Flask, Blueprint, got_request_exception, redirect, session, url_for
@@ -27,8 +28,12 @@ from safrs.swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_
 from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 
+from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
+log = logging.getLogger()
+
 UNLIMITED = 1<<63 # used as sqla limit parameter. -1 works for sqlite but not for mysql
-SAFRSPK = 'PK}'
+SAFRSPK = 'Id}'
 
 class Api(ApiBase):
     '''
@@ -373,7 +378,6 @@ class SAFRSRestAPI(Resource, object):
         '''
             Create or update the object specified by id
         '''
-
         id = kwargs.get(self.object_id, None)
         
         data = request.get_json()
@@ -384,6 +388,7 @@ class SAFRSRestAPI(Resource, object):
 
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
+        
         instance = self.SAFRSObject(**data)
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
         obj_id   = object_id(self)
@@ -412,7 +417,8 @@ class SAFRSRestAPI(Resource, object):
         if not filter:
             raise ValidationError('Invalid ID or Filter {} {}'.format(kwargs,self.object_id))
         
-        for instance in self.SAFRSObject.query.filter_by(**filter).all():
+        for instance in db.session.query(self.SAFRSObject).filter_by(**filter).all():
+            log.info(instance)
             db.session.delete(instance)
             db.session.commit()
 

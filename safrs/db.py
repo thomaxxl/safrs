@@ -16,6 +16,8 @@ import uuid
 import inspect
 import hashlib
 import datetime
+import logging
+log = logging.getLogger()
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
@@ -35,6 +37,10 @@ from safrs.swagger_doc import SchemaClassFactory, documented_api_method, get_doc
 from safrs.errors import ValidationError, GenericError
 
 from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
+
+from flask_marshmallow import Marshmallow
+ma = Marshmallow()
 
 
 #
@@ -188,8 +194,7 @@ class SAFRSID(object):
         try:
             uuid.UUID(id, version=4)
         except:
-            log.error('Invalid ID "{}"'.format(id))
-            #raise ValidationError('Invalid ID')
+            raise ValidationError('Invalid ID')
 
 
 class SAFRSSHA256HashID(SAFRSID):
@@ -266,7 +271,8 @@ class SAFRSBase(object):
         '''
             If an object with given arguments already exists, this object is instantiated
         '''
-
+        # TODO: take care of objects with a pk other than "id"
+        pk = kwargs.get('id', None)
         primary_keys = {}
         for col in cls.__table__.columns:
             if col.primary_key:
@@ -275,8 +281,9 @@ class SAFRSBase(object):
         instance = cls.query.filter_by(**primary_keys).first()
 
         if instance:
-            log.debug('{} exists for {} '.format(cls.__name__, 
-                                                     str(kwargs)))
+            log.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
+        elif pk:
+            raise ValidationError('Object with ID {} not found'.format(pk))
         else:
             instance = object.__new__(cls)
 
@@ -291,7 +298,8 @@ class SAFRSBase(object):
 
         # All SAFRSBase subclasses have an id, 
         # if no id is supplied, generate a new safrs id (uuid4)
-        # todo: use uuid for all subclasses
+        # instantiate the id with the "id_type", this will validate the id if
+        # validation is implemented
         kwargs['id'] = self.id_type(kwargs.get('id', None))
 
         # Set the json parameters
@@ -355,7 +363,7 @@ class SAFRSBase(object):
     @documented_api_method
     def lookup(cls,  *args, **kwargs):
         '''
-            description : (todo) Query an object, given an attribute, operator and value
+            description : Retrieve all matching objects
             args:
                 name:
                     type : string 

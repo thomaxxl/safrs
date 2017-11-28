@@ -5,6 +5,10 @@ import traceback
 
 from sqlalchemy.exc import DontWrapMixin
 from flask_restful import abort
+import logging
+log = logging.getLogger()
+from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
 
 class ValidationError(Exception, DontWrapMixin):
     '''
