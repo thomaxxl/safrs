@@ -301,10 +301,7 @@ class SAFRSBase(object):
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
         # validation is implemented
-        log.debug('kwargs')
-        log.debug(kwargs)
         kwargs['id'] = self.id_type(kwargs.get('id', None))
-        log.debug(kwargs)
         
         # Set the json parameters
         init_object_schema(self)
@@ -436,7 +433,11 @@ class SAFRSBase(object):
         if not self.object_schema:
             self.init_object_schema()
 
-        return self.object_schema.dump(self).data
+        #return self.object_schema.dump(self).data
+        result = {}
+        for f in self.json_params:
+            result[f] = getattr(self,f)
+        return result
 
     def __unicode__(self):
         name = getattr(self,'name',self.__class__.__name__)

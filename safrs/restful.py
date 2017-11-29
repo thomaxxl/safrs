@@ -366,9 +366,7 @@ class SAFRSRestAPI(Resource, object):
             instances = self.SAFRSObject.query.limit(limit).all()
             details = request.args.get('details',None)
             if details == None:
-                result = [ item.id for item in instances ]
-                log.debug(result)
-                
+                result = [ item.id for item in instances ]                
             else:
                 result = [ item for item in instances ]
             
