@@ -20,7 +20,7 @@ class ValidationError(Exception, DontWrapMixin):
     def __init__(self, message = '', status_code=None, payload=None):
         Exception.__init__(self)
         self.message = message
-        log.error(traceback.format_exc())
+        #log.error(traceback.format_exc())
         log.error('ValidationError: {}'.format(message))
         db.session.rollback()
 

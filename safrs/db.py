@@ -193,6 +193,7 @@ class SAFRSID(object):
     def validate_id(cls, id):
         try:
             uuid.UUID(id, version=4)
+            return id
         except:
             raise ValidationError('Invalid ID')
 
@@ -271,8 +272,9 @@ class SAFRSBase(object):
         '''
             If an object with given arguments already exists, this object is instantiated
         '''
+        log.debug(cls)
+        log.debug(kwargs)
         # TODO: take care of objects with a pk other than "id"
-        pk = kwargs.get('id', None)
         primary_keys = {}
         for col in cls.__table__.columns:
             if col.primary_key:
@@ -282,8 +284,6 @@ class SAFRSBase(object):
 
         if instance:
             log.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
-        elif pk:
-            raise ValidationError('Object with ID {} not found'.format(pk))
         else:
             instance = object.__new__(cls)
 
@@ -300,8 +300,11 @@ class SAFRSBase(object):
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
         # validation is implemented
+        log.debug('kwargs')
+        log.debug(kwargs)
         kwargs['id'] = self.id_type(kwargs.get('id', None))
-
+        log.debug(kwargs)
+        
         # Set the json parameters
         init_object_schema(self)
         # Initialize the attribute values: these have been passed as key-value pairs in the
@@ -336,7 +339,6 @@ class SAFRSBase(object):
 
         db.session.add(self)
         db.session.commit()
-
     
     @classmethod
     @documented_api_method
@@ -368,6 +370,8 @@ class SAFRSBase(object):
                 name:
                     type : string 
                     example : thomas
+            --------
+            This is actually a wrapper for query, but .query is already taken :)
         '''
         
         try:
@@ -378,7 +382,7 @@ class SAFRSBase(object):
         return result
     
     @classmethod
-    def get_instance(cls, pk = None, failsafe = False):
+    def get_instance(cls, id = None, failsafe = False):
         '''
             Parameters:
                 id: instance id
@@ -388,17 +392,16 @@ class SAFRSBase(object):
         '''
 
         instance = None
-
-        if pk:
+        if id:
             try:
-                instance = cls.query.filter_by(id=pk).first()
+                instance = cls.query.filter_by(id=id).first()
             except Exception as e:
                 log.critical(e)
 
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
-                raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, pk))
+                raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
 
     def clone(self, *args, **kwargs):

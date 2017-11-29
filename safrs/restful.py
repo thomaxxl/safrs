@@ -29,6 +29,8 @@ from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 
 from flask_sqlalchemy import SQLAlchemy
+import sqlalchemy
+
 db = SQLAlchemy()
 log = logging.getLogger()
 
@@ -388,8 +390,12 @@ class SAFRSRestAPI(Resource, object):
 
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
-        
-        instance = self.SAFRSObject(**data)
+        try:
+            instance = self.SAFRSObject(**data)
+        except sqlalchemy.exc.SQLAlchemyError as exc:
+            # Exception may arise when a db constrained has been violated (e.g. duplicate key)
+            raise GenericError(str(exc))
+
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
         obj_id   = object_id(self)
         obj_args = { obj_id : instance.id }
