@@ -27,9 +27,7 @@ from safrs.db import SAFRSBase, ValidationError
 from safrs.swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_relationship_doc
 from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
-
 from flask_sqlalchemy import SQLAlchemy
-import sqlalchemy
 
 db = SQLAlchemy()
 log = logging.getLogger()

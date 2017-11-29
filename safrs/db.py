@@ -19,6 +19,7 @@ import datetime
 import logging
 log = logging.getLogger()
 
+import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
 from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
