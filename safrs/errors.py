@@ -37,6 +37,6 @@ class GenericError(Exception, DontWrapMixin):
     def __init__(self, message):
         Exception.__init__(self)
         self.message = message
-        log.critical(traceback.format_exc())
-        log.critical('Generic Error: {}'.format(message))
+        log.debug(traceback.format_exc())
+        log.error('Generic Error: {}'.format(message))
         db.session.rollback()

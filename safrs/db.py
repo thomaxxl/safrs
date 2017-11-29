@@ -272,21 +272,21 @@ class SAFRSBase(object):
         '''
             If an object with given arguments already exists, this object is instantiated
         '''
-        log.debug(cls)
-        log.debug(kwargs)
-        # TODO: take care of objects with a pk other than "id"
+        
+        # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = {}
         for col in cls.__table__.columns:
             if col.primary_key:
                 primary_keys [ col.name ] = kwargs.get(col.name)
 
+        # Lookup the object with the PKs
         instance = cls.query.filter_by(**primary_keys).first()
 
-        if instance:
-            log.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
-        else:
+        if not instance:
             instance = object.__new__(cls)
-
+        else:
+            log.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
+            
         return instance
 
     def __init__(self, *args, **kwargs ):
@@ -338,7 +338,12 @@ class SAFRSBase(object):
                     rel_attr.append(rel_object)
 
         db.session.add(self)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except sqlalchemy.exc.SQLAlchemyError as exc:
+            # Exception may arise when a db constrained has been violated (e.g. duplicate key)
+            raise GenericError(str(exc))
+
     
     @classmethod
     @documented_api_method
@@ -438,7 +443,7 @@ class SAFRSBase(object):
 
     def __str__(self):
         name = getattr(self,'name',self.__class__.__name__)
-        return name
+        return 'SAFRS::{}'.format(name)
 
     #
     # Following methods are used to create the swagger2 API documentation
