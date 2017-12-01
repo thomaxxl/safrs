@@ -1,5 +1,9 @@
 ## Basic Use Case
 demo.py : a small sample application
+example use:
+```python
+PYTHONPATH=$PWD python3 examples/demo.py 10.0.0.9
+```
 
 ## Relationships
 demo_relationship.py : an extension of the demo.py to demonstrate relationship functionality
