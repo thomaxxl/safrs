@@ -260,10 +260,7 @@ def swagger_relationship_doc(cls, tags = None):
                                                            ] 
                                                 })
             rel_post_schema = schema_from_dict('{} Relationship'.format(class_name), 
-                                                { "name": {
-                    "type": "string",
-                    "example": "test_book"
-                }
+                                                { "name": "test_book"
                                                 })
             parameters.append( {
                                     'name': '{} body'.format(class_name),
