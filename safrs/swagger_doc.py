@@ -256,15 +256,7 @@ def swagger_relationship_doc(cls, tags = None):
                                                                                 parent_name)
             # TODO: change this crap
             put_model, responses = child_class.get_swagger_doc('patch')
-            parameters.append( {
-                                    'name': 'body',
-                                    'in': 'body',
-                                    'type': 'string',
-                                    'description' : '{} POST model'.format(class_name),
-                                    'schema' : put_model,
-                                    }
-                                )
-
+            
             for post_param in post_params:
                 continue
                 method_name = post_param['method']['name']
