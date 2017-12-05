@@ -211,6 +211,15 @@ def swagger_relationship_doc(cls, tags = None):
             doc['description'] =  'Add a {} object to the {} relation on {}'.format(child_class.__name__, 
                                                                                 cls.relationship.key,
                                                                                 parent_name)
+            put_model, responses = child_class.get_swagger_doc(http_method)
+            parameters.append({
+                                    'name': 'body',
+                                    'in': 'body',
+                                    'type': 'string',
+                                    'description' : '{} POST model'.format(class_name),
+                                    'schema' : put_model,
+                                  })
+
             for post_param in post_params:
                 method_name = post_param['method']['name']
                 method_desc = post_param['method']['description']
