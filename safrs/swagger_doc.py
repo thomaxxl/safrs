@@ -80,7 +80,7 @@ def schema_from_dict(name, schema_dict):
         if type(k) == int:
             result[k] = { 'example' : v, 'type' : 'integer' }
         if type(k) == dict:
-            result[k] = { 'schema' : schema_from_dict('{} sample'.format(k), v) }
+            result[k] = { 'example' : schema_from_dict('{} sample'.format(k), v) }
 
     # generate random name 
     return SchemaClassFactory(name, result)
