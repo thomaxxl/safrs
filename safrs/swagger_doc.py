@@ -262,6 +262,7 @@ def swagger_relationship_doc(cls, tags = None):
                                     'type': 'string',
                                     'description' : '{} POST model'.format(class_name),
                                     'schema' : put_model,
+                                    'required': True,
                                     }
                                 )
 
