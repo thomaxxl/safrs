@@ -606,16 +606,9 @@ class SAFRSRelationshipObject(object):
                              }
                     }
 
-        if http_method == 'patch':
-            body = object_model
-            responses = { '200' : {
-                                    'description' : 'Object successfully Updated',
-                                  }
-                        }
-
         if http_method == 'post':
             responses = { '200' : {
-                                    'description' : 'API call processed successfully',
+                                    'description' : 'Success',
                                   }
                         }
 

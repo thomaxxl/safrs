@@ -175,13 +175,17 @@ def swagger_relationship_doc(cls, tags = None):
                         'name': parent_class.object_id,
                         'in': 'path',
                         'type': 'string',
-                        'default': parent_class.sample_id()
+                        'default': parent_class.sample_id(),
+                        'description': '{} item'.format(parent_class.__name__),
+                        'required' : True
                        },
                        {
                         'name': child_class.object_id,
                         'in': 'path',
                         'type': 'string',
-                        'default': child_class.sample_id()
+                        'default': child_class.sample_id(),
+                        'description': '{} item'.format(class_name),
+                        'required' : False
                        }]
 
         parent_name = parent_class.__name__
