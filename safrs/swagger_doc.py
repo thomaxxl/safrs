@@ -140,9 +140,7 @@ def swagger_doc(cls, tags = None):
 
             if post_params:
                 post_model, responses = cls.get_swagger_doc('patch')
-                print(class_name)
                 sample = cls.sample()
-                print(sample.to_dict())
                 if sample:
                     sample_data = schema_from_dict('{} POST sample'.format(class_name) ,
                                                     { 'data' : 
@@ -256,12 +254,17 @@ def swagger_relationship_doc(cls, tags = None):
                                                                                 parent_name)
             # TODO: change this crap
             put_model, responses = child_class.get_swagger_doc('patch')
+            rel_post_schema = schema_from_dict('{} Relationship'.format(class_name), 
+                                                { 'data' : [ 
+                                                            { 'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
+                                                           ] 
+                                                })
             parameters.append( {
                                     'name': '{} body'.format(class_name),
                                     'in': 'body',
                                     'type': 'string',
                                     'description' : '{} POST model'.format(class_name),
-                                    'schema' : put_model,
+                                    'schema' : rel_post_schema,
                                     'required': True,
                                     }
                                 )
