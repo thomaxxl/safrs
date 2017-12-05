@@ -83,7 +83,7 @@ def schema_from_dict(name, schema_dict):
             result[k] = { 'example' : schema_from_dict('{} sample'.format(k), v) }
 
     # generate random name 
-    return SchemaClassFactory(name, result)
+    return SchemaClassFactory(name + str(uuid.uuid4()), result)
 
 def swagger_doc(cls, tags = None):
 
