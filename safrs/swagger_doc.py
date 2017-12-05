@@ -145,9 +145,11 @@ def swagger_doc(cls, tags = None):
                 print(sample.to_dict())
                 if sample:
                     sample_data = schema_from_dict('{} POST sample'.format(class_name) ,
-                                                    { 'attributes' : sample.to_dict(), 
-                                                      'id' : cls.sample_id(),
-                                                      'type' : class_name 
+                                                    { 'data' : 
+                                                        { 'attributes' : sample.to_dict(), 
+                                                          'id' : cls.sample_id(),
+                                                          'type' : class_name 
+                                                        }
                                                     })
                 else:
                     sample_data = {}
@@ -157,7 +159,7 @@ def swagger_doc(cls, tags = None):
                                     'name': 'POST body',
                                     'in': 'body',
                                     'description' : '{} attributes'.format(class_name),
-                                    'schema' : post_model,
+                                    'schema' : sample_data,
                                     'required' : True
                                   })
 
