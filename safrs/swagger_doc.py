@@ -179,19 +179,27 @@ def swagger_doc(cls, tags = None):
                         }
 
         elif http_method == 'patch':
-            patch_model, responses = cls.get_swagger_doc(http_method)
-            doc['summary'] =  'Update a {} object'.format(class_name)
-            parameters.append({ 
-                                'name': 'test',
+            post_model, responses = cls.get_swagger_doc('patch')
+            sample = cls.sample()
+            if sample:
+                sample_data = schema_from_object('{} POST sample'.format(class_name) ,
+                                                { 'data' : 
+                                                    { 'attributes' : sample.to_dict(), 
+                                                      'id' : cls.sample_id(),
+                                                      'type' : class_name 
+                                                    }
+                                                })
+            else:
+                sample_data = {}
+            
+            post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
+            parameters.append({
+                                'name': 'POST body',
                                 'in': 'body',
-                                'schema' : patch_model,
-                                'description': '{} attributes'.format(class_name),
+                                'description' : '{} attributes'.format(class_name),
+                                'schema' : sample_data,
                                 'required' : True
                               })
-            responses = { '201' : { 
-                                    'description' : 'Object Created' 
-                                    }
-                        }
         else:
             # one of 'options', 'head', 'patch'
             log.debug('no documentation for "{}" '.format(http_method))
