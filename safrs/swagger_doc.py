@@ -152,7 +152,7 @@ def swagger_doc(cls, tags = None):
                 else:
                     sample_data = {}
                 
-                post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': { 'schema' : sample_data} })
+                post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
                 parameters.append({
                                     'name': 'POST body',
                                     'in': 'body',
