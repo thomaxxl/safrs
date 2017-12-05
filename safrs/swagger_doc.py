@@ -71,21 +71,25 @@ def SchemaClassFactory(name, properties):
     return newclass
 
 
-def schema_from_dict(name, schema_dict):
+def schema_from_object(name, object):
 
     result = {}
-    for k, v in schema_dict.items():
-        if type(k) == str:
-            result[k] = { 'example' : v, 'type' : 'string' }
-        if type(k) == int:
-            result[k] = { 'example' : v, 'type' : 'integer' }
-        if type(k) == dict:
-            result[k] = { 'example' : schema_from_dict('{} sample'.format(k), v) }
-        if type(k) == list:
-            result[k] = { 'items' : schema_from_dict('{} sample'.format(k), v),
+    if type(object) == list:
+            result[k] = { 'items' : schema_from_object('{} sample'.format(k), v),
                           'type'  : 'array'
                         }
 
+    
+    elif type(object) == dict:
+        for k, v in object.items():
+            if type(k) == str:
+                result[k] = { 'example' : v, 'type' : 'string' }
+            if type(k) == int:
+                result[k] = { 'example' : v, 'type' : 'integer' }
+            if type(k) == dict:
+                result[k] = { 'example' : schema_from_object('{} sample'.format(k), v) }
+    else:
+        raise ValidationError('Invalid schema object type {}'.format(type(object)))
 
     # generate random name 
     return SchemaClassFactory(name + str(uuid.uuid4()), result)
@@ -147,7 +151,7 @@ def swagger_doc(cls, tags = None):
                 post_model, responses = cls.get_swagger_doc('patch')
                 sample = cls.sample()
                 if sample:
-                    sample_data = schema_from_dict('{} POST sample'.format(class_name) ,
+                    sample_data = schema_from_object('{} POST sample'.format(class_name) ,
                                                     { 'data' : 
                                                         { 'attributes' : sample.to_dict(), 
                                                           'id' : cls.sample_id(),
@@ -259,12 +263,12 @@ def swagger_relationship_doc(cls, tags = None):
                                                                                 parent_name)
             # TODO: change this crap
             put_model, responses = child_class.get_swagger_doc('patch')
-            rel_post_schema = schema_from_dict('{} Relationship'.format(class_name), 
+            rel_post_schema = schema_from_object('{} Relationship'.format(class_name), 
                                                 { 'data' : [ 
                                                             { 'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
                                                            ] 
                                                 })
-            rel_post_schema = schema_from_dict('{} Relationship'.format(class_name), 
+            rel_post_schema = schema_from_object('{} Relationship'.format(class_name), 
                                                 { "data": []
                                                 })
             parameters.append( {
