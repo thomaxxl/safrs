@@ -128,13 +128,12 @@ def swagger_doc(cls, tags = None):
                         }
 
         elif http_method == 'patch':
-            put_model, responses = cls.get_swagger_doc(http_method)
+            patch_model, responses = cls.get_swagger_doc(http_method)
             doc['summary'] =  'Update a {} object'.format(class_name)
             parameters.append({ 
                                 'name': 'test',
                                 'in': 'body',
-                                'type': 'string',
-                                'schema' : put_model,
+                                'schema' : patch_model,
                                 'description': '{} attributes'.format(class_name),
                                 'required' : True
                               })
