@@ -77,6 +77,8 @@ def schema_from_dict(name, schema_dict):
     for k, v in schema_dict.items():
         if type(k) == str:
             result[k] = { 'example' : v, 'type' : 'string' }
+        if type(k) == int:
+            result[k] = { 'example' : v, 'type' : 'integer' }
         if type(k) == dict:
             result[k] = { 'schema' : schema_from_dict('{} sample'.format(k), v) }
 
