@@ -140,8 +140,9 @@ def swagger_doc(cls, tags = None):
 
             if post_params:
                 post_model, responses = cls.get_swagger_doc('patch')
-
+                print(class_name)
                 sample = cls.sample()
+                print(sample.to_dict())
                 if sample:
                     sample_data = schema_from_dict('{} POST sample'.format(class_name) ,
                                                     { 'attributes' : sample.to_dict(), 
@@ -151,7 +152,7 @@ def swagger_doc(cls, tags = None):
                 else:
                     sample_data = {}
                 
-                post_model = SchemaClassFactory('POST body', {'data': { 'schema' : sample_data} })
+                post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': { 'schema' : sample_data} })
                 parameters.append({
                                     'name': 'POST body',
                                     'in': 'body',
