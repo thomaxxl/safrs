@@ -135,6 +135,7 @@ def swagger_doc(cls, tags = None):
                                 'in': 'body',
                                 'type': 'string',
                                 'schema' : put_model,
+                                'description': '{} attributes'.format(class_name),
                                 'required' : True
                               })
             responses = { '201' : { 
