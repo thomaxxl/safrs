@@ -407,7 +407,11 @@ class SAFRSRestAPI(Resource, object):
 
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
-        instance = self.SAFRSObject(**attributes)
+        instance = self.SAFRSObject.get_instance(id)
+        if not instance:
+            raise ValidationError('Invalid ID')
+        print(kwargs)
+        instance.patch(**attributes)
         
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
         obj_args = { instance.object_id : instance.id }
@@ -443,7 +447,7 @@ class SAFRSRestAPI(Resource, object):
 
         id = kwargs.get(self.object_id, None)
         if id != None:
-            data = {'errror' : 'not implemented'}
+            return self.patch(**kwargs)
         else:
             data = request.get_json().get('data')
             if data == None:

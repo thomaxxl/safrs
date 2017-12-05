@@ -350,6 +350,11 @@ class SAFRSBase(object):
             # Exception may arise when a db constrained has been violated (e.g. duplicate key)
             raise GenericError(str(exc))
 
+    def patch(self, **kwargs):
+        for attr in self.json_params:
+            value = kwargs.get(attr,None)
+            if value:
+                setattr(self, attr, value)
     
     @classmethod
     @documented_api_method
@@ -438,10 +443,7 @@ class SAFRSBase(object):
             this method will be called by SAFRSJSONEncoder 
 
         '''
-        if not self.object_schema:
-            self.init_object_schema()
 
-        #return self.object_schema.dump(self).data
         result = {}
         for f in self.json_params:
             if f == 'id': continue # jsonapi schema prohibits the use of the "id" field in the attributes
