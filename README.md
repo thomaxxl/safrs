@@ -28,7 +28,11 @@ cd safrs
 virtualenv safrs
 source safrs/bin/activate
 pip install -r requirements.txt
-python examples/demo.py [web-ip]
+```
+
+The examples can be started with 
+```
+$ python3 examples/demo.py "your-interface-ip"
 ```
 
 ## HTTP Methods
@@ -36,9 +40,9 @@ python examples/demo.py [web-ip]
 The objects can be queried using a REST API. The APIs support following HTTP operations:
 
 - GET : Retrieve an object or a list of object identifiers
-- PUT : Create or Update an object. The "Location" header of the response contains the URL of the resource
-- DELETE: Delete an object
-- POST : Apply a method to an object (e.g. user.send_mail(email) instructs the backend to send an email)
+- PATCH : Update an object.
+- DELETE: Delete an object.
+- POST : Create an object, or apply a method to an object (e.g. user.send_mail(email) instructs the backend to send an email)
 
 ## Objects
 
@@ -73,7 +77,7 @@ class User(SAFRSBase, db.Model):
 ```
 
 The User class is implemented as a subclass of 
-- db.Model: SQLAlchemy object
+- db.Model: SQLAlchemy base
 - SAFRSBase: Implements JSON serialization for the object and generates (swagger) API documentation
 
 This User object is then exposed through the web interface using the Api object

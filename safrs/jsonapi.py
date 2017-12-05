@@ -237,7 +237,7 @@ class Api(ApiBase):
                         
                         if method == 'post' and not swagger_url.endswith(SAFRSPK) and not parameter.get('description','').endswith('(classmethod)'):
                             # Only classmethods should be added when there's no {id} in the POST path for this method
-                            # continue
+                            #continue
                             pass
                         if not ( parameter.get('in') == 'path' and not object_id in swagger_url ):
                             # Only if a path param is in path url then we add the param
@@ -775,6 +775,8 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
         kwargs['require_child'] = True
         parent, relation = self.parse_args(**kwargs)
+        child_id =  kwargs.get(self.child_object_id,None)
+        child = self.child_class.get_instance(child_id)
         if child in relation:
             relation.remove(child)
         else:

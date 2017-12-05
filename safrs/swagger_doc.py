@@ -179,6 +179,7 @@ def swagger_doc(cls, tags = None):
                         }
 
         elif http_method == 'patch':
+            doc['summary'] =  'Update a {} object'.format(class_name)
             post_model, responses = cls.get_swagger_doc('patch')
             sample = cls.sample()
             if sample:
