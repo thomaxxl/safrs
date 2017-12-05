@@ -73,26 +73,27 @@ def SchemaClassFactory(name, properties):
 
 def schema_from_object(name, object):
 
-    result = {}
-    if type(object) == list:
-            result[k] = { 'items' : schema_from_object('{} sample'.format(k), v),
-                          'type'  : 'array'
-                        }
+    properties = {}
 
+    if type(object) == str:
+        properties = { 'example' : k, 'type' : 'string' }
     
+    elif type(object) == int:
+        properties = { 'example' : k, 'type' : 'integer' }
+
     elif type(object) == dict:
         for k, v in object.items():
-            if type(k) == str:
-                result[k] = { 'example' : v, 'type' : 'string' }
-            if type(k) == int:
-                result[k] = { 'example' : v, 'type' : 'integer' }
-            if type(k) == dict:
-                result[k] = { 'example' : schema_from_object('{} sample'.format(k), v) }
+            if type(v) == str:
+                properties[k] = { 'example' : v, 'type' : 'string' }
+            if type(v) == int:
+                properties[k] = { 'example' : v, 'type' : 'integer' }
+            if type(v) == dict or type(v) == list:
+                properties[k] = { 'example' : v, 'type' : 'string' }
     else:
         raise ValidationError('Invalid schema object type {}'.format(type(object)))
 
     # generate random name 
-    return SchemaClassFactory(name + str(uuid.uuid4()), result)
+    return SchemaClassFactory(name + str(uuid.uuid4()), properties)
 
 def swagger_doc(cls, tags = None):
 
@@ -264,12 +265,9 @@ def swagger_relationship_doc(cls, tags = None):
             # TODO: change this crap
             put_model, responses = child_class.get_swagger_doc('patch')
             rel_post_schema = schema_from_object('{} Relationship'.format(class_name), 
-                                                { 'data' : [ 
+                                                { "data":  [ 
                                                             { 'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
                                                            ] 
-                                                })
-            rel_post_schema = schema_from_object('{} Relationship'.format(class_name), 
-                                                { "data": []
                                                 })
             parameters.append( {
                                     'name': '{} body'.format(class_name),

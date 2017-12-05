@@ -728,8 +728,30 @@ class SAFRSRestRelationshipAPI(Resource, object):
             Create a relationship
         '''
 
+        errors = []
         kwargs['require_child'] = True
-        parent, child, relation = self.parse_args(**kwargs)
+        parent, relation = self.parse_args(**kwargs)
+        
+        json  = request.get_json()
+        if type(json) != dict:
+            raise ValidationError('Invalid Object Type')
+        data = json.get('data')
+        for item in data:
+            if type(item) != dict:
+                raise ValidationError('Invalid data type')
+            child_id = item.get('id', None)
+            if child_id == None:
+                errors.append('no child id {}'.format(data))
+                log.error(errors)
+                continue
+            child = self.child_class.get_instance(child_id)
+            if not child:
+                errors.append('invalid child id {}'.format(child_id))
+                log.error(errors)
+                continue
+            relation.append(child)
+
+
         relation.append(child)
 
         return jsonify(child), 201
@@ -741,7 +763,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         '''
 
         kwargs['require_child'] = True
-        parent, child, relation = self.parse_args(**kwargs)
+        parent, relation = self.parse_args(**kwargs)
         if child in relation:
             relation.remove(child)
         else:
@@ -764,16 +786,10 @@ class SAFRSRestRelationshipAPI(Resource, object):
         parent = self.parent_class.get_instance(parent_id)
         if not parent:
             raise ValidationError('Invalid Parent Id')
-        child = None
-        child_id = kwargs.get(self.child_object_id,None)
-        if child_id != None:
-            child = self.child_class.get_instance(child_id)
-        if not child and kwargs.get('require_child', False):
-            raise ValidationError('Invalid Child Id')
 
         relation = getattr(parent, self.rel_name )
 
-        return parent, child, relation
+        return parent, relation
 
 
 class SAFRSJSONEncoder(JSONEncoder, object):
