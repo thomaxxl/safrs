@@ -523,6 +523,13 @@ class SAFRSBase(object):
                                   }
                         }
 
+        if http_method == 'post_method':
+            body = cls.get_swagger_doc_post_parameters()
+            responses = { '200' : {
+                                    'description' : 'API call processed successfully',
+                                  }
+                        }
+
         if http_method == 'post':
             body = cls.get_swagger_doc_post_parameters()
             responses = { '200' : {
@@ -633,8 +640,14 @@ class SAFRSBase(object):
         '''
         from flask import url_for
         relationships = dict()
+        
         for relationship in self.__mapper__.relationships:
-            obj_url   = url_for(self.get_endpoint())
+            
+            try:
+                obj_url = url_for(endpoint)
+            except:
+                # app not initialized
+                obj_url = ''
             rel_name  = relationship.key
             #self_link = '{}/{}/relationships/{}'.format(obj_url,
             self_link = '{}/{}/{}'.format(obj_url,

@@ -62,7 +62,6 @@ def SchemaClassFactory(name, properties):
                                        (key, self.__class__.__name__) ))
             setattr(self, key, value)
     
-    print(properties)
     newclass = type( name, 
                      (Schema,),
                      {'__init__': __init__,
@@ -70,6 +69,19 @@ def SchemaClassFactory(name, properties):
                     })
     
     return newclass
+
+
+def schema_from_dict(schema_dict):
+
+    result = {}
+    for k, v in schema_dict.items():
+        if type(k) == str:
+            result[k] = { 'example' : v, 'type' : 'string' }
+        if type(k) == dict:
+            result[k] = { 'schema' : schema_from_dict(v) }
+
+    # generate random name 
+    return SchemaClassFactory(str(uuid.uuid4()), result)
 
 def swagger_doc(cls, tags = None):
 
@@ -125,13 +137,23 @@ def swagger_doc(cls, tags = None):
                                   })
 
             if post_params:
-                patch_model, responses = cls.get_swagger_doc('patch')
+                post_model, responses = cls.get_swagger_doc('patch')
 
+                sample = cls.sample()
+                if sample:
+                    sample_data = schema_from_dict({ 'attributes' : sample.to_dict(), 
+                                                     'id' : cls.sample_id(),
+                                                     'type' : class_name } )
+                else:
+                    sample_data = {}
+                
+                print(post_model.properties)
+                post_model = SchemaClassFactory('POST body', {'data': { 'schema' : sample_data, 'type': 'string'} })
                 parameters.append({
                                     'name': 'POST body',
                                     'in': 'body',
                                     'description' : '{} attributes'.format(class_name),
-                                    'schema' : patch_model,
+                                    'schema' : post_model,
                                     'required' : True
                                   })
 
