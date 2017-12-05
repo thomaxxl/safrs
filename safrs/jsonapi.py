@@ -751,9 +751,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 continue
             relation.append(child)
 
-
-        relation.append(child)
-
         return jsonify(child), 201
         
 
