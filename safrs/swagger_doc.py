@@ -272,7 +272,6 @@ def swagger_relationship_doc(cls, tags = None):
             parameters.append( {
                                     'name': '{} body'.format(class_name),
                                     'in': 'body',
-                                    'type': 'string',
                                     'description' : '{} POST model'.format(class_name),
                                     'schema' : rel_post_schema,
                                     'required': True,
