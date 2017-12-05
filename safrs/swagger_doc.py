@@ -81,6 +81,11 @@ def schema_from_dict(name, schema_dict):
             result[k] = { 'example' : v, 'type' : 'integer' }
         if type(k) == dict:
             result[k] = { 'example' : schema_from_dict('{} sample'.format(k), v) }
+        if type(k) == list:
+            result[k] = { 'items' : schema_from_dict('{} sample'.format(k), v),
+                          'type'  : 'array'
+                        }
+
 
     # generate random name 
     return SchemaClassFactory(name + str(uuid.uuid4()), result)
@@ -260,7 +265,7 @@ def swagger_relationship_doc(cls, tags = None):
                                                            ] 
                                                 })
             rel_post_schema = schema_from_dict('{} Relationship'.format(class_name), 
-                                                { "name": "test_book"
+                                                { "data": []
                                                 })
             parameters.append( {
                                     'name': '{} body'.format(class_name),
