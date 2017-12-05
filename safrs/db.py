@@ -518,11 +518,21 @@ class SAFRSBase(object):
 
         if http_method == 'patch':
             body = object_model
-            
+            responses = { '200' : {
+                                    'description' : 'Object successfully Updated',
+                                  }
+                        }
+
         if http_method == 'post':
             body = cls.get_swagger_doc_post_parameters()
             responses = { '200' : {
                                     'description' : 'API call processed successfully',
+                                  }
+                        }
+
+        if http_method == 'get':
+            responses = { '200' : {
+                                    'description' : 'Success',
                                   }
                         }
             #responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
