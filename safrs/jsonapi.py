@@ -255,14 +255,14 @@ class Api(ApiBase):
                 self._swagger_object['paths'][swagger_url] = path_item
 
 
-        self._swagger_object['securityDefinitions'] = {
+        '''self._swagger_object['securityDefinitions'] = {
                 "api_key": {
                     "type": "apiKey",
                     "name": "api_key",
                     "in": "query"
                 }}
 
-        self._swagger_object['security'] = [ "api_key" ]
+        self._swagger_object['security'] = [ "api_key" ]'''
         super(ApiBase, self).add_resource(resource, *urls, **kwargs)
 
 
