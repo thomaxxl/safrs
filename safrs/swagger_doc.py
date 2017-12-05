@@ -1,9 +1,11 @@
 #
 # Functions for api documentation: these decorators generate the swagger schemas
 #
-import inspect, yaml, uuid
+import inspect, yaml, uuid, logging
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
+
+log = logging.getLogger()
 
 REST_DOC  = '__rest_doc' # swagger doc attribute name. If this attribute is set 
                         # this means that the function is reachable through HTTP POST
@@ -74,13 +76,12 @@ def swagger_doc(cls, tags = None):
         '''
             Decorator used to document (SAFRSBase) class methods exposed in the API
         '''
-
         default_id  = cls.sample_id()
         class_name  = cls.__name__ 
         table_name  = cls.__tablename__
         http_method = func.__name__.lower()
         parameters  = [{
-                        'name': cls.object_id(), # parameter id, e.g. UserId
+                        'name': cls.object_id, # parameter id, e.g. UserId
                         'in': 'path',
                         'type': 'string',
                         'default': default_id
@@ -103,7 +104,7 @@ def swagger_doc(cls, tags = None):
             
         elif http_method == 'post':
             post_params, responses = cls.get_swagger_doc(http_method)
-            doc['summary'] =  'Invoke a method on a {} object'.format(class_name)
+            doc['summary'] =  'Create a {} object'.format(class_name)
             for post_param in post_params:
                 method_name = post_param['method']['name']
                 method_desc = post_param['method']['description']
@@ -124,9 +125,9 @@ def swagger_doc(cls, tags = None):
                                     }
                         }
 
-        elif http_method == 'put':
+        elif http_method == 'patch' or http_method == 'patch':
             put_model, responses = cls.get_swagger_doc(http_method)
-            doc['summary'] =  'Create or Update a {} object'.format(class_name)
+            doc['summary'] =  'Update a {} object'.format(class_name)
             parameters.append({ 
                                 'name': 'test',
                                 'in': 'body',
@@ -167,13 +168,13 @@ def swagger_relationship_doc(cls, tags = None):
         table_name   = cls.__tablename__
         http_method  = func.__name__.lower()
         parameters   = [{
-                        'name': parent_class.object_id(),
+                        'name': parent_class.object_id,
                         'in': 'path',
                         'type': 'string',
                         'default': parent_class.sample_id()
                        },
                        {
-                        'name': child_class.object_id(),
+                        'name': child_class.object_id,
                         'in': 'path',
                         'type': 'string',
                         'default': child_class.sample_id()
@@ -225,9 +226,9 @@ def swagger_relationship_doc(cls, tags = None):
                                     }
                         }
 
-        elif http_method == 'put':
+        elif http_method == 'patch' or http_method == 'put':
             put_model, responses = child_class.get_swagger_doc(http_method)
-            doc['summary'] =  'Create or Update a {} object'.format(class_name)
+            doc['summary'] =  'Update a {} object'.format(class_name)
             parameters.append({ 
                                 'name': 'test',
                                 'in': 'body',

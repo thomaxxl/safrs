@@ -17,13 +17,14 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
 from safrs.db import SAFRSBase, documented_api_method
-from safrs.restful import SAFRSRestAPI, SAFRSJSONEncoder, Api
+from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_marshmallow import Marshmallow
 
 
 app = Flask('demo_app')
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',         
+app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',      
+                   SQLALCHEMY_TRACK_MODIFICATIONS = False,   
                    DEBUG = True)
 db  = SQLAlchemy(app)
 

@@ -43,7 +43,6 @@ db = SQLAlchemy()
 from flask_marshmallow import Marshmallow
 ma = Marshmallow()
 
-
 #
 # Map SQLA types to swagger2 types
 #
@@ -212,7 +211,8 @@ class SAFRSSHA256HashID(SAFRSID):
         return hashlib.sha256(now).hexdigest()
 
     @classmethod
-    def validate_id(self):
+    def validate_id(self, id):
+        # todo
         pass
 
 
@@ -269,6 +269,15 @@ class SAFRSBase(object):
             return db.session.query(_table)    
         return db.session.query(cls)
 
+    @classproperty
+    def columns(cls):
+        return list(cls.__mapper__.columns)
+
+    @classmethod
+    def get_endpoint(cls, url_prefix = '/'):
+        endpoint = '{}api.{}'.format(url_prefix, cls.__tablename__)
+        return endpoint
+
     def __new__(cls, **kwargs):
         '''
             If an object with given arguments already exists, this object is instantiated
@@ -282,7 +291,6 @@ class SAFRSBase(object):
 
         # Lookup the object with the PKs
         instance = cls.query.filter_by(**primary_keys).first()
-
         if not instance:
             instance = object.__new__(cls)
         else:
@@ -436,7 +444,11 @@ class SAFRSBase(object):
         #return self.object_schema.dump(self).data
         result = {}
         for f in self.json_params:
-            result[f] = getattr(self,f)
+            if f == 'id': continue # jsonapi schema prohibits the use of the "id" field in the attributes
+            value = getattr(self,f)
+            if value == None:
+                value = ""
+            result[f] = value
         return result
 
     def __unicode__(self):
@@ -476,7 +488,7 @@ class SAFRSBase(object):
         return first
         
 
-    @classmethod
+    @classproperty
     def object_id(cls):
         '''
             Returns the Flask url parameter name of the object, e.g. UserId
@@ -504,7 +516,7 @@ class SAFRSBase(object):
                              }
                     }
 
-        if http_method == 'put':
+        if http_method == 'patch':
             body = object_model
             
         if http_method == 'post':
@@ -600,7 +612,32 @@ class SAFRSBase(object):
                     }
             fields[column.name] = field
 
-        model_name = '{}_{}'.format(cls.__name__, 'put')
+        model_name = '{}_{}'.format(cls.__name__, 'patch')
         model = SchemaClassFactory(model_name, fields)
             
         return model
+
+    def jsonapi_encode(self):
+        '''
+            Encode object according to the jsonapi specification
+        '''
+        from flask import url_for
+        relationships = dict()
+        for relationship in self.__mapper__.relationships:
+            obj_url   = url_for(self.get_endpoint())
+            rel_name  = relationship.key
+            #self_link = '{}/{}/relationships/{}'.format(obj_url,
+            self_link = '{}/{}/{}'.format(obj_url,
+                                          self.id,
+                                          rel_name)
+            links  = dict( self = self_link, related = '' )
+            data   = []
+            relationships[rel_name] = dict(links = links, data = data)
+
+        data = dict( attributes = self.to_dict(),
+                     id = self.id,
+                     type = self.__class__.__name__,
+                     relationships = relationships
+                     )
+        return data
+    

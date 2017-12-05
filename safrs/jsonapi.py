@@ -11,9 +11,10 @@ import uuid
 import traceback
 import datetime
 import logging
+import sqlalchemy
 
 from flask import Flask, make_response, url_for
-from flask import Flask, Blueprint, got_request_exception, redirect, session, url_for
+from flask import Flask, Blueprint, got_request_exception, redirect, session
 from flask import Flask, jsonify, request, Response, g, render_template, send_from_directory
 from flask.json import JSONEncoder
 from flask_restful import reqparse
@@ -56,7 +57,8 @@ class Api(ApiBase):
         safrs_object_tablename = safrs_object.__tablename__
         api_class_name = '{}_API'.format(safrs_object_tablename)
         url = '/{}'.format(safrs_object_tablename)
-        endpoint = '{}api.{}'.format(url_prefix, safrs_object_tablename)
+        #endpoint = '{}api.{}'.format(url_prefix, safrs_object_tablename)
+        endpoint = safrs_object.get_endpoint(url_prefix)
 
         properties['SAFRSObject'] = safrs_object
         swagger_decorator = swagger_doc(safrs_object)
@@ -136,7 +138,7 @@ class Api(ApiBase):
         self.add_resource(api_class, 
                           url,
                           endpoint= endpoint, 
-                          methods = ['GET','PUT'])
+                          methods = ['GET','POST'])
 
         child_object_id = safrs_object.__name__
         if safrs_object == parent_class:
@@ -154,7 +156,7 @@ class Api(ApiBase):
         self.add_resource( api_class, 
                            url,
                            endpoint=endpoint,
-                           methods = ['GET','POST','DELETE'])
+                           methods = ['GET','DELETE'])
 
 
     def add_resource(self, resource, *urls, **kwargs):
@@ -171,7 +173,7 @@ class Api(ApiBase):
 
         path_item = {}
         definitions = {}
-        resource_methods = kwargs.get('methods',['GET','PUT','POST','DELETE'])
+        resource_methods = kwargs.get('methods',['GET','PUT','POST','DELETE', 'PATCH'])
 
         for method in [m.lower() for m in resource.methods]:
             if not method.upper() in resource_methods:
@@ -276,7 +278,8 @@ def http_method_decorator(fun):
             message = 'Unknown Error'
             #abort( status_code, error = 'Unknown Error' )
 
-        abort(status_code , error = message)
+        errors = dict(detail = message)
+        abort(status_code , errors = [errors])
         
     return method_wrapper
 
@@ -293,7 +296,7 @@ def api_decorator(cls, swagger_decorator):
     '''
 
     cors_domain = globals().get('cors_domain','No_cors_domain')
-    for method_name in [ 'get' , 'put', 'post', 'delete', 'patch' ]: # HTTP methods
+    for method_name in [ 'get' , 'post', 'delete', 'patch', 'put' ]: # HTTP methods 
         method = getattr(cls, method_name, None)
         if not method: 
             continue
@@ -306,18 +309,6 @@ def api_decorator(cls, swagger_decorator):
         setattr(cls,method_name,decorated_method)
 
     return cls
-
-
-OBJECT_ID ='{}Id'
-
-def object_id(obj):
-    '''
-        return the id of an API endpoint.
-        e.g. if the SAFRSObject class is User, return "UserId" to be used in the 
-        swagger url path: /User/<str:UserId>
-    '''
-
-    return OBJECT_ID.format(obj.SAFRSObject.__name__)
 
 
 class SAFRSRestAPI(Resource, object):
@@ -334,7 +325,7 @@ class SAFRSRestAPI(Resource, object):
         '''
             object_id is the url parameter name
         '''
-        self.object_id = self.SAFRSObject.object_id()
+        self.object_id = self.SAFRSObject.object_id
         
     def get(self, **kwargs):
         '''
@@ -361,42 +352,107 @@ class SAFRSRestAPI(Resource, object):
             # Call the method if it doesn't exist, return instance :)
             #method = getattr(instance, method_name, lambda : instance)
             #result = { 'result' : method() }
-            result = instance
+            for rel in instance.__mapper__.relationships:
+                log.info(rel)
+                log.info(rel.key)
+
+            result = instance.jsonapi_encode()
         else:
             instances = self.SAFRSObject.query.limit(limit).all()
             details = request.args.get('details',None)
             if details == None:
-                result = [ item.id for item in instances ]                
+                data = [ item.id for item in instances ]                
             else:
-                result = [ item for item in instances ]
-            
+                data = [ item for item in instances ]
+        
+            result = dict(data = data)
         return jsonify(result)    
 
-    def put(self, **kwargs):
+    def patch(self, **kwargs):
         '''
             Create or update the object specified by id
         '''
         id = kwargs.get(self.object_id, None)
         
-        data = request.get_json()
-        if data == None:
-            data = {}
-        if id:
-            data['id'] = id
+        if not id:
+            raise ValidationError('Invalid ID')
+        
+        json  = request.get_json()
+        if type(json) != dict:
+            raise ValidationError('Invalid Object Type')
+        
+        data = json.get('data')
+
+        if not data or type(data) != dict or data.get('id', None) != id:
+            raise ValidationError('Invalid Data Object')
+
+        attributes = data.get('attributes',{})
+        attributes['id'] = id
 
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
-        instance = self.SAFRSObject(**data)
+        instance = self.SAFRSObject(**attributes)
         
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-        obj_id   = object_id(self)
-        obj_args = { obj_id : instance.id }
+        obj_args = { instance.object_id : instance.id }
         # Retrieve the object json and return it to the client
         obj_data = self.get(**obj_args)
         response = make_response(obj_data, 201)
         # Set the Location header to the newly created object
         response.headers['Location'] = url_for(self.endpoint, **obj_args)
+        db.session.commit()
         return response
+
+    def post(self, **kwargs):
+        '''
+            Creating Resources ( http://jsonapi.org/format/#crud-creating )
+            A resource can be created by sending a POST request to a URL that represents a collection of resources. 
+            The request MUST include a single resource object as primary data. 
+            The resource object MUST contain at least a type member.
+
+            If a relationship is provided in the relationships member of the resource object, 
+            its value MUST be a relationship object with a data member. 
+            The value of this key represents the linkage the new resource is to have.
+
+            Response:
+            403: This implementation does not accept client-generated IDs
+            201: Created
+            202: Accepted (processing has not been completed by the time the server responds)
+            404: Not Found
+            409: Conflict
+    
+            Location Header identifying the location of the newly created resource
+            Body : created object
+        '''
+
+        id = kwargs.get(self.object_id, None)
+        if id != None:
+            data = {'errror' : 'not implemented'}
+        else:
+            data = request.get_json().get('data')
+            if data == None:
+                raise ValidationError('Request contains no data')
+            if type(data) != dict:
+                raise ValidationError('data is not a dict object')
+            
+            obj_type = data.get('type', None)
+            if not obj_type: # or type.. 
+                raise ValidationError('Invalid type member')
+
+            attributes = data.get('attributes',{})
+            # Create the object instance with the specified id and json data
+            # If the instance (id) already exists, it will be updated with the data
+            instance = self.SAFRSObject(**attributes)
+             # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+            obj_args = { instance.object_id : instance.id }
+            # Retrieve the object json and return it to the client
+            obj_data = self.get(**obj_args)
+            response = make_response(obj_data, 201)
+            # Set the Location header to the newly created object
+            response.headers['Location'] = url_for(self.endpoint, **obj_args)
+
+        return response
+
 
     def delete(self, **kwargs):
         '''
@@ -422,7 +478,7 @@ class SAFRSRestAPI(Resource, object):
 
         return jsonify({}) , 204
 
-    def post(self, **kwargs):
+    def _post(self, **kwargs):
         '''
             HTTP POST: apply actions
             Retrieves objects from the DB based on a given query filter (in POST data)
@@ -552,8 +608,8 @@ class SAFRSRestRelationshipAPI(Resource, object):
         self.child_class = self.SAFRSObject.relationship.mapper.class_
         self.rel_name = self.SAFRSObject.relationship.key
         # The object_ids are the ids in the swagger path e.g {FileId}
-        self.parent_object_id = self.parent_class.object_id()
-        self.child_object_id = self.child_class.object_id()
+        self.parent_object_id = self.parent_class.object_id
+        self.child_object_id = self.child_class.object_id
 
         if self.parent_object_id == self.child_object_id:
             # see expose_relationship: if a relationship consists of 
@@ -586,7 +642,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         return jsonify(result), 200
         
 
-    def put(self, **kwargs):
+    def patch(self, **kwargs):
         '''
             Update or create a relationship child item
 
@@ -595,7 +651,13 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
         parent, child, relation = self.parse_args(**kwargs)
         
-        data  = request.get_json()
+        json  = request.get_json()
+        if type(json) != dict:
+            raise ValidationError('Invalid Object Type')
+        data = json.get('data')
+
+        if not data or type(data) != dict:
+            raise ValidationError('Invalid Data Object Type')
 
         if child and not child.id == kwargs.get('id'):
             raise ValidationError('ID mismatch')
@@ -683,10 +745,10 @@ class SAFRSJSONEncoder(JSONEncoder, object):
     def default(self,object):
         
         if isinstance(object, SAFRSBase):
-            return object.to_dict()
+            return object.jsonapi_encode()
         if isinstance(object, datetime.datetime):
             return object.isoformat()
-
+        
         # Poor man's serialization
         result = {}
         for col in object.__table__.columns:
@@ -698,14 +760,3 @@ class SAFRSJSONEncoder(JSONEncoder, object):
 
         return result
         #return JSONEncoder.default(self, result)
-
-
-def safrs_serialize(obj):
-    '''
-        Marshmallow serialization doesn't always work. 
-        We serialize an object to a dict the easy way.
-    '''
-    result = {}
-    for f in obj.json_params:
-        result[f] = getattr(obj,f)
-    return result
