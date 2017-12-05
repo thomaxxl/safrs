@@ -211,11 +211,24 @@ class Api(ApiBase):
 
                         if method == 'get' and not swagger_url.endswith(SAFRSPK) :
                             # details parameter specifies to which details to show
-                            param = {'default': 'all', 'type': 'string', 'name': 'details', 'in': 'query'}
+                            param = { 'default': 'all', 
+                                      'type': 'string', 
+                                      'name': 'details', 
+                                      'in': 'query',
+                                      'required' : False,
+                                      'description' : 'details to be included'
+                                    }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                             # limit parameter specifies the number of items to return
-                            param = {'default': '100', 'type': 'int', 'name': 'limit', 'in': 'query'}
+                            param = { 'default': 100, 
+                                      'type': 'integer', 
+                                      'name': 'limit', 
+                                      'in': 'query', 
+                                      'format' : 'int64',
+                                      'required' : False,
+                                      'description' : 'max number of items'
+                                    }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                         

@@ -144,6 +144,7 @@ def swagger_doc(cls, tags = None):
         
         doc['parameters'] = parameters
         doc['responses']  = responses
+        doc["produces"]   = [ "application/json" ]
         
         @swagger.doc(doc)
         def wrapper( self, *args, **kwargs ):
