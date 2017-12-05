@@ -660,9 +660,11 @@ class SAFRSRestRelationshipAPI(Resource, object):
             Retrieve a relationship or list of relationship member ids
         '''
 
-        parent, child, relation = self.parse_args(**kwargs)
+        parent, relation = self.parse_args(**kwargs)
 
-        if kwargs.get(self.child_object_id):
+        child_id = kwargs.get(self.child_object_id)
+        if child_id:
+            child = self.child_class.get_instance(child_id)
             # If {ChildId} is passed in the url, return the child object
             if child in relation:
                 # item is in relationship, return the child
@@ -688,7 +690,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             to be used to create or update one-to-many mappings but also works for many-to-many etc.
         '''
 
-        parent, child, relation = self.parse_args(**kwargs)
+        parent, relation = self.parse_args(**kwargs)
         
         json  = request.get_json()
         if type(json) != dict:
