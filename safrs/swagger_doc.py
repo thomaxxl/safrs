@@ -71,17 +71,17 @@ def SchemaClassFactory(name, properties):
     return newclass
 
 
-def schema_from_dict(schema_dict):
+def schema_from_dict(name, schema_dict):
 
     result = {}
     for k, v in schema_dict.items():
         if type(k) == str:
             result[k] = { 'example' : v, 'type' : 'string' }
         if type(k) == dict:
-            result[k] = { 'schema' : schema_from_dict(v) }
+            result[k] = { 'schema' : schema_from_dict('{} sample'.format(k), v) }
 
     # generate random name 
-    return SchemaClassFactory(str(uuid.uuid4()), result)
+    return SchemaClassFactory(name, result)
 
 def swagger_doc(cls, tags = None):
 
@@ -141,9 +141,11 @@ def swagger_doc(cls, tags = None):
 
                 sample = cls.sample()
                 if sample:
-                    sample_data = schema_from_dict({ 'attributes' : sample.to_dict(), 
-                                                     'id' : cls.sample_id(),
-                                                     'type' : class_name } )
+                    sample_data = schema_from_dict('{} POST sample'.format(class_name) ,
+                                                    { 'attributes' : sample.to_dict(), 
+                                                      'id' : cls.sample_id(),
+                                                      'type' : class_name 
+                                                    })
                 else:
                     sample_data = {}
                 
