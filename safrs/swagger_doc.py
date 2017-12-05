@@ -84,7 +84,8 @@ def swagger_doc(cls, tags = None):
                         'name': cls.object_id, # parameter id, e.g. UserId
                         'in': 'path',
                         'type': 'string',
-                        'default': default_id
+                        'default': default_id,
+                        'required' : True
                       }]
 
         if tags == None :
@@ -116,6 +117,7 @@ def swagger_doc(cls, tags = None):
                                     'type': 'string',
                                     'description' : method_desc,
                                     'schema' : param_model,
+                                    'required' : True
                                   })
 
         elif http_method == 'delete':
