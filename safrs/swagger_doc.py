@@ -61,7 +61,8 @@ def SchemaClassFactory(name, properties):
                 raise ValidationError('Argument {} not valid for {}'.format( 
                                        (key, self.__class__.__name__) ))
             setattr(self, key, value)
-        
+    
+    print(properties)
     newclass = type( name, 
                      (Schema,),
                      {'__init__': __init__,
@@ -106,17 +107,31 @@ def swagger_doc(cls, tags = None):
         elif http_method == 'post':
             post_params, responses = cls.get_swagger_doc(http_method)
             doc['summary'] =  'Create a {} object'.format(class_name)
+
             for post_param in post_params:
+
                 method_name = post_param['method']['name']
                 method_desc = post_param['method']['description']
                 model_name  = '{} {} {}'.format(http_method, class_name, method_name)
                 param_model = SchemaClassFactory(model_name, post_param)
+                continue
                 parameters.append({
                                     'name': model_name,
                                     'in': 'body',
                                     'type': 'string',
                                     'description' : method_desc,
                                     'schema' : param_model,
+                                    'required' : True
+                                  })
+
+            if post_params:
+                patch_model, responses = cls.get_swagger_doc('patch')
+
+                parameters.append({
+                                    'name': 'POST body',
+                                    'in': 'body',
+                                    'description' : '{} attributes'.format(class_name),
+                                    'schema' : patch_model,
                                     'required' : True
                                   })
 
@@ -211,16 +226,19 @@ def swagger_relationship_doc(cls, tags = None):
             doc['description'] =  'Add a {} object to the {} relation on {}'.format(child_class.__name__, 
                                                                                 cls.relationship.key,
                                                                                 parent_name)
-            put_model, responses = child_class.get_swagger_doc(http_method)
-            parameters.append({
+            # TODO: change this crap
+            put_model, responses = child_class.get_swagger_doc('patch')
+            parameters.append( {
                                     'name': 'body',
                                     'in': 'body',
                                     'type': 'string',
                                     'description' : '{} POST model'.format(class_name),
                                     'schema' : put_model,
-                                  })
+                                    }
+                                )
 
             for post_param in post_params:
+                continue
                 method_name = post_param['method']['name']
                 method_desc = post_param['method']['description']
                 model_name  = '{} {} {}'.format(http_method, class_name, method_name)

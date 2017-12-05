@@ -235,7 +235,8 @@ class Api(ApiBase):
                         
                         if method == 'post' and not swagger_url.endswith(SAFRSPK) and not parameter.get('description','').endswith('(classmethod)'):
                             # Only classmethods should be added when there's no {id} in the POST path for this method
-                            continue
+                            # continue
+                            pass
                         if not ( parameter.get('in') == 'path' and not object_id in swagger_url ):
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
