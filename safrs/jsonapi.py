@@ -30,6 +30,8 @@ from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
 
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE , MANYTOMANY 
+
 db = SQLAlchemy()
 log = logging.getLogger()
 
@@ -668,9 +670,11 @@ class SAFRSRestRelationshipAPI(Resource, object):
             # If {ChildId} is passed in the url, return the child object
             if child in relation:
                 # item is in relationship, return the child
-                result = child
+                result = [ child ]
             else:
                 return 'Not Found', 404
+        elif type(relation) == self.child_class: # MANYTOONE
+            result = [ relation ]
         else:
             # No {ChildId} given: 
             # return a list of all relationship items
@@ -680,6 +684,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 result = [ item.id for item in relation ]
             else:
                 result = [ item for item in relation ]
+            
         return jsonify(result), 200
         
 

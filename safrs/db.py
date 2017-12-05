@@ -644,7 +644,7 @@ class SAFRSBase(object):
         for relationship in self.__mapper__.relationships:
             
             try:
-                obj_url = url_for(endpoint)
+                obj_url = url_for(self.get_endpoint())
             except:
                 # app not initialized
                 obj_url = ''

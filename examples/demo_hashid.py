@@ -87,5 +87,5 @@ with app.app_context():
         return redirect('/api')
 
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
-    app.run(host=HOST, port = PORT)
+    #app.run(host=HOST, port = PORT)
 
