@@ -127,14 +127,15 @@ def swagger_doc(cls, tags = None):
                                     }
                         }
 
-        elif http_method == 'patch' or http_method == 'patch':
+        elif http_method == 'patch':
             put_model, responses = cls.get_swagger_doc(http_method)
             doc['summary'] =  'Update a {} object'.format(class_name)
             parameters.append({ 
                                 'name': 'test',
                                 'in': 'body',
                                 'type': 'string',
-                                'schema' : put_model
+                                'schema' : put_model,
+                                'required' : True
                               })
             responses = { '201' : { 
                                     'description' : 'Object Created' 
