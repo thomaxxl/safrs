@@ -260,8 +260,7 @@ def swagger_relationship_doc(cls, tags = None):
                                     'name': 'body',
                                     'in': 'body',
                                     'type': 'string',
-                                    'description' : '{} POST model'.format(class_name),
-                                    'schema' : put_model,
+                                    'description' : '{} POST model'.format(class_name)
                                     }
                                 )
 
