@@ -709,7 +709,9 @@ class SAFRSRestRelationshipAPI(Resource, object):
             raise ValidationError('Child Not found')
         
         relation = getattr(parent, self.rel_name )
-        relation.append(child)
+
+        if not child in realtion:
+            relation.append(child)
         
         # arguments for GET : {ParentId} , {ChildId}
         obj_args = { 
@@ -751,7 +753,8 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 errors.append('invalid child id {}'.format(child_id))
                 log.error(errors)
                 continue
-            relation.append(child)
+            if not child in relation:
+                relation.append(child)
 
         return jsonify(child), 201
         
@@ -786,7 +789,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         if not parent:
             raise ValidationError('Invalid Parent Id')
 
-        relation = getattr(parent, self.rel_name )
+        relation = getattr(parent, self.rel_name)
 
         return parent, relation
 
