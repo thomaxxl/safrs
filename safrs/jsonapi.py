@@ -576,12 +576,44 @@ class SAFRSRelationshipObject(object):
     __name__ = 'name'
 
     @classmethod
-    def get_swagger_doc(cls,func):
-        return {}, {}
+    def get_swagger_doc(cls, http_method):
+        '''
+            Create a swagger api model based on the sqlalchemy schema 
+            if an instance exists in the DB, the first entry is used as example
+        '''
 
-    @staticmethod
-    def test():
-        return 
+        body = {}
+        responses = {}
+        object_name = cls.__name__
+
+        object_model = {}
+        responses = { '200': {  
+                                'description' : '{} object'.format(object_name),
+                                'schema': object_model
+                             }
+                    }
+
+        if http_method == 'patch':
+            body = object_model
+            responses = { '200' : {
+                                    'description' : 'Object successfully Updated',
+                                  }
+                        }
+
+        if http_method == 'post':
+            responses = { '200' : {
+                                    'description' : 'API call processed successfully',
+                                  }
+                        }
+
+        if http_method == 'get':
+            responses = { '200' : {
+                                    'description' : 'Success',
+                                  }
+                        }
+            #responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
+
+        return body, responses
 
 
 class SAFRSRestRelationshipAPI(Resource, object):
