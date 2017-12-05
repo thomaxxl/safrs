@@ -259,6 +259,9 @@ def swagger_relationship_doc(cls, tags = None):
                                                             { 'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
                                                            ] 
                                                 })
+            el_post_schema = schema_from_dict('{} Relationship'.format(class_name), 
+                                                { 
+                                                })
             parameters.append( {
                                     'name': '{} body'.format(class_name),
                                     'in': 'body',
