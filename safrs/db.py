@@ -363,10 +363,8 @@ class SAFRSBase(object):
             description: Retrieve a list of objects with the ids in id_list.
             args:
                 id_list:
-                    type: list
-                    example: 
-                        - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-                        - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+                    - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+                    - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
         '''
 
         result = []
@@ -383,9 +381,7 @@ class SAFRSBase(object):
         '''
             description : Retrieve all matching objects
             args:
-                name:
-                    type : string 
-                    example : thomas
+                thomas
             --------
             This is actually a wrapper for query, but .query is already taken :)
         '''
@@ -525,15 +521,8 @@ class SAFRSBase(object):
                                   }
                         }
 
-        if http_method == 'post_method':
-            body = cls.get_swagger_doc_post_parameters()
-            responses = { '200' : {
-                                    'description' : 'API call processed successfully',
-                                  }
-                        }
-
         if http_method == 'post':
-            body = cls.get_swagger_doc_post_parameters()
+            #body = cls.get_swagger_doc_post_parameters()
             responses = { '200' : {
                                     'description' : 'API call processed successfully',
                                   }
@@ -549,57 +538,16 @@ class SAFRSBase(object):
         return body, responses
 
     @classmethod
-    def get_swagger_doc_post_parameters(cls):
-        '''
-            create a schema for all methods which can be called through the
-            REST POST interface
+    def get_documented_api_methods(cls):
 
-            A method is called with following JSON payload:
-            { 
-                "method" : "method_name",
-                "args"   : { 
-                             "parameter1" : "value1" ,
-                             "parameter2" : "value2" , 
-                           }  
-            }
-
-            The schema is created using the values from the documented_api_method decorator,
-            returned by get_doc() 
-        '''
-
-        parameters = []
-
-        #for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
+        result = []
         for method_name, method in inspect.getmembers(cls):
             fields = {}
             rest_doc = get_doc(method)
             if rest_doc != None:
-                description  = rest_doc.get('description','')
-                if inspect.ismethod(method) and method.__self__ is cls:
-                    # Mark classmethods: only these can be called when no {id} is given as parameter
-                    # in the swagger ui
-                    description += ' (classmethod)'
-                method_field = { 
-                                  'type'    : 'string',
-                                  'example' : method_name,
-                                  'name'    : method_name,
-                                  'description' : description,
-                                }
-                fields['method'] = method_field
+                result.append(method)
 
-                method_args = rest_doc.get('args',[])
-                if method_args:
-                    model_name = '{}_{}'.format(cls.__name__, method_name)
-                    model = SchemaClassFactory(model_name, method_args )
-                    arg_field = { 
-                                   'schema' : model,
-                                   'type'   : 'string',
-                                }
-                    fields['args'] = arg_field
-
-                parameters.append(fields)
-           
-        return parameters
+        return result
 
     @classmethod
     def get_swagger_doc_object_model(cls):

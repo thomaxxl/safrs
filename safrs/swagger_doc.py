@@ -36,7 +36,6 @@ def documented_api_method(func):
         it becomes available for use through HTTP POST (i.e. public)
     '''
     api_doc = parse_object_doc(func)
-    
     setattr(func, REST_DOC, api_doc)
     return func
 
@@ -95,12 +94,144 @@ def schema_from_object(name, object):
     # generate random name 
     return SchemaClassFactory(name + str(uuid.uuid4()), properties)
 
+
+
+def get_swagger_doc_post_arguments(cls, method_name = None):
+    '''
+        create a schema for all methods which can be called through the
+        REST POST interface
+
+        A method is called with following JSON payload:
+        { 
+            "meta"   : { 
+                         "args" : { 
+                                    "parameter1" : "value1" ,
+                                    "parameter2" : "value2" , 
+                                  }
+                       } 
+        }
+
+        The schema is created using the values from the documented_api_method decorator,
+        returned by get_doc() 
+
+        We use "meta" to remain compliant with the jsonapi schema
+    '''
+
+    parameters = []
+
+    #for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
+    for name, method in inspect.getmembers(cls):
+        if name != method_name: 
+            continue
+        fields = {}
+        rest_doc = get_doc(method)
+        description = rest_doc.get('description','')
+        if rest_doc:
+            
+            method_args = rest_doc.get('args',[])
+            if method_args:
+                model_name = '{}_{}'.format(cls.__name__, method_name)
+                model = SchemaClassFactory(model_name, method_args )
+                arg_field = { 
+                               'args' : method_args,
+                            }
+                fields['meta'] = schema_from_object(model_name, arg_field)
+
+            elif method_args:
+                model_name = '{}_{}'.format(cls.__name__, method_name)
+                model = SchemaClassFactory(model_name, method_args )
+                arg_field = { 
+                               'schema' : model,
+                               'type'   : 'string',
+                            }
+                fields['meta'] = arg_field
+
+        return fields, description, method
+
+    log.critical('Shouldnt get here')
+
+
+
+def swagger_method_doc(cls, method_name, tags = None):
+
+    def swagger_doc_gen( func ):
+        
+        class_name = cls.__name__
+        if tags == None :
+            doc_tags = [ table_name ]
+        else:
+            doc_tags = tags
+
+        doc = { 'tags': doc_tags,
+                'description': 'Invoke {}.{}'.format(class_name, method_name),
+                'summary': 'Invoke {}.{}'.format(class_name, method_name),
+              }
+
+        model_name  = '{} {} {}'.format('invoke ', class_name, method_name)
+        param_model = SchemaClassFactory(model_name, {})
+
+        post_param, description, method = get_swagger_doc_post_arguments(cls, method_name)
+
+        '''if inspect.ismethod(method) and method.__self__ is cls:
+            # Mark classmethods: only these can be called when no {id} is given as parameter
+            # in the swagger ui
+            description += ' (classmethod)' '''
+
+            
+        parameters = []
+        #
+        # Retrieve the swagger schemas for the documented_api_methods
+        #
+        model_name  = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
+        param_model = SchemaClassFactory(model_name, post_param)
+        parameters.append({
+                            'name': model_name,
+                            'in': 'body',
+                            'type': 'string',
+                            'description' : description,
+                            'schema' : param_model,
+                            'required' : True
+                          })
+
+        # URL Path Parameter
+        default_id  = cls.sample_id()
+        parameters.append({
+                        'name': cls.object_id, # parameter id, e.g. UserId
+                        'in': 'path',
+                        'type': 'string',
+                        'default': default_id,
+                        'required' : True
+                      })
+        
+        doc['parameters'] = parameters
+        doc["produces"]   = [ "application/json" ]
+        doc['responses']  = responses = { '200' : { 
+                                    'description' : 'Success' 
+                                    }
+                        }
+
+        #doc['parameters'] = [{'required': True, 'name': 'post Hash get_list', 'schema': param_model, 'type': 'string', 'in': 'body', 'description': 'Retrieve a list of objects with the ids in id_list. (classmethod)'}]
+
+        @swagger.doc(doc)
+        def wrapper( self, *args, **kwargs ):
+            val = func( self, *args, **kwargs )
+            return val
+        
+        return wrapper
+
+    return swagger_doc_gen
+
+#
+# Decorator is called when a swagger endpoint class is instantiated
+# from API.expose_object eg.
+#
 def swagger_doc(cls, tags = None):
 
     def swagger_doc_gen( func ):
         '''
             Decorator used to document (SAFRSBase) class methods exposed in the API
         '''
+        
         default_id  = cls.sample_id()
         class_name  = cls.__name__ 
         table_name  = cls.__tablename__
@@ -112,7 +243,7 @@ def swagger_doc(cls, tags = None):
                         'default': default_id,
                         'required' : True
                       }]
-
+        
         if tags == None :
             doc_tags = [ table_name ]
         else:
@@ -129,47 +260,40 @@ def swagger_doc(cls, tags = None):
             _ , responses = cls.get_swagger_doc(http_method)
             
         elif http_method == 'post':
-            post_params, responses = cls.get_swagger_doc(http_method)
+            _, responses = cls.get_swagger_doc(http_method)
             doc['summary'] =  'Create a {} object'.format(class_name)
 
-            for post_param in post_params:
-
-                method_name = post_param['method']['name']
-                method_desc = post_param['method']['description']
-                model_name  = '{} {} {}'.format(http_method, class_name, method_name)
-                param_model = SchemaClassFactory(model_name, post_param)
-                continue
-                parameters.append({
-                                    'name': model_name,
-                                    'in': 'body',
-                                    'type': 'string',
-                                    'description' : method_desc,
-                                    'schema' : param_model,
-                                    'required' : True
-                                  })
-
-            if post_params:
-                post_model, responses = cls.get_swagger_doc('patch')
-                sample = cls.sample()
-                if sample:
-                    sample_data = schema_from_object('{} POST sample'.format(class_name) ,
-                                                    { 'data' : 
-                                                        { 'attributes' : sample.to_dict(), 
-                                                          'id' : cls.sample_id(),
-                                                          'type' : class_name 
-                                                        }
-                                                    })
-                else:
-                    sample_data = {}
-                
-                post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
-                parameters.append({
-                                    'name': 'POST body',
-                                    'in': 'body',
-                                    'description' : '{} attributes'.format(class_name),
-                                    'schema' : sample_data,
-                                    'required' : True
-                                  })
+            #
+            # Create the default POST body schema
+            #        
+            sample = cls.sample()
+            if sample:
+                sample_data = schema_from_object('{} POST sample'.format(class_name) ,
+                                                { 'data' : 
+                                                    { 'attributes' : sample.to_dict(), 
+                                                      'id' : cls.sample_id(),
+                                                      'type' : class_name 
+                                                    }
+                                                })
+            elif cls.sample_id():
+                sample_data = schema_from_object('{} POST sample'.format(class_name) ,
+                                                { 'data' : 
+                                                    { 'attributes' : {}, 
+                                                      'id' : cls.sample_id(),
+                                                      'type' : class_name 
+                                                    }
+                                                })
+            else:
+                sample_data = {}
+            
+            post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
+            parameters.append({
+                                'name': 'POST body',
+                                'in': 'body',
+                                'description' : '{} attributes'.format(class_name),
+                                'schema' : sample_data,
+                                'required' : True
+                              })
 
         elif http_method == 'delete':
             doc['summary'] =  doc['description'] = 'Delete a {} object'.format(class_name)
@@ -266,7 +390,7 @@ def swagger_relationship_doc(cls, tags = None):
             _ , responses = cls.get_swagger_doc(http_method)
             
         elif http_method == 'post':
-            post_params, responses = cls.get_swagger_doc(http_method)
+            _, responses = cls.get_swagger_doc(http_method)
             doc['summary'] = 'Update {}'.format(cls.relationship.key)
             doc['description'] =  'Add a {} object to the {} relation on {}'.format(child_class.__name__, 
                                                                                 cls.relationship.key,
@@ -287,19 +411,6 @@ def swagger_relationship_doc(cls, tags = None):
                                     }
                                 )
 
-            for post_param in post_params:
-                continue
-                method_name = post_param['method']['name']
-                method_desc = post_param['method']['description']
-                model_name  = '{} {} {}'.format(http_method, class_name, method_name)
-                param_model = SchemaClassFactory(model_name, post_param)
-                parameters.append({
-                                    'name': model_name,
-                                    'in': 'body',
-                                    'type': 'string',
-                                    'description' : method_desc,
-                                    'schema' : param_model,
-                                  })
 
         elif http_method == 'delete':
             doc['summary'] = 'Delete from {} {}'.format(parent_name, cls.relationship.key)

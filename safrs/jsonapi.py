@@ -4,6 +4,9 @@
 #
 # Several global variables are expected to be set: app, db, cors_domain
 #
+# Configuration parameters:
+# - endpoint
+#
 
 import copy
 import inspect
@@ -20,12 +23,11 @@ from flask.json import JSONEncoder
 from flask_restful import reqparse
 from jinja2 import utils
 from flask_restful.utils import cors
-from flask_restful_swagger_2 import Resource, swagger
-from flask_restful_swagger_2 import Api as ApiBase
+from flask_restful_swagger_2 import Resource, swagger, Api as FRSApiBase
 from functools import wraps
 # safrs_rest dependencies:
 from safrs.db import SAFRSBase, ValidationError
-from safrs.swagger_doc import swagger_doc, is_public, parse_object_doc, swagger_relationship_doc
+from safrs.swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
 from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
@@ -38,7 +40,17 @@ log = logging.getLogger()
 UNLIMITED = 1<<63 # used as sqla limit parameter. -1 works for sqlite but not for mysql
 SAFRSPK = 'Id}'
 
-class Api(ApiBase):
+
+INSTANCE_URL_FMT = '{}{}/<string:{}Id>'
+
+CLASSMETHOD_URL_FMT = '{}{}/{}'
+INSTANCEMETHOD_URL_FMT = '{}{}/<string:{}>/{}'
+
+RELATIONSHIP_URL_FMT = '{}/{}'
+
+
+
+class Api(FRSApiBase):
     '''
         Subclass of the flask_restful_swagger API class where we add the expose_object method
         this method creates an API endpoint for the SAFRSBase object and corresponding swagger
@@ -54,6 +66,10 @@ class Api(ApiBase):
                 SAFRSObject = safrs_object
 
             add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
+
+            tablename: safrs_object.__tablename__, e.g. "Users"
+            classname: safrs_object.__name__, e.g. "User"
+
         '''
 
         safrs_object_tablename = safrs_object.__tablename__
@@ -78,7 +94,7 @@ class Api(ApiBase):
                           endpoint= endpoint, 
                           methods = ['GET','POST', 'PUT'])
 
-        url = '{}{}/<string:{}Id>'.format(url_prefix, safrs_object_tablename,safrs_object.__name__ )
+        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object_tablename,safrs_object.__name__ )
         endpoint = "{}api.{}Id".format(url_prefix, safrs_object_tablename)
 
         log.info('Exposing class {} on {}, endpoint: {}'.format(safrs_object_tablename, url, endpoint))
@@ -94,8 +110,52 @@ class Api(ApiBase):
         relationships =  safrs_object.__mapper__.relationships
         for relationship in relationships:
             self.expose_relationship(relationship, url, tags = [ safrs_object_tablename])
-            
 
+        # tags indicate where in the swagger hierarchy the endpoint will be shown
+        self.expose_methods(safrs_object, url_prefix, tags = [ safrs_object_tablename])
+
+
+    def expose_methods(self, safrs_object, url_prefix, tags):
+        '''
+
+        '''
+
+        ENDPOINT_FMT = '{}-api.{}'
+
+        api_methods = safrs_object.get_documented_api_methods()
+        for api_method in api_methods:
+            method_name = api_method.__name__
+            api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
+            if getattr(api_method,'__self__',None) is safrs_object:
+                # method is a classmethod
+                #
+                #
+                url = CLASSMETHOD_URL_FMT.format( url_prefix, 
+                                                  safrs_object.__tablename__, 
+                                                  method_name)
+            else:
+                url = INSTANCEMETHOD_URL_FMT.format(url_prefix, 
+                                                    safrs_object.__tablename__, 
+                                                    safrs_object.object_id, 
+                                                    method_name)
+                
+            endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object.__tablename__ + '.' + method_name)
+            swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
+            properties = { 
+                            'SAFRSObject' : safrs_object, 
+                            'method_name' : method_name 
+                        }
+            api_class = api_decorator( type(api_method_class_name, 
+                                        (SAFRSRestMethodAPI,), 
+                                        properties),
+                                        swagger_decorator)
+            log.info('Exposing method {} on {}, endpoint: {}'.format(safrs_object.__tablename__ + '.' + api_method.__name__, url, endpoint))
+            self.add_resource(api_class, 
+                          url,
+                          endpoint= endpoint, 
+                          methods = ['POST'])
+
+            
     def expose_relationship(self, relationship, url_prefix, tags):
         '''
             Expose a relationship tp the REST API:
@@ -110,6 +170,9 @@ class Api(ApiBase):
             
         '''
 
+        ENDPOINT_FMT = '{}-api.{}'
+        API_CLASSNAME_FMT = '{}_X_{}_API'
+
         properties = {}
         safrs_object = relationship.mapper.class_
         safrs_object_tablename = relationship.key
@@ -119,9 +182,9 @@ class Api(ApiBase):
         parent_name  = parent_class.__name__
         
         # Name of the endpoint class
-        api_class_name = '{}_X_{}_API'.format(parent_name,rel_name)
-        url = '{}/{}'.format(url_prefix, rel_name)
-        endpoint = '{}-api.{}'.format(url_prefix, rel_name)
+        api_class_name = API_CLASSNAME_FMT.format(parent_name,rel_name)
+        url = RELATIONSHIP_URL_FMT.format(url_prefix, rel_name)
+        endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
         rel_object = type(rel_name, (SAFRSRelationshipObject,), {'relationship' : relationship } )
@@ -142,15 +205,18 @@ class Api(ApiBase):
                           endpoint= endpoint, 
                           methods = ['GET','POST'])
 
-        child_object_id = safrs_object.__name__
+        #child_object_id = safrs_object.__name__
+        child_object_id = safrs_object.object_id
+
         if safrs_object == parent_class:
-            # Avoid having duplicate argument ids in the url
+            # Avoid having duplicate argument ids in the url: append a 2 in case of a self-referencing relationship
+            # todo : test again
             child_object_id += '2'
 
         # Expose the relationship for <string:ChildId>, this lets us 
         # query and delete the class relationship properties for a given 
         # child id
-        url = '{}/{}/<string:{}Id>'.format(url_prefix, rel_name , child_object_id)
+        url = (RELATIONSHIP_URL_FMT + '/<string:{}>').format(url_prefix, rel_name , child_object_id)
         endpoint = "{}-api.{}Id".format(url_prefix, rel_name)
 
         log.info('Exposing {} relationship {} on {}, endpoint: {}'.format(parent_name, rel_name, url, endpoint))
@@ -235,10 +301,14 @@ class Api(ApiBase):
                                 filtered_parameters.append(param)
                         
                         
-                        if method == 'post' and not swagger_url.endswith(SAFRSPK) and not parameter.get('description','').endswith('(classmethod)'):
+                        '''if method == 'post' and (
+                            not swagger_url.endswith(SAFRSPK) and 
+                            not parameter.get('description','').endswith('(classmethod)') and
+                            not parameter.get('name','').endswith('POST body')
+                            ):
                             # Only classmethods should be added when there's no {id} in the POST path for this method
                             #continue
-                            pass
+                            pass'''
                         if not ( parameter.get('in') == 'path' and not object_id in swagger_url ):
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
@@ -266,7 +336,7 @@ class Api(ApiBase):
                 }}
 
         self._swagger_object['security'] = [ "api_key" ]'''
-        super(ApiBase, self).add_resource(resource, *urls, **kwargs)
+        super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
 
 def http_method_decorator(fun):
@@ -329,8 +399,9 @@ def api_decorator(cls, swagger_decorator):
 
 class SAFRSRestAPI(Resource, object):
     '''
-        REST Superclass: implement HTTP Methods (get, post, put, delete, ...)
-        and helpers
+        Flask webservice wrapper for the underlying sqla db model (SAFRSBase subclass : cls.SAFRSObject)
+
+        This class implements HTTP Methods (get, post, put, delete, ...) and helpers        
     '''
 
     SAFRSObject = None # Flask views will need to set this to the SQLAlchemy db.Model class
@@ -339,7 +410,9 @@ class SAFRSRestAPI(Resource, object):
 
     def __init__(self, *args, **kwargs):
         '''
-            object_id is the url parameter name
+            object_id is the function used to create the url parameter name (eg "User" -> "UserId" )
+            this parameter is used in the swagger endpoint spec, eg. /Users/{UserId} where the UserId parameter
+            is the id of the underlying SAFRSObject. 
         '''
         self.object_id = self.SAFRSObject.object_id
         
@@ -410,7 +483,7 @@ class SAFRSRestAPI(Resource, object):
         instance = self.SAFRSObject.get_instance(id)
         if not instance:
             raise ValidationError('Invalid ID')
-        print(kwargs)
+        log.info(kwargs)
         instance.patch(**attributes)
         
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
@@ -445,6 +518,7 @@ class SAFRSRestAPI(Resource, object):
             Body : created object
         '''
 
+        print(kwargs)
         id = kwargs.get(self.object_id, None)
         if id != None:
             return self.patch(**kwargs)
@@ -590,6 +664,58 @@ class SAFRSRestAPI(Resource, object):
         
         return instances
 
+
+
+
+class SAFRSRestMethodAPI(Resource, object):
+    '''
+        Flask webservice wrapper for the underlying SAFRSBase documented_api_method
+
+        Only HTTP POST is supported        
+    '''
+
+    SAFRSObject = None # Flask views will need to set this to the SQLAlchemy db.Model class
+    method_name = None
+
+    def __init__(self, *args, **kwargs):
+        '''
+            object_id is the function used to create the url parameter name (eg "User" -> "UserId" )
+            this parameter is used in the swagger endpoint spec, eg. /Users/{UserId} where the UserId parameter
+            is the id of the underlying SAFRSObject. 
+        '''
+        self.object_id = self.SAFRSObject.object_id
+
+    def post(self, **kwargs):
+        '''
+            HTTP POST: apply actions
+            Retrieves objects from the DB based on a given query filter (in POST data)
+            Returns a dictionary usable by jquery-bootgrid
+        ''' 
+        print(kwargs)
+        id = kwargs.get(self.object_id, None)
+        json_data = request.get_json({})
+        args = json_data.get('meta',{}).get('args') if json_data else dict(request.args)
+        
+        if not id:
+            id = request.args.get('id')
+        
+        if id:
+            instance = self.SAFRSObject.get_instance(id)
+            if not instance:
+                # If no instance was found this means the user supplied 
+                # an invalid ID
+                raise ValidationError('Invalid ID')
+        
+        else:
+            # No ID was supplied, apply method to the class itself
+            instance = self.SAFRSObject
+
+        method = getattr(instance, self.method_name)
+        result = method(**args)
+        
+        return jsonify( result )
+
+
 class SAFRSRelationshipObject(object):
 
     __tablename__ = 'tabname'
@@ -630,25 +756,25 @@ class SAFRSRelationshipObject(object):
 
 
 class SAFRSRestRelationshipAPI(Resource, object):
+    '''
+        Flask webservice wrapper for the underlying sqla db model (SAFRSBase subclass : cls.SAFRSObject)
+
+        The endpoint url is of the form "/Parents/{ParentId}/children/{ChildId}" (cfr RELATIONSHIP_URL_FMT in API.expose_relationship)
+        where "children" is the relationship attribute of the parent
+
+        Following attributes are set on this class:
+            - SAFRSObject: the sqla object which has been set with the type constructor in expose_relationship
+            - parent_class: class of the parent ( e.g. Parent , __tablename__ : Parents )
+            - child_class : class of the child 
+            - rel_name : name of the relationship ( e.g. children )
+            - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
+            - child_object_id : url parameter name of the child ( e.g. {ChildId} )
+    '''
 
     SAFRSObject = None
 
     def __init__(self, *args, **kwargs):
-        '''
-            A request to this endpoint is of the form
-
-            /Parents/{ParentId}/children/{ChildId}
-
-            Following attributes are set:
-                - parent_class: class of the parent ( e.g. Parent , __tablename__ : Parents )
-                - child_class : class of the child 
-                - rel_name : name of the relationship ( e.g. children )
-                - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
-                - child_object_id : url parameter name of the child ( e.g. {ChildId} )
-
-            SAFRSObject has been set with the type constructor in expose_relationship
-        '''
-
+        
         self.parent_class = self.SAFRSObject.relationship.parent.class_
         self.child_class = self.SAFRSObject.relationship.mapper.class_
         self.rel_name = self.SAFRSObject.relationship.key
@@ -741,6 +867,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             Create a relationship
         '''
 
+        log.info(kwargs)
         errors = []
         kwargs['require_child'] = True
         parent, relation = self.parse_args(**kwargs)
@@ -827,4 +954,3 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             result [col.name ] = value
 
         return result
-        #return JSONEncoder.default(self, result)
