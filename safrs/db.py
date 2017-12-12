@@ -31,6 +31,7 @@ try:
 except:
     pass
 
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE , MANYTOMANY 
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
@@ -381,7 +382,7 @@ class SAFRSBase(object):
         '''
             description : Retrieve all matching objects
             args:
-                thomas
+                name: thomas
             --------
             This is actually a wrapper for query, but .query is already taken :)
         '''
@@ -495,7 +496,6 @@ class SAFRSBase(object):
         OBJECT_ID ='{}Id'
         return OBJECT_ID.format(cls.__name__)
 
-
     @classmethod
     def get_swagger_doc(cls, http_method):
         '''
@@ -594,23 +594,35 @@ class SAFRSBase(object):
         for relationship in self.__mapper__.relationships:
             
             try:
+                #params = { self.object_id : self.id }
+                #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
                 obj_url = url_for(self.get_endpoint())
+                if not obj_url.endswith('/'):
+                    obj_url += '/'
             except:
                 # app not initialized
                 obj_url = ''
-            rel_name  = relationship.key
+            
+            rel_name = relationship.key
+            if relationship.direction in (ONETOMANY, MANYTOMANY):
+                items = list(getattr(self, rel_name, []))
+                data  = [] # [{ 'id' : i.id , 'type' : self.__name__ } for i in items]
+            else:
+                data = None
+            
             #self_link = '{}/{}/relationships/{}'.format(obj_url,
-            self_link = '{}/{}/{}'.format(obj_url,
+            self_link = '{}{}/{}'.format( obj_url,
                                           self.id,
                                           rel_name)
             links  = dict( self = self_link, related = '' )
-            data   = []
+            
             relationships[rel_name] = dict(links = links, data = data)
 
         data = dict( attributes = self.to_dict(),
                      id = self.id,
-                     type = self.__class__.__name__,
+                     type = self.__tablename__,
                      relationships = relationships
-                     )
-        return data
+                    )
+        self_link = '{}{}'.format( obj_url, self.id )
+        return { 'data' : data, 'links' : { 'self' : self_link } }
     

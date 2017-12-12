@@ -31,8 +31,7 @@ from safrs.swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_
 from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
-
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE , MANYTOMANY 
+from jsonschema import validate
 
 db = SQLAlchemy()
 log = logging.getLogger()
@@ -41,7 +40,7 @@ UNLIMITED = 1<<63 # used as sqla limit parameter. -1 works for sqlite but not fo
 SAFRSPK = 'Id}'
 
 
-INSTANCE_URL_FMT = '{}{}/<string:{}Id>'
+INSTANCE_URL_FMT = '{}{}/<string:{}Id>/'
 
 CLASSMETHOD_URL_FMT = '{}{}/{}'
 INSTANCEMETHOD_URL_FMT = '{}{}/<string:{}>/{}'
@@ -74,7 +73,7 @@ class Api(FRSApiBase):
 
         safrs_object_tablename = safrs_object.__tablename__
         api_class_name = '{}_API'.format(safrs_object_tablename)
-        url = '/{}'.format(safrs_object_tablename)
+        url = '/{}/'.format(safrs_object_tablename)
         #endpoint = '{}api.{}'.format(url_prefix, safrs_object_tablename)
         endpoint = safrs_object.get_endpoint(url_prefix)
 
@@ -299,7 +298,28 @@ class Api(FRSApiBase):
                                     }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
+                            
+                            param = { 'default': 100, 
+                                      'type': 'integer', 
+                                      'name': 'include', 
+                                      'in': 'query', 
+                                      'format' : 'int64',
+                                      'required' : False,
+                                      'description' : 'max number of items'
+                                    }
+                            if not param in filtered_parameters:
+                                filtered_parameters.append(param)
                         
+                            param = { 'default': 100, 
+                                      'type': 'integer', 
+                                      'name': 'fields[{}]'.format(parameter.get('name')), 
+                                      'in': 'query', 
+                                      'format' : 'int64',
+                                      'required' : False,
+                                      'description' : 'max number of items'
+                                    }
+                            if not param in filtered_parameters:
+                                filtered_parameters.append(param)
                         
                         '''if method == 'post' and (
                             not swagger_url.endswith(SAFRSPK) and 
@@ -423,7 +443,6 @@ class SAFRSRestAPI(Resource, object):
             If an id is given, get an instance by id
             If a method is given, call the method on the instance
         '''
-        
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
 
@@ -449,7 +468,7 @@ class SAFRSRestAPI(Resource, object):
         else:
             instances = self.SAFRSObject.query.limit(limit).all()
             details = request.args.get('details',None)
-            if details == None:
+            if details != 'all':
                 data = [ item.id for item in instances ]                
             else:
                 data = [ item for item in instances ]
@@ -483,7 +502,6 @@ class SAFRSRestAPI(Resource, object):
         instance = self.SAFRSObject.get_instance(id)
         if not instance:
             raise ValidationError('Invalid ID')
-        log.info(kwargs)
         instance.patch(**attributes)
         
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
@@ -495,6 +513,23 @@ class SAFRSRestAPI(Resource, object):
         response.headers['Location'] = url_for(self.endpoint, **obj_args)
         db.session.commit()
         return response
+
+    def get_json(self):
+        '''
+            Extract and validate json request payload
+        '''
+
+        json  = request.get_json()
+        if type(json) != dict:
+            raise ValidationError('Invalid Object Type')
+
+        log.info('ccc')
+        print('json')
+        print(json)
+        # Validate jsonapi
+
+        return json
+        
 
     def post(self, **kwargs):
         '''
@@ -518,12 +553,17 @@ class SAFRSRestAPI(Resource, object):
             Body : created object
         '''
 
-        print(kwargs)
+        payload = self.get_json()
+        method_name = payload.get('meta',{}).get('method', None)
+
         id = kwargs.get(self.object_id, None)
         if id != None:
-            return self.patch(**kwargs)
+            # Treat this request like a patch
+            response = self.patch(**kwargs)
+
         else:
-            data = request.get_json().get('data')
+            # Create a new instance of the SAFRSObject
+            data = payload.get('data')
             if data == None:
                 raise ValidationError('Request contains no data')
             if type(data) != dict:
@@ -571,62 +611,6 @@ class SAFRSRestAPI(Resource, object):
             db.session.commit()
 
         return jsonify({}) , 204
-
-    def _post(self, **kwargs):
-        '''
-            HTTP POST: apply actions
-            Retrieves objects from the DB based on a given query filter (in POST data)
-            Returns a dictionary usable by jquery-bootgrid
-        ''' 
-
-        id = kwargs.get(self.object_id, None)
-        method_name = kwargs.get('method_name','')
-        
-        json_data = request.get_json()
-        if not method_name:
-            method_name = json_data.get('method',None)
-        args = json_data.get('args') if json_data else dict(request.args)
-        
-        if not id:
-            id = request.args.get('id')
-        
-        if id:
-            instance = self.SAFRSObject.get_instance(id)
-            if not instance:
-                # If no instance was found this means the user supplied 
-                # an invalid ID
-                raise ValidationError('Invalid ID')
-        
-        else:
-            # No ID was supplied, apply method to the class itself
-            instance = self.SAFRSObject
-
-        if method_name:
-            # call the method specified by method_name
-            method_result = self.call_method_by_name(instance, method_name, args)
-            result = { 'result' : method_result }
-            return jsonify(result)
-
-        # No id given, return all instances matching the filter
-        try:
-            filter      = json_data.get('filter',{})
-            sort        = json_data.get('sort', '' )
-            current     = int(json_data.get('current',0)) 
-            row_count   = int(json_data.get('rowCount',50))
-            search      = json_data.get('searchPhrase','')
-        except:
-            raise ValidationError('Invalid arguments')
-        
-        instances = self.get_instances(filter, sort, search)
-        if current < 0 : current = 1
-        
-        result = {  'current'  : current,
-                    'rows'     : instances[ current : current + row_count ],
-                    'rowCount' : row_count,
-                    'total'    : instances.count()
-                 }
-
-        return jsonify( result )
 
     def call_method_by_name(self, instance, method_name, args):
         '''
@@ -691,7 +675,7 @@ class SAFRSRestMethodAPI(Resource, object):
             Retrieves objects from the DB based on a given query filter (in POST data)
             Returns a dictionary usable by jquery-bootgrid
         ''' 
-        print(kwargs)
+
         id = kwargs.get(self.object_id, None)
         json_data = request.get_json({})
         args = json_data.get('meta',{}).get('args') if json_data else dict(request.args)
@@ -710,8 +694,18 @@ class SAFRSRestMethodAPI(Resource, object):
             # No ID was supplied, apply method to the class itself
             instance = self.SAFRSObject
 
-        method = getattr(instance, self.method_name)
+        method = getattr(instance, self.method_name, None)
+
+        if not method:
+            # Only call methods for Campaign and not for superclasses (e.g. db.Model)
+            raise ValidationError('Invalid method "{}"'.format(method_name))
+        if not is_public(method):
+            raise ValidationError('Method is not public')
+
         result = method(**args)
+        response = { 'meta' :
+                     { 'result' : result }
+                   }
         
         return jsonify( result )
 
@@ -809,7 +803,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             # No {ChildId} given: 
             # return a list of all relationship items
             # if request.args contains "details", return full details
-            details = request.args.get('details',None)
+            details = request.args.get('details','None')
             if details == None:
                 result = [ item.id for item in relation ]
             else:

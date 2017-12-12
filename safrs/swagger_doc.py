@@ -132,10 +132,11 @@ def get_swagger_doc_post_arguments(cls, method_name = None):
             if method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
                 model = SchemaClassFactory(model_name, method_args )
-                arg_field = { 
-                               'args' : method_args,
-                            }
-                fields['meta'] = schema_from_object(model_name, arg_field)
+                method_field = {
+                                 'method' : method_name, 
+                                 'args' : method_args,
+                                }
+                fields['meta'] = schema_from_object(model_name, method_field)
 
             elif method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
