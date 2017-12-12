@@ -188,7 +188,6 @@ def swagger_method_doc(cls, method_name, tags = None):
         parameters.append({
                             'name': model_name,
                             'in': 'body',
-                            'type': 'string',
                             'description' : description,
                             'schema' : param_model,
                             'required' : True
