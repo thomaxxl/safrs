@@ -86,8 +86,10 @@ def schema_from_object(name, object):
                 properties[k] = { 'example' : v, 'type' : 'string' }
             if type(v) == int:
                 properties[k] = { 'example' : v, 'type' : 'integer' }
-            if type(v) == dict or type(v) == list:
-                properties[k] = { 'example' : v, 'type' : 'string' }
+            if type(v) == dict:
+                properties[k] = { 'example' : v, 'type' : 'object' }
+            if type(v) == list:
+                properties[k] = { 'example' : v, 'type' : 'array' }
     else:
         raise ValidationError('Invalid schema object type {}'.format(type(object)))
 
@@ -133,7 +135,7 @@ def get_swagger_doc_post_arguments(cls, method_name = None):
                 model_name = '{}_{}'.format(cls.__name__, method_name)
                 model = SchemaClassFactory(model_name, method_args )
                 method_field = {
-                                 'method' : method_name, 
+                                 'method' : method_name,
                                  'args' : method_args,
                                 }
                 fields['meta'] = schema_from_object(model_name, method_field)
@@ -188,7 +190,6 @@ def swagger_method_doc(cls, method_name, tags = None):
         parameters.append({
                             'name': model_name,
                             'in': 'body',
-                            'type': 'string',
                             'description' : description,
                             'schema' : param_model,
                             'required' : True
