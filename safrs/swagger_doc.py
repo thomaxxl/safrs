@@ -86,10 +86,8 @@ def schema_from_object(name, object):
                 properties[k] = { 'example' : v, 'type' : 'string' }
             if type(v) == int:
                 properties[k] = { 'example' : v, 'type' : 'integer' }
-            if type(v) == dict:
-                properties[k] = { 'example' : v, 'type' : 'object' }
-            if type(v) == list:
-                properties[k] = { 'example' : v, 'type' : 'array' }
+            if type(v) == dict or type(v) == list:
+                properties[k] = { 'example' : v, 'type' : 'string' }
     else:
         raise ValidationError('Invalid schema object type {}'.format(type(object)))
 
@@ -190,6 +188,7 @@ def swagger_method_doc(cls, method_name, tags = None):
         parameters.append({
                             'name': model_name,
                             'in': 'body',
+                            'type': 'string',
                             'description' : description,
                             'schema' : param_model,
                             'required' : True
