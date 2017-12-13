@@ -77,6 +77,12 @@ def create_api(app):
 def goto_api():
     return redirect('/api')
 
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
+    db.session.remove()
+
+
 # Start the application
 HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
 PORT = 5000

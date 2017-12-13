@@ -1,14 +1,33 @@
 # -*- coding: utf-8 -*
 # Exception Handlers
 #
+# The application loglevel determines the level of detail dhown to the user.
+# If set to debug, too much sensitive info might be shown !
+#
 import traceback
 
 from sqlalchemy.exc import DontWrapMixin
 from flask_restful import abort
 import logging
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 from flask_sqlalchemy import SQLAlchemy
-db = SQLAlchemy()
+
+class NotFoundError(Exception, DontWrapMixin):
+    '''
+        This exception is raised when invalid input has been detected
+    '''
+
+    status_code = 404
+
+    def __init__(self, message = '', status_code=404, payload=None):
+        Exception.__init__(self)
+        
+        if log.getEffectiveLevel() == logging.DEBUG:
+        
+            self.message = message
+            log.error('Not found: {}'.format(message))
+        
+
 
 class ValidationError(Exception, DontWrapMixin):
     '''
@@ -19,11 +38,12 @@ class ValidationError(Exception, DontWrapMixin):
 
     def __init__(self, message = '', status_code=None, payload=None):
         Exception.__init__(self)
-        self.message = message
-        #log.error(traceback.format_exc())
-        log.error('ValidationError: {}'.format(message))
-        db.session.rollback()
-
+        
+        if log.getEffectiveLevel() == logging.DEBUG:
+        
+            self.message = message
+            log.error('ValidationError: {}'.format(message))
+        
 
 class GenericError(Exception, DontWrapMixin):
     '''
@@ -36,7 +56,10 @@ class GenericError(Exception, DontWrapMixin):
 
     def __init__(self, message):
         Exception.__init__(self)
-        self.message = message
+        
+        if log.getEffectiveLevel() == logging.DEBUG:
+            self.message = message
+        
         log.debug(traceback.format_exc())
         log.error('Generic Error: {}'.format(message))
-        db.session.rollback()
+        

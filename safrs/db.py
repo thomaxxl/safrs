@@ -17,7 +17,6 @@ import inspect
 import hashlib
 import datetime
 import logging
-log = logging.getLogger()
 
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
@@ -36,13 +35,11 @@ from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
 from safrs.swagger_doc import SchemaClassFactory, documented_api_method, get_doc
-from safrs.errors import ValidationError, GenericError
-
+from safrs.errors import ValidationError, GenericError, NotFoundError
+import pprint
 from flask_sqlalchemy import SQLAlchemy
-db = SQLAlchemy()
 
 from flask_marshmallow import Marshmallow
-ma = Marshmallow()
 
 #
 # Map SQLA types to swagger2 types
@@ -72,6 +69,8 @@ sqlalchemy_swagger2_type = {
 
 
 STRIP_SPECIAL = '[^\w|%|:|/|-|_\-_\. ]'
+
+
 
 class JSONType(PickleType):
     '''
@@ -274,6 +273,10 @@ class SAFRSBase(object):
     def columns(cls):
         return list(cls.__mapper__.columns)
 
+    @classproperty
+    def type(cls):
+        return cls.__tablename__
+
     @classmethod
     def get_endpoint(cls, url_prefix = '/'):
         endpoint = '{}api.{}'.format(url_prefix, cls.__tablename__)
@@ -283,7 +286,6 @@ class SAFRSBase(object):
         '''
             If an object with given arguments already exists, this object is instantiated
         '''
-        
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = {}
         for col in cls.__table__.columns:
@@ -414,7 +416,7 @@ class SAFRSBase(object):
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
-                raise ValidationError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
+                raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
 
     def clone(self, *args, **kwargs):
@@ -443,7 +445,8 @@ class SAFRSBase(object):
 
         result = {}
         for f in self.json_params:
-            if f == 'id': continue # jsonapi schema prohibits the use of the "id" field in the attributes
+            if f in ( 'id' , 'type' ) : # jsonapi schema prohibits the use of these fields in the attributes
+                continue
             value = getattr(self,f)
             if value == None:
                 value = ""
@@ -456,7 +459,7 @@ class SAFRSBase(object):
 
     def __str__(self):
         name = getattr(self,'name',self.__class__.__name__)
-        return 'SAFRS::{}'.format(name)
+        return '<SAFRS {}>'.format(name)
 
     #
     # Following methods are used to create the swagger2 API documentation
@@ -584,7 +587,7 @@ class SAFRSBase(object):
             
         return model
 
-    def jsonapi_encode(self):
+    def jsonapi_encode(self, ):
         '''
             Encode object according to the jsonapi specification
         '''
@@ -620,9 +623,24 @@ class SAFRSBase(object):
 
         data = dict( attributes = self.to_dict(),
                      id = self.id,
-                     type = self.__tablename__,
+                     type = self.type,
                      relationships = relationships
                     )
-        self_link = '{}{}'.format( obj_url, self.id )
-        return { 'data' : data, 'links' : { 'self' : self_link } }
-    
+        
+        return data
+
+#
+# Fix flask-sqlalchemy's stupid session crap
+# ( globals() doesn't work when using "builtins" module )
+# If db isn't specified we want to use the declarative base
+#
+def get_db():
+    try:
+        return db
+    except:
+        log.warning('Reinitializing Database')
+        return SQLAlchemy()
+
+db = get_db()
+log = logging.getLogger(__name__)
+ma = Marshmallow()

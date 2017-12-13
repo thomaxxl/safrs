@@ -8,13 +8,18 @@ from safrs.errors import ValidationError
 log = logging.getLogger()
 
 REST_DOC  = '__rest_doc' # swagger doc attribute name. If this attribute is set 
-                        # this means that the function is reachable through HTTP POST
+                         # this means that the function is reachable through HTTP POST
+DOC_DELIMITER = '----'   # used as delimiter between the rest_doc swagger yaml spec and regular documentation
 
 def parse_object_doc(object):
+    '''
+        Parse the yaml description from the "documented_api_method"-decorated methods
+    '''
+
     api_doc  = {}
     obj_doc  = str(inspect.getdoc(object))    
     yaml_doc = None
-    raw_doc  = obj_doc.split('----')[0]
+    raw_doc  = obj_doc.split(DOC_DELIMITER)[0]
     try:
         yaml_doc = yaml.load(raw_doc)
     except SyntaxError:
@@ -35,6 +40,7 @@ def documented_api_method(func):
         When a method is decorated with documented_api_method, this means
         it becomes available for use through HTTP POST (i.e. public)
     '''
+
     api_doc = parse_object_doc(func)
     setattr(func, REST_DOC, api_doc)
     return func
@@ -299,6 +305,9 @@ def swagger_doc(cls, tags = None):
             doc['summary'] =  doc['description'] = 'Delete a {} object'.format(class_name)
             responses = { '204' : { 
                                     'description' : 'Object Deleted' 
+                                    },
+                          '404' : { 
+                                    'description' : 'Object Not Found' 
                                     }
                         }
 

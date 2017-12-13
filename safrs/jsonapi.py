@@ -2,12 +2,20 @@
 #
 # This code implements REST HTTP methods and sqlalchemy to json marshalling
 #
-# Several global variables are expected to be set: app, db, cors_domain
-#
 # Configuration parameters:
 # - endpoint
 #
-
+# todo: 
+# - safrs subclassing
+# - marshmallow & encoding
+# - __ underscores
+# - tests
+# - validation
+# - hardcoded strings
+# - jsonapi : pagination, include
+# - move all swagger related stuffto swagger_doc
+# - pagination, fieldsets, filtering, inclusion
+#
 import copy
 import inspect
 import uuid
@@ -25,26 +33,23 @@ from jinja2 import utils
 from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, swagger, Api as FRSApiBase
 from functools import wraps
-# safrs_rest dependencies:
-from safrs.db import SAFRSBase, ValidationError
-from safrs.swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
-from safrs.errors import ValidationError, GenericError
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
 from jsonschema import validate
 
-db = SQLAlchemy()
-log = logging.getLogger()
+# safrs_rest dependencies:
+from safrs.db import SAFRSBase, db, log
+from safrs.swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
+from safrs.errors import ValidationError, GenericError, NotFoundError
+
 
 UNLIMITED = 1<<63 # used as sqla limit parameter. -1 works for sqlite but not for mysql
 SAFRSPK = 'Id}'
 
-
+# URL
 INSTANCE_URL_FMT = '{}{}/<string:{}Id>/'
-
 CLASSMETHOD_URL_FMT = '{}{}/{}'
 INSTANCEMETHOD_URL_FMT = '{}{}/<string:{}>/{}'
-
 RELATIONSHIP_URL_FMT = '{}/{}'
 
 
@@ -245,11 +250,11 @@ class Api(FRSApiBase):
         for method in [m.lower() for m in resource.methods]:
             if not method.upper() in resource_methods:
                 continue
-            f = resource.__dict__.get(method, None)
+            f = getattr(resource, method, None)
             if not f:
                 continue
 
-            operation = f.__dict__.get('__swagger_operation_object', None)
+            operation = getattr(f,'__swagger_operation_object', None)
             if operation:
                 operation, definitions_ = self._extract_schemas(operation)
                 path_item[method] = operation
@@ -364,6 +369,8 @@ def http_method_decorator(fun):
         Decorator for the REST methods
         - commit the database
         - convert all exceptions to a JSON serializable GenericError
+
+        This method will be called for all requests
     '''
 
     @wraps(fun)
@@ -373,17 +380,20 @@ def http_method_decorator(fun):
             db.session.commit()
             return result
 
-        except ( ValidationError, GenericError ) as exc:
+        except ( ValidationError, GenericError, NotFoundError ) as exc:
             traceback.print_exc()
-            status_code = getattr(exc, 'status_code', 500)
+            status_code = getattr(exc, 'status_code')
             message = exc.message
 
         except Exception as exc:
             status_code = getattr(exc, 'status_code', 500)
             traceback.print_exc()
-            message = 'Unknown Error'
-            #abort( status_code, error = 'Unknown Error' )
-
+            if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
+                message = 'Unknown Error'
+            else:
+                message = str(exc)
+            
+        db.session.rollback()
         errors = dict(detail = message)
         abort(status_code , errors = [errors])
         
@@ -446,14 +456,10 @@ class SAFRSRestAPI(Resource, object):
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
 
-        if not id:
-            # If no id is given, check if it's passed through a request arg
-            id = request.args.get('id', None)
-
         limit = request.args.get('limit', UNLIMITED)
 
         if id:
-            log.info(id)
+            # Retrieve the instance with the provided id
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
                 raise ValidationError('Invalid {}'.format(self.object_id))
@@ -464,16 +470,22 @@ class SAFRSRestAPI(Resource, object):
                 log.info(rel)
                 log.info(rel.key)
 
-            result = instance.jsonapi_encode()
+            result = { 'data' : instance.jsonapi_encode() ,
+                       'links' : { 
+                                    'self' : instance.get_endpoint()
+                                }
+                     }
         else:
+            # retrieve a collection
             instances = self.SAFRSObject.query.limit(limit).all()
             details = request.args.get('details',None)
             if details != 'all':
-                data = [ item.id for item in instances ]                
+                data = [ { 'id' : item.id, 'type'  : item.type } for item in instances ]                
             else:
                 data = [ item for item in instances ]
         
-            result = dict(data = data)
+            result = dict(data = data, links = {} )
+        
         return jsonify(result)    
 
     def patch(self, **kwargs):
@@ -511,7 +523,6 @@ class SAFRSRestAPI(Resource, object):
         response = make_response(obj_data, 201)
         # Set the Location header to the newly created object
         response.headers['Location'] = url_for(self.endpoint, **obj_args)
-        db.session.commit()
         return response
 
     def get_json(self):
@@ -591,25 +602,34 @@ class SAFRSRestAPI(Resource, object):
     def delete(self, **kwargs):
         '''
             Delete an object by id or by filter
+
+            http://jsonapi.org/format/1.1/#crud-deleting:
+            Responses
+                202 Accepted
+                If a deletion request has been accepted for processing, but the processing has not been completed by the
+                time the server responds, the server MUST return a 202 Accepted status code.
+
+                204 No Content
+                A server MUST return a 204 No Content status code if a deletion request is successful and no content is 
+                returned.
+
+                200 OK
+                A server MUST return a 200 OK status code if a deletion request is successful and the server responds 
+                with only top-level meta data.
+
+                404 NOT FOUND
+                A server SHOULD return a 404 Not Found status code if a deletion request fails due to the resource not 
+                existing.
         '''    
         
         id = kwargs.get(self.object_id, None)
         
-        filter = {}
         if id:
-            filter = dict(id = id)
-        else:
-            json_data = request.get_json()
-            if json_data:
-                filter = json_data.get('filter', {} )
-        if not filter:
-            raise ValidationError('Invalid ID or Filter {} {}'.format(kwargs,self.object_id))
-        
-        for instance in db.session.query(self.SAFRSObject).filter_by(**filter).all():
-            log.info(instance)
+            instance = self.SAFRSObject.get_instance(id)
             db.session.delete(instance)
-            db.session.commit()
-
+        else:
+            raise NotFoundError(id, status_code=404)
+            
         return jsonify({}) , 204
 
     def call_method_by_name(self, instance, method_name, args):
