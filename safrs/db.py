@@ -629,6 +629,8 @@ class SAFRSBase(object):
         
         return data
 
+
+log = logging.getLogger(__name__)
 #
 # Fix flask-sqlalchemy's stupid session crap
 # ( globals() doesn't work when using "builtins" module )
@@ -642,5 +644,4 @@ def get_db():
         return SQLAlchemy()
 
 db = get_db()
-log = logging.getLogger(__name__)
 ma = Marshmallow()
