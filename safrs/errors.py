@@ -5,16 +5,15 @@
 # If set to debug, too much sensitive info might be shown !
 #
 import traceback
+import logging
 
 from sqlalchemy.exc import DontWrapMixin
 from flask_restful import abort
-import logging
-log = logging.getLogger(__name__)
 from flask_sqlalchemy import SQLAlchemy
 
 class NotFoundError(Exception, DontWrapMixin):
     '''
-        This exception is raised when invalid input has been detected
+        This exception is raised when an item was not found
     '''
 
     status_code = 404
@@ -62,4 +61,5 @@ class GenericError(Exception, DontWrapMixin):
         
         log.debug(traceback.format_exc())
         log.error('Generic Error: {}'.format(message))
-        
+
+log = logging.getLogger(__name__)
