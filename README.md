@@ -18,7 +18,6 @@ The usual:
 git clone https://github.com/thomaxxl/safrs
 cd safrs
 pip install -r requirements.txt
-python setup.py build
 python setup.py install
 ```
 
