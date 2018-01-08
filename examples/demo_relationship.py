@@ -11,9 +11,10 @@
 # - A rest api is available
 # - swagger2 documentation is generated
 #
-import sys
+import sys, logging
 if sys.version_info[0] == 3:
-    import builtins as __builtin__
+    import builtins
+    __builtin__ = builtins
     __builtins__.unicode = str
 else:
     import __builtin__
@@ -75,6 +76,10 @@ HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
 PORT = 5000
 
 db.create_all()
+
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+builtins.log = log
 
 with app.app_context():
     # Create the database

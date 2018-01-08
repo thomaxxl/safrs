@@ -208,7 +208,7 @@ def swagger_method_doc(cls, method_name, tags = None):
                         'default': default_id,
                         'required' : True
                       })
-        
+
         doc['parameters'] = parameters
         doc["produces"]   = [ "application/json" ]
         doc['responses']  = responses = { '200' : { 

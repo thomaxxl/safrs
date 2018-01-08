@@ -12,7 +12,7 @@
 # - __ underscores
 # - tests
 # - validation
-# - hardcoded strings > config (SAFRSPK, URL_FMT)
+# - hardcoded strings > config (SAFRS_INSTANCE_SUFFIX, URL_FMT)
 # - expose canonical endpoints
 # - jsonapi : pagination, include
 # - move all swagger related stuffto swagger_doc
@@ -30,37 +30,29 @@ import sqlalchemy
 import parse
 
 from flask import Flask, make_response, url_for
-from flask import Flask, Blueprint, got_request_exception, redirect, session
-from flask import Flask, jsonify, request, Response, g, render_template, send_from_directory
+from flask import Blueprint, got_request_exception, redirect, session
+from flask import jsonify, request, Response, g, render_template, send_from_directory
 from flask.json import JSONEncoder
 from flask_restful import reqparse
-from jinja2 import utils
 from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, swagger, Api as FRSApiBase
-from functools import wraps
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
+from jinja2 import utils
+from functools import wraps
 from jsonschema import validate
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE , MANYTOMANY 
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY 
 
 # safrs_rest dependencies:
 from .db import SAFRSBase, db, log
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
 from .errors import ValidationError, GenericError, NotFoundError
+from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT, RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT
+from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT
 
+UNLIMITED = 1<<32 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
+SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
-UNLIMITED = 1<<32 # used as sqla limit parameter. -1 works for sqlite but not for mysql
-SAFRSPK = 'Id}'
-
-# URL
-INSTANCE_URL_FMT = '{}{}/<string:{}Id>/'
-CLASSMETHOD_URL_FMT = '{}{}/{}'
-INSTANCEMETHOD_URL_FMT = '{}{}/<string:{}>/{}'
-RELATIONSHIP_URL_FMT = '{}{}'
-
-# endpoint naming
-INSTANCE_ENDPOINT_FMT = '{}api.{}Id'
-ENDPOINT_FMT = '{}-api.{}'
 
 
 class Api(FRSApiBase):
@@ -72,6 +64,8 @@ class Api(FRSApiBase):
 
     def expose_object(self, safrs_object, url_prefix = '/', **properties):
         '''
+            This methods creates the API url endpoints for the SAFRObjects
+
             creates a class of the form 
 
             @api_decorator
@@ -114,7 +108,7 @@ class Api(FRSApiBase):
         self.add_resource( api_class, 
                            url,
                            endpoint=endpoint)
-        log.info('Exposing Instances {} on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
+        log.info('Exposing {} instances  on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
         
         object_doc = parse_object_doc(safrs_object)
         object_doc['name'] = safrs_object._s_type
@@ -129,7 +123,7 @@ class Api(FRSApiBase):
 
     def expose_methods(self, safrs_object, url_prefix, tags):
         '''
-
+            Expose the safrs "documented_api_method" decorated methods
         '''
 
         api_methods = safrs_object.get_documented_api_methods()
@@ -137,9 +131,7 @@ class Api(FRSApiBase):
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
             if getattr(api_method,'__self__',None) is safrs_object:
-                # method is a classmethod
-                #
-                #
+                # method is a classmethod, make it available at the class level
                 url = CLASSMETHOD_URL_FMT.format( url_prefix, 
                                                   safrs_object.__tablename__, 
                                                   method_name)
@@ -286,7 +278,7 @@ class Api(FRSApiBase):
                     for parameter in method_doc.get('parameters',[]):
                         object_id = '{%s}'%parameter.get('name')
 
-                        if method == 'get' and not swagger_url.endswith(SAFRSPK) :
+                        if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) :
                             # details parameter specifies to which details to show
                             param = { 'default': 'all', 
                                       'type': 'string', 
@@ -332,7 +324,7 @@ class Api(FRSApiBase):
                                 filtered_parameters.append(param)
                         
                         '''if method == 'post' and (
-                            not swagger_url.endswith(SAFRSPK) and 
+                            not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) and 
                             not parameter.get('description','').endswith('(classmethod)') and
                             not parameter.get('name','').endswith('POST body')
                             ):
@@ -347,10 +339,10 @@ class Api(FRSApiBase):
                     method_doc['parameters'] = filtered_parameters
                     path_item[method] = method_doc
 
-                    if method == 'get' and not swagger_url.endswith(SAFRSPK):
+                    if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
                         # If no {id} was provided, we return a list of all the objects
                         try:
-                            method_doc['description'] += ' list (See GET /{{} for details)'.format(SAFRSPK)
+                            method_doc['description'] += ' list (See GET /{{} for details)'.format(SAFRS_INSTANCE_SUFFIX)
                             method_doc['responses']['200']['schema'] = ''
                         except:
                             pass
@@ -700,11 +692,8 @@ class SAFRSRestMethodAPI(Resource, object):
         id = kwargs.get(self.object_id, None)
         json_data = request.get_json({})
         args = json_data.get('meta',{}).get('args') if json_data else dict(request.args)
-        
-        if not id:
-            id = request.args.get('id')
-        
-        if id:
+
+        if id != None:
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
                 # If no instance was found this means the user supplied 
@@ -945,7 +934,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
         relation = getattr(parent, self.rel_name)
 
         return parent, relation
-
 
 
 class SAFRSJSONEncoder(JSONEncoder, object):

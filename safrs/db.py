@@ -32,8 +32,10 @@ from flask_marshmallow import Marshmallow
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc
 from .errors import ValidationError, GenericError, NotFoundError
-from .types import SafeString, SAFRSID
+from .safrs_types import SafeString, SAFRSID
 from .util import classproperty
+from .config import OBJECT_ID_SUFFIX
+
 #
 # Map SQLA types to swagger2 types
 #
@@ -330,8 +332,7 @@ class SAFRSBase(object):
             Returns the Flask url parameter name of the object, e.g. UserId
         '''
 
-        OBJECT_ID ='{}Id'
-        return OBJECT_ID.format(cls.__name__)
+        return cls.__name__ + OBJECT_ID_SUFFIX
 
     @classmethod
     def get_swagger_doc(cls, http_method):

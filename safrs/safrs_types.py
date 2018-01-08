@@ -1,4 +1,4 @@
-from .errors import ValidationError
+from safrs.errors import ValidationError
 from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer
 import uuid
 
