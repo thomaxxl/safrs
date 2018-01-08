@@ -961,7 +961,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
         if isinstance(object, SAFRSBase):
             rel_limit_count = 100
             limit  = request.args.get('limit', rel_limit_count)
-            result = self.safrs_jsonapi_encode(object)
+            result = self.jsonapi_encode(object)
             return result
         if isinstance(object, datetime.datetime) or isinstance(object, datetime.date):
             return object.isoformat()
@@ -969,7 +969,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
         return result
 
 
-    def safrs_jsonapi_encode(self, object):
+    def jsonapi_encode(self, object):
         '''
             Encode object according to the jsonapi specification
         '''
@@ -1006,8 +1006,9 @@ class SAFRSJSONEncoder(JSONEncoder, object):
 
         attributes  = object.to_dict()
         # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
-        fields = request.args.get('fields[{}]'.format(object._s_type), '').split(',')
-        if fields != None:
+        fields = request.args.get('fields[{}]'.format(object._s_type), None)
+        if fields:
+            fields = fields.split(',')
             try:
                 attributes = { field: getattr(object, field) for field in fields }
             except AttributeError as e:
