@@ -7,14 +7,18 @@
 #
 # todo: 
 # - safrs subclassing
+# - use safrs_type instead of type
 # - marshmallow & encoding
 # - __ underscores
 # - tests
 # - validation
-# - hardcoded strings
+# - hardcoded strings > config (SAFRSPK, URL_FMT)
+# - expose canonical endpoints
 # - jsonapi : pagination, include
 # - move all swagger related stuffto swagger_doc
-# - pagination, fieldsets, filtering, inclusion
+# - pagination, fieldsets, filtering, inclusion => filter page fields sort include
+# - duplicate entries / pk's => error
+# - orm reconstructor
 #
 import copy
 import inspect
@@ -23,6 +27,7 @@ import traceback
 import datetime
 import logging
 import sqlalchemy
+import parse
 
 from flask import Flask, make_response, url_for
 from flask import Flask, Blueprint, got_request_exception, redirect, session
@@ -36,22 +41,26 @@ from functools import wraps
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
 from jsonschema import validate
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE , MANYTOMANY 
 
 # safrs_rest dependencies:
-from safrs.db import SAFRSBase, db, log
-from safrs.swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
-from safrs.errors import ValidationError, GenericError, NotFoundError
+from .db import SAFRSBase, db, log
+from .swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
+from .errors import ValidationError, GenericError, NotFoundError
 
 
-UNLIMITED = 1<<63 # used as sqla limit parameter. -1 works for sqlite but not for mysql
+UNLIMITED = 1<<32 # used as sqla limit parameter. -1 works for sqlite but not for mysql
 SAFRSPK = 'Id}'
 
 # URL
 INSTANCE_URL_FMT = '{}{}/<string:{}Id>/'
 CLASSMETHOD_URL_FMT = '{}{}/{}'
 INSTANCEMETHOD_URL_FMT = '{}{}/<string:{}>/{}'
-RELATIONSHIP_URL_FMT = '{}/{}'
+RELATIONSHIP_URL_FMT = '{}{}'
 
+# endpoint naming
+INSTANCE_ENDPOINT_FMT = '{}api.{}Id'
+ENDPOINT_FMT = '{}-api.{}'
 
 
 class Api(FRSApiBase):
@@ -76,10 +85,11 @@ class Api(FRSApiBase):
 
         '''
 
-        safrs_object_tablename = safrs_object.__tablename__
-        api_class_name = '{}_API'.format(safrs_object_tablename)
-        url = '/{}/'.format(safrs_object_tablename)
-        #endpoint = '{}api.{}'.format(url_prefix, safrs_object_tablename)
+        api_class_name = '{}_API'.format(safrs_object._s_type)
+        
+        # tags indicate where in the swagger hierarchy the endpoint will be shown
+        tags = [ safrs_object._s_type ]
+        url = '/{}/'.format(safrs_object._s_type)
         endpoint = safrs_object.get_endpoint(url_prefix)
 
         properties['SAFRSObject'] = safrs_object
@@ -90,41 +100,37 @@ class Api(FRSApiBase):
                                         (SAFRSRestAPI,), 
                                         properties),
                                   swagger_decorator)    
-    
-        log.info('Exposing class {} on {}, endpoint: {}'.format(safrs_object_tablename, url, endpoint))
         
+        # Expose the collection
+        log.info('Exposing {} on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
         self.add_resource(api_class, 
                           url,
                           endpoint= endpoint, 
                           methods = ['GET','POST', 'PUT'])
 
-        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object_tablename,safrs_object.__name__ )
-        endpoint = "{}api.{}Id".format(url_prefix, safrs_object_tablename)
-
-        log.info('Exposing class {} on {}, endpoint: {}'.format(safrs_object_tablename, url, endpoint))
-
+        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type,safrs_object.__name__ )
+        endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, safrs_object._s_type)
+        # Expose the instances
         self.add_resource( api_class, 
                            url,
                            endpoint=endpoint)
-
+        log.info('Exposing Instances {} on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
+        
         object_doc = parse_object_doc(safrs_object)
-        object_doc['name'] = safrs_object_tablename
+        object_doc['name'] = safrs_object._s_type
         self._swagger_object['tags'].append(object_doc)
 
         relationships =  safrs_object.__mapper__.relationships
         for relationship in relationships:
-            self.expose_relationship(relationship, url, tags = [ safrs_object_tablename])
+            self.expose_relationship(relationship, url, tags = tags)
 
-        # tags indicate where in the swagger hierarchy the endpoint will be shown
-        self.expose_methods(safrs_object, url_prefix, tags = [ safrs_object_tablename])
+        self.expose_methods(safrs_object, url_prefix, tags = tags)
 
 
     def expose_methods(self, safrs_object, url_prefix, tags):
         '''
 
         '''
-
-        ENDPOINT_FMT = '{}-api.{}'
 
         api_methods = safrs_object.get_documented_api_methods()
         for api_method in api_methods:
@@ -174,7 +180,6 @@ class Api(FRSApiBase):
             
         '''
 
-        ENDPOINT_FMT = '{}-api.{}'
         API_CLASSNAME_FMT = '{}_X_{}_API'
 
         properties = {}
@@ -453,6 +458,7 @@ class SAFRSRestAPI(Resource, object):
             If an id is given, get an instance by id
             If a method is given, call the method on the instance
         '''
+        log.info('get')
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
 
@@ -470,7 +476,7 @@ class SAFRSRestAPI(Resource, object):
                 log.info(rel)
                 log.info(rel.key)
 
-            result = { 'data' : instance.jsonapi_encode() ,
+            result = { 'data' : instance ,
                        'links' : { 
                                     'self' : instance.get_endpoint()
                                 }
@@ -480,7 +486,7 @@ class SAFRSRestAPI(Resource, object):
             instances = self.SAFRSObject.query.limit(limit).all()
             details = request.args.get('details',None)
             if details != 'all':
-                data = [ { 'id' : item.id, 'type'  : item.type } for item in instances ]                
+                data = [ { 'id' : item.id, 'type'  : item._s_type } for item in instances ]                
             else:
                 data = [ item for item in instances ]
         
@@ -695,7 +701,6 @@ class SAFRSRestMethodAPI(Resource, object):
             Retrieves objects from the DB based on a given query filter (in POST data)
             Returns a dictionary usable by jquery-bootgrid
         ''' 
-
         id = kwargs.get(self.object_id, None)
         json_data = request.get_json({})
         args = json_data.get('meta',{}).get('args') if json_data else dict(request.args)
@@ -727,7 +732,7 @@ class SAFRSRestMethodAPI(Resource, object):
                      { 'result' : result }
                    }
         
-        return jsonify( result )
+        return jsonify( response ), 200
 
 
 class SAFRSRelationshipObject(object):
@@ -946,25 +951,71 @@ class SAFRSRestRelationshipAPI(Resource, object):
         return parent, relation
 
 
+
 class SAFRSJSONEncoder(JSONEncoder, object):
     '''
         Encodes safrsmail objects (SAFRSBase subclasses)
     '''
 
     def default(self,object):
-        
         if isinstance(object, SAFRSBase):
-            return object.jsonapi_encode()
-        if isinstance(object, datetime.datetime):
+            rel_limit_count = 100
+            limit  = request.args.get('limit', rel_limit_count)
+            result = self.safrs_jsonapi_encode(object)
+            return result
+        if isinstance(object, datetime.datetime) or isinstance(object, datetime.date):
             return object.isoformat()
-        
-        # Poor man's serialization
-        result = {}
-        for col in object.__table__.columns:
-            value = getattr(object, col.name)
-            if not ( type(value) in (int, float, type(None) ) ):
-                value = unicode(value)
-
-            result [col.name ] = value
 
         return result
+
+
+    def safrs_jsonapi_encode(self, object):
+        '''
+            Encode object according to the jsonapi specification
+        '''
+
+        relationships = dict()
+        for relationship in object.__mapper__.relationships:
+            
+            try:
+                #params = { self.object_id : self.id }
+                #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
+                obj_url = url_for(object.get_endpoint())
+                if not obj_url.endswith('/'):
+                    obj_url += '/'
+            except:
+                # app not initialized
+                obj_url = ''
+            
+            rel_name = relationship.key
+            if relationship.direction in (ONETOMANY, MANYTOMANY):
+                # This is really slow for large sets
+                #items = list(getattr(self, rel_name, [])[:10])
+                #data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
+                data =[{}]
+            else:
+                data = None
+            
+            #self_link = '{}/{}/relationships/{}'.format(obj_url,
+            self_link = '{}{}/{}'.format( obj_url,
+                                          object.id,
+                                          rel_name)
+            links  = dict( self = self_link, related = '' )
+            
+            relationships[rel_name] = dict(links = links, data = data)
+
+        attributes  = object.to_dict()
+        # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
+        fields = request.args.get('fields[{}]'.format(object._s_type), '').split(',')
+        if fields != None:
+            try:
+                attributes = { field: getattr(object, field) for field in fields }
+            except AttributeError as e:
+                raise ValidationError ('Invalid Field {}'.format(e))
+
+        data = dict( attributes = attributes,
+                     id = object.id,
+                     type = object._s_type,
+                     relationships = relationships
+                    )
+        return data

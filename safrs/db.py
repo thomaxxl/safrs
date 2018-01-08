@@ -5,41 +5,41 @@
 
 # Python3 compatibility
 import sys
-
 if sys.version_info[0] == 3:
     unicode = str
 
 import re
+import hashlib
+import datetime
+import inspect
+import logging
+import pprint
+import sqlalchemy
 import json
 import time
 import uuid
-import inspect
-import hashlib
-import datetime
-import logging
 
-import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
 from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
 from sqlalchemy.orm import synonym
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer
-try:
-    from validate_email import validate_email
-except:
-    pass
+from sqlalchemy.ext.hybrid import hybrid_property
 
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE , MANYTOMANY 
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
 from safrs.swagger_doc import SchemaClassFactory, documented_api_method, get_doc
 from safrs.errors import ValidationError, GenericError, NotFoundError
-import pprint
 from flask_sqlalchemy import SQLAlchemy
-
 from flask_marshmallow import Marshmallow
+
+try:
+    from validate_email import validate_email
+except:
+    pass
+
 
 #
 # Map SQLA types to swagger2 types
@@ -277,10 +277,14 @@ class SAFRSBase(object):
     def type(cls):
         return cls.__tablename__
 
-    @classmethod
-    def get_endpoint(cls, url_prefix = '/'):
-        endpoint = '{}api.{}'.format(url_prefix, cls.__tablename__)
-        return endpoint
+    @classproperty
+    def _s_class_name(cls):
+        return cls.__tablename__
+
+    @classproperty
+    def _s_type(cls):
+        return cls._s_class_name
+
 
     def __new__(cls, **kwargs):
         '''
@@ -442,7 +446,6 @@ class SAFRSBase(object):
             this method will be called by SAFRSJSONEncoder 
 
         '''
-
         result = {}
         for f in self.json_params:
             if f in ( 'id' , 'type' ) : # jsonapi schema prohibits the use of these fields in the attributes
@@ -587,47 +590,12 @@ class SAFRSBase(object):
             
         return model
 
-    def jsonapi_encode(self, ):
-        '''
-            Encode object according to the jsonapi specification
-        '''
-        from flask import url_for
-        relationships = dict()
-        
-        for relationship in self.__mapper__.relationships:
-            
-            try:
-                #params = { self.object_id : self.id }
-                #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
-                obj_url = url_for(self.get_endpoint())
-                if not obj_url.endswith('/'):
-                    obj_url += '/'
-            except:
-                # app not initialized
-                obj_url = ''
-            
-            rel_name = relationship.key
-            if relationship.direction in (ONETOMANY, MANYTOMANY):
-                items = list(getattr(self, rel_name, []))
-                data  = [] # [{ 'id' : i.id , 'type' : self.__name__ } for i in items]
-            else:
-                data = None
-            
-            #self_link = '{}/{}/relationships/{}'.format(obj_url,
-            self_link = '{}{}/{}'.format( obj_url,
-                                          self.id,
-                                          rel_name)
-            links  = dict( self = self_link, related = '' )
-            
-            relationships[rel_name] = dict(links = links, data = data)
 
-        data = dict( attributes = self.to_dict(),
-                     id = self.id,
-                     type = self.type,
-                     relationships = relationships
-                    )
-        
-        return data
+    @classmethod
+    def get_endpoint(cls, url_prefix = '/'):
+        endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
+        return endpoint
+
 
 
 log = logging.getLogger(__name__)
