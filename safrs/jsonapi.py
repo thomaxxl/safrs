@@ -309,24 +309,24 @@ class Api(FRSApiBase):
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                             
-                            param = { 'default': 100, 
-                                      'type': 'integer', 
+                            param = { 'default': '', 
+                                      'type': 'string', 
                                       'name': 'include', 
                                       'in': 'query', 
                                       'format' : 'int64',
                                       'required' : False,
-                                      'description' : 'max number of items'
+                                      'description' : 'related objects to include'
                                     }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                         
                             param = { 'default': 100, 
-                                      'type': 'integer', 
+                                      'type': 'string', 
                                       'name': 'fields[{}]'.format(parameter.get('name')), 
                                       'in': 'query', 
                                       'format' : 'int64',
                                       'required' : False,
-                                      'description' : 'max number of items'
+                                      'description' : 'fields'
                                     }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
@@ -458,7 +458,6 @@ class SAFRSRestAPI(Resource, object):
             If an id is given, get an instance by id
             If a method is given, call the method on the instance
         '''
-        log.info('get')
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
 
@@ -484,11 +483,11 @@ class SAFRSRestAPI(Resource, object):
         else:
             # retrieve a collection
             instances = self.SAFRSObject.query.limit(limit).all()
-            details = request.args.get('details',None)
+            '''details = request.args.get('details',None)
             if details != 'all':
                 data = [ { 'id' : item.id, 'type'  : item._s_type } for item in instances ]                
-            else:
-                data = [ item for item in instances ]
+            else:'''
+            data = [ item for item in instances ]
         
             result = dict(data = data, links = {} )
         
@@ -520,7 +519,7 @@ class SAFRSRestAPI(Resource, object):
         instance = self.SAFRSObject.get_instance(id)
         if not instance:
             raise ValidationError('Invalid ID')
-        instance.patch(**attributes)
+        instance._s_patch(**attributes)
         
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
         obj_args = { instance.object_id : instance.id }
@@ -540,10 +539,7 @@ class SAFRSRestAPI(Resource, object):
         if type(json) != dict:
             raise ValidationError('Invalid Object Type')
 
-        log.info('ccc')
-        print('json')
-        print(json)
-        # Validate jsonapi
+        # TODO: Validate jsonapi
 
         return json
         
@@ -1004,7 +1000,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             
             relationships[rel_name] = dict(links = links, data = data)
 
-        attributes  = object.to_dict()
+        attributes  = object._s_to_dict()
         # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
         fields = request.args.get('fields[{}]'.format(object._s_type), None)
         if fields:
@@ -1019,4 +1015,6 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                      type = object._s_type,
                      relationships = relationships
                     )
+
+
         return data

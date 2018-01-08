@@ -21,26 +21,19 @@ import uuid
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
-from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
-from sqlalchemy.orm import synonym
+from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref, synonym
 from sqlalchemy.orm.session import make_transient
-from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer
+from sqlalchemy.types import Text, String, Integer, DateTime, TypeDecorator, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
-# safrs_rest dependencies:
-from safrs.swagger_doc import SchemaClassFactory, documented_api_method, get_doc
-from safrs.errors import ValidationError, GenericError, NotFoundError
-from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
-
-try:
-    from validate_email import validate_email
-except:
-    pass
-
-
+# safrs_rest dependencies:
+from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc
+from .errors import ValidationError, GenericError, NotFoundError
+from .types import SafeString, SAFRSID
+from .util import classproperty
 #
 # Map SQLA types to swagger2 types
 #
@@ -68,94 +61,6 @@ sqlalchemy_swagger2_type = {
 }
 
 
-STRIP_SPECIAL = '[^\w|%|:|/|-|_\-_\. ]'
-
-
-
-class JSONType(PickleType):
-    '''
-        JSON DB type is used to store JSON objects in the database
-    '''
-
-    impl = Text
-
-    def __init__(self, *args, **kwargs):        
-        
-        #kwargs['pickler'] = json
-        super(JSONType, self).__init__(*args, **kwargs)
-
-    def process_bind_param(self, value, dialect):
-        
-        if value is not None:
-            value = json.dumps(value, ensure_ascii=True)
-        return value
-
-    def process_result_value(self, value, dialect):
-
-        if value is not None:
-            value = json.loads(value)
-        return value
-
-
-class SafeString(TypeDecorator):
-    '''
-        DB String Type class strips special chars when bound
-    '''
-
-    impl = String(767)
-
-    def __init__(self, *args, **kwargs):
-
-        super(SafeString, self).__init__(*args, **kwargs)     
-
-    def process_bind_param(self, value, dialect):
-        
-        if value != None:
-            result = re.sub(STRIP_SPECIAL, '_', str(value).decode('utf-8') )
-            if str(result) != str(value):
-                #log.warning('({}) Replaced {} by {}'.format(self, value, result))
-                pass
-        else:
-            result = value
-
-        return result
-
-
-class EmailType(TypeDecorator):
-    '''
-        DB Email Type class: validates email when bound
-    '''
-
-    impl = String(767)
-
-    def __init__(self, *args, **kwargs):
-
-        super(EmailType, self).__init__(*args, **kwargs)     
-
-    def process_bind_param(self, value, dialect):
-        if value and not validate_email(value):
-            raise ValidationError('Email Validation Error {}'.format(value))
-
-        return value
-
-class UUIDType(TypeDecorator):
-
-    impl = String(40)
-
-    def __init__(self, *args, **kwargs):
-
-        super(UUIDType, self).__init__(*args, **kwargs)     
-
-    def process_bind_param(self, value, dialect):
-
-        try:
-            UUID(value, version=4)
-        except:
-            raise ValidationError('UUID Validation Error {}'.format(value))
-
-        return value
-
-
 def init_object_schema(obj):
     '''
         set the json_params attribute
@@ -168,83 +73,7 @@ def init_object_schema(obj):
             model = obj.__class__
 
     obj.object_schema = ObjectSchema()
-    obj.json_params = [ col.name for col in obj.__table__.columns ]
     return obj.object_schema
-
-
-class SAFRSID(object):
-    '''
-        - gen_id
-        - validate_id
-    '''
-
-    def __new__(cls, id = None):
-        
-        if id == None:
-            return cls.gen_id()
-        else:
-            return cls.validate_id(id)
-
-    @classmethod
-    def gen_id(cls):
-        return str(uuid.uuid4())
-
-    @classmethod
-    def validate_id(cls, id):
-        try:
-            uuid.UUID(id, version=4)
-            return id
-        except:
-            raise ValidationError('Invalid ID')
-
-
-class SAFRSSHA256HashID(SAFRSID):
-
-    @classmethod
-    def gen_id(self):
-        '''
-            Create a hash based on the current time
-            This is just an example 
-            Not cryptographically secure and might cause collisions!
-        '''
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").encode('utf-8')
-        return hashlib.sha256(now).hexdigest()
-
-    @classmethod
-    def validate_id(self, id):
-        # todo
-        pass
-
-
-class ClassPropertyDescriptor(object):
-
-    def __init__(self, fget, fset=None):
-        self.fget = fget
-        self.fset = fset
-
-    def __get__(self, obj, klass=None):
-        if klass is None:
-            klass = type(obj)
-        return self.fget.__get__(obj, klass)()
-
-    def __set__(self, obj, value):
-        if not self.fset:
-            raise AttributeError("can't set attribute")
-        type_ = type(obj)
-        return self.fset.__get__(obj, type_)(value)
-
-    def setter(self, func):
-        if not isinstance(func, (classmethod, staticmethod)):
-            func = classmethod(func)
-        self.fset = func
-        return self    
-
-def classproperty(func):
-    if not isinstance(func, (classmethod, staticmethod)):
-        func = classmethod(func)
-
-    return ClassPropertyDescriptor(func)
-
 
 #
 # SAFRSBase superclass
@@ -256,26 +85,29 @@ class SAFRSBase(object):
         Initialization and instantiation are quite complex because we rely on the DB schema
 
         all instances have an id (uuid) and a name
+
+        The object attributes should not match column names, this is why the attributes have the '_s_' prefix!
     '''
 
     object_schema = None
-    json_params = None
     id_type = SAFRSID
     
     @classproperty
-    def query(cls):
+    def _s_query(cls):
         _table = getattr(cls,'_table', None)
         if _table:
             return db.session.query(_table)    
         return db.session.query(cls)
 
-    @classproperty
-    def columns(cls):
-        return list(cls.__mapper__.columns)
+    query = _s_query
 
     @classproperty
-    def type(cls):
-        return cls.__tablename__
+    def _s_column_names(cls):
+        return [ c.name for c in cls.__mapper__.columns]
+    
+    @classproperty
+    def _s_columns(cls):
+        return list(cls.__mapper__.columns)
 
     @classproperty
     def _s_class_name(cls):
@@ -284,7 +116,6 @@ class SAFRSBase(object):
     @classproperty
     def _s_type(cls):
         return cls._s_class_name
-
 
     def __new__(cls, **kwargs):
         '''
@@ -357,8 +188,8 @@ class SAFRSBase(object):
             # Exception may arise when a db constrained has been violated (e.g. duplicate key)
             raise GenericError(str(exc))
 
-    def patch(self, **kwargs):
-        for attr in self.json_params:
+    def _s_patch(self, **kwargs):
+        for attr in self._s_column_names:
             value = kwargs.get(attr,None)
             if value:
                 setattr(self, attr, value)
@@ -376,7 +207,7 @@ class SAFRSBase(object):
 
         result = []
         for id in id_list:
-            instance = self.query.get(id)
+            instance = self._s_query.get(id)
             if id:
                 result.append(instance)
 
@@ -413,7 +244,7 @@ class SAFRSBase(object):
         instance = None
         if id:
             try:
-                instance = cls.query.filter_by(id=id).first()
+                instance = cls._s_query.filter_by(id=id).first()
             except Exception as e:
                 log.critical(e)
 
@@ -430,7 +261,7 @@ class SAFRSBase(object):
 
         make_transient(self)
         self.id = self.id_type()
-        for parameter in self.json_params:
+        for parameter in self._s_column_names:
             value = kwargs.get(parameter, None)
             if value != None:
                 setattr(self, parameter, value)
@@ -440,14 +271,14 @@ class SAFRSBase(object):
     def init_object_schema(self):
         init_object_schema(self)
         
-    def to_dict(self):
+    def _s_to_dict(self):
         '''
             Create a dictionary with all the object parameters
             this method will be called by SAFRSJSONEncoder 
 
         '''
         result = {}
-        for f in self.json_params:
+        for f in self._s_column_names:
             if f in ( 'id' , 'type' ) : # jsonapi schema prohibits the use of these fields in the attributes
                 continue
             value = getattr(self,f)
@@ -487,7 +318,7 @@ class SAFRSBase(object):
 
         first = None
         try:
-            first = cls.query.first()
+            first = cls._s_query.first()
         except Exception as e:
             log.warning('Failed to retrieve sample for {}({})'.format(cls,e))
         return first
@@ -568,7 +399,7 @@ class SAFRSBase(object):
         sample_id = cls.sample_id()
         sample_instance  = cls.get_instance(sample_id, failsafe = True)
 
-        for column in cls.__table__.columns:
+        for column in cls._s_columns:
             if column.name == 'id' : continue
             # convert the column type to string and map it to a swagger type
             column_type  = str(column.type)
@@ -597,10 +428,9 @@ class SAFRSBase(object):
         return endpoint
 
 
-
 log = logging.getLogger(__name__)
 #
-# Fix flask-sqlalchemy's stupid session crap
+# Work around flask-sqlalchemy's session crap
 # ( globals() doesn't work when using "builtins" module )
 # If db isn't specified we want to use the declarative base
 #
