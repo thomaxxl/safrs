@@ -117,7 +117,7 @@ class SAFRSBase(object):
 
     @classproperty
     def _s_type(cls):
-        return cls._s_class_name
+        return cls.__tablename__
 
     def __new__(cls, **kwargs):
         '''

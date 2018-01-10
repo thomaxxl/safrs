@@ -48,7 +48,7 @@ from .db import SAFRSBase, db, log
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT, RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT
-from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT
+from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 
 UNLIMITED = 1<<32 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
@@ -62,7 +62,7 @@ class Api(FRSApiBase):
         documentation
     '''
 
-    def expose_object(self, safrs_object, url_prefix = '/', **properties):
+    def expose_object(self, safrs_object, url_prefix = '', **properties):
         '''
             This methods creates the API url endpoints for the SAFRObjects
 
@@ -80,10 +80,12 @@ class Api(FRSApiBase):
         '''
 
         api_class_name = '{}_API'.format(safrs_object._s_type)
-        
+
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [ safrs_object._s_type ]
-        url = '/{}/'.format(safrs_object._s_type)
+        
+        url = RESOURCE_URL_FMT.format(url_prefix,safrs_object._s_type)
+
         endpoint = safrs_object.get_endpoint(url_prefix)
 
         properties['SAFRSObject'] = safrs_object
@@ -108,7 +110,7 @@ class Api(FRSApiBase):
         self.add_resource( api_class, 
                            url,
                            endpoint=endpoint)
-        log.info('Exposing {} instances  on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
+        log.info('Exposing {} instances on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
         
         object_doc = parse_object_doc(safrs_object)
         object_doc['name'] = safrs_object._s_type
@@ -663,8 +665,6 @@ class SAFRSRestAPI(Resource, object):
         return instances
 
 
-
-
 class SAFRSRestMethodAPI(Resource, object):
     '''
         Flask webservice wrapper for the underlying SAFRSBase documented_api_method
@@ -685,14 +685,11 @@ class SAFRSRestMethodAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
-            HTTP POST: apply actions
-            Retrieves objects from the DB based on a given query filter (in POST data)
-            Returns a dictionary usable by jquery-bootgrid
+            HTTP POST: apply actions    
         ''' 
-        id = kwargs.get(self.object_id, None)
-        json_data = request.get_json({})
-        args = json_data.get('meta',{}).get('args') if json_data else dict(request.args)
 
+        id = kwargs.get(self.object_id, None)
+        
         if id != None:
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
@@ -712,6 +709,13 @@ class SAFRSRestMethodAPI(Resource, object):
         if not is_public(method):
             raise ValidationError('Method is not public')
 
+        args = dict(request.args)
+        json_data = request.get_json({})
+        if json_data:
+            args = json_data.get('meta',{}).get('args',{})
+
+        log.debug('method {} args {}'.format(self.method_name, args))
+        
         result = method(**args)
         response = { 'meta' :
                      { 'result' : result }
