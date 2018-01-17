@@ -238,13 +238,14 @@ class SAFRSBase(object):
         '''
             Parameters:
                 id: instance id
+                failsafe: indicates whether we want an exception to be raised in case the id is not found
 
             Returns:
                 Instance or None. An error is raised if an invalid id is used
         '''
 
         instance = None
-        if id:
+        if id or not failsafe:
             try:
                 instance = cls._s_query.filter_by(id=id).first()
             except Exception as e:
@@ -288,6 +289,8 @@ class SAFRSBase(object):
                 value = ""
             result[f] = value
         return result
+
+    to_dict = _s_to_dict
 
     def __unicode__(self):
         name = getattr(self,'name',self.__class__.__name__)

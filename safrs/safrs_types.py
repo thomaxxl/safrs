@@ -1,6 +1,6 @@
 from safrs.errors import ValidationError
 from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer
-import uuid
+import uuid, datetime, hashlib
 
 try:
     from validate_email import validate_email
