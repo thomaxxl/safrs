@@ -8,7 +8,7 @@ Class and method descriptions and examples can be provided in yaml syntax in the
 
 The result is an easy-to-use [json-api](jsonapi.org) and [swagger](https://swagger.io/) compliant API specification.
 
-As a proof-of-concept, I have deployed the [relationship example](examples/demo_relationship.py) as a __[demo](http://thomaxxl.pythonanywhere.com)__.
+A __live [demo](http://thomaxxl.pythonanywhere.com) is running__, implementing the [relationship example](examples/demo_relationship.py).
 
 ## Installation
 
