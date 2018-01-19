@@ -28,7 +28,6 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
-from flask_marshmallow import Marshmallow
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc
 from .errors import ValidationError, GenericError, NotFoundError

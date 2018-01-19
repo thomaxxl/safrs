@@ -322,7 +322,7 @@ class Api(FRSApiBase):
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                         
-                            param = { 'default': 100, 
+                            param = { 'default': "", 
                                       'type': 'string', 
                                       'name': 'fields[{}]'.format(parameter.get('name')), 
                                       'in': 'query', 
