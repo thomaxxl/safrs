@@ -221,6 +221,13 @@ This code was developed for a specific use-case and may not be flexible enough f
 - Not all of the documentation available in swagger1 is shown with swagger2
 - I tried to keep this readme short for the sake of brevity. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
 
+## References
+
+JSON:API specification
+OpenApi 
+Flask
+SQLAlchemy
+
 ## Thanks
 
 I developed this code when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to open source it when I stopped working there. 

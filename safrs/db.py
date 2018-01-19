@@ -25,6 +25,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref, 
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy.types import Text, String, Integer, DateTime, TypeDecorator, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
+from flask_marshmallow import Marshmallow
 
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
