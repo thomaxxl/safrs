@@ -24,14 +24,12 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from safrs.db import SAFRSBase, documented_api_method
 from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask_marshmallow import Marshmallow
 
 app = Flask('safrs_demo_app')
 
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',         
                    DEBUG = True)
 db = SQLAlchemy(app)
-ma = Marshmallow(app)
 
 # Example sqla database object
 class User(SAFRSBase, db.Model):

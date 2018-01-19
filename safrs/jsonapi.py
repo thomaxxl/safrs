@@ -6,7 +6,6 @@
 # - endpoint
 #
 # todo: 
-# - marshmallow & encoding
 # - __ underscores
 # - tests
 # - validation
@@ -18,6 +17,7 @@
 # - duplicate entries / pk's => error
 # - orm reconstructor
 # - safrs subclassing
+# - marshmallow & encoding
 #
 '''
 http://jsonapi.org/format/#content-negotiation-servers
