@@ -9,15 +9,10 @@
 #
 # - A database is created and a user is added
 # - A rest api is available
-# - swagger2 documentation is generated
+# - swagger documentation is generated
 #
 import sys, logging
-if sys.version_info[0] == 3:
-    import builtins
-    __builtin__ = builtins
-    __builtins__.unicode = str
-else:
-    import __builtin__
+import builtins
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, ForeignKey, Table
@@ -26,9 +21,7 @@ from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask('safrs_demo_app')
-
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',         
-                   DEBUG = True)
+app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
 db = SQLAlchemy(app)
 
 # Example sqla database object
@@ -58,7 +51,6 @@ class User(SAFRSBase, db.Model):
             mailfile.write(content)
         return { 'result' : 'sent {}'.format(content)}
 
-
 class Book(SAFRSBase, db.Model):
     '''
         description: Book description
@@ -70,18 +62,16 @@ class Book(SAFRSBase, db.Model):
     user = db.relationship('User', back_populates='books')
 
 
-HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
-PORT = 5000
-
+# Create the database
 db.create_all()
 
+HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
+PORT = 5000
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 builtins.log = log
 
 with app.app_context():
-    # Create the database
-    
     # Create a user
     user = User(name='test',email='em@il')
     book = Book(name='test_book')

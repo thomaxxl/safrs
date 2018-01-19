@@ -4,6 +4,7 @@
 import inspect, yaml, uuid, logging
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
+from safrs.config import USE_API_METHODS
 
 log = logging.getLogger()
 
@@ -40,9 +41,9 @@ def documented_api_method(func):
         When a method is decorated with documented_api_method, this means
         it becomes available for use through HTTP POST (i.e. public)
     '''
-
-    api_doc = parse_object_doc(func)
-    setattr(func, REST_DOC, api_doc)
+    if USE_API_METHODS:
+        api_doc = parse_object_doc(func)
+        setattr(func, REST_DOC, api_doc)
     return func
 
 

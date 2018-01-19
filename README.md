@@ -1,7 +1,5 @@
 # SAFRS python REST API Framework
 
-*note* this readme is out of date and will be updated soon!
-the git version only works with python3
 ## Overview
 
 SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting REST API for the sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the REST API. Class methods can be exposed and invoked using JSON HTTP requests as well. Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
@@ -17,8 +15,8 @@ The usual:
 ```bash
 git clone https://github.com/thomaxxl/safrs
 cd safrs
-pip install -r requirements.txt
-python setup.py install
+sudo pip3 install -r requirements.txt
+sudo python3 setup.py install
 ```
 
 or to run the example within virtualenv:
@@ -28,7 +26,7 @@ git clone https://github.com/thomaxxl/safrs
 cd safrs
 virtualenv safrs
 source safrs/bin/activate
-pip install -r requirements.txt
+sudo pip3 install -r requirements.txt
 ```
 
 The examples can be started with 
@@ -43,13 +41,45 @@ The objects can be queried using a REST API. The APIs support following HTTP ope
 - GET : Retrieve an object or a list of object identifiers
 - PATCH : Update an object.
 - DELETE: Delete an object.
-- POST : Create an object, or apply a method to an object (e.g. user.send_mail(email) instructs the backend to send an email)
+- POST : Create an object. 
 
 ## Objects
 
 Database objects are implemented as subclasses of the SAFRSBase and SQLAlchemy model classes. The SQLAlchemy columns are serialized to JSON when the corresponding REST API is invoked. 
 
 Following example from [demo.py](examples/demo.py) illustrates how the API is built and documented:
+
+```python
+class User(SAFRSBase, db.Model):
+    '''
+        description: User description
+    '''
+    __tablename__ = 'Users'
+    id = Column(String, primary_key=True)
+    name = Column(String, default = '')
+    email = Column(String, default = '')
+
+```
+
+The User class is implemented as a subclass of 
+- db.Model: SQLAlchemy base
+- SAFRSBase: Implements JSON serialization for the object and generates (swagger) API documentation
+
+This User object is then exposed through the web interface using the Api object
+
+```python 
+api.expose_object(User)
+``` 
+
+The User object REST methods are available on /User, the swagger schema is available on /api/swagger.json and the UI is available on /api/:
+![User Swagger](docs/images/USER_swagger.png)
+
+## Methods
+
+### Custom Methods
+
+Safrs allows the user to implement custom methods on the exposed objects. This methods can be invoked through the json API by sending an HTTP POST request to the method endpoint
+The following example implements a "send_mail" method fro example:
 
 ```python
 class User(SAFRSBase, db.Model):
@@ -77,28 +107,12 @@ class User(SAFRSBase, db.Model):
 
 ```
 
-The User class is implemented as a subclass of 
-- db.Model: SQLAlchemy base
-- SAFRSBase: Implements JSON serialization for the object and generates (swagger) API documentation
+This method shows up in the swagger interface:
 
-This User object is then exposed through the web interface using the Api object
-
-```python 
-api.expose_object(User)
-``` 
-
-The User object REST methods are available on /User, the swagger schema is available on /api/swagger.json and the UI is available on /api/:
-![User Swagger](docs/images/USER_swagger.png)
-
-## Methods
-
-### Custom Methods
+![Method Swagger](docs/images/method_swagger.PNG)
 
 The ```send_mail``` method is documented with the ```documented_api_method``` decorator. 
-This function generates a schema based on the function documentation. This documentation contains yaml specification of the API which is used by the swagger UI. 
-This method can then be invoked with following HTTP POST Json payload:
-
-![User Swagger](docs/images/POST_swagger.png)
+This decorator generates a schema based on the function documentation. This documentation contains yaml specification of the API which is used by the swagger UI. 
 
 The yaml specification has to be in the first part of the function and class comments. These parts are delimited by four dashes ("----") . The rest of the comment may contain additional documentation.
 
@@ -195,7 +209,6 @@ The [examples](examples) folder contains more example scripts:
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. 
 
 - Composite keys might not work well.
-- The use of \_\_builtin\_\_ for the global variables log, db and app is a bit of a dirty hack (I'll try to work around that but it's harder than it seems)
 - Not all of the documentation available in swagger1 is shown with swagger2
 
 ## Thanks
