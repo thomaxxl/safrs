@@ -199,6 +199,13 @@ In case of errors, the webservice will return a default HTTP status code 500 and
 }
 ```
 
+## Configuration
+
+Some configuration parameters can be set in [config.py](safrs/config.py):
+- USE_API_METHODS : set this to false in case you want to disable the documented_api_method functionality
+- INSTANCE_URL_FMT : This parameter declares the instance url path format
+- RELATIONSHIP_URL_FMT: This parameter declares the relationship endpoint path format
+
 ## More Examples and Use Cases
 The [examples](examples) folder contains more example scripts:
 - Exposing an exisitng sqlite database as a REST service
