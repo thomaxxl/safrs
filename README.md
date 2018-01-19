@@ -1,4 +1,4 @@
-# SAFRS python REST API Framework
+# SAFRS python swagger JSON API Framework
 
 ## Overview
 
