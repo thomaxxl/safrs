@@ -138,6 +138,10 @@ class SAFRSBase(object):
             
         return instance
 
+    @property
+    def _s_relationships(self):
+        return self.__mapper__.relationships
+
     def __init__(self, *args, **kwargs ):
         '''
             Object initialization: 
@@ -158,7 +162,7 @@ class SAFRSBase(object):
         # Retrieve the values from each attribute (== class table column)
         db_args = {}
         columns = self.__table__.columns
-        relationships = self.__mapper__.relationships
+        relationships = self._s_relationships
         for column in columns:
             arg_value = kwargs.get(column.name, None)
             if arg_value == None and column.default:
@@ -425,11 +429,18 @@ class SAFRSBase(object):
             
         return model
 
-
     @classmethod
-    def get_endpoint(cls, url_prefix = '/'):
+    def get_endpoint(cls, url_prefix = ''):
         endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
         return endpoint
+
+    @classmethod
+    def _s_meta(cls):
+        '''
+            What is returned in the "meta" part
+            may be implemented by the app
+        '''
+        return { }
 
 
 log = logging.getLogger(__name__)

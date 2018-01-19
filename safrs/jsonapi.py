@@ -20,6 +20,16 @@
 # - duplicate entries / pk's => error
 # - orm reconstructor
 #
+'''
+http://jsonapi.org/format/#content-negotiation-servers
+
+Server Responsibilities
+Servers MUST send all JSON API data in response documents with the header Content-Type: application/vnd.api+json without any media type parameters.
+Servers MUST respond with a 415 Unsupported Media Type status code if a request specifies the header Content-Type: application/vnd.api+json with any media type parameters.
+
+This shoudl be implemented by the app, for example using @app.before_request  and @app.after_request
+
+'''
 import copy
 import inspect
 import uuid
@@ -47,10 +57,9 @@ from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 from .db import SAFRSBase, db, log
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
 from .errors import ValidationError, GenericError, NotFoundError
-from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT, RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT
+from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT, RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 
-UNLIMITED = 1<<32 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
 
@@ -281,20 +290,21 @@ class Api(FRSApiBase):
                         object_id = '{%s}'%parameter.get('name')
 
                         if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) :
-                            # details parameter specifies to which details to show
-                            param = { 'default': 'all', 
-                                      'type': 'string', 
-                                      'name': 'details', 
-                                      'in': 'query',
+                            # limit parameter specifies the number of items to return
+                            param = { 'default': 0,  # The 0 isn't rendered though
+                                      'type': 'integer', 
+                                      'name': 'page[offset]', 
+                                      'in': 'query', 
+                                      'format' : 'int64',
                                       'required' : False,
-                                      'description' : 'details to be included'
+                                      'description' : 'Page offset'
                                     }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
-                            # limit parameter specifies the number of items to return
-                            param = { 'default': 100, 
+                            
+                            param = { 'default': 10, 
                                       'type': 'integer', 
-                                      'name': 'limit', 
+                                      'name': 'page[limit]', 
                                       'in': 'query', 
                                       'format' : 'int64',
                                       'required' : False,
@@ -426,11 +436,109 @@ def api_decorator(cls, swagger_decorator):
     return cls
 
 
+def paginate(object):
+    '''
+        http://jsonapi.org/format/#fetching-pagination
+    
+        A server MAY choose to limit the number of resources returned in a response to a subset (“page”) of the whole set available.
+        A server MAY provide links to traverse a paginated data set (“pagination links”).
+        Pagination links MUST appear in the links object that corresponds to a collection. To paginate the primary data, supply pagination links in the top-level links object. To paginate an included collection returned in a compound document, supply pagination links in the corresponding links object.
+
+        The following keys MUST be used for pagination links:
+
+        first: the first page of data
+        last: the last page of data
+        prev: the previous page of data
+        next: the next page of data
+
+        We use page[offset] and page[limit]
+
+    '''
+    offset = request.args.get('page[offset]',0)
+    limit  = request.args.get('page[limit]', UNLIMITED)
+    links  = {
+        'first' : '',
+        'last'  : '',
+        'prev'  : '',
+        'next'  : '',
+    }
+    instances = object.query.offset(offset).limit(limit).all()
+    return links, instances
+            
+def format_included(data, page):
+    '''
+        http://jsonapi.org/format/#fetching-includes
+
+        Inclusion of Related Resources
+        An endpoint MAY return resources related to the primary data by default.
+        An endpoint MAY also support an include request parameter to allow the client to customize which related resources should be returned.
+
+
+    '''
+    result  = []
+    include = request.args.get('include', None)
+    if not include:
+        return result
+    
+    if isinstance(data, list):
+        return [ format_included(obj) for obj in data ]
+    
+    # When we get here, data has to be a SAFRSBase instance
+    assert(isinstance(data, SAFRSBase))
+    instance = data
+
+    # Multiple related resources can be requested in a comma-separated list
+    includes = include.split(',')
+
+    for include in includes:
+        if '.' in include:
+            endpoint, relationship = include.split('.')
+        else:
+            relationship = include
+        
+        if relationship in [ r.key for r in instance._s_relationships]:
+            links, included = paginate(getattr(instance,relationship))
+            result  += included
+
+    return result
+
+
+
 class SAFRSRestAPI(Resource, object):
     '''
-        Flask webservice wrapper for the underlying sqla db model (SAFRSBase subclass : cls.SAFRSObject)
+        Flask webservice wrapper for the underlying Resource Object: an sqla db model (SAFRSBase subclass : cls.SAFRSObject)
 
-        This class implements HTTP Methods (get, post, put, delete, ...) and helpers        
+        This class implements HTTP Methods (get, post, put, delete, ...) and helpers     
+
+        http://jsonapi.org/format/#document-resource-objects
+        A resource object MUST contain at least the following top-level members:
+        - id
+        - type
+
+        In addition, a resource object MAY contain any of these top-level members:
+
+        attributes: an attributes object representing some of the resource’s data.
+        relationships: a relationships object describing relationships between the resource and other JSON API resources.
+        links: a links object containing links related to the resource.
+        meta: a meta object containing non-standard meta-information about a resource that can not be represented as an attribute or relationship.
+
+        e.g.
+        {
+            "id": "1f1c0e90-9e93-4242-9b8c-56ac24e505e4",
+            "type": "car",
+            "attributes": {
+                "color": "red"
+            },
+            "relationships": {
+                "driver": {
+                    "data": {
+                        "id": "55550e90-9e93-4242-9b8c-56ac24e505e5", 
+                        "type": "person"
+                    }
+                }
+        }
+
+        A resource object’s attributes and its relationships are collectively called its “fields”.
     '''
 
     SAFRSObject = None # Flask views will need to set this to the SQLAlchemy db.Model class
@@ -451,39 +559,71 @@ class SAFRSRestAPI(Resource, object):
             If no id is given: return all instances
             If an id is given, get an instance by id
             If a method is given, call the method on the instance
+
+            http://jsonapi.org/format/#document-top-level
+
+            A JSON object MUST be at the root of every JSON API request and response containing data. This object defines a document’s “top level”.
+
+            A document MUST contain at least one of the following top-level members:
+            - data: the document’s “primary data”
+            - errors: an array of error objects
+            - meta: a meta object that contains non-standard meta-information.
+
+            A document MAY contain any of these top-level members:
+            - jsonapi: an object describing the server’s implementation
+            - links: a links object related to the primary data.
+            - included: an array of resource objects that are related to the primary data and/or each other (“included resources”).
         '''
+
+        data    = None
+        meta    = {}
+        errors  = None
+
+        links   = None
+        included= None
+        jsonapi = dict( version = '1.0' )
+        
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
 
         limit = request.args.get('limit', UNLIMITED)
+        meta['limit'] = limit
 
         if id:
             # Retrieve the instance with the provided id
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
                 raise ValidationError('Invalid {}'.format(self.object_id))
-            # Call the method if it doesn't exist, return instance :)
-            #method = getattr(instance, method_name, lambda : instance)
-            #result = { 'result' : method() }
+
             for rel in instance.__mapper__.relationships:
                 log.info(rel)
                 log.info(rel.key)
 
-            result = { 'data' : instance ,
-                       'links' : { 
-                                    'self' : instance.get_endpoint()
-                                }
-                     }
+            data  = instance
+            links = { 
+                       'self' : url_for(instance.get_endpoint())
+                    }
+            meta.update(dict(instance_meta =  instance._s_meta()))
+            
         else:
             # retrieve a collection
-            instances = self.SAFRSObject.query.limit(limit).all()
-            '''details = request.args.get('details',None)
-            if details != 'all':
-                data = [ { 'id' : item.id, 'type'  : item._s_type } for item in instances ]                
-            else:'''
+            links, instances = paginate(self.SAFRSObject)
             data = [ item for item in instances ]
+            
         
-            result = dict(data = data, links = {} )
+        included = format_included(data, limit)
+        result   = dict(data = data)
+        
+        if errors:
+            result['errors'] = errors
+        if meta:
+            result['meta'] = meta
+        if jsonapi:
+            result['jsonapi'] = jsonapi
+        if links:
+            result['links'] = links
+        if included:
+            result['included'] = included
         
         return jsonify(result)    
 
@@ -540,7 +680,8 @@ class SAFRSRestAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
-            Creating Resources ( http://jsonapi.org/format/#crud-creating )
+            http://jsonapi.org/format/#crud-creating
+            Creating Resources
             A resource can be created by sending a POST request to a URL that represents a collection of resources. 
             The request MUST include a single resource object as primary data. 
             The resource object MUST contain at least a type member.
@@ -816,13 +957,8 @@ class SAFRSRestRelationshipAPI(Resource, object):
         else:
             # No {ChildId} given: 
             # return a list of all relationship items
-            # if request.args contains "details", return full details
-            details = request.args.get('details','None')
-            if details == None:
-                result = [ item.id for item in relation ]
-            else:
-                result = [ item for item in relation ]
-            
+            result = [ item for item in relation ]
+
         return jsonify(result), 200
         
 
@@ -964,6 +1100,25 @@ class SAFRSJSONEncoder(JSONEncoder, object):
 
         relationships = dict()
         for relationship in object.__mapper__.relationships:
+            '''
+                http://jsonapi.org/format/#document-resource-object-relationships:
+
+                The value of the relationships key MUST be an object (a “relationships object”). 
+                Members of the relationships object (“relationships”) represent references from the resource object in which it’s defined to other resource objects.
+
+                Relationships may be to-one or to-many.
+
+                A “relationship object” MUST contain at least one of the following:
+
+                - links: a links object containing at least one of the following:
+                    - self: a link for the relationship itself (a “relationship link”). This link allows the client to directly manipulate the relationship.       
+                    - related: a related resource link
+                - data: resource linkage
+                - meta: a meta object that contains non-standard meta-information about the relationship.
+                A relationship object that represents a to-many relationship MAY also contain pagination links under the links member, as described below.
+
+                SAFRS currently implements links with self
+            '''
             
             try:
                 #params = { self.object_id : self.id }
@@ -978,19 +1133,21 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             rel_name = relationship.key
             if relationship.direction in (ONETOMANY, MANYTOMANY):
                 # This is really slow for large sets
-                #items = list(getattr(self, rel_name, [])[:10])
+                #items = list(getattr(object, rel_name, [])[:10])
                 #data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 data =[{}]
             else:
                 data = None
             
-            #self_link = '{}/{}/relationships/{}'.format(obj_url,
             self_link = '{}{}/{}'.format( obj_url,
                                           object.id,
                                           rel_name)
-            links  = dict( self = self_link, related = '' )
+            links  = dict( self = self_link, 
+                           related = '' )
             
-            relationships[rel_name] = dict(links = links, data = data)
+            relationships[rel_name] = dict( links = links, 
+                                            data = data, 
+                                            meta = {} )
 
         attributes  = object._s_to_dict()
         # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
@@ -1007,6 +1164,5 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                      type = object._s_type,
                      relationships = relationships
                     )
-
 
         return data
