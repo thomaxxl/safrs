@@ -2,11 +2,11 @@
 
 ## Overview
 
-SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting JSON API for __sqlalchemy__ database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
+SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting JSON API for sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
 Optionally, custom resource object methods can be exposed and invoked using JSON HTTP.
 Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
 
-The result is a [json-api](jsonapi.org) and [swagger](https://swagger.io/) compliant API.
+The result is an easy-to-use [json-api](jsonapi.org) and [swagger](https://swagger.io/) compliant API specification.
 
 As a proof-of-concept, I have deployed the [relationship demo](examples/demo_relationship.py) on http://thomaxxl.pythonanywhere.com .
 
