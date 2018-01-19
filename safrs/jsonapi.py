@@ -6,8 +6,6 @@
 # - endpoint
 #
 # todo: 
-# - safrs subclassing
-# - use safrs_type instead of type
 # - marshmallow & encoding
 # - __ underscores
 # - tests
@@ -19,6 +17,7 @@
 # - pagination, fieldsets, filtering, inclusion => filter page fields sort include
 # - duplicate entries / pk's => error
 # - orm reconstructor
+# - safrs subclassing
 #
 '''
 http://jsonapi.org/format/#content-negotiation-servers
@@ -335,14 +334,6 @@ class Api(FRSApiBase):
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                         
-                        '''if method == 'post' and (
-                            not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) and 
-                            not parameter.get('description','').endswith('(classmethod)') and
-                            not parameter.get('name','').endswith('POST body')
-                            ):
-                            # Only classmethods should be added when there's no {id} in the POST path for this method
-                            #continue
-                            pass'''
                         if not ( parameter.get('in') == 'path' and not object_id in swagger_url ):
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
@@ -465,23 +456,22 @@ def paginate(object):
     instances = object.query.offset(offset).limit(limit).all()
     return links, instances
             
-def format_included(data, page):
+def get_included(data, page):
     '''
         http://jsonapi.org/format/#fetching-includes
 
         Inclusion of Related Resources
         An endpoint MAY return resources related to the primary data by default.
         An endpoint MAY also support an include request parameter to allow the client to customize which related resources should be returned.
-
-
     '''
+
     result  = []
     include = request.args.get('include', None)
     if not include:
         return result
     
     if isinstance(data, list):
-        return [ format_included(obj) for obj in data ]
+        return [ get_included(obj) for obj in data ]
     
     # When we get here, data has to be a SAFRSBase instance
     assert(isinstance(data, SAFRSBase))
@@ -611,7 +601,7 @@ class SAFRSRestAPI(Resource, object):
             data = [ item for item in instances ]
             
         
-        included = format_included(data, limit)
+        included = get_included(data, limit)
         result   = dict(data = data)
         
         if errors:
@@ -1132,9 +1122,9 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             
             rel_name = relationship.key
             if relationship.direction in (ONETOMANY, MANYTOMANY):
-                # This is really slow for large sets
-                #items = list(getattr(object, rel_name, [])[:10])
-                #data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
+                # Data is optional, it's also really slow for large sets: 
+                # items = list(getattr(object, rel_name, [])[:10])
+                # data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 data =[{}]
             else:
                 data = None
