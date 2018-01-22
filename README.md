@@ -240,7 +240,7 @@ This code was developed for a specific use-case and may not be flexible enough f
 
 - Composite keys might not work well.
 - Not all of the documentation available in swagger1 is shown with swagger2
-- I tried to keep this readme short for the sake of brevity. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
+- I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
 
 <a class="mk-toclify" id="references"></a>
 ## References
