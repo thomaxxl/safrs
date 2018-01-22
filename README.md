@@ -1,21 +1,21 @@
 <a class="mk-toclify" id="table-of-contents"></a>
 
 # SAFRS: Python OpenAPI & JSON:API Framework
-    - [Overview](#overview)
-    - [Installation](#installation)
-    - [HTTP Methods](#http-methods)
-    - [Resource Objects](#resource-objects)
-    - [Relationships](#relationships)
-    - [Methods](#methods)
-        - [Custom Methods](#custom-methods)
-        - [Class Methods](#class-methods)
-    - [Endpoint Naming](#endpoint-naming)
-    - [HTTP Status Codes](#http-status-codes)
-    - [Configuration](#configuration)
-    - [More Examples and Use Cases](#more-examples-and-use-cases)
-    - [Limitations & TODOs](#limitations--todos)
-    - [References](#references)
-    - [Thanks](#thanks)
+- [Overview](#overview)
+- [Installation](#installation)
+- [HTTP Methods](#http-methods)
+- [Resource Objects](#resource-objects)
+- [Relationships](#relationships)
+- [Methods](#methods)
+- [Custom Methods](#custom-methods)
+- [Class Methods](#class-methods)
+- [Endpoint Naming](#endpoint-naming)
+- [HTTP Status Codes](#http-status-codes)
+- [Configuration](#configuration)
+- [More Examples and Use Cases](#more-examples-and-use-cases)
+- [Limitations & TODOs](#limitations--todos)
+- [References](#references)
+- [Thanks](#thanks)
 
 
 <a class="mk-toclify" id="overview"></a>
