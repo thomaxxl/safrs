@@ -21,18 +21,18 @@
 <a class="mk-toclify" id="overview"></a>
 ## Overview
 
-SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting JSON API for sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
+SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help python developers create a self-documenting JSON API for sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
 Optionally, custom resource object methods can be exposed and invoked using JSON.
 Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
 
-The result is an easy-to-use [JSON:API](jsonapi.org) and [swagger/OpenAPI](https://swagger.io/) compliant API specification.
+The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](jsonapi.org) compliant API specification.
 
 A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, implementing the [relationship example](examples/demo_relationship.py).
 
 <a class="mk-toclify" id="installation"></a>
 ## Installation
 
-SAFRS can be installed as a pip package or by downloading the latest version from github, for example:
+SAFRS can be installed as a [pip package](https://pypi.python.org/pypi/safrs/) or by downloading the latest version from github, for example:
 
 ```bash
 git clone https://github.com/thomaxxl/safrs
@@ -41,7 +41,7 @@ sudo pip3 install -r requirements.txt
 sudo python3 setup.py install
 ```
 
-The example can then be started with 
+The examples can then be started with 
 ```
 $ PYTHONPATH=. python3 examples/demo_relationship.py "your-interface-ip"
 ```
