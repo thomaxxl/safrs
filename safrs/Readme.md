@@ -57,4 +57,6 @@ SAFRSRestAPI is a superclass for dynamically generated flask-restful endpoints.
 - ``safrs_serialize```
 - The restful ```SAFRSJSONEncoder``` class calls the SAFRSBase subclass to_dict method to convert object attributes to a python dictionary which is then converted to JSON.
 
+## Var
 
+I'm pretty happy with the design and quality of code. However given the benefit of hindsight, a lot of things can be improved :) .
