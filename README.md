@@ -245,10 +245,10 @@ This code was developed for a specific use-case and may not be flexible enough f
 <a class="mk-toclify" id="references"></a>
 ## References
 
-- JSON:API specification
-- OpenApi 
-- Flask
-- SQLAlchemy
+- [JSON:API specification](http://jsonapi.org/format/)
+- [OpenApi (Swagger)](https://www.openapis.org/)
+- [Flask](http://flask.pocoo.org/)
+- [SQLAlchemy](https://www.sqlalchemy.org/)
 
 <a class="mk-toclify" id="thanks"></a>
 ## Thanks
