@@ -127,7 +127,6 @@ class Test_Api(unittest.TestCase):
         cls.api.disco('User', 'Users')
         cls.api.disco('Book', 'Books')
 
-
     @classmethod
     def tearDownClass(cls):
         time.sleep(1)

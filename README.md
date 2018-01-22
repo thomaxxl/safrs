@@ -3,16 +3,16 @@
 ## Overview
 
 SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help create a self-documenting JSON API for sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
-Optionally, custom resource object methods can be exposed and invoked using JSON HTTP.
+Optionally, custom resource object methods can be exposed and invoked using JSON.
 Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
 
-The result is an easy-to-use [json-api](jsonapi.org) and [swagger](https://swagger.io/) compliant API specification.
+The result is an easy-to-use [JSON:API](jsonapi.org) and [swagger/OpenAPI](https://swagger.io/) compliant API specification.
 
 A __live [DEMO](http://thomaxxl.pythonanywhere.com) is available__, implementing the [relationship example](examples/demo_relationship.py).
 
 ## Installation
 
-The usual:
+SAFRS can be installed as a pip package or by downloading the latest version from github, for example:
 
 ```bash
 git clone https://github.com/thomaxxl/safrs
@@ -21,31 +21,21 @@ sudo pip3 install -r requirements.txt
 sudo python3 setup.py install
 ```
 
-or to run the example within virtualenv:
-
-```bash
-git clone https://github.com/thomaxxl/safrs
-cd safrs
-virtualenv safrs
-source safrs/bin/activate
-sudo pip3 install -r requirements.txt
+The example can then be started with 
 ```
-
-The examples can be started with 
-```
-$ python3 examples/demo.py "your-interface-ip"
+$ PYTHONPATH=. python3 examples/demo_relationship.py "your-interface-ip"
 ```
 
 ## HTTP Methods
 
-The objects can be queried using a REST API. The APIs support following HTTP operations:
+Exposed resource objects can be queried using a JSON API. The API support following HTTP operations:
 
 - GET : Retrieve an object or a list of object identifiers
 - PATCH : Update an object.
 - DELETE: Delete an object.
 - POST : Create an object. 
 
-## Objects
+## Resource Objects
 
 Database objects are implemented as subclasses of the SAFRSBase and SQLAlchemy model classes. The SQLAlchemy columns are serialized to JSON when the corresponding REST API is invoked. 
 
@@ -75,6 +65,48 @@ api.expose_object(User)
 
 The User object REST methods are available on /User, the swagger schema is available on /api/swagger.json and the UI is available on /api/:
 ![User Swagger](docs/images/USER_swagger.png)
+
+
+## Relationships
+
+Database object such as the User class from the demo.py example can be extended to include relationships with other objects. The demo_relationship.py contains following extension of the User class where a relationship with the Book class is implemented:
+
+```python
+class User(SAFRSBase, db.Model):
+    '''
+        description: User description
+    '''
+    __tablename__ = 'Users'
+    id = Column(String, primary_key=True)
+    name = Column(String, default = '')
+    email = Column(String, default = '')
+    books = db.relationship('Book', back_populates = "user")
+...
+``` 
+
+A many-to-one database association is declared by the back_populates relationship argument.
+The Book class is simply another subclass of SAFRSBase and db.Model, similar to the previous User class:
+
+```python
+class Book(SAFRSBase, db.Model):
+    '''
+        description: Book description
+    '''
+    __tablename__ = 'Books'
+    id = Column(String, primary_key=True)
+    name = Column(String, default = '')
+    user_id = Column(String, ForeignKey('Users.id'))
+    user = db.relationship('User', back_populates='books')
+```
+
+The User.book relationship can be queried in the API through the following endpoints:
+![Relations Swagger](docs/images/Relations_swagger.png)
+
+- POST adds an item to the relationship
+- DELETE removes an item from the relationship
+- GET retrieves a list of item ids
+
+The relationship REST API works similarly for one-to-many relationships. 
 
 ## Methods
 
@@ -134,48 +166,6 @@ Two class-level methods have been defined to facilitate object retrieval:
 
 * **get_list** : retrieve a list of the items with the specified ID's
 
-
-## Relationships
-
-Database object such as the User class from the demo.py example can be extended to include relationships with other objects. The demo_relationship.py contains following extension of the User class where a relationship with the Book class is implemented:
-
-```python
-class User(SAFRSBase, db.Model):
-    '''
-        description: User description
-    '''
-    __tablename__ = 'Users'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    email = Column(String, default = '')
-    books = db.relationship('Book', back_populates = "user")
-...
-``` 
-
-A many-to-one database association is declared by the back_populates relationship argument.
-The Book class is simply another subclass of SAFRSBase and db.Model, similar to the previous User class:
-
-```python
-class Book(SAFRSBase, db.Model):
-    '''
-        description: Book description
-    '''
-    __tablename__ = 'Books'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    user_id = Column(String, ForeignKey('Users.id'))
-    user = db.relationship('User', back_populates='books')
-```
-
-The User.book relationship can be queried in the API through the following endpoints:
-![Relations Swagger](docs/images/Relations_swagger.png)
-
-- POST adds an item to the relationship
-- DELETE removes an item from the relationship
-- GET retrieves a list of item ids
-
-The relationship REST API works similarly for one-to-many relationships. 
-
 ## Endpoint Naming
 As can be seen in the swagger UI:
 - the endpoint collection names are the SQLAlchemy \_\_tablename\_\_ properties (e.g. /Users )
@@ -223,10 +213,10 @@ This code was developed for a specific use-case and may not be flexible enough f
 
 ## References
 
-JSON:API specification
-OpenApi 
-Flask
-SQLAlchemy
+- JSON:API specification
+- OpenApi 
+- Flask
+- SQLAlchemy
 
 ## Thanks
 

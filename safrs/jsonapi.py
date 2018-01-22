@@ -1098,7 +1098,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
         '''
             Encode object according to the jsonapi specification
         '''
-
+    
         relationships = dict()
         for relationship in object.__mapper__.relationships:
             '''
@@ -1137,10 +1137,10 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 rel_query = getattr(object, rel_name)
                 #limit = object.query_limit
                 #if rel_query.lazy:
-                data = list(getattr(object, rel_name, []).limit(10))
+                #items = list(getattr(object, rel_name, []))
                 #data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 #else:
-                #data =[{}]
+                data =[{}]
             else:
                 data = None
             
@@ -1169,5 +1169,5 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                      type = object._s_type,
                      relationships = relationships
                     )
-
+        
         return data
