@@ -59,4 +59,4 @@ SAFRSRestAPI is a superclass for dynamically generated flask-restful endpoints.
 
 ## Var
 
-I'm pretty happy with the design and quality of code. However given the benefit of hindsight, a lot of things can be improved :) .
+I'm pretty happy with the design and quality of code. Given the benefit of hindsight however, a lot of things can be improved :) .
