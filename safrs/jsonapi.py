@@ -620,12 +620,14 @@ class SAFRSRestAPI(Resource, object):
         '''
             Create or update the object specified by id
         '''
+
         id = kwargs.get(self.object_id, None)
-        
+        print('patch' , id)
         if not id:
             raise ValidationError('Invalid ID')
         
         json  = request.get_json()
+        print(json)
         if type(json) != dict:
             raise ValidationError('Invalid Object Type')
         
@@ -907,6 +909,17 @@ class SAFRSRestRelationshipAPI(Resource, object):
             - rel_name : name of the relationship ( e.g. children )
             - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
             - child_object_id : url parameter name of the child ( e.g. {ChildId} )
+
+        
+        http://jsonapi.org/format/#crud-updating-relationships
+
+        Updating To-Many Relationships
+        A server MUST respond to PATCH, POST, and DELETE requests to a URL from a to-many relationship link as described below.
+
+        For all request types, the body MUST contain a data member whose value is an empty array or an array of resource identifier objects.
+
+        If a client makes a PATCH request to a URL from a to-many relationship link, the server MUST either completely replace every member of the relationship, 
+        return an appropriate error response if some resources can not be found or accessed, or return a 403 Forbidden response if complete replacement is not allowed by the server.
     '''
 
     SAFRSObject = None
@@ -957,35 +970,34 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
             to be used to create or update one-to-many mappings but also works for many-to-many etc.
         '''
-
+        print('pat22')
         parent, relation = self.parse_args(**kwargs)
         
         json  = request.get_json()
         if type(json) != dict:
             raise ValidationError('Invalid Object Type')
         data = json.get('data')
-
-        if not data or type(data) != dict:
-            raise ValidationError('Invalid Data Object Type')
-
-        if child and not child.id == kwargs.get('id'):
-            raise ValidationError('ID mismatch')
-
-        child = self.child_class(**data)
-
-        if not child:
-            raise ValidationError('Child Not found')
-        
         relation = getattr(parent, self.rel_name )
 
-        if not child in realtion:
-            relation.append(child)
+        obj_args = { self.parent_object_id : parent.id }
         
-        # arguments for GET : {ParentId} , {ChildId}
-        obj_args = { 
-                     self.parent_object_id : parent.id,
-                     self.child_object_id  : child.id
-                    }
+        print(data)
+        
+        if type(data) == dict:
+            child = self.child_class.get_instance(data.get('id', None))   
+            if not child in relation:
+                relation.append(child)
+            obj_args[self.child_object_id] = child.id
+        elif type(data) == list:
+            if list == []: # => remove all items
+                for item in relation:
+                    relation.remove(item)
+            else:
+                for child in data:
+                    child = self.child_class.get_instance(data.get('id', None))   
+                    relation.append(child)
+        else:
+            raise ValidationError('Invalid Data Object Type')
         
         obj_data = self.get(**obj_args)
         
@@ -1122,9 +1134,13 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             rel_name = relationship.key
             if relationship.direction in (ONETOMANY, MANYTOMANY):
                 # Data is optional, it's also really slow for large sets: 
-                # items = list(getattr(object, rel_name, [])[:10])
-                # data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
-                data =[{}]
+                rel_query = getattr(object, rel_name)
+                #limit = object.query_limit
+                #if rel_query.lazy:
+                data = list(getattr(object, rel_name, []).limit(10))
+                #data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
+                #else:
+                #data =[{}]
             else:
                 data = None
             

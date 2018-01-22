@@ -33,7 +33,7 @@ class User(SAFRSBase, db.Model):
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     email = Column(String, default = '')
-    books = db.relationship('Book', back_populates = "user")
+    books = db.relationship('Book', back_populates = "user" , lazy='dynamic')
 
     # Following method is exposed through the REST API 
     # This means it can be invoked with a HTTP POST

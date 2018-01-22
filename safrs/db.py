@@ -93,6 +93,7 @@ class SAFRSBase(object):
 
     object_schema = None
     id_type = SAFRSID
+    query_limit = 50
     
     @classproperty
     def _s_query(cls):
