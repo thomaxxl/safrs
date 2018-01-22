@@ -54,7 +54,7 @@ SAFRSRestAPI is a superclass for dynamically generated flask-restful endpoints.
 ### Serialization
 
 - MarshMallow
-- ``safrs_serialize```
+- ```safrs_serialize```
 - The restful ```SAFRSJSONEncoder``` class calls the SAFRSBase subclass to_dict method to convert object attributes to a python dictionary which is then converted to JSON.
 
 ## Var
