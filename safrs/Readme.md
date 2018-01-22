@@ -2,12 +2,12 @@
 
 This readme describes on a high level how safrs_rest is implemented (for low level details you can check the code and comments)
 This directory contains the code to construct documented REST APIs:
-- [config.py] : Configurable options
-- [db.py] : sqlalchemy database definitions
-- [jsonapi.py] : REST web bindings. The source code contains a lot of references to the jsonapi specifiation.
-- [safrs_types.py] : Custome database types (eg. SAFRSSHA256HashID in case you'd like to use a SHA256 hash instead of UUID is primary key)
-- [swagger_doc.py] : API documentation, implemented as decorators
-- [errors.py] : Exceptions
+- (config.py) : Configurable options
+- (db.py) : sqlalchemy database definitions
+- (jsonapi.py) : REST web bindings. The source code contains a lot of references to the jsonapi specifiation.
+- (safrs_types.py) : Custome database types (eg. SAFRSSHA256HashID in case you'd like to use a SHA256 hash instead of UUID is primary key)
+- (swagger_doc.py) : API documentation, implemented as decorators
+- (errors.py) : Exceptions
 
 ### Variables for SQLAlchemy, Flask, MarshMallow, Logging
 
