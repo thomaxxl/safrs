@@ -72,7 +72,7 @@ builtins.log = log
 
 with app.app_context():
     # Create a user
-    user = User(name='test',email='em@il')
+    user = User(name='thomas',email='em@il')
     book = Book(name='test_book')
     user.books.append(book)
 
