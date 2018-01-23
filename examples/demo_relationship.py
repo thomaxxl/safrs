@@ -11,14 +11,13 @@
 # - A rest api is available
 # - swagger documentation is generated
 #
-import sys, logging
-import builtins
+import sys, logging, builtins
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
+from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from safrs.db import SAFRSBase, documented_api_method
 from safrs.jsonapi import SAFRSJSONEncoder, Api
-from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask('safrs_demo_app')
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
