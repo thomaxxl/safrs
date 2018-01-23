@@ -622,12 +622,10 @@ class SAFRSRestAPI(Resource, object):
         '''
 
         id = kwargs.get(self.object_id, None)
-        print('patch' , id)
         if not id:
             raise ValidationError('Invalid ID')
         
         json  = request.get_json()
-        print(json)
         if type(json) != dict:
             raise ValidationError('Invalid Object Type')
         
@@ -970,7 +968,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
             to be used to create or update one-to-many mappings but also works for many-to-many etc.
         '''
-        print('pat22')
         parent, relation = self.parse_args(**kwargs)
         
         json  = request.get_json()
@@ -980,8 +977,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
         relation = getattr(parent, self.rel_name )
 
         obj_args = { self.parent_object_id : parent.id }
-        
-        print(data)
         
         if type(data) == dict:
             child = self.child_class.get_instance(data.get('id', None))   
