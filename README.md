@@ -1,3 +1,8 @@
+[![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
+[![License](https://img.shields.io/pypi/l/safrs.svg)](LICENSE)
+
+
 <a class="mk-toclify" id="table-of-contents"></a>
 
 # SAFRS: Python OpenAPI & JSON:API Framework
