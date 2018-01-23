@@ -9,8 +9,8 @@
 - [Methods](#methods)
     - [Custom Methods](#custom-methods)
     - [Class Methods](#class-methods)
-- [Endpoint Naming](#endpoint-naming)
 - [HTTP Status Codes](#http-status-codes)
+- [Endpoint Naming](#endpoint-naming)
 - [Configuration](#configuration)
 - [More Examples and Use Cases](#more-examples-and-use-cases)
 - [Limitations & TODOs](#limitations--todos)
@@ -192,13 +192,6 @@ Two class-level methods have been defined to facilitate object retrieval:
 
 * **get_list** : retrieve a list of the items with the specified ID's
 
-<a class="mk-toclify" id="endpoint-naming"></a>
-## Endpoint Naming
-As can be seen in the swagger UI:
-- the endpoint collection names are the SQLAlchemy \_\_tablename\_\_ properties (e.g. /Users )
-- the parameter names are derived from the SAFRSBase class names (e.g. {UserId} )
-- the the relationship names are the SAFRSBase class relationship names (e.g /books )
-
 <a class="mk-toclify" id="http-status-codes"></a>
 ## HTTP Status Codes
 
@@ -218,6 +211,14 @@ In case of errors, the webservice will return a default HTTP status code 500 and
   "error": "Failed to execute query Entity '<class 'C2_server.Image'>' has no property 'namex'"
 }
 ```
+
+<a class="mk-toclify" id="endpoint-naming"></a>
+## Endpoint Naming
+As can be seen in the swagger UI:
+- the endpoint collection path names are the SQLAlchemy \_\_tablename\_\_ properties (e.g. /Users )
+- the parameter names are derived from the SAFRSBase class names (e.g. {UserId} )
+- the the relationship names are the SAFRSBase class relationship names (e.g /books )
+The URL path format is [configurable](#configuration)
 
 <a class="mk-toclify" id="configuration"></a>
 ## Configuration

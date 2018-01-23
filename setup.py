@@ -8,7 +8,7 @@ setup(
   author_email = 'thomas.pollet@gmail.com',
   url = 'https://github.com/thomaxxl/safrs',
   download_url = 'https://github.com/thomaxxl/safrs/archive/1.0.0.tar.gz', 
-  keywords = ['SqlAlchemy', 'Flask', 'REST', 'Swagger'], 
+  keywords = ['SqlAlchemy', 'Flask', 'REST', 'Swagger', 'JsonAPI', 'OpenAPI'], 
   python_requires='<4',
   classifiers = [
         'Development Status :: 4 - Beta',
