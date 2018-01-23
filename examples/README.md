@@ -1,7 +1,7 @@
 ## Basic Use Case
 demo.py : a small sample application
 example use:
-```python
+```bash
 PYTHONPATH=$PWD python3 examples/demo.py 10.0.0.9
 ```
 
