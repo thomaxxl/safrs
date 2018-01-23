@@ -17,7 +17,7 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from safrs.db import SAFRSBase, documented_api_method
-from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
+from safrs.jsonapi import SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask('safrs_demo_app')
