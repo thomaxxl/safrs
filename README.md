@@ -246,6 +246,7 @@ The [examples](examples) folder contains more example scripts:
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. 
 
 - Composite keys might not work well.
+- Includes are disabled by default for performance reasons and I haven't worked out how to handle recursive relations.
 - Not all of the documentation available in swagger1 is shown with swagger2
 - I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
 
