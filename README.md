@@ -279,4 +279,4 @@ I developed this code when I worked at [Excellium Services](https://www.excelliu
     height: 0%;
 }
 </style>
-<iframe border="0" scrolling="no" class="frame" src="http://thomaxxl.pythonanywhere.com/ev"></iframe>
+<img src="http://thomaxxl.pythonanywhere.com/evpng">
