@@ -262,21 +262,4 @@ This code was developed for a specific use-case and may not be flexible enough f
 
 I developed this code when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to open source it when I stopped working there.
 
-<style>
-.wrapper {
-    position:relative;
-    height: 0;
-    width: 100%;
-    padding-bottom: 56.25%;
-}
-.frame {
-    position:absolue;
-    top:0;
-    right:0;
-    left:0;
-    bottom:0;
-    width: 0%;
-    height: 0%;
-}
-</style>
 <img src="http://thomaxxl.pythonanywhere.com/evpng">
