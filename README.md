@@ -269,20 +269,14 @@ I developed this code when I worked at [Excellium Services](https://www.excelliu
     width: 100%;
     padding-bottom: 56.25%;
 }
-.abs-inner{
+.frame {
     position:absolue;
     top:0;
     right:0;
     left:0;
     bottom:0;
-}
-.frame {
-    width: 100%;
-    height: 100%;
+    width: 0%;
+    height: 0%;
 }
 </style>
-<div class="wrapper">
-    <div class="abs-inner">
-        <iframe border="0" scrolling="no" class="frame" src="http://thomaxxl.pythonanywhere.com/ev"></iframe>
-    </div>
-</div>
+<iframe border="0" scrolling="no" class="frame" src="http://thomaxxl.pythonanywhere.com/ev"></iframe>
