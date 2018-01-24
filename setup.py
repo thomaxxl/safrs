@@ -2,7 +2,8 @@ from distutils.core import setup
 setup(
   name = 'safrs',
   packages = ['safrs'],
-  version = '1.0.1',
+  version = '1.0.2',
+  license = 'MIT',
   description = 'safrs : SqlAlchemy Flask-Restful Swagger2',
   author = 'Thomas Pollet',
   author_email = 'thomas.pollet@gmail.com',
