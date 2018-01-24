@@ -1,11 +1,12 @@
 [![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 
+# SAFRS: Python OpenAPI & JSON:API Framework
+
 ![demo](docs/images/safrs.gif)
 
 <a class="mk-toclify" id="table-of-contents"></a>
 
-# SAFRS: Python OpenAPI & JSON:API Framework
 - [Overview](#overview)
 - [Installation](#installation)
 - [HTTP Methods](#http-methods)
