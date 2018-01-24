@@ -1,4 +1,5 @@
 [![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 
 <a class="mk-toclify" id="table-of-contents"></a>
 
