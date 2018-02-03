@@ -247,7 +247,7 @@ class Api(FRSApiBase):
         '''
         
         from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
-        from flask_restful_swagger_2 import validate_path_item_object, extract_swagger_path
+        from flask_restful_swagger_2 import validate_path_item_object, extract_swagger_path, Extractor
 
         path_item = {}
         definitions = {}
@@ -262,7 +262,8 @@ class Api(FRSApiBase):
 
             operation = getattr(f,'__swagger_operation_object', None)
             if operation:
-                operation, definitions_ = self._extract_schemas(operation)
+                #operation, definitions_ = self._extract_schemas(operation)
+                operation, definitions_ = Extractor.extract(operation)
                 path_item[method] = operation
                 definitions.update(definitions_)
                 summary = parse_method_doc(f, operation)
