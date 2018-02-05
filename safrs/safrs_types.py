@@ -1,5 +1,5 @@
 from safrs.errors import ValidationError
-from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer
+from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer, BLOB
 import uuid, datetime, hashlib
 
 try:
@@ -16,7 +16,7 @@ class JSONType(PickleType):
         JSON DB type is used to store JSON objects in the database
     '''
 
-    impl = Text
+    impl = BLOB
 
     def __init__(self, *args, **kwargs):        
         
