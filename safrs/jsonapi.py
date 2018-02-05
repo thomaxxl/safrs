@@ -448,10 +448,10 @@ def paginate(object):
     offset = request.args.get('page[offset]',0)
     limit  = request.args.get('page[limit]', UNLIMITED)
     links  = {
-        'first' : '',
-        'last'  : '',
-        'prev'  : '',
-        'next'  : '',
+        'first' : 0,
+        'last'  : 0,
+        'prev'  : 0,
+        'next'  : 0,
     }
     instances = object.query.offset(offset).limit(limit).all()
     return links, instances
