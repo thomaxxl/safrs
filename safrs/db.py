@@ -26,6 +26,7 @@ from sqlalchemy.orm.session import make_transient
 from sqlalchemy.types import Text, String, Integer, DateTime, TypeDecorator, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from flask_marshmallow import Marshmallow
+from sqlalchemy import inspect as sqla_inspect
 
 from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
@@ -104,22 +105,6 @@ class SAFRSBase(object):
 
     query = _s_query
 
-    @classproperty
-    def _s_column_names(cls):
-        return [ c.name for c in cls.__mapper__.columns]
-    
-    @classproperty
-    def _s_columns(cls):
-        return list(cls.__mapper__.columns)
-
-    @classproperty
-    def _s_class_name(cls):
-        return cls.__tablename__
-
-    @classproperty
-    def _s_type(cls):
-        return cls.__tablename__
-
     def __new__(cls, **kwargs):
         '''
             If an object with given arguments already exists, this object is instantiated
@@ -138,10 +123,6 @@ class SAFRSBase(object):
             log.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
             
         return instance
-
-    @property
-    def _s_relationships(self):
-        return self.__mapper__.relationships
 
     def __init__(self, *args, **kwargs ):
         '''
@@ -187,6 +168,7 @@ class SAFRSBase(object):
                 for rel_param in rel_params:
                     rel_object = rel.mapper.class_(**rel_param)
                     rel_attr.append(rel_object)
+        
 
         db.session.add(self)
         try:
@@ -194,6 +176,31 @@ class SAFRSBase(object):
         except sqlalchemy.exc.SQLAlchemyError as exc:
             # Exception may arise when a db constrained has been violated (e.g. duplicate key)
             raise GenericError(str(exc))
+
+
+    def _s_expunge(self):
+        session = sqla_inspect(self).session
+        session.expunge(self)
+        
+    @classproperty
+    def _s_column_names(cls):
+        return [ c.name for c in cls.__mapper__.columns]
+    
+    @classproperty
+    def _s_columns(cls):
+        return list(cls.__mapper__.columns)
+
+    @classproperty
+    def _s_class_name(cls):
+        return cls.__tablename__
+
+    @classproperty
+    def _s_type(cls):
+        return cls.__tablename__
+
+    @property
+    def _s_relationships(self):
+        return self.__mapper__.relationships
 
     def _s_patch(self, **kwargs):
         for attr in self._s_column_names:
@@ -459,3 +466,6 @@ def get_db():
 
 db = get_db()
 ma = Marshmallow()
+
+
+
