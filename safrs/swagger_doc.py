@@ -79,6 +79,23 @@ def SchemaClassFactory(name, properties):
 
 def schema_from_object(name, object):
 
+    def replace_None(object):
+        # None aka "null" is invalid in swagger schema definition => recursively replace all "None" by ""
+        if object is None:
+            return ''
+        if type(object) is dict:
+            result = {}
+            for k, v in object.items():
+                v = replace_None(v)
+                result[k] = v
+            return result
+        if type(object) is list:
+            result = []
+            for i in object:
+                result.append(replace_None(i))
+            return result
+        return object
+
     properties = {}
 
     if type(object) == str:
@@ -94,7 +111,11 @@ def schema_from_object(name, object):
             if type(v) == int:
                 properties[k] = { 'example' : v, 'type' : 'integer' }
             if type(v) == dict or type(v) == list:
+                if type(v) == dict:
+                    v = replace_None(v)
                 properties[k] = { 'example' : v, 'type' : 'string' }
+            if v is None:
+                properties[k] = { 'example' : "", 'type' : 'string' }
     else:
         raise ValidationError('Invalid schema object type {}'.format(type(object)))
 
