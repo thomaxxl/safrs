@@ -205,7 +205,7 @@ class SAFRSBase(object):
     def _s_patch(self, **kwargs):
         for attr in self._s_column_names:
             value = kwargs.get(attr,None)
-            if value:
+            if value != None:
                 setattr(self, attr, value)
     
     @classmethod
