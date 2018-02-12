@@ -2,6 +2,8 @@ import jsonapi_requests, logging, requests, unittest, time
 from jsonapi_requests.orm import OrmApi, AttributeField, RelationField, ApiModel
 from threading import Thread
 
+import sys
+sys.path.append('..')
 
 class Api(OrmApi):
 
