@@ -411,7 +411,7 @@ def api_decorator(cls, swagger_decorator):
         references the cls.SAFRSObject which isn't known 
     '''
 
-    cors_domain = globals().get('cors_domain','No_cors_domain')
+    cors_domain = globals().get('cors_domain',None)
     for method_name in [ 'get' , 'post', 'delete', 'patch', 'put' ]: # HTTP methods 
         method = getattr(cls, method_name, None)
         if not method: 
@@ -419,7 +419,8 @@ def api_decorator(cls, swagger_decorator):
         # Add swagger documentation
         decorated_method = swagger_decorator(method)
         # Add cors
-        decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
+        if cors_domain != None:
+            decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
         # Add exception handling
         decorated_method = http_method_decorator(decorated_method)
         setattr(cls,method_name,decorated_method)
