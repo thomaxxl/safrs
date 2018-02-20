@@ -17,6 +17,7 @@ class NotFoundError(Exception, DontWrapMixin):
     '''
 
     status_code = 404
+    message = 'NotFoundError'
 
     def __init__(self, message = '', status_code=404, payload=None):
         Exception.__init__(self)

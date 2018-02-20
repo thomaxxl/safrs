@@ -1,6 +1,9 @@
+import sys
+if sys.version_info[0] == 3:
+    unicode = str
 from safrs.errors import ValidationError
 from sqlalchemy.types import PickleType, Text, String, Integer, DateTime, TypeDecorator, Integer, BLOB
-import uuid, datetime, hashlib
+import uuid, datetime, hashlib, re
 
 try:
     from validate_email import validate_email
@@ -50,7 +53,7 @@ class SafeString(TypeDecorator):
     def process_bind_param(self, value, dialect):
         
         if value != None:
-            result = re.sub(STRIP_SPECIAL, '_', str(value).decode('utf-8') )
+            result = re.sub(STRIP_SPECIAL, '_', value)
             if str(result) != str(value):
                 #log.warning('({}) Replaced {} by {}'.format(self, value, result))
                 pass

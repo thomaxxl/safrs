@@ -817,7 +817,7 @@ class SAFRSRestMethodAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
-            HTTP POST: apply actions    
+            HTTP POST: apply actions, return 200 regardless
         ''' 
 
         id = kwargs.get(self.object_id, None)
@@ -849,11 +849,12 @@ class SAFRSRestMethodAPI(Resource, object):
         log.debug('method {} args {}'.format(self.method_name, args))
         
         result = method(**args)
+
         response = { 'meta' :
                      { 'result' : result }
                    }
-        
-        return jsonify( response ), 200
+
+        return jsonify( response ) # 200 : default
 
 
 class SAFRSRelationshipObject(object):
@@ -961,7 +962,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             # return a list of all relationship items
             result = [ item for item in relation ]
 
-        return jsonify(result), 200
+        return jsonify(result)
         
 
     def patch(self, **kwargs):
