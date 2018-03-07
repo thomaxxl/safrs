@@ -758,7 +758,7 @@ class SAFRSRestAPI(Resource, object):
         else:
             raise NotFoundError(id, status_code=404)
             
-        return jsonify({}) , 204
+        return make_response(jsonify({}), 204)
 
     def call_method_by_name(self, instance, method_name, args):
         '''
