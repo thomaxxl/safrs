@@ -19,7 +19,16 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from safrs.db import SAFRSBase, documented_api_method
 from safrs.jsonapi import SAFRSJSONEncoder, Api
 
-app = Flask('safrs_demo_app')
+from flask_cors import CORS
+
+
+app = Flask('demo_app')
+CORS(   app,
+        origins="*",
+        #methods=['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+        allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+        supports_credentials = True)
+
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
 db = SQLAlchemy(app)
 

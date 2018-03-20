@@ -241,6 +241,7 @@ Some configuration parameters can be set in [config.py](safrs/config.py):
 The [examples](examples) folder contains more example scripts:
 - Exposing an exisitng sqlite database as a REST service
 - Using a sha hash as primary key (id)
+- cors usage
 
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs
@@ -251,6 +252,7 @@ This code was developed for a specific use-case and may not be flexible enough f
 - Includes are disabled by default for performance reasons and I haven't worked out how to handle recursive relations.
 - Not all of the documentation available in swagger1 is shown with swagger2
 - I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
+- By default, SAFRSBase objects are commited to the database in `__init__`, as specified by the SAFRSBase.db_commit boolean. When using SAFRSBase in combination with other frameworks (eg. flask-admin), care should be taken of how and when objects are added to the session and commited (set SAFRSBase.db_commit to False)!
 
 <a class="mk-toclify" id="references"></a>
 ## References

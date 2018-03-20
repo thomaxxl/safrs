@@ -95,6 +95,8 @@ class SAFRSBase(object):
     object_schema = None
     id_type = SAFRSID
     query_limit = 50
+    db_commit = True   # set this to False if you want to use the SAFRSBase in combination with another framework, eg flask-admin
+                       # The caller will have to add and commit the object by itself then...
     
     @classproperty
     def _s_query(cls):
@@ -168,14 +170,15 @@ class SAFRSBase(object):
                 for rel_param in rel_params:
                     rel_object = rel.mapper.class_(**rel_param)
                     rel_attr.append(rel_object)
-        
 
-        db.session.add(self)
-        try:
-            db.session.commit()
-        except sqlalchemy.exc.SQLAlchemyError as exc:
-            # Exception may arise when a db constrained has been violated (e.g. duplicate key)
-            raise GenericError(str(exc))
+        if self.db_commit:
+            # Add the object to the database if specified by the class parameters
+            db.session.add(self)
+            try:
+                db.session.commit()
+            except sqlalchemy.exc.SQLAlchemyError as exc:
+                # Exception may arise when a db constrained has been violated (e.g. duplicate key)
+                raise GenericError(str(exc))
 
 
     def _s_expunge(self):

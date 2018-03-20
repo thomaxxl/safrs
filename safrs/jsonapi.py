@@ -61,7 +61,6 @@ from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
 
-
 class Api(FRSApiBase):
     '''
         Subclass of the flask_restful_swagger API class where we add the expose_object method
@@ -412,7 +411,7 @@ def api_decorator(cls, swagger_decorator):
     '''
 
     cors_domain = globals().get('cors_domain',None)
-    for method_name in [ 'get' , 'post', 'delete', 'patch', 'put' ]: # HTTP methods 
+    for method_name in [ 'get' , 'post', 'delete', 'patch', 'put', 'options' ]: # HTTP methods 
         method = getattr(cls, method_name, None)
         if not method: 
             continue
@@ -543,7 +542,8 @@ class SAFRSRestAPI(Resource, object):
             is the id of the underlying SAFRSObject. 
         '''
         self.object_id = self.SAFRSObject.object_id
-        
+
+
     def get(self, **kwargs):
         '''
             HTTP GET: return instances
@@ -716,6 +716,18 @@ class SAFRSRestAPI(Resource, object):
             # Create the object instance with the specified id and json data
             # If the instance (id) already exists, it will be updated with the data
             instance = self.SAFRSObject(**attributes)
+
+            if not instance.db_commit:
+                #
+                # The item has not yet been added/commited by the SAFRSBase, in that case we have to do it ourselves
+                # 
+                db.session.add(instance)
+                try:
+                    db.session.commit()
+                except sqlalchemy.exc.SQLAlchemyError as exc:
+                    # Exception may arise when a db constrained has been violated (e.g. duplicate key)
+                    raise GenericError(str(exc))
+
              # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
             obj_args = { instance.object_id : instance.id }
             # Retrieve the object json and return it to the client
