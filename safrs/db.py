@@ -297,7 +297,9 @@ class SAFRSBase(object):
         '''
         result = {}
         for f in self._s_column_names:
-            if f in ( 'id' , 'type' ) : # jsonapi schema prohibits the use of these fields in the attributes
+            if f in ( 'id' , 'type' ) : 
+                # jsonapi schema prohibits the use of these fields in the attributes
+                # http://jsonapi.org/format/#document-resource-object-fields
                 continue
             value = getattr(self,f)
             if value == None:
