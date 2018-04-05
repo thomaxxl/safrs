@@ -29,7 +29,7 @@ CORS(   app,
         allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
         supports_credentials = True)
 
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
+app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://', DEBUG = True )
 db = SQLAlchemy(app)
 
 # Example sqla database object
@@ -77,6 +77,7 @@ HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
 PORT = 5000
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 builtins.log = log
 
 with app.app_context():

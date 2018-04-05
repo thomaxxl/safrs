@@ -20,7 +20,7 @@ from sqlalchemy.ext.automap import automap_base
 app = Flask('Imported SQLite DB API')
 __builtin__.app = app
 
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite:////home/tpollet/main.db.sqlitedb',         
+app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite:///'+sys.argv[2],         
                    DEBUG = True)
 
 db = SQLAlchemy(app)
@@ -59,7 +59,8 @@ __builtin__.ma  = ma
 
 api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
 
-expose_tables()
+with app.app_context():
+    expose_tables()
 # Expose the objects
 # Set the JSON encoder used for object to json marshalling
 app.json_encoder = SAFRSJSONEncoder

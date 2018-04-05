@@ -60,7 +60,8 @@ sqlalchemy_swagger2_type = {
     'ENUM'      : 'string',
     'INTERVAL'  : 'string',
     'CHAR'      : 'string',
-    'TIMESTAMP' : 'string'
+    'TIMESTAMP' : 'string',
+    'NVARCHAR'  : 'string'
 }
 
 
@@ -263,16 +264,16 @@ class SAFRSBase(object):
         if id or not failsafe:
             try:
                 instance = cls._s_query.filter_by(id=id).first()
-            except Exception as e:
-                log.critical(e)
-
+            except Exception as exc:
+                log.error('get_instance : ' + str(exc))
+                
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
                 raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
 
-    def clone(self, *args, **kwargs):
+    def clone(self, **kwargs):
         '''
             Clone an object: copy the parameters and create a new id
         '''
@@ -366,7 +367,7 @@ class SAFRSBase(object):
         object_name = cls.__name__
 
         object_model = cls.get_swagger_doc_object_model()
-        responses = { '200': {  
+        responses = { '200': {
                                 'description' : '{} object'.format(object_name),
                                 'schema': object_model
                              }
@@ -444,6 +445,9 @@ class SAFRSBase(object):
 
     @classmethod
     def get_endpoint(cls, url_prefix = ''):
+        '''
+
+        '''
         endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
         return endpoint
 

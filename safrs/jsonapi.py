@@ -5,7 +5,7 @@
 # Configuration parameters:
 # - endpoint
 #
-# todo: 
+# todo:
 # - __ underscores
 # - tests
 # - validation
@@ -23,39 +23,38 @@
 http://jsonapi.org/format/#content-negotiation-servers
 
 Server Responsibilities
-Servers MUST send all JSON API data in response documents with the header Content-Type: application/vnd.api+json without any media type parameters.
-Servers MUST respond with a 415 Unsupported Media Type status code if a request specifies the header Content-Type: application/vnd.api+json with any media type parameters.
+Servers MUST send all JSON API data in response documents with the header
+"Content-Type: application/vnd.api+json" without any media type parameters.
 
-This shoudl be implemented by the app, for example using @app.before_request  and @app.after_request
+Servers MUST respond with a 415 Unsupported Media Type status code if a request specifies the header
+"Content-Type: application/vnd.api+json" with any media type parameters.
+This should be implemented by the app, for example using @app.before_request  and @app.after_request
 
 '''
 import copy
-import inspect
-import uuid
 import traceback
 import datetime
 import logging
-import sqlalchemy
 
-from flask import Flask, make_response, url_for
-from flask import Blueprint, got_request_exception, redirect, session
-from flask import jsonify, request, Response, g, render_template, send_from_directory
+from flask import make_response, url_for
+from flask import jsonify, request
 from flask.json import JSONEncoder
-from flask_restful import reqparse
 from flask_restful.utils import cors
-from flask_restful_swagger_2 import Resource, swagger, Api as FRSApiBase
+from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
-from jinja2 import utils
+import sqlalchemy
 from functools import wraps
 from jsonschema import validate
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY 
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 
 # safrs_rest dependencies:
 from .db import SAFRSBase, db, log
-from .swagger_doc import swagger_doc, swagger_method_doc, is_public, parse_object_doc, swagger_relationship_doc
+from .swagger_doc import swagger_doc, swagger_method_doc, is_public
+from .swagger_doc import parse_object_doc, swagger_relationship_doc
 from .errors import ValidationError, GenericError, NotFoundError
-from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT, RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
+from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
+from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
@@ -68,7 +67,7 @@ class Api(FRSApiBase):
         documentation
     '''
 
-    def expose_object(self, safrs_object, url_prefix = '', **properties):
+    def expose_object(self, safrs_object, url_prefix='', **properties):
         '''
             This methods creates the API url endpoints for the SAFRObjects
 
@@ -88,9 +87,9 @@ class Api(FRSApiBase):
         api_class_name = '{}_API'.format(safrs_object._s_type)
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
-        tags = [ safrs_object._s_type ]
-        
-        url = RESOURCE_URL_FMT.format(url_prefix,safrs_object._s_type)
+        tags = [safrs_object._s_type]
+
+        url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_type)
 
         endpoint = safrs_object.get_endpoint(url_prefix)
 
@@ -98,25 +97,26 @@ class Api(FRSApiBase):
         swagger_decorator = swagger_doc(safrs_object)
 
         # Create the class and decorate it 
-        api_class = api_decorator(type(api_class_name, 
-                                        (SAFRSRestAPI,), 
+        api_class = api_decorator(type(api_class_name,
+                                        (SAFRSRestAPI,),
                                         properties),
-                                  swagger_decorator)    
+                                  swagger_decorator)
         
         # Expose the collection
         log.info('Exposing {} on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
         self.add_resource(api_class, 
                           url,
-                          endpoint= endpoint, 
-                          methods = ['GET','POST', 'PUT'])
+                          endpoint=endpoint, 
+                          methods=['GET', 'POST', 'PUT'])
 
-        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type,safrs_object.__name__ )
+        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__ )
         endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, safrs_object._s_type)
         # Expose the instances
-        self.add_resource( api_class, 
-                           url,
-                           endpoint=endpoint)
-        log.info('Exposing {} instances on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
+        self.add_resource(api_class,
+                          url,
+                          endpoint=endpoint)
+        log.info('Exposing {} instances on {}, endpoint: {}'.format(
+                        safrs_object._s_type, url, endpoint))
         
         object_doc = parse_object_doc(safrs_object)
         object_doc['name'] = safrs_object._s_type
@@ -138,7 +138,7 @@ class Api(FRSApiBase):
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
-            if getattr(api_method,'__self__',None) is safrs_object:
+            if getattr(api_method, '__self__',None) is safrs_object:
                 # method is a classmethod, make it available at the class level
                 url = CLASSMETHOD_URL_FMT.format( url_prefix, 
                                                   safrs_object.__tablename__, 
@@ -151,10 +151,8 @@ class Api(FRSApiBase):
                 
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object.__tablename__ + '.' + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
-            properties = { 
-                            'SAFRSObject' : safrs_object, 
-                            'method_name' : method_name 
-                        }
+            properties = {'SAFRSObject' : safrs_object, 
+                          'method_name' : method_name }
             api_class = api_decorator( type(api_method_class_name, 
                                         (SAFRSRestMethodAPI,), 
                                         properties),
@@ -214,8 +212,13 @@ class Api(FRSApiBase):
                           endpoint= endpoint, 
                           methods = ['GET','POST'])
 
-        #child_object_id = safrs_object.__name__
-        child_object_id = safrs_object.object_id
+        #
+        try:
+            child_object_id = safrs_object.object_id
+        except Exception as exc:
+            log.error('No object id for {}'.format(safrs_object))
+            child_object_id = safrs_object.__name__
+
 
         if safrs_object == parent_class:
             # Avoid having duplicate argument ids in the url: append a 2 in case of a self-referencing relationship
@@ -315,13 +318,24 @@ class Api(FRSApiBase):
                                       'type': 'string', 
                                       'name': 'include', 
                                       'in': 'query', 
-                                      'format' : 'int64',
+                                      'format' : 'string',
                                       'required' : False,
                                       'description' : 'related objects to include'
                                     }
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
-                        
+                            
+                            param = { 'default': '', 
+                                      'type': 'string', 
+                                      'name': 'sort', 
+                                      'in': 'query', 
+                                      'format' : 'string',
+                                      'required' : False,
+                                      'description' : 'sort fields'
+                                    }
+                            if not param in filtered_parameters:
+                                filtered_parameters.append(param)
+
                             param = { 'default': "", 
                                       'type': 'string', 
                                       'name': 'fields[{}]'.format(parameter.get('name')), 
@@ -415,8 +429,12 @@ def api_decorator(cls, swagger_decorator):
         method = getattr(cls, method_name, None)
         if not method: 
             continue
-        # Add swagger documentation
-        decorated_method = swagger_decorator(method)
+        try:
+            # Add swagger documentation
+            decorated_method = swagger_decorator(method)
+        except Exception as exc:
+            log.error('Failed to generate documentation for {}'.format(method))
+            decorated_method = method
         # Add cors
         if cors_domain != None:
             decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
@@ -455,8 +473,12 @@ def paginate(object):
     }
     instances = object.query.offset(offset).limit(limit).all()
     return links, instances
-            
-def get_included(data, page):
+    
+def sort(objects):
+    # http://jsonapi.org/format/#fetching-sorting
+    pass
+
+def get_included(data, limit):
     '''
         http://jsonapi.org/format/#fetching-includes
 
@@ -471,7 +493,7 @@ def get_included(data, page):
         return result
     
     if isinstance(data, list):
-        return [ get_included(obj) for obj in data ]
+        return [ get_included(obj, limit) for obj in data ]
     
     # When we get here, data has to be a SAFRSBase instance
     assert(isinstance(data, SAFRSBase))
@@ -487,7 +509,8 @@ def get_included(data, page):
             relationship = include
         
         if relationship in [ r.key for r in instance._s_relationships]:
-            links, included = paginate(getattr(instance,relationship))
+            included = getattr(instance,relationship)
+            #links, included = paginate(getattr(instance,relationship))
             result  += included
 
     return result
@@ -603,6 +626,7 @@ class SAFRSRestAPI(Resource, object):
             
         
         included = get_included(data, limit)
+        print(included)
         result   = dict(data = data)
         
         if errors:
@@ -770,7 +794,7 @@ class SAFRSRestAPI(Resource, object):
         else:
             raise NotFoundError(id, status_code=404)
             
-        return make_response(jsonify({}), 204)
+        return jsonify({})
 
     def call_method_by_name(self, instance, method_name, args):
         '''
@@ -870,6 +894,9 @@ class SAFRSRestMethodAPI(Resource, object):
 
 
 class SAFRSRelationshipObject(object):
+    '''
+        Relationship object
+    '''
 
     __tablename__ = 'tabname'
     __name__ = 'name'
@@ -993,12 +1020,12 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
         obj_args = { self.parent_object_id : parent.id }
         
-        if type(data) == dict:
+        if isinstance(data, dict):
             child = self.child_class.get_instance(data.get('id', None))   
             if not child in relation:
                 relation.append(child)
             obj_args[self.child_object_id] = child.id
-        elif type(data) == list:
+        elif isinstance(data,list):
             if list == []: # => remove all items
                 for item in relation:
                     relation.remove(item)
@@ -1019,20 +1046,20 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
-            Create a relationship
+            Add a child to a relationship
         '''
 
-        log.info(kwargs)
         errors = []
         kwargs['require_child'] = True
         parent, relation = self.parse_args(**kwargs)
         
         json  = request.get_json()
-        if type(json) != dict:
+        if not isinstance(json, dict):
             raise ValidationError('Invalid Object Type')
         data = json.get('data')
+        print(data)
         for item in data:
-            if type(item) != dict:
+            if not isinstance(json, dict):
                 raise ValidationError('Invalid data type')
             child_id = item.get('id', None)
             if child_id == None:
@@ -1040,6 +1067,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 log.error(errors)
                 continue
             child = self.child_class.get_instance(child_id)
+
             if not child:
                 errors.append('invalid child id {}'.format(child_id))
                 log.error(errors)
@@ -1047,12 +1075,14 @@ class SAFRSRestRelationshipAPI(Resource, object):
             if not child in relation:
                 relation.append(child)
 
-        return jsonify(child), 201
+        result = [ item for item in relation ]
+        return jsonify(result)
+
         
 
     def delete(self, **kwargs):
         '''
-            Delete a relationship
+            Remove an item from a relationship
         '''
 
         kwargs['require_child'] = True
@@ -1064,7 +1094,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         else:
             log.warning('Child not in relation')
 
-        return jsonify({}), 204
+        return jsonify({})
 
     def parse_args(self, **kwargs):
         '''
@@ -1086,6 +1116,9 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
         return parent, relation
 
+import json
+from sqlalchemy.ext.declarative import DeclarativeMeta
+
 
 class SAFRSJSONEncoder(JSONEncoder, object):
     '''
@@ -1093,6 +1126,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
     '''
 
     def default(self,object):
+
         if isinstance(object, SAFRSBase):
             rel_limit_count = 100
             limit  = request.args.get('limit', rel_limit_count)
@@ -1100,8 +1134,40 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             return result
         if isinstance(object, datetime.datetime) or isinstance(object, datetime.date):
             return object.isoformat()
+        # We shouldn't get here in a normal setup
+        # getting here means we already abused safrs... and we're no longer jsonapi compliant
+        log.warning('Unknown object type for {}'.format(object))
+        if isinstance(object, set):
+            return list(object)
+        if isinstance(object,sqlalchemy.ext.declarative.api.DeclarativeMeta):
+            return self.sqla_encode(object)
 
+        return self.ghetto_encode(object)
+    
+    def ghetto_encode(self, object):
+        try:
+            result = {}
+            for k, v in vars(object).items():
+                if not k.startswith('_'):
+                    if isinstance(v, (int, float, )) or v is None:
+                        result[k] = v
+                    else:
+                        result[k] = str(v)
+        except TypeError:
+            result = str(object)
         return result
+    
+    def sqla_encode(self, obj):
+        fields = {}
+        for field in [x for x in dir(obj) if not x.startswith('_') and x != 'metadata']:
+            data = obj.__getattribute__(field)
+            try:
+                json.dumps(data) 
+                fields[field] = 'data'
+            except TypeError:
+                fields[field] = None
+        # a json-encodable dict
+        return fields
 
 
     def jsonapi_encode(self, object):
@@ -1144,7 +1210,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             rel_name = relationship.key
             if relationship.direction in (ONETOMANY, MANYTOMANY):
                 # Data is optional, it's also really slow for large sets: 
-                rel_query = getattr(object, rel_name)
+                #rel_query = getattr(object, rel_name)
                 #limit = object.query_limit
                 #if rel_query.lazy:
                 #items = list(getattr(object, rel_name, []))
@@ -1157,8 +1223,8 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             self_link = '{}{}/{}'.format( obj_url,
                                           object.id,
                                           rel_name)
-            links  = dict( self = self_link, 
-                           related = '' )
+            links = dict(self = self_link, 
+                         related = '')
             
             relationships[rel_name] = dict( links = links, 
                                             data = data, 
@@ -1171,8 +1237,8 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             fields = fields.split(',')
             try:
                 attributes = { field: getattr(object, field) for field in fields }
-            except AttributeError as e:
-                raise ValidationError ('Invalid Field {}'.format(e))
+            except AttributeError as exc:
+                raise ValidationError ('Invalid Field {}'.format(exc))
 
         data = dict( attributes = attributes,
                      id = object.id,

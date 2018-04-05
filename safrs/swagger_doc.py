@@ -1,34 +1,40 @@
-#
-# Functions for api documentation: these decorators generate the swagger schemas
-#
-import inspect, yaml, uuid, logging
+'''
+Functions for api documentation: these decorators generate the swagger schemas
+'''
+import inspect
+import uuid
+import logging
+import yaml
+import hashlib
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import USE_API_METHODS
 
 log = logging.getLogger()
 
-REST_DOC  = '__rest_doc' # swagger doc attribute name. If this attribute is set 
-                         # this means that the function is reachable through HTTP POST
-DOC_DELIMITER = '----'   # used as delimiter between the rest_doc swagger yaml spec and regular documentation
+REST_DOC = '__rest_doc' # swagger doc attribute name. If this attribute is set
+                        # this means that the function is reachable through HTTP POST
+DOC_DELIMITER = '----'  # used as delimiter between the rest_doc swagger yaml spec 
+                        # and regular documentation
 
 def parse_object_doc(object):
     '''
         Parse the yaml description from the "documented_api_method"-decorated methods
     '''
 
-    api_doc  = {}
-    obj_doc  = str(inspect.getdoc(object))    
+    api_doc = {}
+    obj_doc = str(inspect.getdoc(object))    
+    raw_doc = obj_doc.split(DOC_DELIMITER)[0]
     yaml_doc = None
-    raw_doc  = obj_doc.split(DOC_DELIMITER)[0]
     try:
         yaml_doc = yaml.load(raw_doc)
-    except SyntaxError:
-        pass                
-        
+    except (SyntaxError, yaml.scanner.ScannerError) as exc:
+        log.error('Failed to parse documentation {} '.format(raw_doc))
+        yaml_doc = {'description' : raw_doc }
+
     except Exception as e:
-        raise ValidationError('Failed to parse api doc')    
-    
+        raise ValidationError('Failed to parse api doc')
+
     if isinstance(yaml_doc, dict):
         api_doc.update(yaml_doc)
 
@@ -42,15 +48,24 @@ def documented_api_method(func):
         it becomes available for use through HTTP POST (i.e. public)
     '''
     if USE_API_METHODS:
-        api_doc = parse_object_doc(func)
+        try:
+            api_doc = parse_object_doc(func)
+        except yaml.scanner.ScannerError:
+            log.error('Failed to parse documentation for {}'.format(func))
         setattr(func, REST_DOC, api_doc)
     return func
 
 
 def is_public(method):
+    '''
+
+    '''
     return hasattr(method, REST_DOC)
 
 def get_doc(method):
+    '''
+
+    '''
     return getattr(method, REST_DOC, None)
 
 
@@ -64,18 +79,20 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise ValidationError('Argument {} not valid for {}'.format( 
-                                       (key, self.__class__.__name__) ))
+                raise ValidationError('Argument {} not valid for {}'.format(
+                                       (key, self.__class__.__name__)))
             setattr(self, key, value)
-    
-    newclass = type( name, 
-                     (Schema,),
-                     {'__init__': __init__,
+
+    newclass = type(name,
+                    (Schema,),
+                    {'__init__': __init__,
                       'properties' : properties
                     })
-    
+
     return newclass
 
+
+_references = []
 
 def schema_from_object(name, object):
 
@@ -83,13 +100,13 @@ def schema_from_object(name, object):
         # None aka "null" is invalid in swagger schema definition => recursively replace all "None" by ""
         if object is None:
             return ''
-        if type(object) is dict:
+        if isinstance(object, dict):
             result = {}
             for k, v in object.items():
                 v = replace_None(v)
                 result[k] = v
             return result
-        if type(object) is list:
+        if isinstance(object, list):
             result = []
             for i in object:
                 result.append(replace_None(i))
@@ -98,49 +115,52 @@ def schema_from_object(name, object):
 
     properties = {}
 
-    if type(object) == str:
-        properties = { 'example' : k, 'type' : 'string' }
-    
-    elif type(object) == int:
-        properties = { 'example' : k, 'type' : 'integer' }
+    if isinstance(object, str):
+        properties = {'example' : k, 'type' : 'string'}
 
-    elif type(object) == dict:
+    elif isinstance(object, int):
+        properties = {'example' : k, 'type' : 'integer'}
+
+    elif isinstance(object, dict):
         for k, v in object.items():
-            if type(v) == str:
-                properties[k] = { 'example' : v, 'type' : 'string' }
-            if type(v) == int:
-                properties[k] = { 'example' : v, 'type' : 'integer' }
-            if type(v) == dict or type(v) == list:
-                if type(v) == dict:
+            if isinstance(v, str):
+                properties[k] = {'example' : v, 'type' : 'string'}
+            if isinstance(v, int):
+                properties[k] = {'example' : v, 'type' : 'integer'}
+            if isinstance(v, (dict, list)):
+                if isinstance(v, dict):
                     v = replace_None(v)
-                properties[k] = { 'example' : v, 'type' : 'string' }
+                properties[k] = {'example' : v, 'type' : 'string'}
             if v is None:
-                properties[k] = { 'example' : "", 'type' : 'string' }
+                properties[k] = {'example' : "", 'type' : 'string'}
     else:
         raise ValidationError('Invalid schema object type {}'.format(type(object)))
 
-    # generate random name 
-    return SchemaClassFactory(name + str(uuid.uuid4()), properties)
+    # generate a unique name to be used as a reference
+    idx = _references.count(name)
+    if idx:
+        name = name + str(idx)
+    _references.append(name)
+    return SchemaClassFactory(name, properties)
 
 
-
-def get_swagger_doc_post_arguments(cls, method_name = None):
+def get_swagger_doc_post_arguments(cls, method_name=None):
     '''
         create a schema for all methods which can be called through the
         REST POST interface
 
         A method is called with following JSON payload:
-        { 
-            "meta"   : { 
-                         "args" : { 
+        {
+            "meta"   : {
+                         "args" : {
                                     "parameter1" : "value1" ,
-                                    "parameter2" : "value2" , 
+                                    "parameter2" : "value2" ,
                                   }
-                       } 
+                       }
         }
 
         The schema is created using the values from the documented_api_method decorator,
-        returned by get_doc() 
+        returned by get_doc()
 
         We use "meta" to remain compliant with the jsonapi schema
     '''
@@ -153,13 +173,13 @@ def get_swagger_doc_post_arguments(cls, method_name = None):
             continue
         fields = {}
         rest_doc = get_doc(method)
-        description = rest_doc.get('description','')
+        description = rest_doc.get('description', '')
         if rest_doc:
             
-            method_args = rest_doc.get('args',[])
+            method_args = rest_doc.get('args', [])
             if method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
-                model = SchemaClassFactory(model_name, method_args )
+                model = SchemaClassFactory(model_name, method_args)
                 method_field = {
                                  'method' : method_name,
                                  'args' : method_args,
@@ -168,7 +188,7 @@ def get_swagger_doc_post_arguments(cls, method_name = None):
 
             elif method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
-                model = SchemaClassFactory(model_name, method_args )
+                model = SchemaClassFactory(model_name, method_args)
                 arg_field = { 
                                'schema' : model,
                                'type'   : 'string',
@@ -181,22 +201,24 @@ def get_swagger_doc_post_arguments(cls, method_name = None):
 
 
 
-def swagger_method_doc(cls, method_name, tags = None):
+def swagger_method_doc(cls, method_name, tags=None):
+    '''
 
-    def swagger_doc_gen( func ):
+    '''
+    def swagger_doc_gen(func):
         
         class_name = cls.__name__
-        if tags == None :
-            doc_tags = [ table_name ]
+        if tags == None:
+            doc_tags = [table_name]
         else:
             doc_tags = tags
 
-        doc = { 'tags': doc_tags,
-                'description': 'Invoke {}.{}'.format(class_name, method_name),
-                'summary': 'Invoke {}.{}'.format(class_name, method_name),
+        doc = {'tags': doc_tags,
+               'description': 'Invoke {}.{}'.format(class_name, method_name),
+               'summary': 'Invoke {}.{}'.format(class_name, method_name),
               }
 
-        model_name  = '{} {} {}'.format('invoke ', class_name, method_name)
+        model_name = '{} {} {}'.format('invoke ', class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
 
         post_param, description, method = get_swagger_doc_post_arguments(cls, method_name)
@@ -211,7 +233,7 @@ def swagger_method_doc(cls, method_name, tags = None):
         #
         # Retrieve the swagger schemas for the documented_api_methods
         #
-        model_name  = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
+        model_name = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
         param_model = SchemaClassFactory(model_name, post_param)
         parameters.append({
                             'name': model_name,
@@ -222,7 +244,7 @@ def swagger_method_doc(cls, method_name, tags = None):
                           })
 
         # URL Path Parameter
-        default_id  = cls.sample_id()
+        default_id = cls.sample_id()
         parameters.append({
                         'name': cls.object_id, # parameter id, e.g. UserId
                         'in': 'path',
@@ -232,17 +254,17 @@ def swagger_method_doc(cls, method_name, tags = None):
                       })
 
         doc['parameters'] = parameters
-        doc["produces"]   = [ "application/json" ]
-        doc['responses']  = responses = { '200' : { 
-                                    'description' : 'Success' 
-                                    }
-                        }
+        doc["produces"] = ["application/json"]
+        doc['responses'] = responses = {'200' : {'description' : 'Success'}}
 
         #doc['parameters'] = [{'required': True, 'name': 'post Hash get_list', 'schema': param_model, 'type': 'string', 'in': 'body', 'description': 'Retrieve a list of objects with the ids in id_list. (classmethod)'}]
 
         @swagger.doc(doc)
-        def wrapper( self, *args, **kwargs ):
-            val = func( self, *args, **kwargs )
+        def wrapper(self, *args, **kwargs):
+            '''
+
+            '''
+            val = func(self, *args, **kwargs)
             return val
         
         return wrapper
@@ -253,18 +275,18 @@ def swagger_method_doc(cls, method_name, tags = None):
 # Decorator is called when a swagger endpoint class is instantiated
 # from API.expose_object eg.
 #
-def swagger_doc(cls, tags = None):
+def swagger_doc(cls, tags=None):
 
-    def swagger_doc_gen( func ):
+    def swagger_doc_gen(func):
         '''
             Decorator used to document (SAFRSBase) class methods exposed in the API
         '''
         
-        default_id  = cls.sample_id()
-        class_name  = cls.__name__ 
-        table_name  = cls.__tablename__
+        default_id = cls.sample_id()
+        class_name = cls.__name__ 
+        table_name = cls.__tablename__
         http_method = func.__name__.lower()
-        parameters  = [{
+        parameters = [{
                         'name': cls.object_id, # parameter id, e.g. UserId
                         'in': 'path',
                         'type': 'string',
@@ -272,12 +294,12 @@ def swagger_doc(cls, tags = None):
                         'required' : True
                       }]
         
-        if tags == None :
-            doc_tags = [ table_name ]
+        if tags is None:
+            doc_tags = [table_name]
         else:
             doc_tags = tags
 
-        doc = { 'tags': doc_tags,
+        doc = {'tags': doc_tags,
                 'description': 'Returns a {}'.format(class_name),
               }
 
@@ -297,18 +319,18 @@ def swagger_doc(cls, tags = None):
             sample = cls.sample()
             if sample:
                 sample_data = schema_from_object('{} POST sample'.format(class_name) ,
-                                                { 'data' : 
-                                                    { 'attributes' : sample._s_to_dict(), 
+                                                {'data' : 
+                                                    {'attributes' : sample._s_to_dict(), 
                                                       'id' : cls.sample_id(),
                                                       'type' : class_name 
                                                     }
                                                 })
             elif cls.sample_id():
                 sample_data = schema_from_object('{} POST sample'.format(class_name) ,
-                                                { 'data' : 
-                                                    { 'attributes' : {}, 
-                                                      'id' : cls.sample_id(),
-                                                      'type' : class_name 
+                                                {'data' : 
+                                                    {'attributes' : {}, 
+                                                     'id' : cls.sample_id(),
+                                                     'type' : class_name 
                                                     }
                                                 })
             else:
@@ -325,10 +347,10 @@ def swagger_doc(cls, tags = None):
 
         elif http_method == 'delete':
             doc['summary'] =  doc['description'] = 'Delete a {} object'.format(class_name)
-            responses = { '204' : { 
+            responses = {'204' : {
                                     'description' : 'Object Deleted' 
                                     },
-                          '404' : { 
+                          '404' : {
                                     'description' : 'Object Not Found' 
                                     }
                         }
@@ -339,10 +361,10 @@ def swagger_doc(cls, tags = None):
             sample = cls.sample()
             if sample:
                 sample_data = schema_from_object('{} POST sample'.format(class_name) ,
-                                                { 'data' : 
-                                                    { 'attributes' : sample._s_to_dict(), 
-                                                      'id' : cls.sample_id(),
-                                                      'type' : class_name 
+                                                {'data' : 
+                                                    {'attributes' : sample._s_to_dict(), 
+                                                     'id' : cls.sample_id(),
+                                                     'type' : class_name 
                                                     }
                                                 })
             else:
@@ -361,12 +383,15 @@ def swagger_doc(cls, tags = None):
             log.debug('no documentation for "{}" '.format(http_method))
         
         doc['parameters'] = parameters
-        doc['responses']  = responses
-        doc["produces"]   = [ "application/json" ]
+        doc['responses'] = responses
+        doc["produces"] = ["application/json"]
         
         @swagger.doc(doc)
-        def wrapper( self, *args, **kwargs ):
-            val = func( self, *args, **kwargs )
+        def wrapper(self, *args, **kwargs):
+            '''
+
+            '''
+            val = func(self, *args, **kwargs)
             return val
         
         return wrapper
@@ -376,17 +401,17 @@ def swagger_doc(cls, tags = None):
 
 def swagger_relationship_doc(cls, tags = None):
 
-    def swagger_doc_gen( func ):
+    def swagger_doc_gen(func):
         '''
             Decorator used to document relationship methods exposed in the API
         '''
 
         parent_class = cls.relationship.parent.class_
-        child_class  = cls.relationship.mapper.class_
-        class_name   = cls.__name__ 
-        table_name   = cls.__tablename__
-        http_method  = func.__name__.lower()
-        parameters   = [{
+        child_class = cls.relationship.mapper.class_
+        class_name = cls.__name__ 
+        table_name = cls.__tablename__
+        http_method = func.__name__.lower()
+        parameters = [{
                         'name': parent_class.object_id,
                         'in': 'path',
                         'type': 'string',
@@ -405,13 +430,13 @@ def swagger_relationship_doc(cls, tags = None):
 
         parent_name = parent_class.__name__
 
-        if tags == None :
-            doc_tags = [ table_name ]
+        if tags is None :
+            doc_tags = [table_name]
         else:
             doc_tags = tags
 
-        doc = { 'tags': doc_tags,
-                'description': 'Returns {} {} ids'.format(parent_name, cls.relationship.key),
+        doc = {'tags': doc_tags,
+               'description': 'Returns {} {} ids'.format(parent_name, cls.relationship.key),
               }
 
         responses = {}
@@ -429,18 +454,18 @@ def swagger_relationship_doc(cls, tags = None):
             # TODO: change this crap
             put_model, responses = child_class.get_swagger_doc('patch')
             rel_post_schema = schema_from_object('{} Relationship'.format(class_name), 
-                                                { "data":  [ 
-                                                            { 'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
+                                                {'data':  [ 
+                                                            {'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
                                                            ] 
                                                 })
-            parameters.append( {
+            parameters.append({
                                     'name': '{} body'.format(class_name),
                                     'in': 'body',
                                     'description' : '{} POST model'.format(class_name),
                                     'schema' : rel_post_schema,
                                     'required': True,
                                     }
-                                )
+                             )
 
 
         elif http_method == 'delete':
@@ -448,34 +473,29 @@ def swagger_relationship_doc(cls, tags = None):
             doc['description'] = 'Delete a {} object from the {} relation on {}'.format(child_class.__name__, 
                                                                                 cls.relationship.key,
                                                                                 parent_name)
-            responses = { '204' : { 
-                                    'description' : 'Object Deleted' 
-                                    }
-                        }
+            responses = {'204' : {'description' : 'Object Deleted'}}
 
         elif http_method == 'patch' or http_method == 'put':
             put_model, responses = child_class.get_swagger_doc(http_method)
             doc['summary'] =  'Update a {} object'.format(class_name)
-            parameters.append({ 
+            parameters.append({
                                 'name': 'test',
                                 'in': 'body',
                                 'type': 'string',
                                 'schema' : put_model
                               })
-            responses = { '201' : { 
-                                    'description' : 'Object Created' 
-                                    }
-                        }
+            responses = {'201' : {'description' : 'Object Created'}}
         else:
             # one of 'options', 'head', 'patch'
             log.debug('no documentation for "{}" '.format(http_method))
-        
+
         doc['parameters'] = parameters
-        doc['responses']  = responses
+        doc['responses'] = responses
         
         @swagger.doc(doc)
-        def wrapper( self, *args, **kwargs ):
-            val = func( self, *args, **kwargs )
+        def wrapper(self, *args, **kwargs):
+
+            val = func(self, *args, **kwargs)
             return val
         
         return wrapper
