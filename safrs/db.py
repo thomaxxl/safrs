@@ -5,19 +5,12 @@
 
 # Python3 compatibility
 import sys
-if sys.version_info[0] == 3:
-    unicode = str
-
-import re
-import hashlib
 import datetime
 import inspect
 import logging
-import pprint
 import sqlalchemy
-import json
-import time
-import uuid
+if sys.version_info[0] == 3:
+    unicode = str
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
@@ -28,12 +21,11 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from flask_marshmallow import Marshmallow
 from sqlalchemy import inspect as sqla_inspect
 
-from werkzeug import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc
-from .errors import ValidationError, GenericError, NotFoundError
-from .safrs_types import SafeString, SAFRSID
+from .errors import GenericError, NotFoundError
+from .safrs_types import SAFRSID
 from .util import classproperty
 from .config import OBJECT_ID_SUFFIX
 
@@ -127,11 +119,11 @@ class SAFRSBase(object):
             
         return instance
 
-    def __init__(self, *args, **kwargs ):
+    def __init__(self, *args, **kwargs):
         '''
-            Object initialization: 
+            Object initialization:
             - set the named attributes and add the object to the database
-            - create relationships 
+            - create relationships
         '''
 
         # All SAFRSBase subclasses have an id, 
@@ -188,7 +180,7 @@ class SAFRSBase(object):
         
     @classproperty
     def _s_column_names(cls):
-        return [ c.name for c in cls.__mapper__.columns]
+        return [c.name for c in cls.__mapper__.columns]
     
     @classproperty
     def _s_columns(cls):
@@ -457,7 +449,7 @@ class SAFRSBase(object):
             What is returned in the "meta" part
             may be implemented by the app
         '''
-        return { }
+        return {}
 
 
 log = logging.getLogger(__name__)

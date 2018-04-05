@@ -61,8 +61,6 @@ def create_api(app):
     # Expose the User object 
     api.expose_object(User)
     user = User(name='test',email='em@il')
-    db.session.add(user)
-    db.session.commit()
 
     # Set the JSON encoder used for object to json marshalling
     app.json_encoder = SAFRSJSONEncoder
