@@ -270,7 +270,8 @@ class Api(FRSApiBase):
                 definitions.update(definitions_)
                 summary = parse_method_doc(f, operation)
                 if summary:
-                    operation['summary'] = summary
+                    operation['summary'] = summary.replace('<br/>','')
+                
 
         validate_definitions_object(definitions)
         self._swagger_object['definitions'].update(definitions)

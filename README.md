@@ -45,13 +45,13 @@ SAFRS can be installed as a [pip package](https://pypi.python.org/pypi/safrs/) o
 ```bash
 git clone https://github.com/thomaxxl/safrs
 cd safrs
-sudo pip3 install -r requirements.txt
-sudo python3 setup.py install
+pip3 install -r requirements.txt --user
+python3 setup.py install --user
 ```
 
 The examples can then be started with 
 ```
-$ PYTHONPATH=. python3 examples/demo_relationship.py "your-interface-ip"
+python3 examples/demo_relationship.py "your-interface-ip"
 ```
 
 <a class="mk-toclify" id="http-methods"></a>
