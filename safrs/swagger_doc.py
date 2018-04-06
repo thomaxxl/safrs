@@ -291,7 +291,7 @@ def swagger_doc(cls, tags=None):
                         'in': 'path',
                         'type': 'string',
                         'default': default_id,
-                        'required' : True
+                        'required' : True,
                       }]
         
         if tags is None:
@@ -299,8 +299,9 @@ def swagger_doc(cls, tags=None):
         else:
             doc_tags = tags
 
-        doc = {'tags': doc_tags,
+        doc = { 'tags': doc_tags,
                 'description': 'Returns a {}'.format(class_name),
+                'operationId': str(uuid.uuid4()),
               }
 
         responses = {}
