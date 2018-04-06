@@ -286,23 +286,19 @@ def swagger_doc(cls, tags=None):
         class_name = cls.__name__ 
         table_name = cls.__tablename__
         http_method = func.__name__.lower()
-        parameters = [{
-                        'name': cls.object_id, # parameter id, e.g. UserId
-                        'in': 'path',
-                        'type': 'string',
-                        'default': default_id,
-                        'required' : True,
-                      }]
+        parameters = [{'name': cls.object_id, # parameter id, e.g. UserId
+                       'in': 'path',
+                       'type': 'string',
+                       'default': default_id,
+                       'required' : True}]
         
         if tags is None:
             doc_tags = [table_name]
         else:
             doc_tags = tags
 
-        doc = { 'tags': doc_tags,
-                'description': 'Returns a {}'.format(class_name),
-                'operationId': str(uuid.uuid4()),
-              }
+        doc = {'tags': doc_tags,
+               'description': 'Returns a {}'.format(class_name)}
 
         responses = {}
 

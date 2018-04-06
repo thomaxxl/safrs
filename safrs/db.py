@@ -229,7 +229,7 @@ class SAFRSBase(object):
         '''
             description : Retrieve all matching objects
             args:
-                name: thomas
+                name: test
             --------
             This is actually a wrapper for query, but .query is already taken :)
         '''

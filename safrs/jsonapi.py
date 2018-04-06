@@ -35,6 +35,7 @@ import copy
 import traceback
 import datetime
 import logging
+import uuid
 
 from flask import make_response, url_for
 from flask import jsonify, request
@@ -293,58 +294,53 @@ class Api(FRSApiBase):
 
                         if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) :
                             # limit parameter specifies the number of items to return
-                            param = { 'default': 0,  # The 0 isn't rendered though
-                                      'type': 'integer', 
-                                      'name': 'page[offset]', 
-                                      'in': 'query', 
-                                      'format' : 'int64',
-                                      'required' : False,
-                                      'description' : 'Page offset'
-                                    }
+                            param = {'default': 0,  # The 0 isn't rendered though
+                                     'type': 'integer', 
+                                     'name': 'page[offset]', 
+                                     'in': 'query', 
+                                     'format' : 'int64',
+                                     'required' : False,
+                                     'description' : 'Page offset'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                             
-                            param = { 'default': 10, 
-                                      'type': 'integer', 
-                                      'name': 'page[limit]', 
-                                      'in': 'query', 
-                                      'format' : 'int64',
-                                      'required' : False,
-                                      'description' : 'max number of items'
-                                    }
+                            param = {'default': 10, 
+                                     'type': 'integer', 
+                                     'name': 'page[limit]', 
+                                     'in': 'query', 
+                                     'format' : 'int64',
+                                     'required' : False,
+                                     'description' : 'max number of items'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                             
-                            param = { 'default': '', 
-                                      'type': 'string', 
-                                      'name': 'include', 
-                                      'in': 'query', 
-                                      'format' : 'string',
-                                      'required' : False,
-                                      'description' : 'related objects to include'
-                                    }
+                            param = {'default': '', 
+                                     'type': 'string', 
+                                     'name': 'include', 
+                                     'in': 'query', 
+                                     'format' : 'string',
+                                     'required' : False,
+                                     'description' : 'related objects to include'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                             
-                            param = { 'default': '', 
-                                      'type': 'string', 
-                                      'name': 'sort', 
-                                      'in': 'query', 
-                                      'format' : 'string',
-                                      'required' : False,
-                                      'description' : 'sort fields'
-                                    }
+                            param = {'default': '', 
+                                     'type': 'string', 
+                                     'name': 'sort', 
+                                     'in': 'query', 
+                                     'format' : 'string',
+                                     'required' : False,
+                                     'description' : 'sort fields'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            param = { 'default': "", 
-                                      'type': 'string', 
-                                      'name': 'fields[{}]'.format(parameter.get('name')), 
-                                      'in': 'query', 
-                                      'format' : 'int64',
-                                      'required' : False,
-                                      'description' : 'fields'
-                                    }
+                            param = {'default': "", 
+                                     'type': 'string', 
+                                     'name': 'fields[{}]'.format(parameter.get('name')), 
+                                     'in': 'query', 
+                                     'format' : 'int64',
+                                     'required' : False,
+                                     'description' : 'fields'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                         
@@ -352,8 +348,8 @@ class Api(FRSApiBase):
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
  
-                    #log.debug(method_doc)  
                     method_doc['parameters'] = filtered_parameters
+                    method_doc['operationId'] = str(uuid.uuid4())
                     path_item[method] = method_doc
 
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
