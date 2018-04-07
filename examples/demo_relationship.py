@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
   This demo application demonstrates the functionality of the safrs documented REST API
-  You can runthe app standalone like this:
+  After installing safrs with pip, you can run this app standalone:
   $ python3 demo_relationship.py [Listener-IP]
 
   This will run the example on http://Listener-Ip:5000
