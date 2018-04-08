@@ -253,7 +253,7 @@ class SAFRSBase(object):
                 instance = cls._s_query.filter_by(id=id).first()
             except Exception as exc:
                 log.error('get_instance : ' + str(exc))
-                
+
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
@@ -276,7 +276,7 @@ class SAFRSBase(object):
     @orm.reconstructor
     def init_object_schema(self):
         init_object_schema(self)
-        
+
     def _s_to_dict(self):
         '''
             Create a dictionary with all the object parameters
@@ -284,11 +284,11 @@ class SAFRSBase(object):
         '''
         result = {}
         for attr in self._s_column_names:
-            if attr in ( 'id' , 'type' ) : 
+            if attr in ('id', 'type') : 
                 # jsonapi schema prohibits the use of these fields in the attributes
                 # http://jsonapi.org/format/#document-resource-object-fields
                 continue
-            value = getattr(self,attr)
+            value = getattr(self, attr)
             if value == None:
                 value = ""
             result[attr] = value
@@ -297,11 +297,11 @@ class SAFRSBase(object):
     to_dict = _s_to_dict
 
     def __unicode__(self):
-        name = getattr(self,'name',self.__class__.__name__)
+        name = getattr(self, 'name', self.__class__.__name__)
         return name
 
     def __str__(self):
-        name = getattr(self,'name',self.__class__.__name__)
+        name = getattr(self, 'name', self.__class__.__name__)
         return '<SAFRS {}>'.format(name)
 
     #
@@ -328,7 +328,7 @@ class SAFRSBase(object):
         try:
             first = cls._s_query.first()
         except Exception as exc:
-            log.warning('Failed to retrieve sample for {}({})'.format(cls,exc))
+            log.warning('Failed to retrieve sample for {}({})'.format(cls, exc))
         return first
         
     #pylint: disable=
@@ -422,15 +422,13 @@ class SAFRSBase(object):
             if default is None:
                 # swagger api spec doesn't support nullable values
                 continue
-            field = { 
-                      'type' : swagger_type,
-                      'example' : unicode(default) # added unicode for datetime encoding
-                    }
+            field = {'type' : swagger_type,
+                     'example' : unicode(default)} # added unicode for datetime encoding
             fields[column.name] = field
 
         model_name = '{}_{}'.format(cls.__name__, 'patch')
         model = SchemaClassFactory(model_name, fields)
-            
+
         return model
 
     @classmethod

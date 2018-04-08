@@ -344,14 +344,14 @@ class Api(FRSApiBase):
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
                         
-                        if not ( parameter.get('in') == 'path' and not object_id in swagger_url ):
+                        if not (parameter.get('in') == 'path' and not object_id in swagger_url ):
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
  
                     method_doc['parameters'] = filtered_parameters
-                    method_doc['operationId'] = str(uuid.uuid4())
+                    method_doc['operationId'] = method + str(uuid.uuid4()).replace('-','')
                     path_item[method] = method_doc
-
+                    
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
                         # If no {id} was provided, we return a list of all the objects
                         try:
