@@ -623,7 +623,6 @@ class SAFRSRestAPI(Resource, object):
             
         
         included = get_included(data, limit)
-        print(included)
         result   = dict(data = data)
         
         if errors:
@@ -1054,7 +1053,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
         if not isinstance(json, dict):
             raise ValidationError('Invalid Object Type')
         data = json.get('data')
-        print(data)
         for item in data:
             if not isinstance(json, dict):
                 raise ValidationError('Invalid data type')
