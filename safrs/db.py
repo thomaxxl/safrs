@@ -5,22 +5,13 @@
 
 # Python3 compatibility
 import sys
-import datetime
 import inspect
 import logging
 import sqlalchemy
-if sys.version_info[0] == 3:
-    unicode = str
-
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import desc, orm, Column, ForeignKey, func, and_, or_, Table
-from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref, synonym
+from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
-from sqlalchemy.types import Text, String, Integer, DateTime, TypeDecorator, Integer
-from sqlalchemy.ext.hybrid import hybrid_property
-from flask_marshmallow import Marshmallow
 from sqlalchemy import inspect as sqla_inspect
-
+from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc
@@ -28,6 +19,10 @@ from .errors import GenericError, NotFoundError
 from .safrs_types import SAFRSID
 from .util import classproperty
 from .config import OBJECT_ID_SUFFIX
+
+if sys.version_info[0] == 3:
+    unicode = str
+
 
 #
 # Map SQLA types to swagger2 types
@@ -285,19 +280,18 @@ class SAFRSBase(object):
     def _s_to_dict(self):
         '''
             Create a dictionary with all the object parameters
-            this method will be called by SAFRSJSONEncoder 
-
+            this method will be called by SAFRSJSONEncoder to serialize objects
         '''
         result = {}
-        for f in self._s_column_names:
-            if f in ( 'id' , 'type' ) : 
+        for attr in self._s_column_names:
+            if attr in ( 'id' , 'type' ) : 
                 # jsonapi schema prohibits the use of these fields in the attributes
                 # http://jsonapi.org/format/#document-resource-object-fields
                 continue
-            value = getattr(self,f)
+            value = getattr(self,attr)
             if value == None:
                 value = ""
-            result[f] = value
+            result[attr] = value
         return result
 
     to_dict = _s_to_dict
@@ -318,12 +312,11 @@ class SAFRSBase(object):
         '''
             Retrieve a sample id for the API documentation, i.e. the first item in the DB
         '''
-
+        id = cls.id_type()
         sample = cls.sample()
         if sample and getattr(sample, 'id', None):
-            return sample.id
-        else:
-            return cls.id_type()
+            id = sample.id
+        return id
 
     @classmethod
     def sample(cls):
@@ -334,11 +327,11 @@ class SAFRSBase(object):
         first = None
         try:
             first = cls._s_query.first()
-        except Exception as e:
-            log.warning('Failed to retrieve sample for {}({})'.format(cls,e))
+        except Exception as exc:
+            log.warning('Failed to retrieve sample for {}({})'.format(cls,exc))
         return first
         
-
+    #pylint: disable=
     @classproperty
     def object_id(cls):
         '''
@@ -359,7 +352,7 @@ class SAFRSBase(object):
         object_name = cls.__name__
 
         object_model = cls.get_swagger_doc_object_model()
-        responses = { '200': {
+        responses = {'200': {
                                 'description' : '{} object'.format(object_name),
                                 'schema': object_model
                              }
@@ -367,16 +360,19 @@ class SAFRSBase(object):
 
         if http_method == 'patch':
             body = object_model
-            responses = { '200' : {
-                                    'description' : 'Object successfully Updated',
+            responses = {'200' : {
+                                    'description' : 'Object successfully updated',
                                   }
                         }
 
         if http_method == 'post':
             #body = cls.get_swagger_doc_post_parameters()
-            responses = { '200' : {
-                                    'description' : 'API call processed successfully',
-                                  }
+            responses = {'201' : {
+                                    'description' : 'Object successfully created',
+                                  },
+                         '403' : {
+                                    'description' : 'Invalid data',
+                                  },
                         }
 
         if http_method == 'get':
@@ -390,10 +386,11 @@ class SAFRSBase(object):
 
     @classmethod
     def get_documented_api_methods(cls):
+        '''
 
+        '''
         result = []
         for method_name, method in inspect.getmembers(cls):
-            fields = {}
             rest_doc = get_doc(method)
             if rest_doc != None:
                 result.append(method)
@@ -414,14 +411,15 @@ class SAFRSBase(object):
         sample_instance  = cls.get_instance(sample_id, failsafe = True)
 
         for column in cls._s_columns:
-            if column.name == 'id' : continue
+            if column.name == 'id': 
+                continue
             # convert the column type to string and map it to a swagger type
             column_type  = str(column.type)
             if '(' in column_type:
                 column_type = column_type.split('(')[0]
             swagger_type = sqlalchemy_swagger2_type[column_type]
             default = getattr(sample_instance, column.name, None)
-            if default == None:
+            if default is None:
                 # swagger api spec doesn't support nullable values
                 continue
             field = { 
@@ -436,9 +434,9 @@ class SAFRSBase(object):
         return model
 
     @classmethod
-    def get_endpoint(cls, url_prefix = ''):
+    def get_endpoint(cls, url_prefix=''):
         '''
-
+            Return the API endpoint
         '''
         endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
         return endpoint
