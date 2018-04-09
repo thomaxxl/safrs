@@ -86,15 +86,6 @@ class SAFRSBase(object):
     db_commit = True   # set this to False if you want to use the SAFRSBase in combination with another framework, eg flask-admin
                        # The caller will have to add and commit the object by itself then...
     
-    @classproperty
-    def _s_query(cls):
-        _table = getattr(cls,'_table', None)
-        if _table:
-            return db.session.query(_table)    
-        return db.session.query(cls)
-
-    query = _s_query
-
     def __new__(cls, **kwargs):
         '''
             If an object with given arguments already exists, this object is instantiated
@@ -172,7 +163,16 @@ class SAFRSBase(object):
     def _s_expunge(self):
         session = sqla_inspect(self).session
         session.expunge(self)
-        
+    
+    @classproperty
+    def _s_query(cls):
+        _table = getattr(cls,'_table', None)
+        if _table:
+            return db.session.query(_table)    
+        return db.session.query(cls)
+
+    query = _s_query
+
     @classproperty
     def _s_column_names(cls):
         return [c.name for c in cls.__mapper__.columns]

@@ -36,6 +36,7 @@ import traceback
 import datetime
 import logging
 import uuid
+import sqlalchemy
 
 from flask import make_response, url_for
 from flask import jsonify, request
@@ -44,7 +45,6 @@ from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 from flask_restful import abort
 from flask_sqlalchemy import SQLAlchemy
-import sqlalchemy
 from functools import wraps
 from jsonschema import validate
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
@@ -54,9 +54,9 @@ from .db import SAFRSBase, db, log
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public
 from .swagger_doc import parse_object_doc, swagger_relationship_doc
 from .errors import ValidationError, GenericError, NotFoundError
-from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
+from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMTS, CLASSMETHOD_URL_FMT
 from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
-from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
+from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMTS
 
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
@@ -90,7 +90,7 @@ class Api(FRSApiBase):
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_type]
 
-        url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_type)
+        resource_urls = [ resource_url_fmt.format(url_prefix, safrs_object._s_type) for resource_url_fmt in RESOURCE_URL_FMTS ]
 
         endpoint = safrs_object.get_endpoint(url_prefix)
 
@@ -104,28 +104,31 @@ class Api(FRSApiBase):
                                   swagger_decorator)
         
         # Expose the collection
-        log.info('Exposing {} on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
+        log.info('Exposing {} on {}, endpoint: {}'.format(safrs_object._s_type, resource_urls, endpoint))
         self.add_resource(api_class, 
-                          url,
+                          *resource_urls,
                           endpoint=endpoint, 
                           methods=['GET', 'POST', 'PUT'])
 
-        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__ )
+        instance_urls = [ INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__ )
+                    for INSTANCE_URL_FMT in INSTANCE_URL_FMTS ]
         endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, safrs_object._s_type)
         # Expose the instances
         self.add_resource(api_class,
-                          url,
+                          *instance_urls,
                           endpoint=endpoint)
         log.info('Exposing {} instances on {}, endpoint: {}'.format(
-                        safrs_object._s_type, url, endpoint))
+                        safrs_object._s_type, instance_urls, endpoint))
         
         object_doc = parse_object_doc(safrs_object)
         object_doc['name'] = safrs_object._s_type
         self._swagger_object['tags'].append(object_doc)
 
         relationships =  safrs_object.__mapper__.relationships
+
+        instance_url = instance_urls[0]
         for relationship in relationships:
-            self.expose_relationship(relationship, url, tags = tags)
+            self.expose_relationship(relationship, instance_url, tags = tags)
 
         self.expose_methods(safrs_object, url_prefix, tags = tags)
 
@@ -280,8 +283,6 @@ class Api(FRSApiBase):
         if path_item:
             validate_path_item_object(path_item)
             for url in urls:
-                if not url.startswith('/'):
-                    raise ValidationError('paths must start with a /')
                 swagger_url = extract_swagger_path(url)
                 for method in [m.lower() for m in resource.methods]:
                     method_doc = copy.deepcopy(path_item.get(method))
@@ -706,7 +707,9 @@ class SAFRSRestAPI(Resource, object):
             201: Created
             202: Accepted (processing has not been completed by the time the server responds)
             404: Not Found
-            409: Conflict
+            409: Conflict 
+
+            # TODO: http://jsonapi.org/format/#crud-creating-client-ids
     
             Location Header identifying the location of the newly created resource
             Body : created object
@@ -997,8 +1000,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             # return a list of all relationship items
             result = [ item for item in relation ]
 
-        return jsonify(result)
-        
+        return jsonify(result)        
 
     def patch(self, **kwargs):
         '''
@@ -1072,8 +1074,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
         result = [ item for item in relation ]
         return jsonify(result)
-
-        
 
     def delete(self, **kwargs):
         '''

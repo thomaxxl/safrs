@@ -8,8 +8,15 @@ OBJECT_ID_SUFFIX = 'Id'
 # second argument will be object tablename (ie resource, eg. Users)
 # Third parameter will be the "Object id" (eg. UserId)
 # => /api/v1/Users/{UserId}
-RESOURCE_URL_FMT = '{}/{}/'
-INSTANCE_URL_FMT = RESOURCE_URL_FMT + '<string:{}' + OBJECT_ID_SUFFIX + '>/'
+RESOURCE_URL_FMT = RESOURCE_URL_FMT0 = '{}/{}/'
+RESOURCE_URL_FMT1 = '{}/{}'
+RESOURCE_URL_FMTS = [RESOURCE_URL_FMT0 ]
+
+INSTANCE_URL_FMT0 = RESOURCE_URL_FMT + '<string:{}' + OBJECT_ID_SUFFIX + '>/'
+INSTANCE_URL_FMT = INSTANCE_URL_FMT0 # will be used as a prefix for the RELATIONSHIP_URL_FMT
+INSTANCE_URL_FMT1 = RESOURCE_URL_FMT + '<string:{}' + OBJECT_ID_SUFFIX + '>'
+INSTANCE_URL_FMTS = [INSTANCE_URL_FMT0 ]
+
 # last parameter for the "method" urls below will be the method name
 INSTANCEMETHOD_URL_FMT = RESOURCE_URL_FMT + '<string:{}>/{}'
 # (eg. /Users/get_list)
