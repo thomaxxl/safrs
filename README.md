@@ -242,6 +242,8 @@ The [examples](examples) folder contains more example scripts:
 - Exposing an exisitng sqlite database as a REST service
 - Using a sha hash as primary key (id)
 - cors usage
+- Flask-Admin integration 
+![demo](docs/images/flask-admin.png)
 
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs
