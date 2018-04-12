@@ -232,8 +232,8 @@ The URL path format is [configurable](#configuration)
 ## Configuration
 
 Some configuration parameters can be set in [config.py](safrs/config.py):
-- USE_API_METHODS : set this to false in case you want to disable the documented_api_method functionality
-- INSTANCE_URL_FMT : This parameter declares the instance url path format
+- USE_API_METHODS: set this to false in case you want to disable the documented_api_method functionality
+- INSTANCE_URL_FMT: This parameter declares the instance url path format
 - RELATIONSHIP_URL_FMT: This parameter declares the relationship endpoint path format
 
 <a class="mk-toclify" id="more-examples-and-use-cases"></a>
