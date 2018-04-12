@@ -241,7 +241,7 @@ Some configuration parameters can be set in [config.py](safrs/config.py):
 The [examples](examples) folder contains more example scripts:
 - Exposing an exisitng sqlite database as a REST service
 - Using a sha hash as primary key (id)
-- cors usage
+- CORS usage
 - Flask-Admin integration example, eg.:
 ![demo](docs/images/flask-admin.png)
 
