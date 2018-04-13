@@ -349,7 +349,7 @@ class Api(FRSApiBase):
                             filtered_parameters.append(parameter)
 
                     method_doc['parameters'] = filtered_parameters
-                    method_doc['operationId'] = method + str(uuid.uuid4()).replace('-','')
+                    method_doc['operationId'] = method + str(uuid.uuid4()).replace('-','')[:5]
                     path_item[method] = method_doc
 
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):

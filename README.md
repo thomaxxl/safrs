@@ -108,9 +108,9 @@ class User(SAFRSBase, db.Model):
         description: User description
     '''
     __tablename__ = 'Users'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    email = Column(String, default = '')
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default = '')
+    email = db.Column(db.String, default = '')
     books = db.relationship('Book', back_populates = "user")
 ...
 ``` 
@@ -124,9 +124,9 @@ class Book(SAFRSBase, db.Model):
         description: Book description
     '''
     __tablename__ = 'Books'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    user_id = Column(String, ForeignKey('Users.id'))
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default = '')
+    user_id = db.Column(db.String, db.ForeignKey('Users.id'))
     user = db.relationship('User', back_populates='books')
 ```
 

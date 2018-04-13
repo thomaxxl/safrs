@@ -9,7 +9,7 @@ install_requires=[str(ir.req) for ir in parse_requirements('requirements.txt', s
 setup(
   name = 'safrs',
   packages = ['safrs'],
-  version = '1.0.8',
+  version = '1.0.9',
   license = 'MIT',
   description = 'safrs : SqlAlchemy Flask-Restful Swagger2',
   author = 'Thomas Pollet',
