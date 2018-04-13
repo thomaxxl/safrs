@@ -19,14 +19,10 @@ from sqlalchemy import Column, Integer, String
 from safrs.db import SAFRSBase, documented_api_method
 from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask_marshmallow import Marshmallow
 
 
-app = Flask('demo_app')
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',      
-                   SQLALCHEMY_TRACK_MODIFICATIONS = False,   
-                   DEBUG = True)
-db  = SQLAlchemy(app)
+
+db  = SQLAlchemy()
 
 # Example sqla database object
 class User(SAFRSBase, db.Model):
@@ -73,26 +69,31 @@ def create_api(app):
     app.run(host=HOST, port = PORT)
 
 
-@app.route('/')
-def goto_api():
-    return redirect('/api')
 
-@app.teardown_appcontext
-def shutdown_session(exception=None):
-    '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
-    db.session.remove()
+if __name__ == '__main__':
+    app = Flask('demo_app')
+    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',      
+                       SQLALCHEMY_TRACK_MODIFICATIONS = False,   
+                       DEBUG = True)
+    db.init_app(app)
+
+    @app.route('/')
+    def goto_api():
+        return redirect('/api')
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
+        db.session.remove()
 
 
-# Start the application
-HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
-PORT = 5000
+    # Start the application
+    HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
+    PORT = 5000
 
-db.init_app(app)
-# Create the database
-db.create_all()
-# bind marshmallow
-ma = Marshmallow(app)
-ma.init_app(app)
+    db.init_app(app)
+    # Create the database
 
-with app.app_context():
-    create_api(app)
+    with app.app_context():
+        db.create_all()
+        create_api(app)
