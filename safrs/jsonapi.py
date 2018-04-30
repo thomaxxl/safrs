@@ -58,6 +58,7 @@ from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
 from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
+from .config import ENABLE_RELATIONSHIPS
 from sqlalchemy import or_, and_
 
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
@@ -1251,7 +1252,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 # Data is optional, it's also really slow for large sets:
                 rel_query = getattr(object, rel_name)
                 limit  = request.args.get('page[limit]', UNLIMITED)
-                if rel_query:
+                if rel_query and ENABLE_RELATIONSHIPS:
                     items = list(rel_query.limit(limit).all())
                     data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 else:

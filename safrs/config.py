@@ -35,3 +35,4 @@ ENDPOINT_FMT = '{}-api.{}'
 UNLIMITED = 1<<32 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
 
 USE_API_METHODS = True
+ENABLE_RELATIONSHIPS = True
