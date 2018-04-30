@@ -1249,11 +1249,16 @@ class SAFRSJSONEncoder(JSONEncoder, object):
 
             rel_name = relationship.key
             if relationship.direction in (ONETOMANY, MANYTOMANY):
-                # Data is optional, it's also really slow for large sets:
+                # Data is optional, it's also really slow for large sets!!!!!
                 rel_query = getattr(object, rel_name)
                 limit  = request.args.get('page[limit]', UNLIMITED)
+                
                 if rel_query and ENABLE_RELATIONSHIPS:
-                    items = list(rel_query.limit(limit).all())
+                    # todo: chekc if lazy=dynamic 
+                    if getattr(rel_query,'limit',False):
+                        items = rel_query.limit(limit).all()
+                    else:
+                        items = list(rel_query)
                     data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 else:
                     data =[{}]
