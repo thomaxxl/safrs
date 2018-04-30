@@ -1252,7 +1252,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 rel_query = getattr(object, rel_name)
                 limit  = request.args.get('page[limit]', UNLIMITED)
                 if rel_query:
-                    items = list(getattr(object, rel_name, []))
+                    items = list(rel_query.limit(limit).all())
                     data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 else:
                     data =[{}]
