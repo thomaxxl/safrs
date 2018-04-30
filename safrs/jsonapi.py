@@ -347,7 +347,7 @@ class Api(FRSApiBase):
                                      'in': 'query',
                                      'format' : 'int64',
                                      'required' : False,
-                                     'description' : 'Fields to be selected'}
+                                     'description' : 'Fields to be selected (csv)'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
@@ -361,7 +361,7 @@ class Api(FRSApiBase):
                                          'in': 'query',
                                          'format' : 'string',
                                          'required' : False,
-                                         'description' : '{} attribute Filter'.format(column_name)}
+                                         'description' : '{} attribute filter (csv)'.format(column_name)}
                                 if not param in filtered_parameters:
                                     filtered_parameters.append(param)
 
@@ -479,8 +479,8 @@ def paginate(object_query):
         next: the next page of data
 
         We use page[offset] and page[limit]
-
     '''
+
     offset = request.args.get('page[offset]',0)
     limit  = request.args.get('page[limit]', UNLIMITED)
     links  = {
@@ -1249,13 +1249,13 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             rel_name = relationship.key
             if relationship.direction in (ONETOMANY, MANYTOMANY):
                 # Data is optional, it's also really slow for large sets:
-                #rel_query = getattr(object, rel_name)
-                #limit = object.query_limit
-                #if rel_query.lazy:
-                #items = list(getattr(object, rel_name, []))
-                #data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
-                #else:
-                data =[{}]
+                rel_query = getattr(object, rel_name)
+                limit  = request.args.get('page[limit]', UNLIMITED)
+                if rel_query:
+                    items = list(getattr(object, rel_name, []))
+                    data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
+                else:
+                    data =[{}]
             else:
                 data = None
 
