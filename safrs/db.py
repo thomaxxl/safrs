@@ -217,24 +217,6 @@ class SAFRSBase(object):
                 result.append(instance)
 
         return result
-
-    @classmethod
-    @documented_api_method
-    def lookup(cls,  *args, **kwargs):
-        '''
-            description : Retrieve all matching objects
-            args:
-                name: test
-            --------
-            This is actually a wrapper for query, but .query is already taken :)
-        '''
-        
-        try:
-            result = cls.query.filter_by(**kwargs).all()
-        except Exception as exc:
-            raise GenericError("Failed to execute query {}".format(exc))
-
-        return result
     
     @classmethod
     def get_instance(cls, id = None, failsafe = False):

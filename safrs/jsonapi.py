@@ -36,6 +36,7 @@ import traceback
 import datetime
 import logging
 import uuid
+import re
 
 from flask import make_response, url_for
 from flask import jsonify, request
@@ -57,6 +58,7 @@ from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
 from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
+from sqlalchemy import or_, and_
 
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
@@ -84,7 +86,7 @@ class Api(FRSApiBase):
             classname: safrs_object.__name__, e.g. "User"
 
         '''
-
+        self.safrs_object = safrs_object
         api_class_name = '{}_API'.format(safrs_object._s_type)
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
@@ -127,14 +129,15 @@ class Api(FRSApiBase):
         for relationship in relationships:
             self.expose_relationship(relationship, url, tags = tags)
 
-        self.expose_methods(safrs_object, url_prefix, tags = tags)
+        self.expose_methods(url_prefix, tags = tags)
 
 
-    def expose_methods(self, safrs_object, url_prefix, tags):
+    def expose_methods(self, url_prefix, tags):
         '''
             Expose the safrs "documented_api_method" decorated methods
         '''
 
+        safrs_object = self.safrs_object
         api_methods = safrs_object.get_documented_api_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
@@ -255,6 +258,10 @@ class Api(FRSApiBase):
         path_item = {}
         definitions = {}
         resource_methods = kwargs.get('methods',['GET','PUT','POST','DELETE', 'PATCH'])
+        safrs_object = kwargs.get('safrs_object',None)
+        if safrs_object:
+            del kwargs['safrs_object']
+            
 
         for method in [m.lower() for m in resource.methods]:
             if not method.upper() in resource_methods:
@@ -336,13 +343,27 @@ class Api(FRSApiBase):
 
                             param = {'default': "",
                                      'type': 'string',
-                                     'name': 'fields[{}]'.format(parameter.get('name')),
+                                     'name': 'fields[{}]'.format(self.safrs_object._s_type),
                                      'in': 'query',
                                      'format' : 'int64',
                                      'required' : False,
-                                     'description' : 'fields'}
+                                     'description' : 'Fields to be selected'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
+
+                            for column_name in self.safrs_object._s_column_names:
+                                if column_name in ('id' , 'type'):
+                                    continue
+
+                                param = {'default': "",
+                                         'type': 'string',
+                                         'name': 'filter[{}]'.format(column_name),
+                                         'in': 'query',
+                                         'format' : 'string',
+                                         'required' : False,
+                                         'description' : '{} attribute Filter'.format(column_name)}
+                                if not param in filtered_parameters:
+                                    filtered_parameters.append(param)
 
                         if not (parameter.get('in') == 'path' and not object_id in swagger_url ):
                             # Only if a path param is in path url then we add the param
@@ -361,7 +382,6 @@ class Api(FRSApiBase):
                             pass
 
                 self._swagger_object['paths'][swagger_url] = path_item
-
 
         '''self._swagger_object['securityDefinitions'] = {
                 "api_key": {
@@ -441,8 +461,9 @@ def api_decorator(cls, swagger_decorator):
 
     return cls
 
+from functools import reduce
 
-def paginate(object):
+def paginate(object_query):
     '''
         http://jsonapi.org/format/#fetching-pagination
 
@@ -468,8 +489,30 @@ def paginate(object):
         'prev'  : 0,
         'next'  : 0,
     }
-    instances = object.query.offset(offset).limit(limit).all()
+    instances = object_query.offset(offset).limit(limit).all()
     return links, instances
+
+
+def jsonapi_filter(safrs_object):
+    '''
+        Apply the request.args filters to the object
+        returns a sqla query object
+    '''
+
+    filtered = []
+    for arg, val in request.args.items():
+        filter_attr = re.search('filter\[(\w+)\]', arg)
+        if filter_attr:
+            col_name = filter_attr.group(1)
+            column = getattr(safrs_object, col_name)
+            filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
+
+    if filtered:
+        result = filtered[0].union_all(*filtered)
+    else:
+        result = safrs_object.query
+    return result
+
 
 def sort(objects):
     # http://jsonapi.org/format/#fetching-sorting
@@ -618,7 +661,8 @@ class SAFRSRestAPI(Resource, object):
 
         else:
             # retrieve a collection
-            links, instances = paginate(self.SAFRSObject)
+            instances = jsonapi_filter(self.SAFRSObject)
+            links, instances = paginate(instances)
             data = [ item for item in instances ]
 
 

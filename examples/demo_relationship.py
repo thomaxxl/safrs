@@ -17,7 +17,6 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from sqlalchemy import Column, String, ForeignKey
 from safrs.db import SAFRSBase, documented_api_method
 from safrs.jsonapi import SAFRSJSONEncoder, Api
 db = SQLAlchemy()
@@ -54,9 +53,9 @@ class Book(SAFRSBase, db.Model):
         description: Book description
     '''
     __tablename__ = 'Books'
-    id = Column(String, primary_key=True)
-    name = Column(String, default='')
-    user_id = Column(String, db.ForeignKey('Users.id'))
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default='')
+    user_id = db.Column(db.String, db.ForeignKey('Users.id'))
     user = db.relationship('User', back_populates='books')
 
 
