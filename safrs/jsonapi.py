@@ -1030,7 +1030,10 @@ class SAFRSRestRelationshipAPI(Resource, object):
         if child_id:
             child = self.child_class.get_instance(child_id)
             # If {ChildId} is passed in the url, return the child object
-            if child in relation:
+            # there's a difference between to-one and -to-many relationships:
+            if isinstance(relation,SAFRSBase):
+                result = [ child ]
+            elif child in relation:
                 # item is in relationship, return the child
                 result = [ child ]
             else:
@@ -1153,7 +1156,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             raise ValidationError('Invalid Parent Id')
 
         relation = getattr(parent, self.rel_name)
-
         return parent, relation
 
 import json
