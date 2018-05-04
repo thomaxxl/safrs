@@ -70,6 +70,7 @@ class Api(FRSApiBase):
         this method creates an API endpoint for the SAFRSBase object and corresponding swagger
         documentation
     '''
+    _operation_ids = {}
 
     def expose_object(self, safrs_object, url_prefix='', **properties):
         '''
@@ -332,16 +333,6 @@ class Api(FRSApiBase):
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            param = {'default': '',
-                                     'type': 'string',
-                                     'name': 'sort',
-                                     'in': 'query',
-                                     'format' : 'string',
-                                     'required' : False,
-                                     'description' : 'sort fields'}
-                            if not param in filtered_parameters:
-                                filtered_parameters.append(param)
-
                             param = {'default': "",
                                      'type': 'string',
                                      'name': 'fields[{}]'.format(self.safrs_object._s_type),
@@ -349,6 +340,16 @@ class Api(FRSApiBase):
                                      'format' : 'int64',
                                      'required' : False,
                                      'description' : 'Fields to be selected (csv)'}
+                            if not param in filtered_parameters:
+                                filtered_parameters.append(param)
+
+                            param = {'default': ','.join(self.safrs_object._s_column_names),
+                                     'type': 'string',
+                                     'name': 'sort',
+                                     'in': 'query',
+                                     'format' : 'string',
+                                     'required' : False,
+                                     'description' : 'Sort order'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
@@ -371,7 +372,8 @@ class Api(FRSApiBase):
                             filtered_parameters.append(parameter)
 
                     method_doc['parameters'] = filtered_parameters
-                    method_doc['operationId'] = method + str(uuid.uuid4()).replace('-','')[:5]
+
+                    method_doc['operationId'] = self.get_operation_id(method)
                     path_item[method] = method_doc
 
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
@@ -393,6 +395,14 @@ class Api(FRSApiBase):
 
         self._swagger_object['security'] = [ "api_key" ]'''
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
+
+    @classmethod
+    def get_operation_id(cls, method):
+        if not method in cls._operation_ids:
+            cls._operation_ids[method] = 1
+        else:
+            cls._operation_ids[method] += 1
+        return str(cls._operation_ids[method])
 
 
 def http_method_decorator(fun):
@@ -515,9 +525,22 @@ def jsonapi_filter(safrs_object):
     return result
 
 
-def sort(objects):
-    # http://jsonapi.org/format/#fetching-sorting
-    pass
+def jsonapi_sort(object_query, safrs_object):
+    '''
+        http://jsonapi.org/format/#fetching-sorting
+        sort by csv sort= values
+    '''
+    sort_columns = request.args.get('sort',None)
+    if not sort_columns is None :
+      for sort_column in sort_columns.split(','):
+            if sort_column.startswith('-'):
+                attr = getattr(safrs_object, sort_column[1:], None).desc()
+                object_query = object_query.order_by(attr)
+            else:
+                attr = getattr(safrs_object, sort_column, None)
+                object_query = object_query.order_by(attr)
+
+    return object_query
 
 def get_included(data, limit):
     '''
@@ -663,6 +686,7 @@ class SAFRSRestAPI(Resource, object):
         else:
             # retrieve a collection
             instances = jsonapi_filter(self.SAFRSObject)
+            instances = jsonapi_sort(instances, self.SAFRSObject)
             links, instances = paginate(instances)
             data = [ item for item in instances ]
 
