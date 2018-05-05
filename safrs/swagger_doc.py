@@ -198,7 +198,6 @@ def get_swagger_doc_post_arguments(cls, method_name=None):
         rest_doc = get_doc(method)
         description = rest_doc.get('description', '')
         if rest_doc:
-            
             method_args = rest_doc.get('args', [])
             if method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
@@ -229,7 +228,7 @@ def swagger_method_doc(cls, method_name, tags=None):
 
     '''
     def swagger_doc_gen(func):
-        
+
         class_name = cls.__name__
         if tags == None:
             doc_tags = [table_name]
@@ -244,28 +243,40 @@ def swagger_method_doc(cls, method_name, tags=None):
         model_name = '{} {} {}'.format('invoke ', class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
 
-        post_param, description, method = get_swagger_doc_post_arguments(cls, method_name)
-
-        '''if inspect.ismethod(method) and method.__self__ is cls:
-            # Mark classmethods: only these can be called when no {id} is given as parameter
-            # in the swagger ui
-            description += ' (classmethod)' '''
-
-            
-        parameters = []
-        #
-        # Retrieve the swagger schemas for the documented_api_methods
-        #
-        model_name = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
-        param_model = SchemaClassFactory(model_name, post_param)
-        parameters.append({
-                            'name': model_name,
-                            'in': 'body',
-                            'description' : description,
-                            'schema' : param_model,
-                            'required' : True
+        parameters = []            
+        if func.__name__ == 'get':
+            #args = inspect.getargspec(func).args
+            parameters.append({
+                            'name': 'varargs',
+                            'in': 'query',
+                            'description' : '{} arguments'.format(method_name),
+                            'required' : False,
+                            'type' : 'string'
                           })
+        else:
+            # typically POST
+            post_param, description, method = get_swagger_doc_post_arguments(cls, method_name)
 
+            '''if inspect.ismethod(method) and method.__self__ is cls:
+                # Mark classmethods: only these can be called when no {id} is given as parameter
+                # in the swagger ui
+                description += ' (classmethod)' '''
+
+                
+            #
+            # Retrieve the swagger schemas for the documented_api_methods
+            #
+            model_name = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
+            param_model = SchemaClassFactory(model_name, post_param)
+            parameters.append({
+                                'name': model_name,
+                                'in': 'body',
+                                'description' : description,
+                                'schema' : param_model,
+                                'required' : True
+                              })
+
+        
         # URL Path Parameter
         default_id = cls.sample_id()
         parameters.append({
