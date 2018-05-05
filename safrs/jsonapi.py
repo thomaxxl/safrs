@@ -53,7 +53,7 @@ from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 # safrs_rest dependencies:
 from .db import SAFRSBase, db, log
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public
-from .swagger_doc import parse_object_doc, swagger_relationship_doc
+from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
 from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
@@ -146,9 +146,9 @@ class Api(FRSApiBase):
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
             if getattr(api_method, '__self__',None) is safrs_object:
                 # method is a classmethod, make it available at the class level
-                url = CLASSMETHOD_URL_FMT.format( url_prefix,
-                                                  safrs_object.__tablename__,
-                                                  method_name)
+                url = CLASSMETHOD_URL_FMT.format(url_prefix,
+                                                 safrs_object.__tablename__,
+                                                 method_name)
             else:
                 url = INSTANCEMETHOD_URL_FMT.format(url_prefix,
                                                     safrs_object.__tablename__,
@@ -165,9 +165,9 @@ class Api(FRSApiBase):
                                         swagger_decorator)
             log.info('Exposing method {} on {}, endpoint: {}'.format(safrs_object.__tablename__ + '.' + api_method.__name__, url, endpoint))
             self.add_resource(api_class,
-                          url,
-                          endpoint= endpoint,
-                          methods = ['POST'])
+                              url,
+                              endpoint= endpoint,
+                              methods = get_http_methods(api_method))
 
 
     def expose_relationship(self, relationship, url_prefix, tags):
@@ -956,6 +956,45 @@ class SAFRSRestMethodAPI(Resource, object):
                    }
 
         return jsonify( response ) # 200 : default
+
+
+    def get(self, **kwargs):
+        '''
+            HTTP POST: apply actions, return 200 regardless
+        '''
+
+        id = kwargs.get(self.object_id, None)
+
+        if id != None:
+            instance = self.SAFRSObject.get_instance(id)
+            if not instance:
+                # If no instance was found this means the user supplied
+                # an invalid ID
+                raise ValidationError('Invalid ID')
+
+        else:
+            # No ID was supplied, apply method to the class itself
+            instance = self.SAFRSObject
+
+        method = getattr(instance, self.method_name, None)
+
+        if not method:
+            # Only call methods for Campaign and not for superclasses (e.g. db.Model)
+            raise ValidationError('Invalid method "{}"'.format(method_name))
+        if not is_public(method):
+            raise ValidationError('Method is not public')
+
+        args = dict(request.args)
+        log.debug('method {} args {}'.format(self.method_name, args))
+
+        result = method(**args)
+
+        response = { 'meta' :
+                     { 'result' : result }
+                   }
+
+        return jsonify( response ) # 200 : default
+
 
 
 class SAFRSRelationshipObject(object):

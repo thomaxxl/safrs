@@ -14,6 +14,7 @@ log = logging.getLogger()
 
 REST_DOC = '__rest_doc' # swagger doc attribute name. If this attribute is set
                         # this means that the function is reachable through HTTP POST
+HTTP_METHODS = '__http_method'                        
 DOC_DELIMITER = '----'  # used as delimiter between the rest_doc swagger yaml spec 
                         # and regular documentation
 
@@ -56,6 +57,25 @@ def documented_api_method(func):
     return func
 
 
+def jsonapi_rpc(http_methods):
+    def documented_api_method(func):
+        '''
+            Decorator to expose functions in the REST API:
+            When a method is decorated with documented_api_method, this means
+            it becomes available for use through HTTP POST (i.e. public)
+        '''
+        if USE_API_METHODS:
+            try:
+                api_doc = parse_object_doc(func)
+            except yaml.scanner.ScannerError:
+                log.error('Failed to parse documentation for {}'.format(func))
+            setattr(func, REST_DOC, api_doc)
+            setattr(func, HTTP_METHODS, http_methods)
+        return func
+
+    return documented_api_method
+
+
 def is_public(method):
     '''
 
@@ -67,6 +87,9 @@ def get_doc(method):
 
     '''
     return getattr(method, REST_DOC, None)
+
+def get_http_methods(func):
+    return getattr(func, HTTP_METHODS, ['POST'])
 
 
 def SchemaClassFactory(name, properties):

@@ -17,7 +17,7 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from safrs.db import SAFRSBase, documented_api_method
+from safrs.db import SAFRSBase, documented_api_method, jsonapi_rpc
 from safrs.jsonapi import SAFRSJSONEncoder, Api
 db = SQLAlchemy()
 
@@ -34,7 +34,8 @@ class User(SAFRSBase, db.Model):
 
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
-    @documented_api_method
+    @classmethod
+    @jsonapi_rpc(http_methods = ['GET'])
     def send_mail(self, email):
         '''
             description : Send an email

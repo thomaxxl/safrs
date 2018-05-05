@@ -14,7 +14,7 @@ from sqlalchemy import inspect as sqla_inspect
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
-from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc
+from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jsonapi_rpc
 from .errors import GenericError, NotFoundError
 from .safrs_types import SAFRSID
 from .util import classproperty
