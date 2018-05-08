@@ -686,10 +686,10 @@ class SAFRSRestAPI(Resource, object):
         else:
             # retrieve a collection
             instances = jsonapi_filter(self.SAFRSObject)
+            meta['count'] = instances.count()
             instances = jsonapi_sort(instances, self.SAFRSObject)
             links, instances = paginate(instances)
             data = [ item for item in instances ]
-
 
         included = get_included(data, limit)
         result   = dict(data = data)
@@ -1233,8 +1233,6 @@ class SAFRSJSONEncoder(JSONEncoder, object):
     def default(self,object):
 
         if isinstance(object, SAFRSBase):
-            rel_limit_count = 100
-            limit  = request.args.get('limit', rel_limit_count)
             result = self.jsonapi_encode(object)
             return result
         if isinstance(object, datetime.datetime) or isinstance(object, datetime.date):
@@ -1318,7 +1316,9 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 rel_query = getattr(object, rel_name)
                 limit  = request.args.get('page[limit]', UNLIMITED)
                 
-                if rel_query and ENABLE_RELATIONSHIPS:
+                if not ENABLE_RELATIONSHIPS:
+                    data =[{ 'meta' : 'ENABLE_RELATIONSHIPS set to false in config.py' }]
+                elif rel_query:
                     # todo: chekc if lazy=dynamic 
                     if getattr(rel_query,'limit',False):
                         items = rel_query.limit(limit).all()
