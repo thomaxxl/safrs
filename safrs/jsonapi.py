@@ -500,12 +500,14 @@ def paginate(object_query):
                        )
     
     request_args = dict(request.args)
-    offset = request_args.get('page[offset]',0)
+
+    offset = request.args.get('page[offset]',0)
     try:
         del request_args['page[offset]']
         offset = int(offset)
     except:
         offset = 0
+
     limit  = request.args.get('page[limit]', UNLIMITED)
     try:
         del request_args['page[limit]']
@@ -515,17 +517,27 @@ def paginate(object_query):
     count = object_query.count()
 
     first_args = (0,limit)
-    self_args = (offset,limit)
     last_args = (int(count / limit) , limit)
-    next_args = (count + 1, limit) if offset + 1 <= last_args[0] else last_args
-    prev_args = ( count - 1, limit ) if count > 0 else first_args
+    self_args = (offset if offset <= last_args[0] else last_args[0], limit)
+    next_args = (offset + 1, limit) if offset + 1 <= last_args[0] else last_args
+    prev_args = (offset - 1, limit ) if offset > 0 else first_args
 
     links  = {
+        'self'  : get_link(*self_args),
         'first' : get_link(*first_args),
         'last'  : get_link(*last_args),
         'prev'  : get_link(*prev_args),
         'next'  : get_link(*next_args),
     }
+
+    if last_args == self_args:
+        del links['last']
+    if first_args == self_args:
+        del links['first']
+    if next_args == last_args:
+        del links['next']
+    if prev_args == first_args:
+        del links['prev']
 
     instances = object_query.offset(offset).limit(limit).all()
     return links, instances
@@ -691,7 +703,7 @@ class SAFRSRestAPI(Resource, object):
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
 
-        limit = request.args.get('limit', UNLIMITED)
+        limit = request.args.get('page[limit]', UNLIMITED)
         meta['limit'] = limit
 
         if id:
