@@ -494,7 +494,7 @@ def paginate(object_query):
     '''
 
     def get_link(count, limit):
-        return urljoin( request.path, 
+        return urljoin( request.path +'?', 
                         '&'.join([ '{}={}'.format(k,v[0]) for k,v in request_args.items()] + 
                                  ['page[offset]={}&page[limit]={}'.format(count, limit)] )
                        )
