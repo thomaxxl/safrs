@@ -704,7 +704,7 @@ class SAFRSRestAPI(Resource, object):
         #method_name = kwargs.get('method_name','')
 
         limit = request.args.get('page[limit]', UNLIMITED)
-        meta['limit'] = limit
+        meta['limit'] = int(limit)
 
         if id:
             # Retrieve the instance with the provided id
