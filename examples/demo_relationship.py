@@ -75,6 +75,8 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
     logging.getLogger(__name__).setLevel(logging.DEBUG)
     builtins.log = log
+    # prevent redirects when a trailing slash isn't present
+    app.url_map.strict_slashes = False
 
     with app.app_context():
         # Create a user and a book and add the book to the user.books relationship
