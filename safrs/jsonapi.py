@@ -35,7 +35,6 @@ import copy
 import traceback
 import datetime
 import logging
-import uuid
 import re
 
 from flask import make_response, url_for
@@ -402,7 +401,7 @@ class Api(FRSApiBase):
             cls._operation_ids[method] = 1
         else:
             cls._operation_ids[method] += 1
-        return str(cls._operation_ids[method])
+        return 'oid_{}'.format(cls._operation_ids[method])
 
 
 def http_method_decorator(fun):
