@@ -517,14 +517,14 @@ def paginate(object_query):
     count = object_query.count()
 
     first_args = (0,limit)
-    last_args = (int( (count-1) / limit) , limit)
+    last_args = (int( int(count / limit) * limit) , limit)
     self_args = (offset if offset <= last_args[0] else last_args[0], limit)
     next_args = (offset + 1, limit) if offset + 1 <= last_args[0] else last_args
     prev_args = (offset - 1, limit ) if offset > 1 else first_args
 
     links  = {
         'first'  : get_link(*first_args),
-        'self' : request.url,
+        'self' : get_link(*self_args),
         'last'  : get_link(*last_args),
         'prev'  : get_link(*prev_args),
         'next'  : get_link(*next_args),
