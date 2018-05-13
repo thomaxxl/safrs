@@ -501,12 +501,12 @@ def paginate(object_query):
     
     request_args = dict(request.args)
 
-    offset = request.args.get('page[offset]',1)
+    offset = request.args.get('page[offset]',0)
     try:
         del request_args['page[offset]']
         offset = int(offset)
     except:
-        offset = 1
+        offset = 0
 
     limit  = request.args.get('page[limit]', UNLIMITED)
     try:
@@ -523,8 +523,8 @@ def paginate(object_query):
     prev_args = (offset - 1, limit ) if offset > 1 else first_args
 
     links  = {
-        'self'  : get_link(*self_args),
-        'first' : request.url,
+        'first'  : get_link(*first_args),
+        'self' : request.url,
         'last'  : get_link(*last_args),
         'prev'  : get_link(*prev_args),
         'next'  : get_link(*next_args),
