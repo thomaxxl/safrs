@@ -36,6 +36,7 @@ import traceback
 import datetime
 import logging
 import re
+import pprint
 
 from flask import make_response, url_for
 from flask import jsonify, request
@@ -372,7 +373,8 @@ class Api(FRSApiBase):
 
                     method_doc['parameters'] = filtered_parameters
 
-                    method_doc['operationId'] = self.get_operation_id(method)
+                    method_doc['operationId'] = self.get_operation_id(path_item.get(method).get('summary'))
+                    pprint.pprint(path_item)
                     path_item[method] = method_doc
 
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
@@ -396,12 +398,13 @@ class Api(FRSApiBase):
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
     @classmethod
-    def get_operation_id(cls, method):
-        if not method in cls._operation_ids:
-            cls._operation_ids[method] = 1
+    def get_operation_id(cls, summary):
+        summary = ''.join(c for c in summary if c.isalnum())
+        if not summary in cls._operation_ids:
+            cls._operation_ids[summary] = 0
         else:
-            cls._operation_ids[method] += 1
-        return 'oid_{}'.format(cls._operation_ids[method])
+            cls._operation_ids[summary] += 1
+        return '{}_{}'.format(summary, cls._operation_ids[summary])
 
 
 def http_method_decorator(fun):
