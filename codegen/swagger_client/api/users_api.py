@@ -33,13 +33,13 @@ class UsersApi(object):
             api_client = ApiClient()
         self.api_client = api_client
 
-    def 1(self, **kwargs):  # noqa: E501
+    def oid1(self, **kwargs):  # noqa: E501
         """Retrieve a User object              # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1(async=True)
+        >>> thread = api.oid1(async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -56,18 +56,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.1_with_http_info(**kwargs)  # noqa: E501
+            return self.oid1_with_http_info(**kwargs)  # noqa: E501
         else:
-            (data) = self.1_with_http_info(**kwargs)  # noqa: E501
+            (data) = self.oid1_with_http_info(**kwargs)  # noqa: E501
             return data
 
-    def 1_with_http_info(self, **kwargs):  # noqa: E501
+    def oid1_with_http_info(self, **kwargs):  # noqa: E501
         """Retrieve a User object              # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_with_http_info(async=True)
+        >>> thread = api.oid1_with_http_info(async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -94,7 +94,7 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 1" % key
+                    " to method oid1" % key
                 )
             params[key] = val
         del params['kwargs']
@@ -148,13 +148,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 1_0(self, post_body, **kwargs):  # noqa: E501
+    def oid1_0(self, post_body, **kwargs):  # noqa: E501
         """Create a User object              # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_0(post_body, async=True)
+        >>> thread = api.oid1_0(post_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -165,18 +165,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.1_0_with_http_info(post_body, **kwargs)  # noqa: E501
+            return self.oid1_0_with_http_info(post_body, **kwargs)  # noqa: E501
         else:
-            (data) = self.1_0_with_http_info(post_body, **kwargs)  # noqa: E501
+            (data) = self.oid1_0_with_http_info(post_body, **kwargs)  # noqa: E501
             return data
 
-    def 1_0_with_http_info(self, post_body, **kwargs):  # noqa: E501
+    def oid1_0_with_http_info(self, post_body, **kwargs):  # noqa: E501
         """Create a User object              # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_0_with_http_info(post_body, async=True)
+        >>> thread = api.oid1_0_with_http_info(post_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -197,14 +197,14 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 1_0" % key
+                    " to method oid1_0" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'post_body' is set
         if ('post_body' not in params or
                 params['post_body'] is None):
-            raise ValueError("Missing the required parameter `post_body` when calling `1_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `post_body` when calling `oid1_0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -243,13 +243,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 1_1(self, user_id, **kwargs):  # noqa: E501
+    def oid1_1(self, user_id, **kwargs):  # noqa: E501
         """Delete a User object              # noqa: E501
 
         Delete a User object  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_1(user_id, async=True)
+        >>> thread = api.oid1_1(user_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -260,18 +260,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.1_1_with_http_info(user_id, **kwargs)  # noqa: E501
+            return self.oid1_1_with_http_info(user_id, **kwargs)  # noqa: E501
         else:
-            (data) = self.1_1_with_http_info(user_id, **kwargs)  # noqa: E501
+            (data) = self.oid1_1_with_http_info(user_id, **kwargs)  # noqa: E501
             return data
 
-    def 1_1_with_http_info(self, user_id, **kwargs):  # noqa: E501
+    def oid1_1_with_http_info(self, user_id, **kwargs):  # noqa: E501
         """Delete a User object              # noqa: E501
 
         Delete a User object  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_1_with_http_info(user_id, async=True)
+        >>> thread = api.oid1_1_with_http_info(user_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -292,14 +292,14 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 1_1" % key
+                    " to method oid1_1" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `1_1`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid1_1`")  # noqa: E501
 
         collection_formats = {}
 
@@ -338,13 +338,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 1_2(self, user_id, post_body, **kwargs):  # noqa: E501
+    def oid1_2(self, user_id, post_body, **kwargs):  # noqa: E501
         """Update a User object              # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_2(user_id, post_body, async=True)
+        >>> thread = api.oid1_2(user_id, post_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -356,18 +356,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.1_2_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
+            return self.oid1_2_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
         else:
-            (data) = self.1_2_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
+            (data) = self.oid1_2_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
             return data
 
-    def 1_2_with_http_info(self, user_id, post_body, **kwargs):  # noqa: E501
+    def oid1_2_with_http_info(self, user_id, post_body, **kwargs):  # noqa: E501
         """Update a User object              # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.1_2_with_http_info(user_id, post_body, async=True)
+        >>> thread = api.oid1_2_with_http_info(user_id, post_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -389,18 +389,18 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 1_2" % key
+                    " to method oid1_2" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `1_2`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid1_2`")  # noqa: E501
         # verify the required parameter 'post_body' is set
         if ('post_body' not in params or
                 params['post_body'] is None):
-            raise ValueError("Missing the required parameter `post_body` when calling `1_2`")  # noqa: E501
+            raise ValueError("Missing the required parameter `post_body` when calling `oid1_2`")  # noqa: E501
 
         collection_formats = {}
 
@@ -441,13 +441,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 2(self, user_id, **kwargs):  # noqa: E501
+    def oid2(self, user_id, **kwargs):  # noqa: E501
         """Retrieve a User object                          # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.2(user_id, async=True)
+        >>> thread = api.oid2(user_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -465,18 +465,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.2_with_http_info(user_id, **kwargs)  # noqa: E501
+            return self.oid2_with_http_info(user_id, **kwargs)  # noqa: E501
         else:
-            (data) = self.2_with_http_info(user_id, **kwargs)  # noqa: E501
+            (data) = self.oid2_with_http_info(user_id, **kwargs)  # noqa: E501
             return data
 
-    def 2_with_http_info(self, user_id, **kwargs):  # noqa: E501
+    def oid2_with_http_info(self, user_id, **kwargs):  # noqa: E501
         """Retrieve a User object                          # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.2_with_http_info(user_id, async=True)
+        >>> thread = api.oid2_with_http_info(user_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -504,14 +504,14 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 2" % key
+                    " to method oid2" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `2`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid2`")  # noqa: E501
 
         collection_formats = {}
 
@@ -564,13 +564,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 2_0(self, user_id, post_body, **kwargs):  # noqa: E501
+    def oid2_0(self, user_id, post_body, **kwargs):  # noqa: E501
         """Create a User object                          # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.2_0(user_id, post_body, async=True)
+        >>> thread = api.oid2_0(user_id, post_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -582,18 +582,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.2_0_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
+            return self.oid2_0_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
         else:
-            (data) = self.2_0_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
+            (data) = self.oid2_0_with_http_info(user_id, post_body, **kwargs)  # noqa: E501
             return data
 
-    def 2_0_with_http_info(self, user_id, post_body, **kwargs):  # noqa: E501
+    def oid2_0_with_http_info(self, user_id, post_body, **kwargs):  # noqa: E501
         """Create a User object                          # noqa: E501
 
         Returns a User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.2_0_with_http_info(user_id, post_body, async=True)
+        >>> thread = api.oid2_0_with_http_info(user_id, post_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -615,18 +615,18 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 2_0" % key
+                    " to method oid2_0" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `2_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid2_0`")  # noqa: E501
         # verify the required parameter 'post_body' is set
         if ('post_body' not in params or
                 params['post_body'] is None):
-            raise ValueError("Missing the required parameter `post_body` when calling `2_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `post_body` when calling `oid2_0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -667,13 +667,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 2_1(self, user_id, book_id, **kwargs):  # noqa: E501
+    def oid2_1(self, user_id, book_id, **kwargs):  # noqa: E501
         """Delete from User books  # noqa: E501
 
         Delete a Book object from the books relation on User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.2_1(user_id, book_id, async=True)
+        >>> thread = api.oid2_1(user_id, book_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -685,18 +685,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.2_1_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
+            return self.oid2_1_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
         else:
-            (data) = self.2_1_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
+            (data) = self.oid2_1_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
             return data
 
-    def 2_1_with_http_info(self, user_id, book_id, **kwargs):  # noqa: E501
+    def oid2_1_with_http_info(self, user_id, book_id, **kwargs):  # noqa: E501
         """Delete from User books  # noqa: E501
 
         Delete a Book object from the books relation on User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.2_1_with_http_info(user_id, book_id, async=True)
+        >>> thread = api.oid2_1_with_http_info(user_id, book_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -718,18 +718,18 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 2_1" % key
+                    " to method oid2_1" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `2_1`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid2_1`")  # noqa: E501
         # verify the required parameter 'book_id' is set
         if ('book_id' not in params or
                 params['book_id'] is None):
-            raise ValueError("Missing the required parameter `book_id` when calling `2_1`")  # noqa: E501
+            raise ValueError("Missing the required parameter `book_id` when calling `oid2_1`")  # noqa: E501
 
         collection_formats = {}
 
@@ -766,13 +766,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 3(self, user_id, **kwargs):  # noqa: E501
+    def oid3(self, user_id, **kwargs):  # noqa: E501
         """Retrieve a books object  # noqa: E501
 
         Returns User books ids  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.3(user_id, async=True)
+        >>> thread = api.oid3(user_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -790,18 +790,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.3_with_http_info(user_id, **kwargs)  # noqa: E501
+            return self.oid3_with_http_info(user_id, **kwargs)  # noqa: E501
         else:
-            (data) = self.3_with_http_info(user_id, **kwargs)  # noqa: E501
+            (data) = self.oid3_with_http_info(user_id, **kwargs)  # noqa: E501
             return data
 
-    def 3_with_http_info(self, user_id, **kwargs):  # noqa: E501
+    def oid3_with_http_info(self, user_id, **kwargs):  # noqa: E501
         """Retrieve a books object  # noqa: E501
 
         Returns User books ids  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.3_with_http_info(user_id, async=True)
+        >>> thread = api.oid3_with_http_info(user_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -829,14 +829,14 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 3" % key
+                    " to method oid3" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `3`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid3`")  # noqa: E501
 
         collection_formats = {}
 
@@ -885,13 +885,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 3_0(self, user_id, books_body, **kwargs):  # noqa: E501
+    def oid3_0(self, user_id, books_body, **kwargs):  # noqa: E501
         """Update books  # noqa: E501
 
         Add a Book object to the books relation on User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.3_0(user_id, books_body, async=True)
+        >>> thread = api.oid3_0(user_id, books_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -903,18 +903,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.3_0_with_http_info(user_id, books_body, **kwargs)  # noqa: E501
+            return self.oid3_0_with_http_info(user_id, books_body, **kwargs)  # noqa: E501
         else:
-            (data) = self.3_0_with_http_info(user_id, books_body, **kwargs)  # noqa: E501
+            (data) = self.oid3_0_with_http_info(user_id, books_body, **kwargs)  # noqa: E501
             return data
 
-    def 3_0_with_http_info(self, user_id, books_body, **kwargs):  # noqa: E501
+    def oid3_0_with_http_info(self, user_id, books_body, **kwargs):  # noqa: E501
         """Update books  # noqa: E501
 
         Add a Book object to the books relation on User  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.3_0_with_http_info(user_id, books_body, async=True)
+        >>> thread = api.oid3_0_with_http_info(user_id, books_body, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -936,18 +936,18 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 3_0" % key
+                    " to method oid3_0" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `3_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid3_0`")  # noqa: E501
         # verify the required parameter 'books_body' is set
         if ('books_body' not in params or
                 params['books_body'] is None):
-            raise ValueError("Missing the required parameter `books_body` when calling `3_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `books_body` when calling `oid3_0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -984,13 +984,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 4(self, post_user_get_list, **kwargs):  # noqa: E501
+    def oid4(self, post_user_get_list, **kwargs):  # noqa: E501
         """Invoke User.get_list              # noqa: E501
 
         Invoke User.get_list  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.4(post_user_get_list, async=True)
+        >>> thread = api.oid4(post_user_get_list, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -1001,18 +1001,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.4_with_http_info(post_user_get_list, **kwargs)  # noqa: E501
+            return self.oid4_with_http_info(post_user_get_list, **kwargs)  # noqa: E501
         else:
-            (data) = self.4_with_http_info(post_user_get_list, **kwargs)  # noqa: E501
+            (data) = self.oid4_with_http_info(post_user_get_list, **kwargs)  # noqa: E501
             return data
 
-    def 4_with_http_info(self, post_user_get_list, **kwargs):  # noqa: E501
+    def oid4_with_http_info(self, post_user_get_list, **kwargs):  # noqa: E501
         """Invoke User.get_list              # noqa: E501
 
         Invoke User.get_list  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.4_with_http_info(post_user_get_list, async=True)
+        >>> thread = api.oid4_with_http_info(post_user_get_list, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -1033,14 +1033,14 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 4" % key
+                    " to method oid4" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'post_user_get_list' is set
         if ('post_user_get_list' not in params or
                 params['post_user_get_list'] is None):
-            raise ValueError("Missing the required parameter `post_user_get_list` when calling `4`")  # noqa: E501
+            raise ValueError("Missing the required parameter `post_user_get_list` when calling `oid4`")  # noqa: E501
 
         collection_formats = {}
 
@@ -1079,13 +1079,13 @@ class UsersApi(object):
             _request_timeout=params.get('_request_timeout'),
             collection_formats=collection_formats)
 
-    def 4_0(self, user_id, book_id, **kwargs):  # noqa: E501
+    def oid4_0(self, user_id, book_id, **kwargs):  # noqa: E501
         """Retrieve a books object  # noqa: E501
 
         Returns User books ids  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.4_0(user_id, book_id, async=True)
+        >>> thread = api.oid4_0(user_id, book_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -1097,18 +1097,18 @@ class UsersApi(object):
         """
         kwargs['_return_http_data_only'] = True
         if kwargs.get('async'):
-            return self.4_0_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
+            return self.oid4_0_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
         else:
-            (data) = self.4_0_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
+            (data) = self.oid4_0_with_http_info(user_id, book_id, **kwargs)  # noqa: E501
             return data
 
-    def 4_0_with_http_info(self, user_id, book_id, **kwargs):  # noqa: E501
+    def oid4_0_with_http_info(self, user_id, book_id, **kwargs):  # noqa: E501
         """Retrieve a books object  # noqa: E501
 
         Returns User books ids  # noqa: E501
         This method makes a synchronous HTTP request by default. To make an
         asynchronous HTTP request, please pass async=True
-        >>> thread = api.4_0_with_http_info(user_id, book_id, async=True)
+        >>> thread = api.oid4_0_with_http_info(user_id, book_id, async=True)
         >>> result = thread.get()
 
         :param async bool
@@ -1130,18 +1130,18 @@ class UsersApi(object):
             if key not in all_params:
                 raise TypeError(
                     "Got an unexpected keyword argument '%s'"
-                    " to method 4_0" % key
+                    " to method oid4_0" % key
                 )
             params[key] = val
         del params['kwargs']
         # verify the required parameter 'user_id' is set
         if ('user_id' not in params or
                 params['user_id'] is None):
-            raise ValueError("Missing the required parameter `user_id` when calling `4_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `oid4_0`")  # noqa: E501
         # verify the required parameter 'book_id' is set
         if ('book_id' not in params or
                 params['book_id'] is None):
-            raise ValueError("Missing the required parameter `book_id` when calling `4_0`")  # noqa: E501
+            raise ValueError("Missing the required parameter `book_id` when calling `oid4_0`")  # noqa: E501
 
         collection_formats = {}
 

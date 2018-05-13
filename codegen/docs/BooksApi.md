@@ -4,21 +4,21 @@ All URIs are relative to *http://thomaxxl.pythonanywhere.com*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**2**](BooksApi.md#2) | **PATCH** /Books/{BookId}/ | Update a Book object            
-[**3**](BooksApi.md#3) | **DELETE** /Books/{BookId}/ | Delete a Book object            
-[**4**](BooksApi.md#4) | **DELETE** /Books/{BookId}/user/{UserId} | Delete from Book user
-[**5**](BooksApi.md#5) | **GET** /Books/ | Retrieve a Book object            
-[**5_0**](BooksApi.md#5_0) | **POST** /Books/ | Create a Book object            
-[**6**](BooksApi.md#6) | **GET** /Books/{BookId}/ | Retrieve a Book object                        
-[**6_0**](BooksApi.md#6_0) | **POST** /Books/{BookId}/ | Create a Book object                        
-[**7**](BooksApi.md#7) | **GET** /Books/{BookId}/user | Retrieve a user object
-[**7_0**](BooksApi.md#7_0) | **POST** /Books/{BookId}/user | Update user
-[**8**](BooksApi.md#8) | **POST** /Books/get_list | Invoke Book.get_list            
-[**8_0**](BooksApi.md#8_0) | **GET** /Books/{BookId}/user/{UserId} | Retrieve a user object
+[**oid2**](BooksApi.md#oid2) | **PATCH** /Books/{BookId}/ | Update a Book object            
+[**oid3**](BooksApi.md#oid3) | **DELETE** /Books/{BookId}/ | Delete a Book object            
+[**oid4**](BooksApi.md#oid4) | **DELETE** /Books/{BookId}/user/{UserId} | Delete from Book user
+[**oid5**](BooksApi.md#oid5) | **GET** /Books/ | Retrieve a Book object            
+[**oid5_0**](BooksApi.md#oid5_0) | **POST** /Books/ | Create a Book object            
+[**oid6**](BooksApi.md#oid6) | **GET** /Books/{BookId}/ | Retrieve a Book object                        
+[**oid6_0**](BooksApi.md#oid6_0) | **POST** /Books/{BookId}/ | Create a Book object                        
+[**oid7**](BooksApi.md#oid7) | **GET** /Books/{BookId}/user | Retrieve a user object
+[**oid7_0**](BooksApi.md#oid7_0) | **POST** /Books/{BookId}/user | Update user
+[**oid8**](BooksApi.md#oid8) | **POST** /Books/get_list | Invoke Book.get_list            
+[**oid8_0**](BooksApi.md#oid8_0) | **GET** /Books/{BookId}/user/{UserId} | Retrieve a user object
 
 
-# **2**
-> 2(book_id, post_body)
+# **oid2**
+> oid2(book_id, post_body)
 
 Update a Book object            
 
@@ -39,9 +39,9 @@ post_body = swagger_client.BookPOSTSample1() # BookPOSTSample1 | Book attributes
 
 try:
     # Update a Book object            
-    api_instance.2(book_id, post_body)
+    api_instance.oid2(book_id, post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->2: %s\n" % e)
+    print("Exception when calling BooksApi->oid2: %s\n" % e)
 ```
 
 ### Parameters
@@ -66,8 +66,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **3**
-> 3(book_id)
+# **oid3**
+> oid3(book_id)
 
 Delete a Book object            
 
@@ -87,9 +87,9 @@ book_id = 'book_id_example' # str |
 
 try:
     # Delete a Book object            
-    api_instance.3(book_id)
+    api_instance.oid3(book_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->3: %s\n" % e)
+    print("Exception when calling BooksApi->oid3: %s\n" % e)
 ```
 
 ### Parameters
@@ -113,8 +113,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **4**
-> 4(book_id, user_id)
+# **oid4**
+> oid4(book_id, user_id)
 
 Delete from Book user
 
@@ -135,9 +135,9 @@ user_id = 'user_id_example' # str | user item
 
 try:
     # Delete from Book user
-    api_instance.4(book_id, user_id)
+    api_instance.oid4(book_id, user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->4: %s\n" % e)
+    print("Exception when calling BooksApi->oid4: %s\n" % e)
 ```
 
 ### Parameters
@@ -162,8 +162,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **5**
-> 5(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+# **oid5**
+> oid5(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 
 Retrieve a Book object            
 
@@ -189,9 +189,9 @@ filter_user_id = '' # str | user_id attribute filter (csv) (optional) (default t
 
 try:
     # Retrieve a Book object            
-    api_instance.5(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+    api_instance.oid5(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->5: %s\n" % e)
+    print("Exception when calling BooksApi->oid5: %s\n" % e)
 ```
 
 ### Parameters
@@ -221,8 +221,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **5_0**
-> 5_0(post_body)
+# **oid5_0**
+> oid5_0(post_body)
 
 Create a Book object            
 
@@ -242,9 +242,9 @@ post_body = swagger_client.BookPOSTSample() # BookPOSTSample | Book attributes
 
 try:
     # Create a Book object            
-    api_instance.5_0(post_body)
+    api_instance.oid5_0(post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->5_0: %s\n" % e)
+    print("Exception when calling BooksApi->oid5_0: %s\n" % e)
 ```
 
 ### Parameters
@@ -268,8 +268,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **6**
-> 6(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+# **oid6**
+> oid6(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 
 Retrieve a Book object                        
 
@@ -296,9 +296,9 @@ filter_user_id = '' # str | user_id attribute filter (csv) (optional) (default t
 
 try:
     # Retrieve a Book object                        
-    api_instance.6(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+    api_instance.oid6(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->6: %s\n" % e)
+    print("Exception when calling BooksApi->oid6: %s\n" % e)
 ```
 
 ### Parameters
@@ -329,8 +329,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **6_0**
-> 6_0(book_id, post_body)
+# **oid6_0**
+> oid6_0(book_id, post_body)
 
 Create a Book object                        
 
@@ -351,9 +351,9 @@ post_body = swagger_client.BookPOSTSample() # BookPOSTSample | Book attributes
 
 try:
     # Create a Book object                        
-    api_instance.6_0(book_id, post_body)
+    api_instance.oid6_0(book_id, post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->6_0: %s\n" % e)
+    print("Exception when calling BooksApi->oid6_0: %s\n" % e)
 ```
 
 ### Parameters
@@ -378,8 +378,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **7**
-> 7(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+# **oid7**
+> oid7(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 
 Retrieve a user object
 
@@ -406,9 +406,9 @@ filter_user_id = '' # str | user_id attribute filter (csv) (optional) (default t
 
 try:
     # Retrieve a user object
-    api_instance.7(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+    api_instance.oid7(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->7: %s\n" % e)
+    print("Exception when calling BooksApi->oid7: %s\n" % e)
 ```
 
 ### Parameters
@@ -439,8 +439,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **7_0**
-> 7_0(book_id, user_body)
+# **oid7_0**
+> oid7_0(book_id, user_body)
 
 Update user
 
@@ -461,9 +461,9 @@ user_body = swagger_client.UserRelationship() # UserRelationship | user POST mod
 
 try:
     # Update user
-    api_instance.7_0(book_id, user_body)
+    api_instance.oid7_0(book_id, user_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->7_0: %s\n" % e)
+    print("Exception when calling BooksApi->oid7_0: %s\n" % e)
 ```
 
 ### Parameters
@@ -488,8 +488,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **8**
-> 8(post_book_get_list)
+# **oid8**
+> oid8(post_book_get_list)
 
 Invoke Book.get_list            
 
@@ -509,9 +509,9 @@ post_book_get_list = swagger_client.PostBookGetList() # PostBookGetList | Retrie
 
 try:
     # Invoke Book.get_list            
-    api_instance.8(post_book_get_list)
+    api_instance.oid8(post_book_get_list)
 except ApiException as e:
-    print("Exception when calling BooksApi->8: %s\n" % e)
+    print("Exception when calling BooksApi->oid8: %s\n" % e)
 ```
 
 ### Parameters
@@ -535,8 +535,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **8_0**
-> 8_0(book_id, user_id)
+# **oid8_0**
+> oid8_0(book_id, user_id)
 
 Retrieve a user object
 
@@ -557,9 +557,9 @@ user_id = 'user_id_example' # str | user item
 
 try:
     # Retrieve a user object
-    api_instance.8_0(book_id, user_id)
+    api_instance.oid8_0(book_id, user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->8_0: %s\n" % e)
+    print("Exception when calling BooksApi->oid8_0: %s\n" % e)
 ```
 
 ### Parameters

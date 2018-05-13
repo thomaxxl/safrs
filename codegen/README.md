@@ -57,9 +57,9 @@ post_body = swagger_client.BookPOSTSample1() # BookPOSTSample1 | Book attributes
 
 try:
     # Update a Book object            
-    api_instance.2(book_id, post_body)
+    api_instance.oid2(book_id, post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->2: %s\n" % e)
+    print("Exception when calling BooksApi->oid2: %s\n" % e)
 
 ```
 
@@ -69,28 +69,28 @@ All URIs are relative to *http://thomaxxl.pythonanywhere.com*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
-*BooksApi* | [**2**](docs/BooksApi.md#2) | **PATCH** /Books/{BookId}/ | Update a Book object            
-*BooksApi* | [**3**](docs/BooksApi.md#3) | **DELETE** /Books/{BookId}/ | Delete a Book object            
-*BooksApi* | [**4**](docs/BooksApi.md#4) | **DELETE** /Books/{BookId}/user/{UserId} | Delete from Book user
-*BooksApi* | [**5**](docs/BooksApi.md#5) | **GET** /Books/ | Retrieve a Book object            
-*BooksApi* | [**5_0**](docs/BooksApi.md#5_0) | **POST** /Books/ | Create a Book object            
-*BooksApi* | [**6**](docs/BooksApi.md#6) | **GET** /Books/{BookId}/ | Retrieve a Book object                        
-*BooksApi* | [**6_0**](docs/BooksApi.md#6_0) | **POST** /Books/{BookId}/ | Create a Book object                        
-*BooksApi* | [**7**](docs/BooksApi.md#7) | **GET** /Books/{BookId}/user | Retrieve a user object
-*BooksApi* | [**7_0**](docs/BooksApi.md#7_0) | **POST** /Books/{BookId}/user | Update user
-*BooksApi* | [**8**](docs/BooksApi.md#8) | **POST** /Books/get_list | Invoke Book.get_list            
-*BooksApi* | [**8_0**](docs/BooksApi.md#8_0) | **GET** /Books/{BookId}/user/{UserId} | Retrieve a user object
-*UsersApi* | [**1**](docs/UsersApi.md#1) | **GET** /Users/ | Retrieve a User object            
-*UsersApi* | [**1_0**](docs/UsersApi.md#1_0) | **POST** /Users/ | Create a User object            
-*UsersApi* | [**1_1**](docs/UsersApi.md#1_1) | **DELETE** /Users/{UserId}/ | Delete a User object            
-*UsersApi* | [**1_2**](docs/UsersApi.md#1_2) | **PATCH** /Users/{UserId}/ | Update a User object            
-*UsersApi* | [**2**](docs/UsersApi.md#2) | **GET** /Users/{UserId}/ | Retrieve a User object                        
-*UsersApi* | [**2_0**](docs/UsersApi.md#2_0) | **POST** /Users/{UserId}/ | Create a User object                        
-*UsersApi* | [**2_1**](docs/UsersApi.md#2_1) | **DELETE** /Users/{UserId}/books/{BookId} | Delete from User books
-*UsersApi* | [**3**](docs/UsersApi.md#3) | **GET** /Users/{UserId}/books | Retrieve a books object
-*UsersApi* | [**3_0**](docs/UsersApi.md#3_0) | **POST** /Users/{UserId}/books | Update books
-*UsersApi* | [**4**](docs/UsersApi.md#4) | **POST** /Users/get_list | Invoke User.get_list            
-*UsersApi* | [**4_0**](docs/UsersApi.md#4_0) | **GET** /Users/{UserId}/books/{BookId} | Retrieve a books object
+*BooksApi* | [**oid2**](docs/BooksApi.md#oid2) | **PATCH** /Books/{BookId}/ | Update a Book object            
+*BooksApi* | [**oid3**](docs/BooksApi.md#oid3) | **DELETE** /Books/{BookId}/ | Delete a Book object            
+*BooksApi* | [**oid4**](docs/BooksApi.md#oid4) | **DELETE** /Books/{BookId}/user/{UserId} | Delete from Book user
+*BooksApi* | [**oid5**](docs/BooksApi.md#oid5) | **GET** /Books/ | Retrieve a Book object            
+*BooksApi* | [**oid5_0**](docs/BooksApi.md#oid5_0) | **POST** /Books/ | Create a Book object            
+*BooksApi* | [**oid6**](docs/BooksApi.md#oid6) | **GET** /Books/{BookId}/ | Retrieve a Book object                        
+*BooksApi* | [**oid6_0**](docs/BooksApi.md#oid6_0) | **POST** /Books/{BookId}/ | Create a Book object                        
+*BooksApi* | [**oid7**](docs/BooksApi.md#oid7) | **GET** /Books/{BookId}/user | Retrieve a user object
+*BooksApi* | [**oid7_0**](docs/BooksApi.md#oid7_0) | **POST** /Books/{BookId}/user | Update user
+*BooksApi* | [**oid8**](docs/BooksApi.md#oid8) | **POST** /Books/get_list | Invoke Book.get_list            
+*BooksApi* | [**oid8_0**](docs/BooksApi.md#oid8_0) | **GET** /Books/{BookId}/user/{UserId} | Retrieve a user object
+*UsersApi* | [**oid1**](docs/UsersApi.md#oid1) | **GET** /Users/ | Retrieve a User object            
+*UsersApi* | [**oid1_0**](docs/UsersApi.md#oid1_0) | **POST** /Users/ | Create a User object            
+*UsersApi* | [**oid1_1**](docs/UsersApi.md#oid1_1) | **DELETE** /Users/{UserId}/ | Delete a User object            
+*UsersApi* | [**oid1_2**](docs/UsersApi.md#oid1_2) | **PATCH** /Users/{UserId}/ | Update a User object            
+*UsersApi* | [**oid2**](docs/UsersApi.md#oid2) | **GET** /Users/{UserId}/ | Retrieve a User object                        
+*UsersApi* | [**oid2_0**](docs/UsersApi.md#oid2_0) | **POST** /Users/{UserId}/ | Create a User object                        
+*UsersApi* | [**oid2_1**](docs/UsersApi.md#oid2_1) | **DELETE** /Users/{UserId}/books/{BookId} | Delete from User books
+*UsersApi* | [**oid3**](docs/UsersApi.md#oid3) | **GET** /Users/{UserId}/books | Retrieve a books object
+*UsersApi* | [**oid3_0**](docs/UsersApi.md#oid3_0) | **POST** /Users/{UserId}/books | Update books
+*UsersApi* | [**oid4**](docs/UsersApi.md#oid4) | **POST** /Users/get_list | Invoke User.get_list            
+*UsersApi* | [**oid4_0**](docs/UsersApi.md#oid4_0) | **GET** /Users/{UserId}/books/{BookId} | Retrieve a books object
 
 
 ## Documentation For Models
