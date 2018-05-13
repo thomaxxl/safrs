@@ -517,7 +517,7 @@ def paginate(object_query):
     count = object_query.count()
 
     first_args = (0,limit)
-    last_args = (int( int(count / limit) * limit) , limit)
+    last_args = (int( int(count / limit) * limit) , limit) # round down
     self_args = (offset if offset <= last_args[0] else last_args[0], limit)
     next_args = (offset + 1, limit) if offset + 1 <= last_args[0] else last_args
     prev_args = (offset - 1, limit ) if offset > 1 else first_args
