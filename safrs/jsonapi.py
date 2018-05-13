@@ -374,7 +374,6 @@ class Api(FRSApiBase):
                     method_doc['parameters'] = filtered_parameters
 
                     method_doc['operationId'] = self.get_operation_id(path_item.get(method).get('summary'))
-                    pprint.pprint(path_item)
                     path_item[method] = method_doc
 
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
