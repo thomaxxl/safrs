@@ -1,24 +1,24 @@
 # swagger_client.BooksApi
 
-All URIs are relative to *https://localhost:5000*
+All URIs are relative to *http://thomaxxl.pythonanywhere.com*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**createa_bookobject1**](BooksApi.md#createa_bookobject1) | **POST** /Books/ | Create a Book object            
-[**createa_bookobject2**](BooksApi.md#createa_bookobject2) | **POST** /Books/{BookId}/ | Create a Book object                        
-[**deletea_bookobject1**](BooksApi.md#deletea_bookobject1) | **DELETE** /Books/{BookId}/ | Delete a Book object            
-[**deletefrom_bookuser1**](BooksApi.md#deletefrom_bookuser1) | **DELETE** /Books/{BookId}/user/{UserId} | Delete from Book user
-[**invoke_bookgetlist1**](BooksApi.md#invoke_bookgetlist1) | **POST** /Books/get_list | Invoke Book.get_list            
-[**retrievea_bookobject1**](BooksApi.md#retrievea_bookobject1) | **GET** /Books/ | Retrieve a Book object            
-[**retrievea_bookobject2**](BooksApi.md#retrievea_bookobject2) | **GET** /Books/{BookId}/ | Retrieve a Book object                        
-[**retrieveauserobject1**](BooksApi.md#retrieveauserobject1) | **GET** /Books/{BookId}/user | Retrieve a user object
-[**retrieveauserobject2**](BooksApi.md#retrieveauserobject2) | **GET** /Books/{BookId}/user/{UserId} | Retrieve a user object
-[**updatea_bookobject1**](BooksApi.md#updatea_bookobject1) | **PATCH** /Books/{BookId}/ | Update a Book object            
-[**updateuser1**](BooksApi.md#updateuser1) | **POST** /Books/{BookId}/user | Update user
+[**createa_bookobject0**](BooksApi.md#createa_bookobject0) | **POST** /Books/ | Create a Book object            
+[**createa_bookobject1**](BooksApi.md#createa_bookobject1) | **POST** /Books/{BookId}/ | Create a Book object                        
+[**deletea_bookobject0**](BooksApi.md#deletea_bookobject0) | **DELETE** /Books/{BookId}/ | Delete a Book object            
+[**deletefrom_bookuser0**](BooksApi.md#deletefrom_bookuser0) | **DELETE** /Books/{BookId}/user/{UserId} | Delete from Book user
+[**invoke_bookgetlist0**](BooksApi.md#invoke_bookgetlist0) | **POST** /Books/get_list | Invoke Book.get_list            
+[**retrievea_bookobject0**](BooksApi.md#retrievea_bookobject0) | **GET** /Books/ | Retrieve a Book object            
+[**retrievea_bookobject1**](BooksApi.md#retrievea_bookobject1) | **GET** /Books/{BookId}/ | Retrieve a Book object                        
+[**retrieveauserobject0**](BooksApi.md#retrieveauserobject0) | **GET** /Books/{BookId}/user | Retrieve a user object
+[**retrieveauserobject1**](BooksApi.md#retrieveauserobject1) | **GET** /Books/{BookId}/user/{UserId} | Retrieve a user object
+[**updatea_bookobject0**](BooksApi.md#updatea_bookobject0) | **PATCH** /Books/{BookId}/ | Update a Book object            
+[**updateuser0**](BooksApi.md#updateuser0) | **POST** /Books/{BookId}/user | Update user
 
 
-# **createa_bookobject1**
-> createa_bookobject1(post_body)
+# **createa_bookobject0**
+> createa_bookobject0(post_body)
 
 Create a Book object            
 
@@ -38,9 +38,9 @@ post_body = swagger_client.BookPOSTSample() # BookPOSTSample | Book attributes
 
 try:
     # Create a Book object            
-    api_instance.createa_bookobject1(post_body)
+    api_instance.createa_bookobject0(post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->createa_bookobject1: %s\n" % e)
+    print("Exception when calling BooksApi->createa_bookobject0: %s\n" % e)
 ```
 
 ### Parameters
@@ -64,8 +64,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **createa_bookobject2**
-> createa_bookobject2(book_id, post_body)
+# **createa_bookobject1**
+> createa_bookobject1(book_id, post_body)
 
 Create a Book object                        
 
@@ -86,9 +86,9 @@ post_body = swagger_client.BookPOSTSample() # BookPOSTSample | Book attributes
 
 try:
     # Create a Book object                        
-    api_instance.createa_bookobject2(book_id, post_body)
+    api_instance.createa_bookobject1(book_id, post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->createa_bookobject2: %s\n" % e)
+    print("Exception when calling BooksApi->createa_bookobject1: %s\n" % e)
 ```
 
 ### Parameters
@@ -113,8 +113,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **deletea_bookobject1**
-> deletea_bookobject1(book_id)
+# **deletea_bookobject0**
+> deletea_bookobject0(book_id)
 
 Delete a Book object            
 
@@ -134,9 +134,9 @@ book_id = 'book_id_example' # str |
 
 try:
     # Delete a Book object            
-    api_instance.deletea_bookobject1(book_id)
+    api_instance.deletea_bookobject0(book_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->deletea_bookobject1: %s\n" % e)
+    print("Exception when calling BooksApi->deletea_bookobject0: %s\n" % e)
 ```
 
 ### Parameters
@@ -160,8 +160,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **deletefrom_bookuser1**
-> deletefrom_bookuser1(book_id, user_id)
+# **deletefrom_bookuser0**
+> deletefrom_bookuser0(book_id, user_id)
 
 Delete from Book user
 
@@ -182,9 +182,9 @@ user_id = 'user_id_example' # str | user item
 
 try:
     # Delete from Book user
-    api_instance.deletefrom_bookuser1(book_id, user_id)
+    api_instance.deletefrom_bookuser0(book_id, user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->deletefrom_bookuser1: %s\n" % e)
+    print("Exception when calling BooksApi->deletefrom_bookuser0: %s\n" % e)
 ```
 
 ### Parameters
@@ -209,8 +209,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **invoke_bookgetlist1**
-> invoke_bookgetlist1(post_book_get_list)
+# **invoke_bookgetlist0**
+> invoke_bookgetlist0(post_book_get_list)
 
 Invoke Book.get_list            
 
@@ -230,9 +230,9 @@ post_book_get_list = swagger_client.PostBookGetList() # PostBookGetList | Retrie
 
 try:
     # Invoke Book.get_list            
-    api_instance.invoke_bookgetlist1(post_book_get_list)
+    api_instance.invoke_bookgetlist0(post_book_get_list)
 except ApiException as e:
-    print("Exception when calling BooksApi->invoke_bookgetlist1: %s\n" % e)
+    print("Exception when calling BooksApi->invoke_bookgetlist0: %s\n" % e)
 ```
 
 ### Parameters
@@ -256,8 +256,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **retrievea_bookobject1**
-> retrievea_bookobject1(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+# **retrievea_bookobject0**
+> retrievea_bookobject0(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 
 Retrieve a Book object            
 
@@ -283,9 +283,9 @@ filter_user_id = '' # str | user_id attribute filter (csv) (optional) (default t
 
 try:
     # Retrieve a Book object            
-    api_instance.retrievea_bookobject1(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+    api_instance.retrievea_bookobject0(page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->retrievea_bookobject1: %s\n" % e)
+    print("Exception when calling BooksApi->retrievea_bookobject0: %s\n" % e)
 ```
 
 ### Parameters
@@ -315,8 +315,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **retrievea_bookobject2**
-> retrievea_bookobject2(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+# **retrievea_bookobject1**
+> retrievea_bookobject1(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 
 Retrieve a Book object                        
 
@@ -343,9 +343,9 @@ filter_user_id = '' # str | user_id attribute filter (csv) (optional) (default t
 
 try:
     # Retrieve a Book object                        
-    api_instance.retrievea_bookobject2(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+    api_instance.retrievea_bookobject1(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->retrievea_bookobject2: %s\n" % e)
+    print("Exception when calling BooksApi->retrievea_bookobject1: %s\n" % e)
 ```
 
 ### Parameters
@@ -376,8 +376,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **retrieveauserobject1**
-> retrieveauserobject1(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+# **retrieveauserobject0**
+> retrieveauserobject0(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 
 Retrieve a user object
 
@@ -404,9 +404,9 @@ filter_user_id = '' # str | user_id attribute filter (csv) (optional) (default t
 
 try:
     # Retrieve a user object
-    api_instance.retrieveauserobject1(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
+    api_instance.retrieveauserobject0(book_id, page_offset=page_offset, page_limit=page_limit, include=include, fields_books=fields_books, sort=sort, filter_name=filter_name, filter_user_id=filter_user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->retrieveauserobject1: %s\n" % e)
+    print("Exception when calling BooksApi->retrieveauserobject0: %s\n" % e)
 ```
 
 ### Parameters
@@ -437,8 +437,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **retrieveauserobject2**
-> retrieveauserobject2(book_id, user_id)
+# **retrieveauserobject1**
+> retrieveauserobject1(book_id, user_id)
 
 Retrieve a user object
 
@@ -459,9 +459,9 @@ user_id = 'user_id_example' # str | user item
 
 try:
     # Retrieve a user object
-    api_instance.retrieveauserobject2(book_id, user_id)
+    api_instance.retrieveauserobject1(book_id, user_id)
 except ApiException as e:
-    print("Exception when calling BooksApi->retrieveauserobject2: %s\n" % e)
+    print("Exception when calling BooksApi->retrieveauserobject1: %s\n" % e)
 ```
 
 ### Parameters
@@ -486,8 +486,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **updatea_bookobject1**
-> updatea_bookobject1(book_id, post_body)
+# **updatea_bookobject0**
+> updatea_bookobject0(book_id, post_body)
 
 Update a Book object            
 
@@ -508,9 +508,9 @@ post_body = swagger_client.BookPOSTSample1() # BookPOSTSample1 | Book attributes
 
 try:
     # Update a Book object            
-    api_instance.updatea_bookobject1(book_id, post_body)
+    api_instance.updatea_bookobject0(book_id, post_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->updatea_bookobject1: %s\n" % e)
+    print("Exception when calling BooksApi->updatea_bookobject0: %s\n" % e)
 ```
 
 ### Parameters
@@ -535,8 +535,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **updateuser1**
-> updateuser1(book_id, user_body)
+# **updateuser0**
+> updateuser0(book_id, user_body)
 
 Update user
 
@@ -557,9 +557,9 @@ user_body = swagger_client.UserRelationship() # UserRelationship | user POST mod
 
 try:
     # Update user
-    api_instance.updateuser1(book_id, user_body)
+    api_instance.updateuser0(book_id, user_body)
 except ApiException as e:
-    print("Exception when calling BooksApi->updateuser1: %s\n" % e)
+    print("Exception when calling BooksApi->updateuser0: %s\n" % e)
 ```
 
 ### Parameters
