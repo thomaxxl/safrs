@@ -200,10 +200,10 @@ class SAFRSBase(object):
                 setattr(self, attr, value)
     
     @classmethod
-    @documented_api_method
+    #@documented_api_method
     def get_list(self, id_list):
         '''
-            description: Retrieve a list of objects with the ids in id_list.
+            description: [deprecated] use filter[id] instead
             args:
                 id_list:
                     - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
@@ -218,6 +218,24 @@ class SAFRSBase(object):
 
         return result
     
+    @classmethod
+    @documented_api_method
+    def lookup(cls,  *args, **kwargs):
+        '''
+            description : Retrieve all matching objects
+            args:
+                name: thomas
+            --------
+            This is actually a wrapper for query, but .query is already taken :)
+        '''
+
+        try:
+            result = cls.query.filter_by(**kwargs).all()
+        except Exception as exc:
+            raise GenericError("Failed to execute query {}".format(exc))
+
+        return result
+
     @classmethod
     def get_instance(cls, id = None, failsafe = False):
         '''
