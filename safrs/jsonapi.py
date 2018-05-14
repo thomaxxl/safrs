@@ -491,7 +491,8 @@ def paginate(object_query):
         prev: the previous page of data
         next: the next page of data
 
-        We use page[offset] and page[limit]
+        We use page[offset] and page[limit], where 
+        offset is the number of records to offset by prior to returning resources
     '''
 
     def get_link(count, limit):
@@ -515,17 +516,19 @@ def paginate(object_query):
         limit = int(limit)
     except:
         limit = UNLIMITED
+    
+    page_base = int(offset / limit) * limit
     count = object_query.count()
 
     first_args = (0,limit)
-    last_args = (int( int(count / limit) * limit) , limit) # round down
-    self_args = (offset if offset <= last_args[0] else last_args[0], limit)
-    next_args = (offset + 1, limit) if offset + 1 <= last_args[0] else last_args
-    prev_args = (offset - 1, limit ) if offset > 1 else first_args
+    last_args = (int(int(count / limit) * limit), limit) # round down
+    self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
+    next_args = (page_base + limit + 1, limit) if page_base + limit + 1 <= last_args[0] else last_args
+    prev_args = (page_base - limit, limit ) if page_base > limit else first_args
 
     links  = {
-        'first'  : get_link(*first_args),
-        'self' : get_link(*self_args),
+        'first' : get_link(*first_args),
+        'self'  : get_link(offset, limit),
         'last'  : get_link(*last_args),
         'prev'  : get_link(*prev_args),
         'next'  : get_link(*next_args),
@@ -620,6 +623,28 @@ def get_included(data, limit):
     return result
 
 
+def jsonapi_format_response(data, meta, links, errors):
+
+    limit = request.args.get('page[limit]', UNLIMITED)
+    meta['limit'] = int(limit)
+
+    jsonapi  = dict(version='1.0')
+    included = get_included(data, limit)
+    result   = dict(data = data)
+    
+    if errors:
+        result['errors'] = errors
+    if meta:
+        result['meta'] = meta
+    if jsonapi:
+        result['jsonapi'] = jsonapi
+    if links:
+        result['links'] = links
+    if included:
+        result['included'] = included
+
+    return result
+
 
 class SAFRSRestAPI(Resource, object):
     '''
@@ -699,13 +724,10 @@ class SAFRSRestAPI(Resource, object):
 
         links   = None
         included= None
-        jsonapi = dict( version = '1.0' )
+        jsonapi = dict(version='1.0')
 
         id = kwargs.get(self.object_id,None)
         #method_name = kwargs.get('method_name','')
-
-        limit = request.args.get('page[limit]', UNLIMITED)
-        meta['limit'] = int(limit)
 
         if id:
             # Retrieve the instance with the provided id
@@ -731,19 +753,7 @@ class SAFRSRestAPI(Resource, object):
             links, instances = paginate(instances)
             data = [ item for item in instances ]
 
-        included = get_included(data, limit)
-        result   = dict(data = data)
-
-        if errors:
-            result['errors'] = errors
-        if meta:
-            result['meta'] = meta
-        if jsonapi:
-            result['jsonapi'] = jsonapi
-        if links:
-            result['links'] = links
-        if included:
-            result['included'] = included
+        result   = jsonapi_format_response(data, meta, links, errors)
 
         return jsonify(result)
 
