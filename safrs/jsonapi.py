@@ -354,9 +354,6 @@ class Api(FRSApiBase):
                                 filtered_parameters.append(param)
 
                             for column_name in self.safrs_object._s_column_names:
-                                if column_name in ('id' , 'type'):
-                                    continue
-
                                 param = {'default': "",
                                          'type': 'string',
                                          'name': 'filter[{}]'.format(column_name),
