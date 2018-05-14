@@ -38,4 +38,4 @@ USE_API_METHODS = True
 
 # ENABLE_RELATIONSHIPS enables relationships to be included.
 # This may slow down certain queries if the relationships are not properly configured!
-ENABLE_RELATIONSHIPS = False
+ENABLE_RELATIONSHIPS = True
