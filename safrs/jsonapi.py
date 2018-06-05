@@ -520,8 +520,8 @@ def paginate(object_query):
     first_args = (0,limit)
     last_args = (int(int(count / limit) * limit), limit) # round down
     self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
-    next_args = (page_base + limit + 1, limit) if page_base + limit + 1 <= last_args[0] else last_args
-    prev_args = (page_base - limit, limit ) if page_base > limit else first_args
+    next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
+    prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
 
     links  = {
         'first' : get_link(*first_args),
@@ -540,7 +540,7 @@ def paginate(object_query):
     if prev_args == first_args:
         del links['prev']
 
-    instances = object_query.offset(page_offset * limit).limit(limit).all()
+    instances = object_query.offset(page_offset).limit(limit).all()
     return links, instances
 
 
