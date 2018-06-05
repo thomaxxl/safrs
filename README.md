@@ -160,7 +160,7 @@ class User(SAFRSBase, db.Model):
 
     # Following method is exposed through the REST API 
     # This means it can be invoked with a HTTP POST
-    @documented_api_method
+    @jsonapi_rpc(http_methods = ['POST','GET'])
     def send_mail(self, email):
         '''
             description : Send an email
@@ -178,7 +178,7 @@ This method shows up in the swagger interface:
 
 ![Method Swagger](docs/images/method_swagger.PNG)
 
-The ```send_mail``` method is documented with the ```documented_api_method``` decorator. 
+The ```send_mail``` method is documented with the ```jsonapi_rpc``` decorator. 
 This decorator generates a schema based on the function documentation. This documentation contains yaml specification of the API which is used by the swagger UI. 
 
 The yaml specification has to be in the first part of the function and class comments. These parts are delimited by four dashes ("----") . The rest of the comment may contain additional documentation.
@@ -232,7 +232,7 @@ The URL path format is [configurable](#configuration)
 ## Configuration
 
 Some configuration parameters can be set in [config.py](safrs/config.py):
-- USE_API_METHODS: set this to false in case you want to disable the documented_api_method functionality
+- USE_API_METHODS: set this to false in case you want to disable the `jsonapi_rpc` functionality
 - INSTANCE_URL_FMT: This parameter declares the instance url path format
 - RELATIONSHIP_URL_FMT: This parameter declares the relationship endpoint path format
 
