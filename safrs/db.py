@@ -8,6 +8,7 @@ import sys
 import inspect
 import logging
 import sqlalchemy
+import pprint
 from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
@@ -62,10 +63,9 @@ def init_object_schema(obj):
     class ObjectSchema(ma.ModelSchema):
         class Meta:
             model = obj.__class__
-
-    obj.object_schema = ObjectSchema()
-    return obj.object_schema
-
+            
+    obj.__class__.object_schema = ObjectSchema()
+  
 #
 # SAFRSBase superclass
 #
@@ -182,6 +182,16 @@ class SAFRSBase(object):
         return list(cls.__mapper__.columns)
 
     @classproperty
+    def _s_jsonapi_attrs(cls):
+        result = []
+        for attr in cls._s_column_names:
+            if not attr in ('id', 'type') : 
+                # jsonapi schema prohibits the use of these fields in the attributes
+                # http://jsonapi.org/format/#document-resource-object-fields
+                result.append(attr)
+        return result
+
+    @classproperty
     def _s_class_name(cls):
         return cls.__tablename__
 
@@ -203,7 +213,7 @@ class SAFRSBase(object):
     #@documented_api_method
     def get_list(self, id_list):
         '''
-            description: [deprecated] use filter[id] instead
+            description: [deprecated] use csv filter[id] instead
             args:
                 id_list:
                     - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
@@ -220,21 +230,49 @@ class SAFRSBase(object):
     
     @classmethod
     @documented_api_method
-    def lookup(cls,  *args, **kwargs):
+    def lookup_re_mysql(cls, **kwargs):
         '''
-            description : Retrieve all matching objects
+            description : Regex search all matching objects (works only in MySQL!!!)
             args:
-                name: thomas
-            --------
-            This is actually a wrapper for query, but .query is already taken :)
+                name: thom.*
         '''
 
-        try:
-            result = cls.query.filter_by(**kwargs).all()
-        except Exception as exc:
-            raise GenericError("Failed to execute query {}".format(exc))
+        result = cls
+        for k, v in kwargs.items():
+            column = getattr(cls, k, None)
+            if not column:
+                raise ValidationError('Invalid Column "{}"'.format(k))
+            try:
+                result = result.query.filter(column.op('regexp')(v))
+            except Exception as exc:
+                raise GenericError("Failed to execute query {}".format(exc))
 
-        return result
+        return result.all()
+
+    #lookup_re = lookup_re_mysql
+
+    @classmethod
+    @documented_api_method
+    def startswith(cls, **kwargs):
+        '''
+            description : lookup column names
+            args:
+                name: t
+        '''
+
+        result = cls
+        for k, v in kwargs.items():
+            column = getattr(cls, k, None)
+            if not column:
+                raise ValidationError('Invalid Column "{}"'.format(k))
+            try:
+                result = result.query.filter(column.like(v + '%'))
+            except Exception as exc:
+                raise GenericError("Failed to execute query {}".format(exc))
+
+        return result.all()
+        
+    
 
     @classmethod
     def get_instance(cls, id = None, failsafe = False):
@@ -279,22 +317,23 @@ class SAFRSBase(object):
 
     def _s_to_dict(self):
         '''
+            Serialization
             Create a dictionary with all the object parameters
             this method will be called by SAFRSJSONEncoder to serialize objects
         '''
         result = {}
-        for attr in self._s_column_names:
-            if attr in ('id', 'type') : 
-                # jsonapi schema prohibits the use of these fields in the attributes
-                # http://jsonapi.org/format/#document-resource-object-fields
-                continue
-            value = getattr(self, attr)
-            if value == None:
-                value = ""
-            result[attr] = value
+        # filter the relationships, id & type from the data
+        for attr in self._s_jsonapi_attrs:
+            result[attr] = getattr(self, attr)
         return result
 
     to_dict = _s_to_dict
+
+    def _s_from_dict(self, data):
+        '''
+            Deserialization
+        '''
+        pass
 
     def __unicode__(self):
         name = getattr(self, 'name', self.__class__.__name__)
@@ -314,7 +353,7 @@ class SAFRSBase(object):
         '''
         id = cls.id_type()
         sample = cls.sample()
-        if sample and getattr(sample, 'id', None):
+        if sample and not getattr(sample, 'id', None) is None:
             id = sample.id
         return id
 

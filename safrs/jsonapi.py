@@ -112,7 +112,7 @@ class Api(FRSApiBase):
         self.add_resource(api_class,
                           url,
                           endpoint=endpoint,
-                          methods=['GET', 'POST', 'PUT'])
+                          methods=['GET', 'POST'])
 
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__ )
         endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, safrs_object._s_type)
@@ -343,7 +343,7 @@ class Api(FRSApiBase):
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            param = {'default': ','.join(self.safrs_object._s_column_names),
+                            param = {'default': ','.join(self.safrs_object._s_jsonapi_attrs),
                                      'type': 'string',
                                      'name': 'sort',
                                      'in': 'query',
@@ -369,7 +369,6 @@ class Api(FRSApiBase):
                             filtered_parameters.append(parameter)
 
                     method_doc['parameters'] = filtered_parameters
-
                     method_doc['operationId'] = self.get_operation_id(path_item.get(method).get('summary'))
                     path_item[method] = method_doc
 
@@ -500,12 +499,13 @@ def paginate(object_query):
     
     request_args = dict(request.args)
 
-    offset = request.args.get('page[offset]',0)
+    page_offset = request.args.get('page[offset]',0)
+
     try:
         del request_args['page[offset]']
-        offset = int(offset)
+        page_offset = int(page_offset)
     except:
-        offset = 0
+        page_offset = 0
 
     limit  = request.args.get('page[limit]', UNLIMITED)
     try:
@@ -514,7 +514,7 @@ def paginate(object_query):
     except:
         limit = UNLIMITED
     
-    page_base = int(offset / limit) * limit
+    page_base = int(page_offset / limit) * limit
     count = object_query.count()
 
     first_args = (0,limit)
@@ -525,7 +525,7 @@ def paginate(object_query):
 
     links  = {
         'first' : get_link(*first_args),
-        'self'  : get_link(offset, limit),
+        'self'  : get_link(page_offset, limit),
         'last'  : get_link(*last_args),
         'prev'  : get_link(*prev_args),
         'next'  : get_link(*next_args),
@@ -540,7 +540,7 @@ def paginate(object_query):
     if prev_args == first_args:
         del links['prev']
 
-    instances = object_query.offset(offset).limit(limit).all()
+    instances = object_query.offset(page_offset * limit).limit(limit).all()
     return links, instances
 
 
@@ -826,6 +826,14 @@ class SAFRSRestAPI(Resource, object):
 
             Location Header identifying the location of the newly created resource
             Body : created object
+
+            TODO:
+            409 Conflict
+              A server MUST return 409 Conflict when processing a POST request to create a resource with a 
+              client-generated ID that already exists.
+              A server MUST return 409 Conflict when processing a POST request in which the resource object’s type is 
+              not among the type(s) that constitute the collection represented by the endpoint.
+              A server SHOULD include error details and provide enough information to recognize the source of the conflict.
         '''
 
         payload = self.get_json()
@@ -834,6 +842,8 @@ class SAFRSRestAPI(Resource, object):
         id = kwargs.get(self.object_id, None)
         if id != None:
             # Treat this request like a patch
+            # this isn't really jsonapi-compliant:
+            # "A server MUST return 403 Forbidden in response to an unsupported request to create a resource with a client-generated ID"
             response = self.patch(**kwargs)
 
         else:
@@ -1132,6 +1142,11 @@ class SAFRSRestRelationshipAPI(Resource, object):
     def get(self, **kwargs):
         '''
             Retrieve a relationship or list of relationship member ids
+
+            http://jsonapi.org/format/#fetching-relationships-responses :
+            A server MUST respond to a successful request to fetch a relationship with a 200 OK response.
+            The primary data in the response document MUST match the appropriate value for resource linkage.
+            The top-level links object MAY contain self and related links, as described above for relationship objects.
         '''
 
         parent, relation = self.parse_args(**kwargs)
@@ -1155,6 +1170,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             # return a list of all relationship items
             result = [ item for item in relation ]
 
+        result = { 'data' : result, 'links' : { 'self' : request.url } }
         return jsonify(result)
 
 

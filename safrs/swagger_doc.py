@@ -352,15 +352,13 @@ def swagger_doc(cls, tags=None):
                 sample_data = schema_from_object('{} POST sample'.format(class_name) ,
                                                 {'data' : 
                                                     {'attributes' : sample._s_to_dict(), 
-                                                      'id' : cls.sample_id(),
                                                       'type' : class_name 
                                                     }
                                                 })
             elif cls.sample_id():
                 sample_data = schema_from_object('{} POST sample'.format(class_name) ,
                                                 {'data' : 
-                                                    {'attributes' : {}, 
-                                                     'id' : cls.sample_id(),
+                                                    {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs }, 
                                                      'type' : class_name 
                                                     }
                                                 })
@@ -391,7 +389,7 @@ def swagger_doc(cls, tags=None):
             post_model, responses = cls.get_swagger_doc('patch')
             sample = cls.sample()
             if sample:
-                sample_data = schema_from_object('{} POST sample'.format(class_name) ,
+                sample_data = schema_from_object('{} PATCH sample'.format(class_name) ,
                                                 {'data' : 
                                                     {'attributes' : sample._s_to_dict(), 
                                                      'id' : cls.sample_id(),
@@ -399,7 +397,13 @@ def swagger_doc(cls, tags=None):
                                                     }
                                                 })
             else:
-                sample_data = {}
+                sample_data = schema_from_object('{} PATCH sample'.format(class_name) ,
+                                                {'data' : 
+                                                    {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs },
+                                                     'id' : cls.sample_id(),
+                                                     'type' : class_name 
+                                                    }
+                                                })
             
             post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
             parameters.append({

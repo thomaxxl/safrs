@@ -82,7 +82,10 @@ if __name__ == '__main__':
         # Create a user and a book and add the book to the user.books relationship
         user = User(name='thomas', email='em@il')
         book = Book(name='test_book')
-        user.books.append(book)
+        
+        for i in range(100):
+            user= User( name = 'test_name_' +str(i) )
+            user.books.append(book)
 
         api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(HOST, PORT))
         # Expose the database objects as REST API endpoints
