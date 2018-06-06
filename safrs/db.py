@@ -249,31 +249,6 @@ class SAFRSBase(object):
 
         return result.all()
 
-    #lookup_re = lookup_re_mysql
-
-    @classmethod
-    @documented_api_method
-    def startswith(cls, **kwargs):
-        '''
-            description : lookup column names
-            args:
-                name: t
-        '''
-
-        result = cls
-        for k, v in kwargs.items():
-            column = getattr(cls, k, None)
-            if not column:
-                raise ValidationError('Invalid Column "{}"'.format(k))
-            try:
-                result = result.query.filter(column.like(v + '%'))
-            except Exception as exc:
-                raise GenericError("Failed to execute query {}".format(exc))
-
-        return result.all()
-        
-    
-
     @classmethod
     def get_instance(cls, id = None, failsafe = False):
         '''

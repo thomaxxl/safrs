@@ -6,6 +6,7 @@ import uuid
 import logging
 import yaml
 import hashlib
+import urllib
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import USE_API_METHODS
@@ -17,6 +18,8 @@ REST_DOC = '__rest_doc' # swagger doc attribute name. If this attribute is set
 HTTP_METHODS = '__http_method'                        
 DOC_DELIMITER = '----'  # used as delimiter between the rest_doc swagger yaml spec 
                         # and regular documentation
+PAGEABLE = 'pageable' # denotes whether an api method is pageable
+FILTERABLE = 'filterable'
 
 def parse_object_doc(object):
     '''
@@ -163,11 +166,12 @@ def schema_from_object(name, object):
     idx = _references.count(name)
     if idx:
         name = name + str(idx)
+    #name = urllib.parse.quote(name)
     _references.append(name)
     return SchemaClassFactory(name, properties)
 
 
-def get_swagger_doc_post_arguments(cls, method_name=None):
+def get_swagger_doc_post_arguments(cls, method_name):
     '''
         create a schema for all methods which can be called through the
         REST POST interface
@@ -216,8 +220,13 @@ def get_swagger_doc_post_arguments(cls, method_name=None):
                                'type'   : 'string',
                             }
                 fields['meta'] = arg_field
+            parameters = rest_doc.get('parameters', [])
+            if rest_doc.get(PAGEABLE):
+                parameters += default_paging_parameters()
+            if rest_doc.get(FILTERABLE):
+                pass
 
-        return fields, description, method
+        return parameters, fields, description, method
 
     log.critical('Shouldnt get here')
 
@@ -243,31 +252,28 @@ def swagger_method_doc(cls, method_name, tags=None):
         model_name = '{} {} {}'.format('invoke ', class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
 
-        parameters = []            
         if func.__name__ == 'get':
-            #args = inspect.getargspec(func).args
-            parameters.append({
+            parameters = [{
                             'name': 'varargs',
                             'in': 'query',
                             'description' : '{} arguments'.format(method_name),
                             'required' : False,
                             'type' : 'string'
-                          })
+                          }]
         else:
             # typically POST
-            post_param, description, method = get_swagger_doc_post_arguments(cls, method_name)
+            parameters, fields, description, method = get_swagger_doc_post_arguments(cls, method_name)
 
             '''if inspect.ismethod(method) and method.__self__ is cls:
                 # Mark classmethods: only these can be called when no {id} is given as parameter
                 # in the swagger ui
                 description += ' (classmethod)' '''
 
-                
             #
             # Retrieve the swagger schemas for the documented_api_methods
             #
             model_name = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
-            param_model = SchemaClassFactory(model_name, post_param)
+            param_model = SchemaClassFactory(model_name, fields)
             parameters.append({
                                 'name': model_name,
                                 'in': 'body',
@@ -276,7 +282,7 @@ def swagger_method_doc(cls, method_name, tags=None):
                                 'required' : True
                               })
 
-        
+
         # URL Path Parameter
         default_id = cls.sample_id()
         parameters.append({
@@ -286,7 +292,7 @@ def swagger_method_doc(cls, method_name, tags=None):
                         'default': default_id,
                         'required' : True
                       })
-
+        
         doc['parameters'] = parameters
         doc["produces"] = ["application/json"]
         doc['responses'] = responses = {'200' : {'description' : 'Success'}}
@@ -535,3 +541,27 @@ def swagger_relationship_doc(cls, tags = None):
         return wrapper
 
     return swagger_doc_gen
+
+
+
+def default_paging_parameters():
+
+    parameters = []
+    param = {'default': 0,  # The 0 isn't rendered though
+             'type': 'integer',
+             'name': 'page[offset]',
+             'in': 'query',
+             'format' : 'int64',
+             'required' : False,
+             'description' : 'Page offset'}
+    parameters.append(param)
+
+    param = {'default': 10,
+             'type': 'integer',
+             'name': 'page[limit]',
+             'in': 'query',
+             'format' : 'int64',
+             'required' : False,
+             'description' : 'max number of items'}
+    parameters.append(param)
+    return parameters

@@ -52,7 +52,7 @@ from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 
 # safrs_rest dependencies:
 from .db import SAFRSBase, db, log
-from .swagger_doc import swagger_doc, swagger_method_doc, is_public
+from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
@@ -303,25 +303,10 @@ class Api(FRSApiBase):
 
                         if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) :
                             # limit parameter specifies the number of items to return
-                            param = {'default': 0,  # The 0 isn't rendered though
-                                     'type': 'integer',
-                                     'name': 'page[offset]',
-                                     'in': 'query',
-                                     'format' : 'int64',
-                                     'required' : False,
-                                     'description' : 'Page offset'}
-                            if not param in filtered_parameters:
-                                filtered_parameters.append(param)
 
-                            param = {'default': 10,
-                                     'type': 'integer',
-                                     'name': 'page[limit]',
-                                     'in': 'query',
-                                     'format' : 'int64',
-                                     'required' : False,
-                                     'description' : 'max number of items'}
-                            if not param in filtered_parameters:
-                                filtered_parameters.append(param)
+                            for param in default_paging_parameters():
+                              if not param in filtered_parameters:
+                                  filtered_parameters.append(param)
 
                             param = {'default': '',
                                      'type': 'string',
@@ -474,6 +459,9 @@ from urllib.parse import urljoin
 
 def paginate(object_query):
     '''
+        - returns 
+            links, instances, count
+
         http://jsonapi.org/format/#fetching-pagination
 
         A server MAY choose to limit the number of resources returned in a response to a subset (“page”) of the whole set available.
@@ -541,7 +529,7 @@ def paginate(object_query):
         del links['prev']
 
     instances = object_query.offset(page_offset).limit(limit).all()
-    return links, instances
+    return links, instances, count
 
 
 def jsonapi_filter(safrs_object):
@@ -614,16 +602,16 @@ def get_included(data, limit):
 
         if relationship in [ r.key for r in instance._s_relationships]:
             included = getattr(instance,relationship)
-            #links, included = paginate(getattr(instance,relationship))
             result  += included
 
     return result
 
 
-def jsonapi_format_response(data, meta, links, errors):
+def jsonapi_format_response(data, meta, links, errors, count):
 
     limit = request.args.get('page[limit]', UNLIMITED)
     meta['limit'] = int(limit)
+    meta['count'] = count
 
     jsonapi  = dict(version='1.0')
     included = get_included(data, limit)
@@ -740,17 +728,18 @@ class SAFRSRestAPI(Resource, object):
             links = {
                        'self' : url_for(instance.get_endpoint())
                     }
+            count = 1
             meta.update(dict(instance_meta =  instance._s_meta()))
 
         else:
             # retrieve a collection
             instances = jsonapi_filter(self.SAFRSObject)
-            meta['count'] = instances.count()
+            count = instances.count()
             instances = jsonapi_sort(instances, self.SAFRSObject)
-            links, instances = paginate(instances)
+            links, instances, count = paginate(instances)
             data = [ item for item in instances ]
 
-        result   = jsonapi_format_response(data, meta, links, errors)
+        result   = jsonapi_format_response(data, meta, links, errors, count)
 
         return jsonify(result)
 
@@ -955,6 +944,28 @@ class SAFRSRestAPI(Resource, object):
         return instances
 
 
+class SAFRSFormattedResponse:
+    '''
+        Custom response object
+    '''
+
+    data = None
+    meta = None
+    errors = None
+    result = None
+    response = None
+
+    def to_dict(self):
+
+        if not self.response is None:
+            return self.response
+
+        if not self.meta is None:
+            return self.meta
+
+        if not self.result is None:
+            return {'meta' : { 'result' : self.result } }
+
 class SAFRSRestMethodAPI(Resource, object):
     '''
         Flask webservice wrapper for the underlying SAFRSBase documented_api_method
@@ -1008,9 +1019,12 @@ class SAFRSRestMethodAPI(Resource, object):
 
         result = method(**args)
 
-        response = { 'meta' :
-                     { 'result' : result }
-                   }
+        if isinstance(result, SAFRSFormattedResponse):
+            response = result
+        else:
+            response = { 'meta' :
+                         { 'result' : result }
+                       }
 
         return jsonify( response ) # 200 : default
 
@@ -1302,12 +1316,14 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             return object.isoformat()
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        log.warning('Unknown object type for {}'.format(object))
         if isinstance(object, set):
             return list(object)
         if isinstance(object,sqlalchemy.ext.declarative.api.DeclarativeMeta):
             return self.sqla_encode(object)
-
+        if isinstance(object, SAFRSFormattedResponse):
+            return object.to_dict()
+        log.warning('Unknown object type for {}'.format(object))
+        
         return self.ghetto_encode(object)
 
     def ghetto_encode(self, object):
