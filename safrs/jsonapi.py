@@ -604,8 +604,15 @@ def get_included(data, limit):
 
         if relationship in [ r.key for r in instance._s_relationships]:
             included = getattr(instance,relationship)
-            if included:
-                result += included
+            #if included and included.direction in (ONETOMANY, MANYTOMANY):
+            if included and isinstance(included, SAFRSBase):
+                result += [included]
+            else:
+                try:
+                    result += included
+                except:
+                    log.error('Failed to add included for {}'.format(relationship))
+                    result += [included]
 
     return result
 
@@ -1404,7 +1411,9 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             meta = {}
             rel_name = relationship.key
             if rel_name in excluded_list:
-                continue
+                # TODO: document this
+                #continue
+                pass
             if rel_name in included_list and relationship.direction in (ONETOMANY, MANYTOMANY):
                 # Data is optional, it's also really slow for large sets!!!!!
                 rel_query = getattr(object, rel_name)
