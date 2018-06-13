@@ -604,8 +604,8 @@ def get_included(data, limit):
 
         if relationship in [ r.key for r in instance._s_relationships]:
             included = getattr(instance,relationship)
-            if isinstance(included, list):
-                result  += included
+            if included:
+                result += included
 
     return result
 
