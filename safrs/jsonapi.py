@@ -627,7 +627,6 @@ def jsonapi_format_response(data, meta, links, errors, count):
     included = get_included(data, limit)
     result   = dict(data = data)
     
-    print(included)
     if errors:
         result['errors'] = errors
     if meta:
