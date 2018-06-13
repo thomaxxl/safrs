@@ -56,7 +56,7 @@ from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_pag
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
-from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED
+from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT, UNLIMITED, BIG_QUERY_THRESHOLD, MAX_QUERY_THRESHOLD
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 from .config import ENABLE_RELATIONSHIPS
 from sqlalchemy import or_, and_
@@ -308,13 +308,13 @@ class Api(FRSApiBase):
                               if not param in filtered_parameters:
                                   filtered_parameters.append(param)
 
-                            param = {'default': '',
+                            param = {'default': ','.join([rel.key for rel in self.safrs_object.__mapper__.relationships]),
                                      'type': 'string',
                                      'name': 'include',
                                      'in': 'query',
                                      'format' : 'string',
                                      'required' : False,
-                                     'description' : 'related objects to include'}
+                                     'description' : 'related relationships to include (csv)'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
@@ -585,7 +585,9 @@ def get_included(data, limit):
         return result
 
     if isinstance(data, list):
-        return [ get_included(obj, limit) for obj in data ]
+        for inc in [ get_included(obj, limit) for obj in data ]:
+            result += inc
+        return result
 
     # When we get here, data has to be a SAFRSBase instance
     assert(isinstance(data, SAFRSBase))
@@ -617,6 +619,7 @@ def jsonapi_format_response(data, meta, links, errors, count):
     included = get_included(data, limit)
     result   = dict(data = data)
     
+    print(included)
     if errors:
         result['errors'] = errors
     if meta:
@@ -833,7 +836,10 @@ class SAFRSRestAPI(Resource, object):
             # Treat this request like a patch
             # this isn't really jsonapi-compliant:
             # "A server MUST return 403 Forbidden in response to an unsupported request to create a resource with a client-generated ID"
-            response = self.patch(**kwargs)
+            try:
+                response = self.patch(**kwargs)
+            except Exception as exc:
+                raise GenericError('POST failed')
 
         else:
             # Create a new instance of the SAFRSObject
@@ -1358,6 +1364,11 @@ class SAFRSJSONEncoder(JSONEncoder, object):
         '''
 
         relationships = dict()
+        excluded_csv = request.args.get('exclude','')
+        excluded_list = excluded_csv.split(',')
+        included_csv = request.args.get('include','')
+        included_list = included_csv.split(',')
+
         for relationship in object.__mapper__.relationships:
             '''
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -1389,20 +1400,34 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 # app not initialized
                 obj_url = ''
 
+            meta = {}
             rel_name = relationship.key
-            if relationship.direction in (ONETOMANY, MANYTOMANY):
+            if rel_name in excluded_list:
+                continue
+            if rel_name in included_list and relationship.direction in (ONETOMANY, MANYTOMANY):
                 # Data is optional, it's also really slow for large sets!!!!!
                 rel_query = getattr(object, rel_name)
-                limit  = request.args.get('page[limit]', UNLIMITED)
+                limit  = request.args.get('page[limit]', MAX_QUERY_THRESHOLD)
                 
                 if not ENABLE_RELATIONSHIPS:
-                    data =[{ 'meta' : 'ENABLE_RELATIONSHIPS set to false in config.py' }]
+                    meta['warning'] = 'ENABLE_RELATIONSHIPS set to false in config.py'
                 elif rel_query:
                     # todo: chekc if lazy=dynamic 
+                    # In order to work with the relationship as with Query, you need to configure it with lazy='dynamic'
+                    # "limit" may not be possible !
                     if getattr(rel_query,'limit',False):
-                        items = rel_query.limit(limit).all()
+                        count = rel_query.count()
+                        rel_query = rel_query.limit(limit)
+                        if rel_query.count() >= BIG_QUERY_THRESHOLD:
+                            warning = 'Truncated result for relationship "{}", consider paginating this request'.format(rel_name)
+                            log.warning(warning)
+                            meta['warning'] = warning
+                        items = rel_query.all()
                     else:
                         items = list(rel_query)
+                        count = len(items)
+                    meta['count'] = count
+                    meta['limit'] = limit
                     data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
                 else:
                     data =[{}]
@@ -1412,12 +1437,14 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             self_link = '{}{}/{}'.format( obj_url,
                                           object.id,
                                           rel_name)
-            links = dict(self = self_link,
-                         related = '')
+            links = dict(self = self_link)
+            rel_data = dict(links = links)
 
-            relationships[rel_name] = dict( links = links,
-                                            data = data,
-                                            meta = {} )
+            if data:
+                rel_data['data'] = data
+            if meta:
+                rel_data['meta'] = meta
+            relationships[rel_name] = rel_data
 
         attributes  = object._s_to_dict()
         # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]

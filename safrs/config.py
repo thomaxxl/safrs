@@ -33,6 +33,9 @@ ENDPOINT_FMT = '{}-api.{}'
 
 # This is the default query limit
 UNLIMITED = 1<<32 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
+BIG_QUERY_THRESHOLD = 1000 # Warning level
+MAX_QUERY_THRESHOLD = BIG_QUERY_THRESHOLD
+
 
 USE_API_METHODS = True
 

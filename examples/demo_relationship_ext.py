@@ -17,10 +17,10 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from safrs.db import SAFRSBase, documented_api_method, jsonapi_rpc
+from safrs.db import SAFRSBase, jsonapi_rpc
 from safrs.jsonapi import SAFRSJSONEncoder, Api, paginate, jsonapi_format_response, SAFRSFormattedResponse
 from safrs.errors import ValidationError, GenericError
-import pprint
+from safrs.api_methods import search, startswith
 db = SQLAlchemy()
 
 # Example sqla database object
@@ -48,35 +48,8 @@ class User(SAFRSBase, db.Model):
         '''
         return {'result' : args}
 
-    @classmethod
-    @documented_api_method
-    def startswith(cls, **kwargs):
-        '''
-            pageable: True
-            description : lookup column names
-            args:
-                name: t
-        '''
-
-        result = cls
-        response = SAFRSFormattedResponse()
-        for k, v in kwargs.items():
-            column = getattr(cls, k, None)
-            if not column:
-                raise ValidationError('Invalid Column "{}"'.format(k))
-            try:
-                instances = result.query.filter(column.like(v + '%'))
-                links, instances, count = paginate(instances)
-                data = [ item for item in instances ]
-                meta = {}
-                errors = None
-                response.response = jsonapi_format_response(data, meta, links, errors, count)
-
-            except Exception as exc:
-                raise GenericError("Failed to execute query {}".format(exc))
-
-        return response
-        
+    startswith = startswith
+    search = search
 
 class Book(SAFRSBase, db.Model):
     '''

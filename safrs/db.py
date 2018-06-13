@@ -229,25 +229,78 @@ class SAFRSBase(object):
         return result
     
     @classmethod
-    @documented_api_method
+    #@documented_api_method
     def lookup_re_mysql(cls, **kwargs):
         '''
+            pageable: True
             description : Regex search all matching objects (works only in MySQL!!!)
             args:
                 name: thom.*
         '''
+        from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 
         result = cls
+        response = SAFRSFormattedResponse()
+        
         for k, v in kwargs.items():
             column = getattr(cls, k, None)
             if not column:
                 raise ValidationError('Invalid Column "{}"'.format(k))
             try:
                 result = result.query.filter(column.op('regexp')(v))
+                instances = result
+                links, instances, count = paginate(instances)
+                data = [ item for item in instances ]
+                meta = {}
+                errors = None
+                response.response = jsonapi_format_response(data, meta, links, errors, count)
+
             except Exception as exc:
                 raise GenericError("Failed to execute query {}".format(exc))
 
         return result.all()
+
+    @classmethod
+    #@documented_api_method
+    def startswith(cls, **kwargs):
+        '''
+            pageable: True
+            description : lookup column names
+            args:
+                name: t
+        '''
+        from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
+
+        result = cls
+        response = SAFRSFormattedResponse()
+        try:
+            instances = result.query
+            links, instances, count = paginate(instances)
+            data = [ item for item in instances ]
+            meta = {}
+            errors = None
+            response.response = jsonapi_format_response(data, meta, links, errors, count)
+
+        except Exception as exc:
+            raise GenericError("Failed to execute query {}".format(exc))
+
+        for k, v in kwargs.items():
+            column = getattr(cls, k, None)
+            if not column:
+                raise ValidationError('Invalid Column "{}"'.format(k))
+            try:
+                instances = result.query.filter(column.like(v + '%'))
+                links, instances, count = paginate(instances)
+                data = [ item for item in instances ]
+                meta = {}
+                errors = None
+                response.response = jsonapi_format_response(data, meta, links, errors, count)
+
+            except Exception as exc:
+                raise GenericError("Failed to execute query {}".format(exc))
+
+        return response
+
 
     @classmethod
     def get_instance(cls, id = None, failsafe = False):
