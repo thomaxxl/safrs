@@ -572,6 +572,8 @@ def jsonapi_sort(object_query, safrs_object):
 
 def get_included(data, limit):
     '''
+        return a set of included items
+
         http://jsonapi.org/format/#fetching-includes
 
         Inclusion of Related Resources
@@ -579,14 +581,14 @@ def get_included(data, limit):
         An endpoint MAY also support an include request parameter to allow the client to customize which related resources should be returned.
     '''
 
-    result  = []
+    result  = set()
     include = request.args.get('include', None)
     if not include:
         return result
 
     if isinstance(data, list):
-        for inc in [ get_included(obj, limit) for obj in data ]:
-            result += inc
+        for included in [ get_included(obj, limit) for obj in data ]:
+            result = result.union(included)
         return result
 
     # When we get here, data has to be a SAFRSBase instance
@@ -605,14 +607,14 @@ def get_included(data, limit):
         if relationship in [ r.key for r in instance._s_relationships]:
             included = getattr(instance,relationship)
             #if included and included.direction in (ONETOMANY, MANYTOMANY):
-            if included and isinstance(included, SAFRSBase):
-                result += [included]
+            if included and isinstance(included, SAFRSBase) and not included in result:
+                result.add(included)
             else:
                 try:
-                    result += included
+                    result = result.union(included)
                 except:
-                    log.error('Failed to add included for {}'.format(relationship))
-                    result += [included]
+                    log.critical('Failed to add included for {}, please file a bug report'.format(relationship))
+                    result.add(included)
 
     return result
 
@@ -624,7 +626,7 @@ def jsonapi_format_response(data, meta, links, errors, count):
     meta['count'] = count
 
     jsonapi  = dict(version='1.0')
-    included = get_included(data, limit)
+    included = list(get_included(data, limit))
     result   = dict(data = data)
     
     if errors:
