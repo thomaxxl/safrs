@@ -609,6 +609,8 @@ def get_included(data, limit):
             #if included and included.direction in (ONETOMANY, MANYTOMANY):
             if included and isinstance(included, SAFRSBase) and not included in result:
                 result.add(included)
+            elif not included:
+                continue
             else:
                 try:
                     result = result.union(included)
