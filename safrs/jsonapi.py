@@ -216,7 +216,7 @@ class Api(FRSApiBase):
         self.add_resource(api_class,
                           url,
                           endpoint= endpoint,
-                          methods = ['GET','POST'])
+                          methods = ['GET','POST','PATCH'])
 
         #
         try:
@@ -606,14 +606,15 @@ def get_included(data, limit):
 
         if relationship in [ r.key for r in instance._s_relationships]:
             included = getattr(instance,relationship)
-            #if included and included.direction in (ONETOMANY, MANYTOMANY):
+            # relationship direction in (ONETOMANY, MANYTOMANY):
             if included and isinstance(included, SAFRSBase) and not included in result:
                 result.add(included)
             elif not included:
                 continue
             else:
+                # included should be an InstrumentedList
                 try:
-                    included = included.limit(limit)
+                    included = included[:limit]
                     result = result.union(included)
                 except:
                     log.critical('Failed to add included for {}, please file a bug report'.format(relationship))
@@ -625,7 +626,11 @@ def get_included(data, limit):
 def jsonapi_format_response(data, meta, links, errors, count):
 
     limit = request.args.get('page[limit]', UNLIMITED)
-    meta['limit'] = int(limit)
+    try:
+        limit = int(limit)
+    except Exception as exc:
+        raise ValidationError('page[limit] error')
+    meta['limit'] = limit
     meta['count'] = count
 
     jsonapi  = dict(version='1.0')
@@ -1210,6 +1215,9 @@ class SAFRSRestRelationshipAPI(Resource, object):
             Update or create a relationship child item
 
             to be used to create or update one-to-many mappings but also works for many-to-many etc.
+
+            http://jsonapi.org/format/#crud-updating-to-one-relationships:
+            A server MUST respond to PATCH requests to a URL from a to-one relationship link as described below.
         '''
         parent, relation = self.parse_args(**kwargs)
 
@@ -1234,6 +1242,11 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 for child in data:
                     child = self.child_class.get_instance(data.get('id', None))
                     relation.append(child)
+        elif data is None:
+            if self.SAFRSObject.relationship.direction == MANYTOONE:
+                setattr(parent, self.SAFRSObject.relationship.key, None)
+            else:
+                setattr(parent, self.SAFRSObject.relationship.key, [])
         else:
             raise ValidationError('Invalid Data Object Type')
 
@@ -1249,7 +1262,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
         '''
             Add a child to a relationship
         '''
-
         errors = []
         kwargs['require_child'] = True
         parent, relation = self.parse_args(**kwargs)
@@ -1258,27 +1270,44 @@ class SAFRSRestRelationshipAPI(Resource, object):
         if not isinstance(json, dict):
             raise ValidationError('Invalid Object Type')
         data = json.get('data')
-        for item in data:
-            if not isinstance(json, dict):
-                raise ValidationError('Invalid data type')
-            child_id = item.get('id', None)
-            if child_id == None:
-                errors.append('no child id {}'.format(data))
-                log.error(errors)
-                continue
+
+        if self.SAFRSObject.relationship.direction == MANYTOONE:
+            if len(data) == 0:
+                setattr(parent, self.SAFRSObject.relationship.key, None)
+            if len(data) > 1:
+                raise ValidationError('Too many items for a MANYTOONE relationship', 403)
+            child_id = data[0].get('id')
+            child_type = data[0].get('type')
+            if not child_id or not child_type:
+                raise ValidationError('Invalid data payload', 403)
+
+            if child_type != self.child_class.__name__:
+                raise ValidationError('Invalid type', 403)
+
             child = self.child_class.get_instance(child_id)
+            setattr(parent, self.SAFRSObject.relationship.key, child)
+            result = [child]
 
-            if not child:
-                errors.append('invalid child id {}'.format(child_id))
-                log.error(errors)
-                continue
-            if not child in relation:
-                relation.append(child)
+        else: # direction is TOMANY => append the items to the relationship
+            for item in data:
+                if not isinstance(json, dict):
+                    raise ValidationError('Invalid data type')
+                child_id = item.get('id', None)
+                if child_id == None:
+                    errors.append('no child id {}'.format(data))
+                    log.error(errors)
+                    continue
+                child = self.child_class.get_instance(child_id)
 
-        result = [ item for item in relation ]
-        return jsonify(result)
+                if not child:
+                    errors.append('invalid child id {}'.format(child_id))
+                    log.error(errors)
+                    continue
+                if not child in relation:
+                    relation.append(child)
+            result = [ item for item in relation ]
 
-
+        return jsonify({ 'data' : result })
 
     def delete(self, **kwargs):
         '''
@@ -1307,12 +1336,13 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 parent, child, relation
         '''
 
-        parent_id = kwargs.get(self.parent_object_id,'')
-        parent = self.parent_class.get_instance(parent_id)
-        if not parent:
+        parent_id = kwargs.get(self.parent_object_id,None)
+        if parent_id is None:
             raise ValidationError('Invalid Parent Id')
 
+        parent = self.parent_class.get_instance(parent_id)
         relation = getattr(parent, self.rel_name)
+
         return parent, relation
 
 import json
@@ -1417,33 +1447,44 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 # TODO: document this
                 #continue
                 pass
-            if rel_name in included_list and relationship.direction in (ONETOMANY, MANYTOMANY):
-                # Data is optional, it's also really slow for large sets!!!!!
-                rel_query = getattr(object, rel_name)
-                limit  = request.args.get('page[limit]', MAX_QUERY_THRESHOLD)
-                
-                if not ENABLE_RELATIONSHIPS:
-                    meta['warning'] = 'ENABLE_RELATIONSHIPS set to false in config.py'
-                elif rel_query:
-                    # todo: chekc if lazy=dynamic 
-                    # In order to work with the relationship as with Query, you need to configure it with lazy='dynamic'
-                    # "limit" may not be possible !
-                    if getattr(rel_query,'limit',False):
-                        count = rel_query.count()
-                        rel_query = rel_query.limit(limit)
-                        if rel_query.count() >= BIG_QUERY_THRESHOLD:
-                            warning = 'Truncated result for relationship "{}", consider paginating this request'.format(rel_name)
-                            log.warning(warning)
-                            meta['warning'] = warning
-                        items = rel_query.all()
-                    else:
-                        items = list(rel_query)
-                        count = len(items)
-                    meta['count'] = count
-                    meta['limit'] = limit
-                    data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
+            if rel_name in included_list:
+                data = [{}] # => data != None
+
+                if relationship.direction == MANYTOONE:
+                    rel_item = getattr(object, rel_name)
+                    if rel_item:
+                        data  = [{ 'id' : rel_item.id , 'type' : rel_item.__tablename__ }]
+
+                elif relationship.direction in (ONETOMANY, MANYTOMANY):
+                    # Data is optional, it's also really slow for large sets!!!!!
+                    rel_query = getattr(object, rel_name)
+                    limit  = request.args.get('page[limit]', MAX_QUERY_THRESHOLD)
+                    
+                    if not ENABLE_RELATIONSHIPS:
+                        meta['warning'] = 'ENABLE_RELATIONSHIPS set to false in config.py'
+                    elif rel_query:
+                        # todo: chekc if lazy=dynamic 
+                        # In order to work with the relationship as with Query, you need to configure it with lazy='dynamic'
+                        # "limit" may not be possible !
+                        if getattr(rel_query,'limit',False):
+                            count = rel_query.count()
+                            rel_query = rel_query.limit(limit)
+                            if rel_query.count() >= BIG_QUERY_THRESHOLD:
+                                warning = 'Truncated result for relationship "{}", consider paginating this request'.format(rel_name)
+                                log.warning(warning)
+                                meta['warning'] = warning
+                            items = rel_query.all()
+                        else:
+                            items = list(rel_query)
+                            count = len(items)
+                        meta['count'] = count
+                        meta['limit'] = limit
+                        data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
+                    #else:
+                    #    data =[{}]
                 else:
-                    data =[{}]
+                    raise GenericError('Unknown relationship direction for relationship {}: {}'.format(rel_name,  relationship.direction ))
+                    # data = [{}]
             else:
                 data = None
 
