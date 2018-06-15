@@ -613,6 +613,7 @@ def get_included(data, limit):
                 continue
             else:
                 try:
+                    included = included.limit(limit)
                     result = result.union(included)
                 except:
                     log.critical('Failed to add included for {}, please file a bug report'.format(relationship))
@@ -716,7 +717,6 @@ class SAFRSRestAPI(Resource, object):
             - links: a links object related to the primary data.
             - included: an array of resource objects that are related to the primary data and/or each other (“included resources”).
         '''
-
         data    = None
         meta    = {}
         errors  = None
@@ -735,8 +735,8 @@ class SAFRSRestAPI(Resource, object):
                 raise ValidationError('Invalid {}'.format(self.object_id))
 
             for rel in instance.__mapper__.relationships:
-                log.info(rel)
-                log.info(rel.key)
+                #log.debug('relationship : {}, {}'.format(rel, rel.key))
+                pass
 
             data  = instance
             links = {
