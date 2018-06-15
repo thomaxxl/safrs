@@ -1,5 +1,7 @@
+
 .. role:: raw-html-m2r(raw)
    :format: html
+
 
 
 
@@ -8,9 +10,11 @@
    :alt: Latest Version
 
 
+
 .. image:: https://img.shields.io/pypi/pyversions/safrs.svg
    :target: https://pypi.python.org/pypi/safrs/
    :alt: Supported Python versions
+
 
 
 .. image:: https://img.shields.io/pypi/l/safrs.svg
@@ -18,13 +22,14 @@
    :alt: License
 
 
+
 SAFRS: Python OpenAPI & JSON:API Framework
 ==========================================
-
 
 .. image:: docs/images/safrs.gif
    :target: docs/images/safrs.gif
    :alt: demo
+
 
 
 :raw-html-m2r:`<a class="mk-toclify" id="table-of-contents"></a>`
@@ -35,12 +40,16 @@ SAFRS: Python OpenAPI & JSON:API Framework
 * `HTTP Methods <#http-methods>`_
 * `Resource Objects <#resource-objects>`_
 * `Relationships <#relationships>`_
-* `Methods <#methods>`_
+* 
+  `Methods <#methods>`_
+
 
   * `Custom Methods <#custom-methods>`_
   * `Class Methods <#class-methods>`_
 
-* `HTTP Status Codes <#http-status-codes>`_
+* 
+  `HTTP Status Codes <#http-status-codes>`_
+
 * `Endpoint Naming <#endpoint-naming>`_
 * `Configuration <#configuration>`_
 * `More Examples and Use Cases <#more-examples-and-use-cases>`_
@@ -75,11 +84,13 @@ SAFRS can be installed as a `pip package <https://pypi.python.org/pypi/safrs/>`_
    pip3 install -r requirements.txt --user
    python3 setup.py install --user
 
+
 The examples can then be started with 
 
 .. code-block::
 
    python3 examples/demo_relationship.py "your-interface-ip"
+
 
 :raw-html-m2r:`<a class="mk-toclify" id="http-methods"></a>`
 
@@ -114,6 +125,7 @@ Following example from `demo.py <examples/demo.py>`_ illustrates how the API is 
        name = Column(String, default = '')
        email = Column(String, default = '')
 
+
 The User class is implemented as a subclass of 
 
 
@@ -126,11 +138,13 @@ This User object is then exposed through the web interface using the Api object
 
    api.expose_object(User)
 
+
 The User object REST methods are available on /User, the swagger schema is available on /api/swagger.json and the UI is available on /api/:
 
 .. image:: docs/images/USER_swagger.png
    :target: docs/images/USER_swagger.png
    :alt: User Swagger
+
 
 
 :raw-html-m2r:`<a class="mk-toclify" id="relationships"></a>`
@@ -153,6 +167,7 @@ Database object such as the User class from the demo.py example can be extended 
        books = db.relationship('Book', back_populates = "user")
    ...
 
+
 A many-to-one database association is declared by the back_populates relationship argument.
 The Book class is simply another subclass of SAFRSBase and db.Model, similar to the previous User class:
 
@@ -168,11 +183,14 @@ The Book class is simply another subclass of SAFRSBase and db.Model, similar to 
        user_id = db.Column(db.String, db.ForeignKey('Users.id'))
        user = db.relationship('User', back_populates='books')
 
+
 The User.book relationship can be queried in the API through the following endpoints:
 
 .. image:: docs/images/Relations_swagger.png
    :target: docs/images/Relations_swagger.png
    :alt: Relations Swagger
+
+
 
 
 
@@ -220,12 +238,13 @@ The following example implements a "send_mail" method fro example:
            content = 'Mail to {} : {}\n'.format(self.name, email)
            return { 'result' : 'sent {}'.format(content)}
 
-This method shows up in the swagger interface:
 
+This method shows up in the swagger interface:
 
 .. image:: docs/images/method_swagger.PNG
    :target: docs/images/method_swagger.PNG
    :alt: Method Swagger
+
 
 
 The ``send_mail`` method is documented with the ``jsonapi_rpc`` decorator. 
@@ -249,7 +268,11 @@ Two class-level methods have been defined to facilitate object retrieval:
      {
      "method": "lookup",
      "args": {
-       "name": "thomas"
+
+  .. code-block::
+
+      "name": "thomas"
+
      }
      }
 
@@ -280,6 +303,7 @@ In case of errors, the webservice will return a default HTTP status code 500 and
      "error": "Failed to execute query Entity '<class 'C2_server.Image'>' has no property 'namex'"
    }
 
+
 :raw-html-m2r:`<a class="mk-toclify" id="endpoint-naming"></a>`
 
 Endpoint Naming
@@ -288,7 +312,7 @@ Endpoint Naming
 As can be seen in the swagger UI:
 
 
-* the endpoint collection path names are the SQLAlchemy __tablename__ properties (e.g. /Users )
+* the endpoint collection path names are the SQLAlchemy **tablename** properties (e.g. /Users )
 * the parameter names are derived from the SAFRSBase class names (e.g. {UserId} )
 * the the relationship names are the SAFRSBase class relationship names (e.g /books )
   The URL path format is `configurable <#configuration>`_
@@ -316,7 +340,8 @@ The `examples <examples>`_ folder contains more example scripts:
 * Exposing an exisitng sqlite database as a REST service
 * Using a sha hash as primary key (id)
 * CORS usage
-* Flask-Admin integration example, eg.:
+* 
+  Flask-Admin integration example, eg.:
 
   .. image:: docs/images/flask-admin.png
      :target: docs/images/flask-admin.png
@@ -335,7 +360,7 @@ This code was developed for a specific use-case and may not be flexible enough f
 * I am not a big fan of the multiple inheritance needed to declare SAFRSBase instances but I couldn't subclass sqla's db.Model and I think inheritance is more clear than class decorators.
 * Not all of the documentation available in swagger1 is shown with swagger2
 * I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop `me <mailto:thomas.pollet@+no+spam+@gmail.com>`_ an email if something isn't clear!
-* By default, SAFRSBase objects are commited to the database in ``__init__``\ , as specified by the SAFRSBase.db_commit boolean. When using SAFRSBase in combination with other frameworks (eg. flask-admin), care should be taken of how and when objects are added to the session and commited. An example of flask-admin integration can be found in the `examples directory <examples/demo_flask_admin.py>`_. 
+* By default, SAFRSBase objects are commited to the database in ``__init__\ ```\ , as specified by the SAFRSBase.db_commit boolean. When using SAFRSBase in combination with other frameworks (eg. flask-admin), care should be taken of how and when objects are added to the session and commited. An example of flask-admin integration can be found in the``\ examples directory <examples/demo_flask\ *admin.py>`*. 
 
 :raw-html-m2r:`<a class="mk-toclify" id="references"></a>`
 
