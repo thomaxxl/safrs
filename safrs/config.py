@@ -1,5 +1,9 @@
 # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
-OBJECT_ID_SUFFIX = 'Id'
+import os
+
+OBJECT_ID_SUFFIX = os.environ.get('OBJECT_ID_SUFFIX', None)
+if not OBJECT_ID_SUFFIX:
+    OBJECT_ID_SUFFIX = 'Id'
 
 #
 # The following URL fromatters determine the urls of the API resource objects
@@ -11,7 +15,9 @@ OBJECT_ID_SUFFIX = 'Id'
 RESOURCE_URL_FMT = '{}/{}/'
 INSTANCE_URL_FMT = RESOURCE_URL_FMT + '<string:{}' + OBJECT_ID_SUFFIX + '>/'
 # last parameter for the "method" urls below will be the method name
-INSTANCEMETHOD_URL_FMT = RESOURCE_URL_FMT + '<string:{}>/{}'
+INSTANCEMETHOD_URL_FMT = os.environ.get('INSTANCEMETHOD_URL_FMT', None)
+if not INSTANCEMETHOD_URL_FMT:
+    INSTANCEMETHOD_URL_FMT = RESOURCE_URL_FMT + '<string:{}>/{}'
 # (eg. /Users/get_list)
 CLASSMETHOD_URL_FMT = RESOURCE_URL_FMT + '{}'
 
@@ -41,4 +47,10 @@ USE_API_METHODS = True
 
 # ENABLE_RELATIONSHIPS enables relationships to be included.
 # This may slow down certain queries if the relationships are not properly configured!
-ENABLE_RELATIONSHIPS = True
+ENABLE_RELATIONSHIPS = bool(os.environ.get('ENABLE_RELATIONSHIPS', None))
+if not ENABLE_RELATIONSHIPS:
+    ENABLE_RELATIONSHIPS = True
+
+AUTOINCREMENT_IDS = bool(os.environ.get('AUTOINCREMENT_IDS', None))
+if not AUTOINCREMENT_IDS:
+    AUTOINCREMENT_IDS = False
