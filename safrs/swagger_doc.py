@@ -205,7 +205,6 @@ def get_swagger_doc_post_arguments(cls, method_name):
             method_args = rest_doc.get('args', [])
             if method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
-                model = SchemaClassFactory(model_name, method_args)
                 method_field = {
                                  'method' : method_name,
                                  'args' : method_args,
@@ -249,7 +248,7 @@ def swagger_method_doc(cls, method_name, tags=None):
                'summary': 'Invoke {}.{}'.format(class_name, method_name),
               }
 
-        model_name = '{} {} {}'.format('invoke ', class_name, method_name)
+        model_name = '{}_{}_{}'.format('Invoke ', class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
 
         if func.__name__ == 'get':
@@ -272,7 +271,7 @@ def swagger_method_doc(cls, method_name, tags=None):
             #
             # Retrieve the swagger schemas for the documented_api_methods
             #
-            model_name = '{} {} {}'.format(func.__name__, cls.__name__, method_name)
+            model_name = '{}_{}_{}'.format(func.__name__, cls.__name__, method_name)
             param_model = SchemaClassFactory(model_name, fields)
             parameters.append({
                                 'name': model_name,
@@ -342,6 +341,8 @@ def swagger_doc(cls, tags=None):
 
         responses = {}
 
+        # adhere to open api
+        model_name = '{}_{}'.format(class_name, http_method)
         if http_method == 'get':
             doc['summary'] =  'Retrieve a {} object'.format(class_name)
             _ , responses = cls.get_swagger_doc(http_method)
@@ -352,17 +353,17 @@ def swagger_doc(cls, tags=None):
 
             #
             # Create the default POST body schema
-            #        
+            #
             sample = cls.sample()
             if sample:
-                sample_data = schema_from_object('{} POST sample'.format(class_name) ,
+                sample_data = schema_from_object(model_name,
                                                 {'data' : 
                                                     {'attributes' : sample._s_to_dict(), 
                                                       'type' : class_name 
                                                     }
                                                 })
             elif cls.sample_id():
-                sample_data = schema_from_object('{} POST sample'.format(class_name) ,
+                sample_data = schema_from_object(model_name,
                                                 {'data' : 
                                                     {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs }, 
                                                      'type' : class_name 
@@ -371,7 +372,6 @@ def swagger_doc(cls, tags=None):
             else:
                 sample_data = {}
             
-            post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
             parameters.append({
                                 'name': 'POST body',
                                 'in': 'body',
@@ -395,7 +395,7 @@ def swagger_doc(cls, tags=None):
             post_model, responses = cls.get_swagger_doc('patch')
             sample = cls.sample()
             if sample:
-                sample_data = schema_from_object('{} PATCH sample'.format(class_name) ,
+                sample_data = schema_from_object(model_name,
                                                 {'data' : 
                                                     {'attributes' : sample._s_to_dict(), 
                                                      'id' : cls.sample_id(),
@@ -403,7 +403,7 @@ def swagger_doc(cls, tags=None):
                                                     }
                                                 })
             else:
-                sample_data = schema_from_object('{} PATCH sample'.format(class_name) ,
+                sample_data = schema_from_object(model_name,
                                                 {'data' : 
                                                     {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs },
                                                      'id' : cls.sample_id(),
@@ -411,7 +411,6 @@ def swagger_doc(cls, tags=None):
                                                     }
                                                 })
             
-            post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
             parameters.append({
                                 'name': 'POST body',
                                 'in': 'body',
@@ -426,15 +425,8 @@ def swagger_doc(cls, tags=None):
         doc['parameters'] = parameters
         doc['responses'] = responses
         doc["produces"] = ["application/json"]
-        @swagger.doc(doc)
-        def wrapper(self, *args, **kwargs):
-            '''
-
-            '''
-            val = func(self, *args, **kwargs)
-            return val
         
-        return wrapper
+        return swagger.doc(doc)(func)
 
     return swagger_doc_gen
 
@@ -493,7 +485,7 @@ def swagger_relationship_doc(cls, tags = None):
                                                                                 parent_name)
             # TODO: change this crap
             put_model, responses = child_class.get_swagger_doc('patch')
-            rel_post_schema = schema_from_object('{} Relationship'.format(class_name), 
+            rel_post_schema = schema_from_object('{}_Relationship'.format(class_name),
                                                 {'data':  [ 
                                                             {'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
                                                            ] 
@@ -518,12 +510,6 @@ def swagger_relationship_doc(cls, tags = None):
         elif http_method == 'patch' or http_method == 'put':
             put_model, responses = child_class.get_swagger_doc(http_method)
             doc['summary'] =  'Update a {} object'.format(class_name)
-            parameters.append({
-                                'name': 'test',
-                                'in': 'body',
-                                'type': 'string',
-                                'schema' : put_model
-                              })
             responses = {'201' : {'description' : 'Object Created'}}
         else:
             # one of 'options', 'head', 'patch'
