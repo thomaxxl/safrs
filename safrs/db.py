@@ -19,7 +19,7 @@ from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jso
 from .errors import GenericError, NotFoundError
 from .safrs_types import SAFRSID
 from .util import classproperty
-from .config import OBJECT_ID_SUFFIX
+from .config import OBJECT_ID_SUFFIX, AUTOINCREMENT_IDS
 
 if sys.version_info[0] == 3:
     unicode = str
@@ -116,7 +116,8 @@ class SAFRSBase(object):
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
         # validation is implemented
-        kwargs['id'] = self.id_type(kwargs.get('id', None))
+        if not AUTOINCREMENT_IDS:
+            kwargs['id'] = self.id_type(kwargs.get('id', None))
         
         # Set the json parameters
         init_object_schema(self)
@@ -128,9 +129,11 @@ class SAFRSBase(object):
         relationships = self._s_relationships
         for column in columns:
             arg_value = kwargs.get(column.name, None)
-            if arg_value == None and column.default:
-                arg_value = column.default.arg
-            db_args[column.name] = arg_value
+            if arg_value:
+                arg_value = column.type.python_type(arg_value)
+                if arg_value == None and column.default:
+                    arg_value = column.default.arg
+                db_args[column.name] = arg_value
 
         # db_args now contains the class attributes. Initialize the db model with them
         # All subclasses should have the db.Model as superclass.
