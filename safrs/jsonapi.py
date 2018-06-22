@@ -846,6 +846,7 @@ class SAFRSRestAPI(Resource, object):
         method_name = payload.get('meta',{}).get('method', None)
 
         id = kwargs.get(self.object_id, None)
+        log.critical(kwargs)
         if id != None:
             # Treat this request like a patch
             # this isn't really jsonapi-compliant:

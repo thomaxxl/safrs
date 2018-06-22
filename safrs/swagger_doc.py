@@ -320,6 +320,8 @@ def get_sample_dict(sample):
         cols = sample.__table__.columns
         sample_dict = { col.name : "" for col in cols if not col.name == 'id'}
 
+    return sample_dict
+
 #
 # Decorator is called when a swagger endpoint class is instantiated
 # from API.expose_object eg.
