@@ -28,16 +28,21 @@ db = SQLAlchemy()
 myString = db.String(300)
 DB_NAME = 'test'
 
+def next_val(db_name, table_name):
+    sql = '''SELECT AUTO_INCREMENT
+             FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = "{}"
+             AND TABLE_NAME = "{}"'''.format(db_name, table_name)
+    result = db.engine.execute(sql)
+    for row in result:
+        return row[0]
+
+
 def get_id_type(db_name, table_name):
     class SAFRSAutoIncrementId(SAFRSID):
 
         @classmethod
         def gen_id(self):
-            '''
-                Create a hash based on the current time
-                This is just an example 
-                Not cryptographically secure and might cause collisions!
-            '''
             id = next_val(db_name, table_name)
             return id
 
@@ -90,14 +95,7 @@ class Book(SAFRSBase, db.Model):
     id_type = get_id_type(DB_NAME, 'Books')
 
 
-def next_val(db_name, table_name):
-    sql = '''SELECT AUTO_INCREMENT
-             FROM information_schema.TABLES
-             WHERE TABLE_SCHEMA = "{}"
-             AND TABLE_NAME = "{}"'''.format(db_name, table_name)
-    result = db.engine.execute(sql)
-    for row in result:
-        return row[0]
+
 
 
 if __name__ == '__main__':
