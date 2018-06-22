@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 '''
   This demo application demonstrates the functionality of the safrs documented REST API
-  After installing safrs with pip, you can run this app standalone:
+  After installing safrs with pip and modifying the connection uri SQLALCHEMY_DATABASE_URI you can run this app standalone:
+
   $ python3 demo_relationship.py [Listener-IP]
 
   This will run the example on http://Listener-Ip:5000
-
-  - A database is created and a user is added
+  - users and books are created in the database
   - A rest api is available
   - swagger documentation is generated
 '''
@@ -23,12 +23,28 @@ from safrs.errors import ValidationError, GenericError
 from safrs.api_methods import search, startswith
 from safrs.safrs_types import SAFRSID
 
-db = SQLAlchemy()
-
-myString = db.String(300)
 DB_NAME = 'test'
+SQLALCHEMY_DATABASE_PREFIX='mysql+pymysql://root:password@localhost'
+
+#
+# Create the test db
+#
+import sqlalchemy
+engine = sqlalchemy.create_engine(SQLALCHEMY_DATABASE_PREFIX)
+engine.execute('CREATE DATABASE IF NOT EXISTS {}'.format(DB_NAME))
+
+#
+#
+#
+
+db = SQLAlchemy()
+myString = db.String(300)
+SQLALCHEMY_DATABASE_URI='{}/{}'.format(SQLALCHEMY_DATABASE_PREFIX,DB_NAME)
 
 def next_val(db_name, table_name):
+    '''
+        Retrieve the next mysql autoincrement id
+    '''
     sql = '''SELECT AUTO_INCREMENT
              FROM information_schema.TABLES
              WHERE TABLE_SCHEMA = "{}"
@@ -39,16 +55,19 @@ def next_val(db_name, table_name):
 
 
 def get_id_type(db_name, table_name):
+    '''
+        Create the id_type class which generates the autoincrement id for our table
+    '''
     class SAFRSAutoIncrementId(SAFRSID):
 
-        @classmethod
-        def gen_id(self):
+        @staticmethod
+        def gen_id():
             id = next_val(db_name, table_name)
             return id
 
-        @classmethod
-        def validate_id(self, id):
-            pass
+        @staticmethod
+        def validate_id(id):
+            return int(id)
 
     return SAFRSAutoIncrementId
 
@@ -106,7 +125,7 @@ if __name__ == '__main__':
          origins="*",
          allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
          supports_credentials=True)
-    app.config.update(SQLALCHEMY_DATABASE_URI='mysql+pymysql://root:password@localhost/{}'.format(DB_NAME), DEBUG=True)
+    app.config.update(SQLALCHEMY_DATABASE_URI=SQLALCHEMY_DATABASE_URI, DEBUG=True)
     db.init_app(app)
     db.app = app
     # Create the database

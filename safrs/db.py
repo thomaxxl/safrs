@@ -133,7 +133,7 @@ class SAFRSBase(Model):
         relationships = self._s_relationships
         for column in columns:
             arg_value = kwargs.get(column.name, None)
-            if arg_value == None and column.default:
+            if arg_value is None and column.default:
                 arg_value = column.default.arg
             db_args[column.name] = arg_value
 

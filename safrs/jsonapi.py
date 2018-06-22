@@ -776,8 +776,13 @@ class SAFRSRestAPI(Resource, object):
 
         data = json.get('data')
 
-        if not data or type(data) != dict or data.get('id', None) != id:
+        if not data or type(data) != dict:
             raise ValidationError('Invalid Data Object')
+
+        # Check that the id in the body is equal to the id in the url
+        body_id = data.get('id', None)
+        if body_id is None or self.SAFRSObject.id_type.validate_id(id) != self.SAFRSObject.id_type.validate_id(body_id):
+            raise ValidationError('Invalid ID')
 
         attributes = data.get('attributes',{})
         attributes['id'] = id
