@@ -49,7 +49,8 @@ import sqlalchemy
 from functools import wraps
 from jsonschema import validate
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
-
+import sqlalchemy.orm.dynamic
+import sqlalchemy.orm.collections
 # safrs_rest dependencies:
 from .db import SAFRSBase, db, log
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters
@@ -443,6 +444,8 @@ def api_decorator(cls, swagger_decorator):
             # Add swagger documentation
             decorated_method = swagger_decorator(method)
         except Exception as exc:
+            log.error(exc)
+            traceback.print_exc()
             log.error('Failed to generate documentation for {}'.format(method))
             decorated_method = method
         # Add cors
@@ -734,10 +737,7 @@ class SAFRSRestAPI(Resource, object):
         #method_name = kwargs.get('method_name','')
 
         if id:
-            # Retrieve the instance with the provided id
             instance = self.SAFRSObject.get_instance(id)
-            if not instance:
-                raise ValidationError('Invalid {}'.format(self.object_id))
 
             for rel in instance.__mapper__.relationships:
                 #log.debug('relationship : {}, {}'.format(rel, rel.key))
@@ -766,7 +766,6 @@ class SAFRSRestAPI(Resource, object):
         '''
             Create or update the object specified by id
         '''
-
         id = kwargs.get(self.object_id, None)
         if not id:
             raise ValidationError('Invalid ID')
@@ -782,7 +781,7 @@ class SAFRSRestAPI(Resource, object):
 
         attributes = data.get('attributes',{})
         attributes['id'] = id
-
+        
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
         instance = self.SAFRSObject.get_instance(id)
@@ -843,7 +842,6 @@ class SAFRSRestAPI(Resource, object):
               not among the type(s) that constitute the collection represented by the endpoint.
               A server SHOULD include error details and provide enough information to recognize the source of the conflict.
         '''
-
         payload = self.get_json()
         method_name = payload.get('meta',{}).get('method', None)
 
@@ -1010,7 +1008,6 @@ class SAFRSRestMethodAPI(Resource, object):
         '''
             HTTP POST: apply actions, return 200 regardless
         '''
-
         id = kwargs.get(self.object_id, None)
 
         if id != None:
@@ -1134,10 +1131,12 @@ class SAFRSRelationshipObject(object):
 
 class SAFRSRestRelationshipAPI(Resource, object):
     '''
-        Flask webservice wrapper for the underlying sqla db model (SAFRSBase subclass : cls.SAFRSObject)
+        Flask webservice wrapper for the underlying sqla relationships db model
 
         The endpoint url is of the form "/Parents/{ParentId}/children/{ChildId}" (cfr RELATIONSHIP_URL_FMT in API.expose_relationship)
         where "children" is the relationship attribute of the parent
+
+        3 types of relationships (directions) exist in the sqla orm: MANYTOONE ONETOMANY MANYTOMANY
 
         Following attributes are set on this class:
             - SAFRSObject: the sqla object which has been set with the type constructor in expose_relationship
@@ -1146,7 +1145,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             - rel_name : name of the relationship ( e.g. children )
             - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
             - child_object_id : url parameter name of the child ( e.g. {ChildId} )
-
 
         http://jsonapi.org/format/#crud-updating-relationships
 
@@ -1184,7 +1182,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             The primary data in the response document MUST match the appropriate value for resource linkage.
             The top-level links object MAY contain self and related links, as described above for relationship objects.
         '''
-
         parent, relation = self.parse_args(**kwargs)
 
         child_id = kwargs.get(self.child_object_id)
@@ -1199,8 +1196,9 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 result = [ child ]
             else:
                 return 'Not Found', 404
-        elif type(relation) == self.child_class: # MANYTOONE
-            result = [ relation ]
+        #elif type(relation) == self.child_class: # ==> 
+        elif MANYTOONE == self.SAFRSObject.relationship.direction:
+            result = relation
         else:
             # No {ChildId} given:
             # return a list of all relationship items
@@ -1209,53 +1207,96 @@ class SAFRSRestRelationshipAPI(Resource, object):
         result = { 'data' : result, 'links' : { 'self' : request.url } }
         return jsonify(result)
 
-
     def patch(self, **kwargs):
         '''
+            responses:
+                - 200 : Delete accepted
+                - 201 : Created
+            ----
             Update or create a relationship child item
 
             to be used to create or update one-to-many mappings but also works for many-to-many etc.
 
+            # Updating To-One Relationships
+
             http://jsonapi.org/format/#crud-updating-to-one-relationships:
-            A server MUST respond to PATCH requests to a URL from a to-one relationship link as described below.
-        '''
+            A server MUST respond to PATCH requests to a URL from a to-one relationship link as described below
+
+                The PATCH request MUST include a top-level member named data containing one of:
+                a resource identifier object corresponding to the new related resource.
+                null, to remove the relationship.
+        '''    
         parent, relation = self.parse_args(**kwargs)
 
         json  = request.get_json()
         if type(json) != dict:
             raise ValidationError('Invalid Object Type')
-        data = json.get('data')
-        relation = getattr(parent, self.rel_name )
 
+        data = json.get('data')
+
+        relation = getattr(parent, self.rel_name )
         obj_args = { self.parent_object_id : parent.id }
 
         if isinstance(data, dict):
+            # => Update TOONE Relationship
+            # TODO!!!
+            if self.SAFRSObject.relationship.direction != MANYTOONE:
+                raise GenericError('To PATCH a TOMANY relationship you should provide a list')
             child = self.child_class.get_instance(data.get('id', None))
-            if not child in relation:
-                relation.append(child)
+            setattr(parent,self.rel_name,child)
             obj_args[self.child_object_id] = child.id
+            '''
+                http://jsonapi.org/format/#crud-updating-to-many-relationships
+
+                If a client makes a PATCH request to a URL from a to-many relationship link, the server MUST either 
+                completely replace every member of the relationship, return an appropriate error response if some resources
+                can not be found or accessed, or return a 403 Forbidden response if complete replacement is not allowed by the server.
+            '''
         elif isinstance(data,list):
-            if list == []: # => remove all items
-                for item in relation:
-                    relation.remove(item)
-            else:
-                for child in data:
-                    child = self.child_class.get_instance(data.get('id', None))
-                    relation.append(child)
-        elif data is None:
             if self.SAFRSObject.relationship.direction == MANYTOONE:
-                setattr(parent, self.SAFRSObject.relationship.key, None)
+                raise GenericError('To PATCH a MANYTOONE relationship you should provide a dictionary instead of a list')
+            # first remove all items, then append the new items
+            # if the relationship has been configured with lazy="dynamic" then it is a subclass of AppenderBaseQuery and
+            # we should empty the relationship by setting it to []
+            # otherwise it is an instance of InstrumentedList and we have to empty it 
+            # ( we could loop all items but this is slower for large collections )
+            if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
+                relation[:] = []
             else:
-                setattr(parent, self.SAFRSObject.relationship.key, [])
+                setattr(parent, self.rel_name, [])
+            for child in data:
+                if not isinstance(child, dict):
+                    raise ValidationError('Invalid data object')
+                relation.append(self.child_class.get_instance(child))
+            
+        elif data is None:
+            # { data : null } //=> clear the relationship
+            if self.SAFRSObject.relationship.direction == MANYTOONE:
+                child = getattr(parent, self.SAFRSObject.relationship.key)
+                if child:
+                    pass
+                setattr(parent, self.rel_name, None)
+            else:
+                # 
+                # should we allow this??
+                # maybe we just want to raise an error here ...???
+                setattr(parent, self.rel_name, [])
         else:
             raise ValidationError('Invalid Data Object Type')
 
-        obj_data = self.get(**obj_args)
+        if data is None:
+            # item removed from relationship => 202 accepted
+            # TODO: add response to swagger
+            # add meta?
 
-        # Retrieve the object json and return it to the client
-        response = make_response(obj_data, 201)
-        # Set the Location header to the newly created object
-        response.headers['Location'] = url_for(self.endpoint, **obj_args)
+            response = {}, 200
+        else:
+            obj_data = self.get(**obj_args)
+            # Retrieve the object json and return it to the client
+            response = make_response(obj_data, 201)
+            # Set the Location header to the newly created object
+            # todo: set location header
+            #response.headers['Location'] = url_for(self.endpoint, **obj_args)
         return response
 
     def post(self, **kwargs):
@@ -1351,7 +1392,7 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 
 class SAFRSJSONEncoder(JSONEncoder, object):
     '''
-        Encodes safrsmail objects (SAFRSBase subclasses)
+        Encodes safrs objects (SAFRSBase subclasses)
     '''
 
     def default(self,object):
@@ -1447,13 +1488,13 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 # TODO: document this
                 #continue
                 pass
+            data = None
             if rel_name in included_list:
-                data = [{}] # => data != None
 
                 if relationship.direction == MANYTOONE:
                     rel_item = getattr(object, rel_name)
                     if rel_item:
-                        data  = [{ 'id' : rel_item.id , 'type' : rel_item.__tablename__ }]
+                        data  = { 'id' : rel_item.id , 'type' : rel_item.__tablename__ }
 
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
                     # Data is optional, it's also really slow for large sets!!!!!
@@ -1479,14 +1520,11 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                             count = len(items)
                         meta['count'] = count
                         meta['limit'] = limit
-                        data  = [{ 'id' : i.id , 'type' : i.__tablename__ } for i in items]
-                    #else:
-                    #    data =[{}]
-                else:
+                        data  = [{ 'id' : i.id , 
+                                   'type' : i.__tablename__ } for i in items ]
+                        
+                else: # shouldn't happen!!
                     raise GenericError('Unknown relationship direction for relationship {}: {}'.format(rel_name,  relationship.direction ))
-                    # data = [{}]
-            else:
-                data = None
 
             self_link = '{}{}/{}'.format( obj_url,
                                           object.id,

@@ -25,7 +25,7 @@ from flask_swagger_ui import get_swaggerui_blueprint
 db  = SQLAlchemy()
 
 # Example sqla database object
-class User(SAFRSBase, db.Model):
+class User(SAFRSBase):
     '''
         description: User description
     '''

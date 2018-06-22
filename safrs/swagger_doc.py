@@ -311,6 +311,15 @@ def swagger_method_doc(cls, method_name, tags=None):
 
     return swagger_doc_gen
 
+
+def get_sample_dict(sample):
+    if getattr(sample, '_s_to_dict', False):
+        # ==> isinstance SAFRSBASE
+        sample_dict = sample._s_to_dict()
+    else:
+        cols = sample.__table__.columns
+        sample_dict = { col.name : "" for col in cols if not col.name == 'id'}
+
 #
 # Decorator is called when a swagger endpoint class is instantiated
 # from API.expose_object eg.
@@ -321,7 +330,6 @@ def swagger_doc(cls, tags=None):
         '''
             Decorator used to document (SAFRSBase) class methods exposed in the API
         '''
-        
         default_id = cls.sample_id()
         class_name = cls.__name__ 
         table_name = cls.__tablename__
@@ -354,10 +362,12 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             #        
             sample = cls.sample()
+
             if sample:
+                sample_dict = get_sample_dict(sample)
                 sample_data = schema_from_object('{} POST sample'.format(class_name) ,
                                                 {'data' : 
-                                                    {'attributes' : sample._s_to_dict(), 
+                                                    {'attributes' : sample_dict, 
                                                       'type' : class_name 
                                                     }
                                                 })
@@ -370,7 +380,6 @@ def swagger_doc(cls, tags=None):
                                                 })
             else:
                 sample_data = {}
-            
             post_model = SchemaClassFactory('POST body {}'.format(class_name), {'data': sample_data })
             parameters.append({
                                 'name': 'POST body',
@@ -379,7 +388,7 @@ def swagger_doc(cls, tags=None):
                                 'schema' : sample_data,
                                 'required' : True
                               })
-
+            
         elif http_method == 'delete':
             doc['summary'] =  doc['description'] = 'Delete a {} object'.format(class_name)
             responses = {'204' : {
@@ -395,9 +404,10 @@ def swagger_doc(cls, tags=None):
             post_model, responses = cls.get_swagger_doc('patch')
             sample = cls.sample()
             if sample:
+                sample_dict = get_sample_dict(sample)
                 sample_data = schema_from_object('{} PATCH sample'.format(class_name) ,
                                                 {'data' : 
-                                                    {'attributes' : sample._s_to_dict(), 
+                                                    {'attributes' : sample_dict, 
                                                      'id' : cls.sample_id(),
                                                      'type' : class_name 
                                                     }
