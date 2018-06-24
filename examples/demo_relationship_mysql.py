@@ -148,7 +148,8 @@ if __name__ == '__main__':
             user= User( name = 'test_name_' +str(i) )
             user.books.append(book)
 
-        api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(HOST, PORT))
+        bbb = 'www.blackbirdbits.com'
+        api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(bbb, PORT))
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
