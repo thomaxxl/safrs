@@ -279,9 +279,9 @@ class Api(FRSApiBase):
                 operation, definitions_ = Extractor.extract(operation)
                 path_item[method] = operation
                 definitions.update(definitions_)
-                summary = parse_method_doc(f, operation)
-                if summary:
-                    operation['summary'] = summary.replace('<br/>','')
+                # summary = parse_method_doc(f, operation)
+                # if summary:
+                #     operation['summary'] = summary.replace('<br/>','')
 
 
         validate_definitions_object(definitions)

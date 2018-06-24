@@ -548,6 +548,3 @@ def get_db():
 
 db = get_db()
 ma = Marshmallow()
-
-
-
