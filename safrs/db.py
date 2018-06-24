@@ -19,7 +19,7 @@ from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jso
 from .errors import GenericError, NotFoundError
 from .safrs_types import SAFRSID
 from .util import classproperty
-from .config import OBJECT_ID_SUFFIX, AUTOINCREMENT_IDS
+from .config import OBJECT_ID_SUFFIX
 
 if sys.version_info[0] == 3:
     unicode = str
@@ -65,11 +65,16 @@ def init_object_schema(obj):
             model = obj.__class__
             
     obj.__class__.object_schema = ObjectSchema()
-  
+
+
+
+
+from flask_sqlalchemy import Model, SQLAlchemy
+
 #
 # SAFRSBase superclass
 #
-class SAFRSBase(object):
+class SAFRSBase(Model):
     '''
         Implement Json Serialization for SAFRSMail SQLalchemy Persistent Objects
         the serialization itself is performed by the to_dict() method
@@ -116,8 +121,7 @@ class SAFRSBase(object):
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
         # validation is implemented
-        if not AUTOINCREMENT_IDS:
-            kwargs['id'] = self.id_type(kwargs.get('id', None))
+        kwargs['id'] = self.id_type(kwargs.get('id', None))
         
         # Set the json parameters
         init_object_schema(self)
@@ -129,17 +133,20 @@ class SAFRSBase(object):
         relationships = self._s_relationships
         for column in columns:
             arg_value = kwargs.get(column.name, None)
-            if arg_value:
-                arg_value = column.type.python_type(arg_value)
-                if arg_value == None and column.default:
-                    arg_value = column.default.arg
-                db_args[column.name] = arg_value
+            if arg_value is None and column.default:
+                arg_value = column.default.arg
+            db_args[column.name] = arg_value
 
         # db_args now contains the class attributes. Initialize the db model with them
         # All subclasses should have the db.Model as superclass.
         # ( SQLAlchemy doesn't work when using db.Model as SAFRSBase superclass )
-        db.Model.__init__(self, **db_args)
-
+        try:
+            db.Model.__init__(self, **db_args)
+        except Exception as exc:
+            # OOPS .. things are going bad , this might happen using sqla automap
+            log.error('Failed to instantiate object')
+            db.Model.__init__(self)
+        
         # Parse all provided relationships: empty the existing relationship and 
         # create new instances for the relationship objects
         for rel in relationships:
@@ -206,10 +213,9 @@ class SAFRSBase(object):
     def _s_relationships(self):
         return self.__mapper__.relationships
 
-    def _s_patch(self, **kwargs):
-        for attr in self._s_column_names:
-            value = kwargs.get(attr,None)
-            if value != None:
+    def _s_patch(self, **attributes):
+        for attr, value in attributes.items():
+            if attr in self._s_column_names:
                 setattr(self, attr, value)
     
     @classmethod
@@ -306,20 +312,27 @@ class SAFRSBase(object):
 
 
     @classmethod
-    def get_instance(cls, id = None, failsafe = False):
+    def get_instance(cls, item = None, failsafe = False):
         '''
             Parameters:
-                id: instance id
+                item: instance id or dict { "id" : .. "type" : ..}
                 failsafe: indicates whether we want an exception to be raised in case the id is not found
 
             Returns:
                 Instance or None. An error is raised if an invalid id is used
         '''
+        if isinstance(item, dict):
+            id = item.get('id', None)
+            if item.get('type') != cls._s_type:
+                raise ValidationError('Invalid item type')
+        else:
+            id = item
 
         instance = None
-        if id or not failsafe:
+        if not id is None or not failsafe:
             try:
-                instance = cls._s_query.filter_by(id=id).first()
+                #instance = cls._s_query.filter_by(id=id).first()
+                instance = cls._s_query.get(id)
             except Exception as exc:
                 log.error('get_instance : ' + str(exc))
 
@@ -533,6 +546,3 @@ def get_db():
 
 db = get_db()
 ma = Marshmallow()
-
-
-

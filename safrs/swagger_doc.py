@@ -310,6 +310,17 @@ def swagger_method_doc(cls, method_name, tags=None):
 
     return swagger_doc_gen
 
+
+def get_sample_dict(sample):
+    if getattr(sample, '_s_to_dict', False):
+        # ==> isinstance SAFRSBASE
+        sample_dict = sample._s_to_dict()
+    else:
+        cols = sample.__table__.columns
+        sample_dict = { col.name : "" for col in cols if not col.name == 'id'}
+
+    return sample_dict
+
 #
 # Decorator is called when a swagger endpoint class is instantiated
 # from API.expose_object eg.
@@ -356,9 +367,10 @@ def swagger_doc(cls, tags=None):
             #
             sample = cls.sample()
             if sample:
+                sample_dict = get_sample_dict(sample)
                 sample_data = schema_from_object(model_name,
                                                 {'data' : 
-                                                    {'attributes' : sample._s_to_dict(), 
+                                                    {'attributes' : sample_dict, 
                                                       'type' : class_name 
                                                     }
                                                 })
@@ -395,9 +407,10 @@ def swagger_doc(cls, tags=None):
             post_model, responses = cls.get_swagger_doc('patch')
             sample = cls.sample()
             if sample:
+                sample_dict = get_sample_dict(sample)
                 sample_data = schema_from_object(model_name,
-                                                {'data' : 
-                                                    {'attributes' : sample._s_to_dict(), 
+                                                {'data' :
+                                                    {'attributes' : sample_dict,
                                                      'id' : cls.sample_id(),
                                                      'type' : class_name 
                                                     }
@@ -527,8 +540,6 @@ def swagger_relationship_doc(cls, tags = None):
         return wrapper
 
     return swagger_doc_gen
-
-
 
 def default_paging_parameters():
 
