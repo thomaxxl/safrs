@@ -135,6 +135,8 @@ class SAFRSBase(Model):
             arg_value = kwargs.get(column.name, None)
             if arg_value is None and column.default:
                 arg_value = column.default.arg
+            elif not arg_value is None:
+                arg_value = column.type.python_type(arg_value)
             db_args[column.name] = arg_value
 
         # db_args now contains the class attributes. Initialize the db model with them

@@ -706,6 +706,8 @@ class SAFRSRestAPI(Resource, object):
 
     def get(self, **kwargs):
         '''
+             
+            
             HTTP GET: return instances
             If no id is given: return all instances
             If an id is given, get an instance by id
@@ -764,6 +766,7 @@ class SAFRSRestAPI(Resource, object):
 
     def patch(self, **kwargs):
         '''
+             
             Create or update the object specified by id
         '''
         id = kwargs.get(self.object_id, None)
@@ -819,6 +822,7 @@ class SAFRSRestAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
+             
             http://jsonapi.org/format/#crud-creating
             Creating Resources
             A resource can be created by sending a POST request to a URL that represents a collection of resources.
@@ -902,6 +906,7 @@ class SAFRSRestAPI(Resource, object):
 
     def delete(self, **kwargs):
         '''
+             
             Delete an object by id or by filter
 
             http://jsonapi.org/format/1.1/#crud-deleting:
@@ -1181,6 +1186,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     def get(self, **kwargs):
         '''
+
             Retrieve a relationship or list of relationship member ids
 
             http://jsonapi.org/format/#fetching-relationships-responses :
