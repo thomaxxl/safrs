@@ -595,7 +595,8 @@ def get_included(data, limit):
         return result
 
     # When we get here, data has to be a SAFRSBase instance
-    assert(isinstance(data, SAFRSBase))
+    if not isinstance(data, SAFRSBase):
+        return result
     instance = data
 
     # Multiple related resources can be requested in a comma-separated list
