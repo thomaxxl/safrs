@@ -32,13 +32,18 @@ def expose_tables():
 
     Base = automap_base()
     Base.prepare(db.engine, reflect=True)
+    db.engine.execute('''PRAGMA journal_mode = OFF''') 
     
     for table in Base.classes:
 
-        print(table)
+        
+        table_name = str(table.__table__.name)
+        print(table_name)
 
-        sclass = type(str(table.__table__.name), (SAFRSBase, table), 
-                      dict(__tablename__ = table.__table__.name, _table = table))
+        sclass = type(table_name, (SAFRSBase, table), 
+                      dict(__tablename__ = table_name, _table = table))
+
+        sclass.object_id = table_name + 'Id'
 
         session = scoped_session(sessionmaker(bind=db.engine))
         api.expose_object(sclass)

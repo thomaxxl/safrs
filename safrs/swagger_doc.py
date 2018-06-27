@@ -456,6 +456,24 @@ def swagger_relationship_doc(cls, tags = None):
         class_name = cls.__name__ 
         table_name = cls.__tablename__
         http_method = func.__name__.lower()
+        
+
+        ################################################################################################################
+        # Following will only happen when exposing an exisiting DB
+        #
+        if not getattr(parent_class, 'object_id', None):
+            parent_class.object_id = parent_class.__name__ + 'Id'
+        if not getattr(child_class, 'object_id', None):
+            child_class.object_id = child_class.__name__ + 'Id'
+        if not getattr(parent_class,'sample_id', None):
+            setattr(parent_class,'sample_id', lambda : '')
+        if not getattr(child_class,'sample_id', None):
+            setattr(child_class,'sample_id', lambda : '')
+        if not getattr(child_class, 'get_swagger_doc', None):
+            setattr(child_class, 'get_swagger_doc', lambda x: (None, {}) )
+        #
+        ################################################################################################################
+
         parameters = [{
                         'name': parent_class.object_id,
                         'in': 'path',
@@ -497,7 +515,7 @@ def swagger_relationship_doc(cls, tags = None):
                                                                                 cls.relationship.key,
                                                                                 parent_name)
             # TODO: change this crap
-            put_model, responses = child_class.get_swagger_doc('patch')
+            _, responses = child_class.get_swagger_doc('patch')
             rel_post_schema = schema_from_object('{}_Relationship'.format(class_name),
                                                 {'data':  [ 
                                                             {'type' : child_class.__name__  , 'id' : child_class.sample_id() } 
@@ -521,7 +539,7 @@ def swagger_relationship_doc(cls, tags = None):
             responses = {'204' : {'description' : 'Object Deleted'}}
 
         elif http_method == 'patch' or http_method == 'put':
-            put_model, responses = child_class.get_swagger_doc(http_method)
+            #put_model, responses = child_class.get_swagger_doc(http_method)
             doc['summary'] =  'Update a {} object'.format(class_name)
             responses = {'201' : {'description' : 'Object Created'}}
         else:
