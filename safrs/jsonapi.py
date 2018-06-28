@@ -63,7 +63,7 @@ from .config import ENABLE_RELATIONSHIPS
 from sqlalchemy import or_, and_
 
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
-
+flatten = lambda l: [item for sublist in l for item in sublist]
 
 class Api(FRSApiBase):
     '''
@@ -563,7 +563,7 @@ def jsonapi_sort(object_query, safrs_object):
     '''
     sort_columns = request.args.get('sort',None)
     if not sort_columns is None :
-      for sort_column in sort_columns.split(','):
+        for sort_column in sort_columns.split(','):
             if sort_column.startswith('-'):
                 attr = getattr(safrs_object, sort_column[1:], None).desc()
                 object_query = object_query.order_by(attr)
@@ -573,24 +573,25 @@ def jsonapi_sort(object_query, safrs_object):
 
     return object_query
 
-def get_included(data, limit):
+def get_included(data, limit, include = None):
     '''
         return a set of included items
 
         http://jsonapi.org/format/#fetching-includes
 
         Inclusion of Related Resources
+        Multiple related resources can be requested in a comma-separated list:
         An endpoint MAY return resources related to the primary data by default.
         An endpoint MAY also support an include request parameter to allow the client to customize which related resources should be returned.
+        In order to request resources related to other resources, a dot-separated path for each relationship name can be specified
     '''
-
     result  = set()
-    include = request.args.get('include', None)
+
     if not include:
         return result
 
-    if isinstance(data, list):
-        for included in [ get_included(obj, limit) for obj in data ]:
+    if isinstance(data, (list, set)):
+        for included in [ get_included(obj, limit, include) for obj in data ]:
             result = result.union(included)
         return result
 
@@ -603,11 +604,12 @@ def get_included(data, limit):
     includes = include.split(',')
 
     for include in includes:
-        if '.' in include:
-            endpoint, relationship = include.split('.')
-        else:
-            relationship = include
 
+        relationship = include.split('.')[0]
+        nested_rel = None
+        if '.' in include:
+            nested_rel = '.'.join(include.split('.')[1:])
+        
         if relationship in [ r.key for r in instance._s_relationships]:
             included = getattr(instance,relationship)
             # relationship direction in (ONETOMANY, MANYTOMANY):
@@ -624,10 +626,14 @@ def get_included(data, limit):
                     log.critical('Failed to add included for {}, please file a bug report'.format(relationship))
                     result.add(included)
 
+        if nested_rel:
+            for nested_included in [ get_included(result, limit, nested_rel) for obj in result ]:
+                result = result.union(nested_included)
+
     return result
 
 
-def jsonapi_format_response(data, meta, links, errors, count):
+def jsonapi_format_response(data, meta = None, links = None, errors = None, count = None):
 
     limit = request.args.get('page[limit]', UNLIMITED)
     try:
@@ -638,9 +644,11 @@ def jsonapi_format_response(data, meta, links, errors, count):
     meta['count'] = count
 
     jsonapi  = dict(version='1.0')
-    included = list(get_included(data, limit))
+    included = list(get_included(data, limit, include = request.args.get('include', None)))
+    '''if count >= 0:
+        included = jsonapi_format_response(included, {}, {}, {}, -1)'''
     result   = dict(data = data)
-    
+
     if errors:
         result['errors'] = errors
     if meta:
@@ -1209,14 +1217,16 @@ class SAFRSRestRelationshipAPI(Resource, object):
             else:
                 return 'Not Found', 404
         #elif type(relation) == self.child_class: # ==> 
-        elif MANYTOONE == self.SAFRSObject.relationship.direction:
+        elif self.SAFRSObject.relationship.direction == MANYTOONE:
             result = relation
+            meta = { 'direction' : 'TOONE' }
         else:
             # No {ChildId} given:
             # return a list of all relationship items
             result = [ item for item in relation ]
+            meta = { 'direction' : 'TOMANY'}
 
-        result = { 'data' : result, 'links' : { 'self' : request.url } }
+        result = { 'data' : result, 'links' : { 'self' : request.url }, 'meta' : meta }
         return jsonify(result)
 
     def patch(self, **kwargs):
@@ -1413,7 +1423,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             result = self.jsonapi_encode(object)
             return result
         if isinstance(object, datetime.datetime) or isinstance(object, datetime.date):
-            return object.isoformat()
+            return object.isoformat(' ')
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
         if isinstance(object, set):
@@ -1463,6 +1473,13 @@ class SAFRSJSONEncoder(JSONEncoder, object):
         included_csv = request.args.get('include','')
         included_list = included_csv.split(',')
 
+        # In order to request resources related to other resources, a dot-separated path for each relationship name can be specified
+        nested_included_list = []
+        for inc in included_list:
+            if '.' in inc: 
+                nested_included_list += inc.split('.')
+        included_list += nested_included_list
+
         for relationship in object.__mapper__.relationships:
             '''
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -1501,7 +1518,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 #continue
                 pass
             data = None
-            if rel_name in included_list:
+            if rel_name in included_list :
 
                 if relationship.direction == MANYTOONE:
                     rel_item = getattr(object, rel_name)
