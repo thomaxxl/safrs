@@ -577,6 +577,6 @@ def default_paging_parameters():
              'in': 'query',
              'format' : 'int64',
              'required' : False,
-             'description' : 'max number of items'}
+             'description' : 'Max number of items'}
     parameters.append(param)
     return parameters

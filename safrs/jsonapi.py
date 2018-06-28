@@ -315,7 +315,7 @@ class Api(FRSApiBase):
                                      'in': 'query',
                                      'format' : 'string',
                                      'required' : False,
-                                     'description' : 'related relationships to include (csv)'}
+                                     'description' : 'Related relationships to include (csv)'}
                             if not param in filtered_parameters:
                                 filtered_parameters.append(param)
 
@@ -1422,8 +1422,10 @@ class SAFRSJSONEncoder(JSONEncoder, object):
         if isinstance(object, SAFRSBase):
             result = self.jsonapi_encode(object)
             return result
-        if isinstance(object, datetime.datetime) or isinstance(object, datetime.date):
+        if isinstance(object, datetime.datetime) :
             return object.isoformat(' ')
+        if isinstance(object, datetime.date):
+            return object.isoformat()
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
         if isinstance(object, set):
@@ -1519,13 +1521,17 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 pass
             data = None
             if rel_name in included_list :
-
                 if relationship.direction == MANYTOONE:
+                    meta['direction'] = 'MANYTOONE'
                     rel_item = getattr(object, rel_name)
                     if rel_item:
                         data  = { 'id' : rel_item.id , 'type' : rel_item.__tablename__ }
 
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
+                    if relationship.direction == ONETOMANY:
+                        meta['direction'] = 'ONETOMANY'
+                    else:
+                        meta['direction'] = 'MANYTOMANY'
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(object, rel_name)
                     limit  = request.args.get('page[limit]', MAX_QUERY_THRESHOLD)
