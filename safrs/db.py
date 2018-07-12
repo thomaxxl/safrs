@@ -217,99 +217,6 @@ class SAFRSBase(Model):
         for attr, value in attributes.items():
             if attr in self._s_column_names:
                 setattr(self, attr, value)
-    
-    @classmethod
-    #@documented_api_method
-    def get_list(self, id_list):
-        '''
-            description: [deprecated] use csv filter[id] instead
-            args:
-                id_list:
-                    - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-                    - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-        '''
-
-        result = []
-        for id in id_list:
-            instance = self._s_query.get(id)
-            if id:
-                result.append(instance)
-
-        return result
-    
-    @classmethod
-    #@documented_api_method
-    def lookup_re_mysql(cls, **kwargs):
-        '''
-            pageable: True
-            description : Regex search all matching objects (works only in MySQL!!!)
-            args:
-                name: thom.*
-        '''
-        from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
-
-        result = cls
-        response = SAFRSFormattedResponse()
-        
-        for k, v in kwargs.items():
-            column = getattr(cls, k, None)
-            if not column:
-                raise ValidationError('Invalid Column "{}"'.format(k))
-            try:
-                result = result.query.filter(column.op('regexp')(v))
-                instances = result
-                links, instances, count = paginate(instances)
-                data = [ item for item in instances ]
-                meta = {}
-                errors = None
-                response.response = jsonapi_format_response(data, meta, links, errors, count)
-
-            except Exception as exc:
-                raise GenericError("Failed to execute query {}".format(exc))
-
-        return result.all()
-
-    @classmethod
-    #@documented_api_method
-    def startswith(cls, **kwargs):
-        '''
-            pageable: True
-            description : lookup column names
-            args:
-                name: t
-        '''
-        from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
-
-        result = cls
-        response = SAFRSFormattedResponse()
-        try:
-            instances = result.query
-            links, instances, count = paginate(instances)
-            data = [ item for item in instances ]
-            meta = {}
-            errors = None
-            response.response = jsonapi_format_response(data, meta, links, errors, count)
-
-        except Exception as exc:
-            raise GenericError("Failed to execute query {}".format(exc))
-
-        for k, v in kwargs.items():
-            column = getattr(cls, k, None)
-            if not column:
-                raise ValidationError('Invalid Column "{}"'.format(k))
-            try:
-                instances = result.query.filter(column.like(v + '%'))
-                links, instances, count = paginate(instances)
-                data = [ item for item in instances ]
-                meta = {}
-                errors = None
-                response.response = jsonapi_format_response(data, meta, links, errors, count)
-
-            except Exception as exc:
-                raise GenericError("Failed to execute query {}".format(exc))
-
-        return response
-
 
     @classmethod
     def get_instance(cls, item = None, failsafe = False):
@@ -546,6 +453,3 @@ def get_db():
 
 db = get_db()
 ma = Marshmallow()
-
-
-

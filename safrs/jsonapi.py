@@ -236,7 +236,7 @@ class Api(FRSApiBase):
         # query and delete the class relationship properties for a given
         # child id
         url = (RELATIONSHIP_URL_FMT + '/<string:{}>').format(url_prefix, rel_name , child_object_id)
-        endpoint = "{}-api.{}Id".format(url_prefix, rel_name)
+        endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
         log.info('Exposing {} relationship {} on {}, endpoint: {}'.format(parent_name, rel_name, url, endpoint))
 
