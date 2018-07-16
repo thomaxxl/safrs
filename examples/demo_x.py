@@ -17,17 +17,9 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from sqlalchemy import Column, String, ForeignKey
-from safrs.db import SAFRSBase, documented_api_method
+from safrs.db import SAFRSBase, documented_api_method, jsonapi_rpc
 from safrs.jsonapi import SAFRSJSONEncoder, Api
-
-from flask_admin import Admin
-from flask_admin import BaseView
-from flask_admin.contrib import sqla
-
 db = SQLAlchemy()
-# Needed because we don't want to implicitly commit when using flask-admin
-SAFRSBase.db_commit = False
 
 # Example sqla database object
 class User(SAFRSBase, db.Model):
@@ -35,44 +27,55 @@ class User(SAFRSBase, db.Model):
         description: User description
     '''
     __tablename__ = 'Users'
-    id = Column(String, primary_key=True)
-    name = Column(String, default='')
-    email = Column(String, default='')
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default='')
+    email = db.Column(db.String, default='')
     books = db.relationship('Book', back_populates="user", lazy='dynamic')
 
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
-    @documented_api_method
-    def send_mail(self, email):
+    @classmethod
+    @jsonapi_rpc(http_methods = ['POST','GET'])
+    def send_mail(self, **args):
         '''
-            description : Send an email
-            args:
-                email:
-                    type : string
-                    example : test email
+        description : Send an email
+        args:
+            email:
+                type : string
+                example : test email
         '''
-        content = 'Mail to {} : {}\n'.format(self.name, email)
-        with open('/tmp/mail.txt', 'a+') as mailfile:
-            mailfile.write(content)
-        return {'result' : 'sent {}'.format(content)}
+        return {'result' : args}
 
 class Book(SAFRSBase, db.Model):
     '''
         description: Book description
     '''
     __tablename__ = 'Books'
-    id = Column(String, primary_key=True)
-    name = Column(String, default='')
-    user_id = Column(String, ForeignKey('Users.id'))
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default='')
+    user_id = db.Column(db.String, db.ForeignKey('Users.id'))
     user = db.relationship('User', back_populates='books')
 
-class UserView(sqla.ModelView):
-    pass
 
 
-class BookView(sqla.ModelView):
-    pass
+class empty_obj:
+    columns = []
+    relationships = []
 
+class Test(SAFRSBase):
+
+    __tablename__ = 'Test'
+    __mapper__ = empty_obj
+    
+    @classmethod
+    def sample(cls):
+        return {}
+
+    @classmethod
+    def get_instance(cls, *args, **kwargs):
+        return None
+
+    _s_query = lambda x: None
 
 if __name__ == '__main__':
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
@@ -82,42 +85,36 @@ if __name__ == '__main__':
          origins="*",
          allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
          supports_credentials=True)
-    app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://', DEBUG=True, SECRET_KEY = 'secret')
+    app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://', DEBUG=True)
     db.init_app(app)
     db.app = app
     # Create the database
     db.create_all()
-    admin = Admin(app, url='/admin')
-    admin.add_view(UserView(User, db.session))
-    admin.add_view(BookView(Book, db.session))
-    SAFRSBase.db_commit
-
     API_PREFIX = '/api'
     log = logging.getLogger()
     log.setLevel(logging.DEBUG)
     logging.getLogger(__name__).setLevel(logging.DEBUG)
     builtins.log = log
+    # prevent redirects when a trailing slash isn't present
+    app.url_map.strict_slashes = False
 
     with app.app_context():
         # Create a user and a book and add the book to the user.books relationship
         user = User(name='thomas', email='em@il')
         book = Book(name='test_book')
         user.books.append(book)
-        db.session.add(user)
-        db.session.add(book)
-        db.session.commit() # COMMIT because SAFRSBase.db_commit = False
 
         api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(HOST, PORT))
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
+        api.expose_object(Test)
         # Set the JSON encoder used for object to json marshalling
         app.json_encoder = SAFRSJSONEncoder
         @app.route('/')
-        def index():
+        def goto_api():
             '''Create a redirect from / to /api'''
-            return """<ul><li><a href=admin>admin</a></li><li><a href=api>api</a></li>"""
-
+            return redirect(API_PREFIX)
         # Register the API at /api/docs
         swaggerui_blueprint = get_swaggerui_blueprint(API_PREFIX, API_PREFIX + '/swagger.json')
         app.register_blueprint(swaggerui_blueprint, url_prefix=API_PREFIX)
