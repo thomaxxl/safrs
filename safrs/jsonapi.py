@@ -1203,8 +1203,8 @@ class SAFRSRestRelationshipAPI(Resource, object):
             The top-level links object MAY contain self and related links, as described above for relationship objects.
         '''
         parent, relation = self.parse_args(**kwargs)
-
         child_id = kwargs.get(self.child_object_id)
+
         if child_id:
             child = self.child_class.get_instance(child_id)
             # If {ChildId} is passed in the url, return the child object
@@ -1219,11 +1219,14 @@ class SAFRSRestRelationshipAPI(Resource, object):
         #elif type(relation) == self.child_class: # ==> 
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             result = relation
-            meta = { 'direction' : 'TOONE' }
         else:
             # No {ChildId} given:
             # return a list of all relationship items
             result = [ item for item in relation ]
+        
+        if self.SAFRSObject.relationship.direction == MANYTOONE:
+            meta = { 'direction' : 'TOONE' }
+        else:
             meta = { 'direction' : 'TOMANY'}
 
         result = { 'data' : result, 'links' : { 'self' : request.url }, 'meta' : meta }
