@@ -1,7 +1,7 @@
 SAFRS: Python OpenAPI & JSON:API Framework
 ==========================================
 
-Please check the `GitHub Repository <https://github.com/thomaxxl/safrs>`__ compliant API specification.
+Please check the `GitHub Readme <https://github.com/thomaxxl/safrs>`__ for documentation.
 
 Overview
 --------

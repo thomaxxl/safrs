@@ -1258,7 +1258,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             raise ValidationError('Invalid Object Type')
 
         data = json.get('data')
-
         relation = getattr(parent, self.rel_name )
         obj_args = { self.parent_object_id : parent.id }
 

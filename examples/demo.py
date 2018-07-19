@@ -1,99 +1,55 @@
-#!/usr/bin/env python
-#
-# This is a demo application to demonstrate the functionality of the safrs_rest REST API
-#
-# It can be ran standalone like this:
-# python demo.py [Listener-IP]
-#
-# This will run the example on http://Listener-Ip:5000
-#
-# - A database is created and a user is added
-# - A rest api is available
-# - swagger2 documentation is generated
-#
-import sys
 
+import sys
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String
-from safrs.db import SAFRSBase, documented_api_method
-from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
+from flask_cors import CORS
+from sqlalchemy import Column, String, ForeignKey
 
+from flask_admin import Admin
+from flask_admin import BaseView
+from flask_admin.contrib import sqla
 
+db = SQLAlchemy()
 
-db  = SQLAlchemy()
+def __constructor__(self, *args, **kwargs):
+    # initialize super of class type
+    super(self.__class__, self).__init__(*args, **kwargs)
 
-# Example sqla database object
-class User(SAFRSBase):
-    '''
-        description: User description
-    '''
-    __tablename__ = 'users'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    email = Column(String, default = '')
+def expose_tables(admin):
+    from sqlalchemy.orm import scoped_session
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.declarative import as_declarative
 
-    # Following method is exposed through the REST API 
-    # This means it can be invoked with a HTTP POST
-    @documented_api_method
-    def send_mail(self, email):
-        '''
-            description : Send an email
-            args:
-                email:
-                    type : string 
-                    example : test email
-        '''
-        content = 'Mail to {} : {}\n'.format(self.name, email)
-        with open('/tmp/mail.txt', 'a+') as mailfile : 
-            mailfile.write(content)
-        return { 'result' : 'sent {}'.format(content)}
+    Base = automap_base()
+    Base.prepare(db.engine, reflect=True)
+    db.engine.execute('''PRAGMA journal_mode = OFF''') 
 
+    for table in Base.classes:
+        table_name = str(table.__table__.name)
+        print('exposing', table_name)
+        sclass = type(table_name, (table,), {'__init__':__constructor__})
+        session = scoped_session(sessionmaker(bind=db.engine))
 
-def create_api(app):
+        class FlaskAdminView(sqla.ModelView):
+            pass
 
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
-    # Expose the User object 
-    api.expose_object(User)
-    user = User(name='test',email='em@il')
+        admin.add_view(FlaskAdminView(sclass, session))
 
-    # Set the JSON encoder used for object to json marshalling
-    app.json_encoder = SAFRSJSONEncoder
-    # Register the API at /api/docs
-    swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
-    app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
-
-
-    print('Starting API: http://{}:{}/api'.format(HOST,PORT))
-    app.run(host=HOST, port = PORT)
-
+from sqlalchemy.ext.automap import automap_base
 
 
 if __name__ == '__main__':
-    app = Flask('demo_app')
-    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',      
-                       SQLALCHEMY_TRACK_MODIFICATIONS = False,   
-                       DEBUG = True)
-    db.init_app(app)
-
-    @app.route('/')
-    def goto_api():
-        return redirect('/api')
-
-    @app.teardown_appcontext
-    def shutdown_session(exception=None):
-        '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
-        db.session.remove()
-
-
-    # Start the application
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
     PORT = 5000
-
+    app = Flask('SAFRS Demo Application')
+    app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:////tmp/test.sqlite', DEBUG=True, SECRET_KEY = 'secret')
     db.init_app(app)
+    db.app = app
     # Create the database
-
+    db.create_all()
+    admin = Admin(app, url='/admin')
+    expose_tables(admin)
+    
     with app.app_context():
-        db.create_all()
-        create_api(app)
+        app.run(host=HOST, port=PORT)

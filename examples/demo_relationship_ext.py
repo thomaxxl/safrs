@@ -70,7 +70,7 @@ if __name__ == '__main__':
          origins="*",
          allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
          supports_credentials=True)
-    app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://', DEBUG=True)
+    app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:////tmp/test.sqlite', DEBUG=True)
     db.init_app(app)
     db.app = app
     # Create the database
