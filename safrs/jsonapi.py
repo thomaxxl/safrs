@@ -714,6 +714,7 @@ class SAFRSRestAPI(Resource, object):
 
 
     def get(self, **kwargs):
+        print('gg')
         '''
              
             
@@ -1557,14 +1558,14 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                             count = len(items)
                         meta['count'] = count
                         meta['limit'] = limit
-                        data  = [{ 'id' : i.id , 
+                        data  = [{ 'id' : i.jsonapi_id , 
                                    'type' : i.__tablename__ } for i in items ]
                         
                 else: # shouldn't happen!!
                     raise GenericError('Unknown relationship direction for relationship {}: {}'.format(rel_name,  relationship.direction ))
 
             self_link = '{}{}/{}'.format( obj_url,
-                                          object.id,
+                                          object.jsonapi_id,
                                           rel_name)
             links = dict(self = self_link)
             rel_data = dict(links = links)
@@ -1586,7 +1587,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                 raise ValidationError ('Invalid Field {}'.format(exc))
 
         data = dict( attributes = attributes,
-                     id = object.id,
+                     id = object.jsonapi_id,
                      type = object._s_type,
                      relationships = relationships
                     )

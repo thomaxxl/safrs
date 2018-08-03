@@ -103,6 +103,8 @@ class SAFRSID(object):
         - gen_id
         - validate_id
     '''
+    primary_keys = ['id']
+    delimiter = ','
 
     def __new__(cls, id = None):
         
@@ -117,11 +119,39 @@ class SAFRSID(object):
 
     @classmethod
     def validate_id(cls, id):
-        try:
-            uuid.UUID(id, version=4)
-            return id
-        except:
-            raise ValidationError('Invalid ID')
+        for pk in id.split(cls.delimiter):
+            try:
+                uuid.UUID(pk, version=4)
+                return pk
+            except:
+                raise ValidationError('Invalid ID')
+
+    @property
+    def name(self):
+        return self.delimiter.join(self.primary_keys)
+
+    @classmethod
+    def get_id(self, obj):
+        '''
+            Retrieve the id string derived from the pks of obj
+        '''
+        values = [ getattr(obj,pk) for pk in self.primary_keys]
+        return self.delimiter.join(values)
+
+    @classmethod
+    def get_pks(cls, id):
+        '''
+            Convert the id string to a pk dict
+        '''
+        values = id.split(cls.delimiter)
+        result = dict(zip(cls.primary_keys, values))
+        return result
+
+
+def get_id_type(cls):
+    primary_keys = [ col.name for col in cls.__table__.columns if col.primary_key ]
+    id_type_class = type(cls.__name__ + '_ID' , (SAFRSID,), {'primary_keys' : primary_keys})
+    return id_type_class
 
 
 class SAFRSSHA256HashID(SAFRSID):

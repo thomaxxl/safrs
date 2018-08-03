@@ -17,7 +17,7 @@ from flask_sqlalchemy import SQLAlchemy
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jsonapi_rpc
 from .errors import GenericError, NotFoundError
-from .safrs_types import SAFRSID
+from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
 from .config import OBJECT_ID_SUFFIX
 
@@ -86,7 +86,6 @@ class SAFRSBase(Model):
     '''
 
     object_schema = None
-    id_type = SAFRSID
     query_limit = 50
     db_commit = True   # set this to False if you want to use the SAFRSBase in combination with another framework, eg flask-admin
                        # The caller will have to add and commit the object by itself then...
@@ -95,11 +94,10 @@ class SAFRSBase(Model):
         '''
             If an object with given arguments already exists, this object is instantiated
         '''
+        if getattr(cls, 'id_type', None) is None:
+            cls.id_type = get_id_type(cls)
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
-        primary_keys = {}
-        for col in cls.__table__.columns:
-            if col.primary_key:
-                primary_keys [ col.name ] = kwargs.get(col.name)
+        primary_keys = cls.id_type.get_pks(kwargs.get('id',''))
 
         # Lookup the object with the PKs
         instance = cls.query.filter_by(**primary_keys).first()
@@ -169,11 +167,14 @@ class SAFRSBase(Model):
                 # Exception may arise when a db constrained has been violated (e.g. duplicate key)
                 raise GenericError(str(exc))
 
-
     def _s_expunge(self):
         session = sqla_inspect(self).session
         session.expunge(self)
     
+    @property
+    def jsonapi_id(self):
+        return self.id_type.get_id(self)
+
     @classproperty
     def _s_query(cls):
         _table = getattr(cls,'_table', None)
@@ -235,11 +236,12 @@ class SAFRSBase(Model):
         else:
             id = item
 
+        primary_keys = cls.id_type.get_pks(id)
         instance = None
         if not id is None or not failsafe:
             try:
                 #instance = cls._s_query.filter_by(id=id).first()
-                instance = cls._s_query.get(id)
+                instance = cls.query.filter_by(**primary_keys).first()
             except Exception as exc:
                 log.error('get_instance : ' + str(exc))
 

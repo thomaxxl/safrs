@@ -24,30 +24,28 @@ from flask import render_template
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, ForeignKey, Table
-from safrs.db import SAFRSBase, documented_api_method
-from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_marshmallow import Marshmallow
-
 from flask_cors import CORS
-from safrs.db import SAFRSBase, jsonapi_rpc
-from safrs.jsonapi import SAFRSJSONEncoder, Api, paginate, jsonapi_format_response, SAFRSFormattedResponse
-from safrs.errors import ValidationError, GenericError
-from safrs.api_methods import search, startswith
-
-
 from flask_admin import Admin
 from flask_admin import BaseView
 from flask_admin.contrib import sqla
+from safrs import SAFRSBase, jsonapi_rpc
+from safrs import SAFRSJSONEncoder, Api, paginate, jsonapi_format_response, SAFRSFormattedResponse
+from safrs import ValidationError, GenericError
+from safrs import search, startswith
 
 # Needed because we don't want to implicitly commit when using flask-admin
 SAFRSBase.db_commit = False
-
+SAFRSBase.search = search
+SAFRSBase.startswith = startswith
 
 app = Flask('SAFRS Demo App', template_folder='/home/thomaxxl/mysite/templates')
+app.secret_key ='not so secret'
 CORS(   app,
         origins="*",
         allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+        
        supports_credentials = True)
 
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
@@ -67,11 +65,12 @@ class User(SAFRSBase, db.Model):
     email = Column(String, default = '')
     comment = Column(db.Text, default = '')
     books = db.relationship('Book', back_populates = "user")
+    reviews = db.relationship('Review', back_populates = "user")
 
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
     @classmethod
-    @documented_api_method
+    @jsonapi_rpc(http_methods = ['GET'])
     def send_mail(self, email):
         '''
             description : Send an email
@@ -85,18 +84,6 @@ class User(SAFRSBase, db.Model):
             mailfile.write(content)
         return { 'result' : 'sent {}'.format(content)}
 
-    search = search
-    startswith = startswith
-
-
-class Foo(SAFRSBase, db.Model):
-    '''
-        description: Book description
-    '''
-    __tablename__ = 'Foo'
-    id = Column(String, primary_key=True)
-    arg1 = Column(String, default = '')
-    bar = Column(String, default = '')
 
 
 class Book(SAFRSBase, db.Model):
@@ -108,8 +95,21 @@ class Book(SAFRSBase, db.Model):
     name = Column(String, default = '')
     user_id = Column(String, ForeignKey('Users.id'))
     user = db.relationship('User', back_populates='books')
+    reviews = db.relationship('Review')
 
-    search = search
+
+
+class Review(SAFRSBase, db.Model):
+    '''
+        description: Book description
+    '''
+    __tablename__ = 'Reviews'
+    user_id = Column(String, ForeignKey('Users.id'), primary_key=True)
+    book_id = Column(String, ForeignKey('Books.id'), primary_key=True)
+    review = Column(String, default = '')
+    user = db.relationship(User)
+    book = db.relationship(Book)
+
 
 
 db.create_all()
@@ -118,16 +118,10 @@ db.create_all()
 #
 # Flask-Admin Config
 #
-class UserView(sqla.ModelView):
-    pass
-
-
-class BookView(sqla.ModelView):
-    pass
-
 admin = Admin(app, url='/admin')
-admin.add_view(UserView(User, db.session))
-admin.add_view(BookView(Book, db.session))
+admin.add_view(sqla.ModelView(User, db.session))
+admin.add_view(sqla.ModelView(Book, db.session))
+admin.add_view(sqla.ModelView(Review, db.session))
 
 #
 # jsonapi-admin config
@@ -154,18 +148,22 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 
 with app.app_context():
     # populate the database
-    for i in range(100):
+    for i in range(10):
         user= User( name = 'name' +str(i), email="email"+str(i) )
         book = Book(name='test_book' + str(i))
+        review = Review(user_id = user.id, book_id = book.id, review='review ' + str(i))
+        
         user.books.append(book)
         db.session.add(user)
         db.session.add(book)
+        db.session.add(review)
         db.session.commit()
     
     api  = Api(app, api_spec_url = '/api/swagger', host = '{}'.format('thomaxxl.pythonanywhere.com'), schemes = [ "http" ], description = description )
     # Expose the User object
     api.expose_object(User)
     api.expose_object(Book)
+    api.expose_object(Review)
     # Set the JSON encoder used for object to json marshalling
     app.json_encoder = SAFRSJSONEncoder
     # Register the API at /api/docs
