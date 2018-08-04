@@ -103,7 +103,8 @@ class SAFRSID(object):
         - gen_id
         - validate_id
     '''
-    primary_keys = ['id']
+    primary_keys = None
+    columns = None
     delimiter = ','
 
     def __new__(cls, id = None):
@@ -119,10 +120,12 @@ class SAFRSID(object):
 
     @classmethod
     def validate_id(cls, id):
+        return
         for pk in id.split(cls.delimiter):
             try:
+                cls.column.type(pk)
                 uuid.UUID(pk, version=4)
-                return pk
+                #return pk
             except:
                 raise ValidationError('Invalid ID')
 
@@ -135,7 +138,7 @@ class SAFRSID(object):
         '''
             Retrieve the id string derived from the pks of obj
         '''
-        values = [ getattr(obj,pk) for pk in self.primary_keys]
+        values = [ str(getattr(obj,pk.name)) for pk in self.columns]
         return self.delimiter.join(values)
 
     @classmethod
@@ -143,14 +146,23 @@ class SAFRSID(object):
         '''
             Convert the id string to a pk dict
         '''
-        values = id.split(cls.delimiter)
-        result = dict(zip(cls.primary_keys, values))
+        values = str(id).split(cls.delimiter)
+        result = dict()
+        for pk_col, val in zip(cls.columns, values):
+            try:
+                result[pk_col.name] = pk_col.type.python_type(val)
+            except ValueError:
+                # This may happen if when the swagger doc is generated with default uuids
+                # todo: fix
+                result[pk_col.name] = pk_col.default
         return result
 
 
 def get_id_type(cls):
-    primary_keys = [ col.name for col in cls.__table__.columns if col.primary_key ]
-    id_type_class = type(cls.__name__ + '_ID' , (SAFRSID,), {'primary_keys' : primary_keys})
+    columns = [ col for col in cls.__table__.columns if col.primary_key ]
+    primary_keys = [ col.name for col in columns ]
+
+    id_type_class = type(cls.__name__ + '_ID' , (SAFRSID,), {'primary_keys' : primary_keys, 'columns' : columns })
     return id_type_class
 
 

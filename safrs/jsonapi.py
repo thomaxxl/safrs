@@ -89,6 +89,11 @@ class Api(FRSApiBase):
             classname: safrs_object.__name__, e.g. "User"
 
         '''
+        try:
+            tmp_obj = safrs_object()
+            del tmp_obj
+        except:
+            pass
         self.safrs_object = safrs_object
         api_class_name = '{}_API'.format(safrs_object._s_type)
 
@@ -714,7 +719,6 @@ class SAFRSRestAPI(Resource, object):
 
 
     def get(self, **kwargs):
-        print('gg')
         '''
              
             
@@ -1437,7 +1441,12 @@ class SAFRSJSONEncoder(JSONEncoder, object):
             return self.sqla_encode(object)
         if isinstance(object, SAFRSFormattedResponse):
             return object.to_dict()
-        log.warning('Unknown object type for {}'.format(object))
+        if isinstance(object, SAFRSFormattedResponse):
+            return object.to_dict()
+        if isinstance(object, bytes):
+            log.warning('bytes object, TODO')
+        else:
+            log.warning('Unknown object type "{}" for {}'.format(type(object), object))
         
         return self.ghetto_encode(object)
 

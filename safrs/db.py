@@ -173,7 +173,7 @@ class SAFRSBase(Model):
     
     @property
     def jsonapi_id(self):
-        return self.id_type.get_id(self)
+        return str(self.id_type.get_id(self))
 
     @classproperty
     def _s_query(cls):
@@ -317,6 +317,7 @@ class SAFRSBase(Model):
         '''
 
         first = None
+        return
         try:
             first = cls._s_query.first()
         except Exception as exc:
