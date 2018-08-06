@@ -42,11 +42,10 @@ SAFRSBase.startswith = startswith
 
 app = Flask('SAFRS Demo App', template_folder='/home/thomaxxl/mysite/templates')
 app.secret_key ='not so secret'
-CORS(   app,
-        origins="*",
-        allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-        
-       supports_credentials = True)
+CORS( app,
+      origins="*",
+      allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+      supports_credentials = True)
 
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
                    DEBUG = True)
@@ -102,8 +101,6 @@ class Person(SAFRSBase, db.Model):
         return { 'result' : 'sent {}'.format(content)}
 
 
-
-
 class Publisher(SAFRSBase, db.Model):
     '''
         description: Book description
@@ -120,7 +117,7 @@ class Review(SAFRSBase, db.Model):
         description: Book description
     '''
     __tablename__ = 'Reviews'
-    person_id = Column(String, ForeignKey('Persons.id'), primary_key=True)
+    reader_id = Column(String, ForeignKey('Persons.id'), primary_key=True)
     book_id = Column(String, ForeignKey('Books.id'), primary_key=True)
     review = Column(String, default = '')
     person = db.relationship(Person)
@@ -166,10 +163,10 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 with app.app_context():
     # populate the database
     for i in range(500):
-        reader = Person(name = 'Lender ' +str(i), email="email"+str(i) )
-        author = Person(name = 'Author ' +str(i), email="email"+str(i) )
-        book = Book(title='test_book' + str(i))
-        review = Review(person_id = reader.id, book_id = book.id, review='review ' + str(i))
+        reader = Person(name='Reader '+str(i), email="reader_email"+str(i) )
+        author = Person(name='Author '+str(i), email="author_email"+str(i) )
+        book = Book(title='book_title' + str(i))
+        review = Review(reader_id=reader.id, book_id=book.id, review='review ' + str(i))
         publisher = Publisher(name = 'name' + str(i))
         publisher.books.append(book)
         
