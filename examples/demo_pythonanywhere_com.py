@@ -103,7 +103,7 @@ class Person(SAFRSBase, db.Model):
 
 class Publisher(SAFRSBase, db.Model):
     '''
-        description: Book description
+        description: Publisher description
     '''
     __tablename__ = 'Publishers'
     id = Column(String, primary_key=True)
@@ -114,7 +114,7 @@ class Publisher(SAFRSBase, db.Model):
 
 class Review(SAFRSBase, db.Model):
     '''
-        description: Book description
+        description: Review description
     '''
     __tablename__ = 'Reviews'
     reader_id = Column(String, ForeignKey('People.id'), primary_key=True)
