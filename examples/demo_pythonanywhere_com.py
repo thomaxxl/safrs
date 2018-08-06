@@ -18,21 +18,15 @@
 # - Flask-Admin frontend is created
 # - jsonapi-admin pages are served
 #
-import sys, os
-from flask import Flask
-from flask import render_template
-from flask import Flask, redirect
+import sys
+from flask import Flask, render_template, Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_marshmallow import Marshmallow
 from flask_cors import CORS
-from flask_admin import Admin
-from flask_admin import BaseView
+from flask_admin import Admin, BaseView
 from flask_admin.contrib import sqla
-from safrs import SAFRSBase, jsonapi_rpc
-from safrs import SAFRSJSONEncoder, Api, paginate, jsonapi_format_response, SAFRSFormattedResponse
-from safrs import ValidationError, GenericError
+from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api
 from safrs import search, startswith
 
 # Needed because we don't want to implicitly commit when using flask-admin
@@ -59,26 +53,26 @@ class Book(SAFRSBase, db.Model):
         description: Book description
     '''
     __tablename__ = 'Books'
-    id = Column(String, primary_key=True)
-    title = Column(String, default = '')
-    reader_id = Column(String, ForeignKey('People.id'))
+    id = db.Column(db.String, primary_key=True)
+    title = db.Column(db.String, default = '')
+    reader_id = db.Column(db.String, db.ForeignKey('People.id'))
     reader = db.relationship('Person', back_populates='books_read', foreign_keys=[reader_id])
-    author_id = Column(String, ForeignKey('People.id'))
+    author_id = db.Column(db.String, db.ForeignKey('People.id'))
     author = db.relationship('Person', back_populates='books_written', foreign_keys=[author_id])
-    publisher_id = Column(String, ForeignKey('Publishers.id'))
+    publisher_id = db.Column(db.String, db.ForeignKey('Publishers.id'))
     publisher = db.relationship('Publisher', back_populates='books')
     reviews = db.relationship('Review')
 
-# Example sqla database object
+
 class Person(SAFRSBase, db.Model):
     '''
         description: People description
     '''
     __tablename__ = 'People'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    email = Column(String, default = '')
-    comment = Column(db.Text, default = '')
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default = '')
+    email = db.Column(db.String, default = '')
+    comment = db.Column(db.Text, default = '')
     books_read = db.relationship('Book', back_populates = "reader", foreign_keys = [Book.reader_id])
     books_written = db.relationship('Book', back_populates = "author", foreign_keys = [Book.author_id])
     reviews = db.relationship('Review', back_populates = "person")
@@ -106,27 +100,23 @@ class Publisher(SAFRSBase, db.Model):
         description: Publisher description
     '''
     __tablename__ = 'Publishers'
-    id = Column(String, primary_key=True)
-    name = Column(String, default = '')
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default = '')
     books = db.relationship('Book', back_populates = "publisher")
         
-
 
 class Review(SAFRSBase, db.Model):
     '''
         description: Review description
     '''
     __tablename__ = 'Reviews'
-    reader_id = Column(String, ForeignKey('People.id'), primary_key=True)
-    book_id = Column(String, ForeignKey('Books.id'), primary_key=True)
-    review = Column(String, default = '')
+    reader_id = db.Column(db.String, db.ForeignKey('People.id'), primary_key=True)
+    book_id = db.Column(db.String, db.ForeignKey('Books.id'), primary_key=True)
+    review = db.Column(db.String, default = '')
     person = db.relationship(Person)
     book = db.relationship(Book)
 
-
-
 db.create_all()
-
 
 #
 # Flask-Admin Config
@@ -140,7 +130,6 @@ admin.add_view(sqla.ModelView(Publisher, db.session))
 #
 # jsonapi-admin config
 #
-from flask import make_response, send_from_directory
 
 @app.route('/ja')
 def redir_ja():
