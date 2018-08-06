@@ -61,9 +61,9 @@ class Book(SAFRSBase, db.Model):
     __tablename__ = 'Books'
     id = Column(String, primary_key=True)
     title = Column(String, default = '')
-    reader_id = Column(String, ForeignKey('Persons.id'))
+    reader_id = Column(String, ForeignKey('People.id'))
     reader = db.relationship('Person', back_populates='books_read', foreign_keys=[reader_id])
-    author_id = Column(String, ForeignKey('Persons.id'))
+    author_id = Column(String, ForeignKey('People.id'))
     author = db.relationship('Person', back_populates='books_written', foreign_keys=[author_id])
     publisher_id = Column(String, ForeignKey('Publishers.id'))
     publisher = db.relationship('Publisher', back_populates='books')
@@ -72,9 +72,9 @@ class Book(SAFRSBase, db.Model):
 # Example sqla database object
 class Person(SAFRSBase, db.Model):
     '''
-        description: Person description
+        description: People description
     '''
-    __tablename__ = 'Persons'
+    __tablename__ = 'People'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     email = Column(String, default = '')
@@ -117,7 +117,7 @@ class Review(SAFRSBase, db.Model):
         description: Book description
     '''
     __tablename__ = 'Reviews'
-    reader_id = Column(String, ForeignKey('Persons.id'), primary_key=True)
+    reader_id = Column(String, ForeignKey('People.id'), primary_key=True)
     book_id = Column(String, ForeignKey('Books.id'), primary_key=True)
     review = Column(String, default = '')
     person = db.relationship(Person)
