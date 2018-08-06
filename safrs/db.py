@@ -236,7 +236,13 @@ class SAFRSBase(Model):
         else:
             id = item
 
-        primary_keys = cls.id_type.get_pks(id)
+        try:
+            primary_keys = cls.id_type.get_pks(id)
+        except AttributeError:
+            # This happens when we request a sample from a class that is not yet loaded
+            # when we're creating the swagger models
+            return
+
         instance = None
         if not id is None or not failsafe:
             try:
@@ -304,10 +310,12 @@ class SAFRSBase(Model):
         '''
             Retrieve a sample id for the API documentation, i.e. the first item in the DB
         '''
-        id = cls.id_type()
+
         sample = cls.sample()
-        if sample and not getattr(sample, 'id', None) is None:
+        if sample:
             id = sample.id
+        else:
+            id = ""
         return id
 
     @classmethod

@@ -12,7 +12,7 @@
 #
 # This will run the example on http://Listener-Ip:5000
 #
-# - A database is created and a user is added
+# - A database is created and a person is added
 # - A rest api is available
 # - swagger2 documentation is generated
 # - Flask-Admin frontend is created
@@ -54,18 +54,35 @@ app.url_map.strict_slashes = False
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 
+
+class Book(SAFRSBase, db.Model):
+    '''
+        description: Book description
+    '''
+    __tablename__ = 'Books'
+    id = Column(String, primary_key=True)
+    title = Column(String, default = '')
+    reader_id = Column(String, ForeignKey('Persons.id'))
+    reader = db.relationship('Person', back_populates='books_read', foreign_keys=[reader_id])
+    author_id = Column(String, ForeignKey('Persons.id'))
+    author = db.relationship('Person', back_populates='books_written', foreign_keys=[author_id])
+    publisher_id = Column(String, ForeignKey('Publishers.id'))
+    publisher = db.relationship('Publisher', back_populates='books')
+    reviews = db.relationship('Review')
+
 # Example sqla database object
-class User(SAFRSBase, db.Model):
+class Person(SAFRSBase, db.Model):
     '''
-        description: User description
+        description: Person description
     '''
-    __tablename__ = 'Users'
+    __tablename__ = 'Persons'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     email = Column(String, default = '')
     comment = Column(db.Text, default = '')
-    books = db.relationship('Book', back_populates = "user")
-    reviews = db.relationship('Review', back_populates = "user")
+    books_read = db.relationship('Book', back_populates = "reader", foreign_keys = [Book.reader_id])
+    books_written = db.relationship('Book', back_populates = "author", foreign_keys = [Book.author_id])
+    reviews = db.relationship('Review', back_populates = "person")
 
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
@@ -86,17 +103,16 @@ class User(SAFRSBase, db.Model):
 
 
 
-class Book(SAFRSBase, db.Model):
+
+class Publisher(SAFRSBase, db.Model):
     '''
         description: Book description
     '''
-    __tablename__ = 'Books'
+    __tablename__ = 'Publishers'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
-    user_id = Column(String, ForeignKey('Users.id'))
-    user = db.relationship('User', back_populates='books')
-    reviews = db.relationship('Review')
-
+    books = db.relationship('Book', back_populates = "publisher")
+        
 
 
 class Review(SAFRSBase, db.Model):
@@ -104,10 +120,10 @@ class Review(SAFRSBase, db.Model):
         description: Book description
     '''
     __tablename__ = 'Reviews'
-    user_id = Column(String, ForeignKey('Users.id'), primary_key=True)
+    person_id = Column(String, ForeignKey('Persons.id'), primary_key=True)
     book_id = Column(String, ForeignKey('Books.id'), primary_key=True)
     review = Column(String, default = '')
-    user = db.relationship(User)
+    person = db.relationship(Person)
     book = db.relationship(Book)
 
 
@@ -119,9 +135,10 @@ db.create_all()
 # Flask-Admin Config
 #
 admin = Admin(app, url='/admin')
-admin.add_view(sqla.ModelView(User, db.session))
+admin.add_view(sqla.ModelView(Person, db.session))
 admin.add_view(sqla.ModelView(Book, db.session))
 admin.add_view(sqla.ModelView(Review, db.session))
+admin.add_view(sqla.ModelView(Publisher, db.session))
 
 #
 # jsonapi-admin config
@@ -142,27 +159,34 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 - Auto-generated swagger spec: <a href=swagger.json>swagger.json</a> <br/> 
 - Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
 - <a href="http://thomaxxl.pythonanywhere.com/ja/index.html">reactjs+redux frontend</a>
-- <a href="/admin/user">Flask-Admin frontend</a>
+- <a href="/admin/person">Flask-Admin frontend</a>
 '''
 
 
 with app.app_context():
     # populate the database
-    for i in range(10):
-        user= User( name = 'name' +str(i), email="email"+str(i) )
-        book = Book(name='test_book' + str(i))
-        review = Review(user_id = user.id, book_id = book.id, review='review ' + str(i))
+    for i in range(500):
+        reader = Person(name = 'Lender ' +str(i), email="email"+str(i) )
+        author = Person(name = 'Author ' +str(i), email="email"+str(i) )
+        book = Book(title='test_book' + str(i))
+        review = Review(person_id = reader.id, book_id = book.id, review='review ' + str(i))
+        publisher = Publisher(name = 'name' + str(i))
+        publisher.books.append(book)
         
-        user.books.append(book)
-        db.session.add(user)
+        reader.books_read.append(book)
+        author.books_written.append(book)
+        db.session.add(reader)
+        db.session.add(author)
         db.session.add(book)
+        db.session.add(publisher)
         db.session.add(review)
         db.session.commit()
     
     api  = Api(app, api_spec_url = '/api/swagger', host = '{}'.format('thomaxxl.pythonanywhere.com'), schemes = [ "http" ], description = description )
-    # Expose the User object
-    api.expose_object(User)
+    # Expose the Person object
+    api.expose_object(Person)
     api.expose_object(Book)
+    api.expose_object(Publisher)
     api.expose_object(Review)
     # Set the JSON encoder used for object to json marshalling
     app.json_encoder = SAFRSJSONEncoder
