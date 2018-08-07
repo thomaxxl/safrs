@@ -812,7 +812,7 @@ class SAFRSRestAPI(Resource, object):
         instance._s_patch(**attributes)
 
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-        obj_args = { instance.object_id : instance.id }
+        obj_args = { instance.object_id : instance.jsonapi_id }
         # Retrieve the object json and return it to the client
         obj_data = self.get(**obj_args)
         response = make_response(obj_data, 201)

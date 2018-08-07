@@ -148,7 +148,10 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 - <a href="/admin/person">Flask-Admin frontend</a>
 '''
 
-HOST = 'thomaxxl.pythonanywhere.com'
+if __name__ == '__main__':
+    HOST = sys.argv[1] if len(sys.argv) > 1 else 'thomaxxl.pythonanywhere.com'
+    PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
+
 
 with app.app_context():
     # populate the database
@@ -168,7 +171,7 @@ with app.app_context():
         db.session.add(review)
         db.session.commit()
     
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}'.format(HOST), schemes = [ "http" ], description = description )
+    api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
     # Expose the Person object
     api.expose_object(Person)
     api.expose_object(Book)
@@ -184,8 +187,5 @@ with app.app_context():
     def goto_api():
         return redirect('/api')
 
-
 if __name__ == '__main__':
-    HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
-    PORT = 5000
     app.run(host=HOST, port=PORT)
