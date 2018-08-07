@@ -148,44 +148,45 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 - <a href="/admin/person">Flask-Admin frontend</a>
 '''
 
+def start_api(HOST,PORT):
+    with app.app_context():
+        # populate the database
+        for i in range(500):
+            reader = Person(name='Reader '+str(i), email="reader_email"+str(i) )
+            author = Person(name='Author '+str(i), email="author_email"+str(i) )
+            book = Book(title='book_title' + str(i))
+            review = Review(reader_id=reader.id, book_id=book.id, review='review ' + str(i))
+            publisher = Publisher(name = 'name' + str(i))
+            publisher.books.append(book)
+            reader.books_read.append(book)
+            author.books_written.append(book)
+            db.session.add(reader)
+            db.session.add(author)
+            db.session.add(book)
+            db.session.add(publisher)
+            db.session.add(review)
+            db.session.commit()
+        
+        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
+        # Expose the Person object
+        api.expose_object(Person)
+        api.expose_object(Book)
+        api.expose_object(Publisher)
+        api.expose_object(Review)
+        # Set the JSON encoder used for object to json marshalling
+        app.json_encoder = SAFRSJSONEncoder
+        # Register the API at /api
+        swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
+        app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
+
+        @app.route('/')
+        def goto_api():
+            return redirect('/api')
+
+
 if __name__ == '__main__':
     HOST = sys.argv[1] if len(sys.argv) > 1 else 'thomaxxl.pythonanywhere.com'
     PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
-
-
-with app.app_context():
-    # populate the database
-    for i in range(500):
-        reader = Person(name='Reader '+str(i), email="reader_email"+str(i) )
-        author = Person(name='Author '+str(i), email="author_email"+str(i) )
-        book = Book(title='book_title' + str(i))
-        review = Review(reader_id=reader.id, book_id=book.id, review='review ' + str(i))
-        publisher = Publisher(name = 'name' + str(i))
-        publisher.books.append(book)
-        reader.books_read.append(book)
-        author.books_written.append(book)
-        db.session.add(reader)
-        db.session.add(author)
-        db.session.add(book)
-        db.session.add(publisher)
-        db.session.add(review)
-        db.session.commit()
-    
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
-    # Expose the Person object
-    api.expose_object(Person)
-    api.expose_object(Book)
-    api.expose_object(Publisher)
-    api.expose_object(Review)
-    # Set the JSON encoder used for object to json marshalling
-    app.json_encoder = SAFRSJSONEncoder
-    # Register the API at /api
-    swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
-    app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
-
-    @app.route('/')
-    def goto_api():
-        return redirect('/api')
-
-if __name__ == '__main__':
+    start_api(HOST,PORT)
     app.run(host=HOST, port=PORT)
+
