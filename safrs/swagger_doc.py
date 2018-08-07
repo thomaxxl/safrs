@@ -7,6 +7,7 @@ import logging
 import yaml
 import hashlib
 import urllib
+import datetime
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import USE_API_METHODS
@@ -124,8 +125,13 @@ def schema_from_object(name, object):
 
     def replace_None(object):
         # None aka "null" is invalid in swagger schema definition => recursively replace all "None" by ""
+        #
+        # This function used to replace None, but now also replaces datetime objects
+        #
         if object is None:
             return ''
+        if isinstance(object, (datetime.datetime, datetime.date)):
+            return str(object)
         if isinstance(object, dict):
             result = {}
             for k, v in object.items():
@@ -147,18 +153,25 @@ def schema_from_object(name, object):
     elif isinstance(object, int):
         properties = {'example' : k, 'type' : 'integer'}
 
+    elif isinstance(object, datetime.datetime):
+        properties = {'example' : str(k), 'type' : 'string'}
+
     elif isinstance(object, dict):
         for k, v in object.items():
             if isinstance(v, str):
                 properties[k] = {'example' : v, 'type' : 'string'}
-            if isinstance(v, int):
+            elif isinstance(v, int):
                 properties[k] = {'example' : v, 'type' : 'integer'}
-            if isinstance(v, (dict, list)):
+            elif isinstance(v, (dict, list)):
                 if isinstance(v, dict):
                     v = replace_None(v)
                 properties[k] = {'example' : v, 'type' : 'string'}
-            if v is None:
+            elif v is None:
                 properties[k] = {'example' : "", 'type' : 'string'}
+            else: #isinstance(object, datetime.datetime):
+                properties = {'example' : str(k), 'type' : 'string'}
+                log.warning('Invalid schema object type {}'.format(type(object)))
+            
     else:
         raise ValidationError('Invalid schema object type {}'.format(type(object)))
 

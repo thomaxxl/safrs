@@ -151,7 +151,7 @@ class SAFRSID(object):
         for pk_col, val in zip(cls.columns, values):
             try:
                 result[pk_col.name] = pk_col.type.python_type(val)
-            except ValueError:
+            except (ValueError, TypeError):
                 # This may happen if when the swagger doc is generated with default uuids
                 # todo: fix
                 result[pk_col.name] = pk_col.default

@@ -41,7 +41,11 @@ def main():
 
     # Use reflection to fill in the metadata
     engine = create_engine(args.url)
-    engine.execute('''PRAGMA journal_mode = OFF''') 
+    try:
+        # dirty hack for sqlite
+        engine.execute('''PRAGMA journal_mode = OFF''') 
+    except:
+        pass
     metadata = MetaData(engine)
     tables = args.tables.split(',') if args.tables else None
     metadata.reflect(engine, args.schema, not args.noviews, tables)

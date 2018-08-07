@@ -449,6 +449,7 @@ class SAFRSBase(Model):
         return {}
 
 
+
 log = logging.getLogger(__name__)
 #
 # Work around flask-sqlalchemy's session crap

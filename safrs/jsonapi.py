@@ -1265,7 +1265,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
         data = json.get('data')
         relation = getattr(parent, self.rel_name )
-        obj_args = { self.parent_object_id : parent.id }
+        obj_args = { self.parent_object_id : parent.jsonapi_id }
 
         if isinstance(data, dict):
             # => Update TOONE Relationship
@@ -1274,7 +1274,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 raise GenericError('To PATCH a TOMANY relationship you should provide a list')
             child = self.child_class.get_instance(data.get('id', None))
             setattr(parent,self.rel_name,child)
-            obj_args[self.child_object_id] = child.id
+            obj_args[self.child_object_id] = child.jsonapi_id
             '''
                 http://jsonapi.org/format/#crud-updating-to-many-relationships
 
@@ -1426,7 +1426,6 @@ class SAFRSJSONEncoder(JSONEncoder, object):
     '''
 
     def default(self,object):
-
         if isinstance(object, SAFRSBase):
             result = self.jsonapi_encode(object)
             return result
@@ -1538,7 +1537,7 @@ class SAFRSJSONEncoder(JSONEncoder, object):
                     meta['direction'] = 'MANYTOONE'
                     rel_item = getattr(object, rel_name)
                     if rel_item:
-                        data  = { 'id' : rel_item.id , 'type' : rel_item.__tablename__ }
+                        data  = { 'id' : rel_item.jsonapi_id , 'type' : rel_item.__tablename__ }
 
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
                     if relationship.direction == ONETOMANY:

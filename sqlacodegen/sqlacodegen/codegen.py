@@ -74,10 +74,10 @@ class Model(object):
 
         # Adapt column types to the most reasonable generic types (ie. VARCHAR -> String)
         for column in table.columns:
-            print(column)
             try:
                 column.type = self._get_adapted_type(column.type, column.table.bind)
             except:
+                #print('Failed to get col type for {}, {}'.format(column, column.type))
                 print('Failed to get col type for {}'.format(column))
 
     def _get_adapted_type(self, coltype, bind):
@@ -431,6 +431,7 @@ class CodeGenerator(object):
 
     def render_metadata_declarations(self):
         if 'sqlalchemy.ext.declarative' in self.collector:
+            return 'Base = db.Model\nmetadata = Base.metadata'
             return 'Base = declarative_base()\nmetadata = Base.metadata'
         return 'metadata = MetaData()'
 
