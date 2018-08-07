@@ -116,39 +116,10 @@ class Review(SAFRSBase, db.Model):
     person = db.relationship(Person)
     book = db.relationship(Book)
 
-db.create_all()
-
-#
-# Flask-Admin Config
-#
-admin = Admin(app, url='/admin')
-admin.add_view(sqla.ModelView(Person, db.session))
-admin.add_view(sqla.ModelView(Book, db.session))
-admin.add_view(sqla.ModelView(Review, db.session))
-admin.add_view(sqla.ModelView(Publisher, db.session))
-
-#
-# jsonapi-admin config
-#
-
-@app.route('/ja')
-def redir_ja():
-    return redirect('/ja/index.html')
-
-@app.route('/ja/<path:path>', endpoint="jsonapi_admin")
-def send_ja(path):
-    return send_from_directory('/home/thomaxxl/mysite/jsonapi-admin/build', path)
-
-
-description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
-- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> <br/>
-- Auto-generated swagger spec: <a href=swagger.json>swagger.json</a> <br/> 
-- Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
-- <a href="http://thomaxxl.pythonanywhere.com/ja/index.html">reactjs+redux frontend</a>
-- <a href="/admin/person">Flask-Admin frontend</a>
-'''
 
 def start_api(HOST = '0.0.0.0' ,PORT = 80):
+
+    db.create_all()
     with app.app_context():
         # populate the database
         for i in range(500):
@@ -168,11 +139,16 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
             db.session.commit()
         
         api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
-        # Expose the Person object
-        api.expose_object(Person)
-        api.expose_object(Book)
-        api.expose_object(Publisher)
-        api.expose_object(Review)
+
+        # Flask-Admin Config
+        admin = Admin(app, url='/admin')
+        
+        for model in [ Person, Book, Review, Publisher] :
+            # add the flask-admin view
+            admin.add_view(sqla.ModelView(model, db.session))
+            # Create an API endpoint
+            api.expose_object(model)
+        
         # Set the JSON encoder used for object to json marshalling
         app.json_encoder = SAFRSJSONEncoder
         # Register the API at /api
@@ -183,6 +159,22 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
         def goto_api():
             return redirect('/api')
 
+@app.route('/ja')
+def redir_ja():
+    return redirect('/ja/index.html')
+
+@app.route('/ja/<path:path>', endpoint="jsonapi_admin")
+def send_ja(path):
+    return send_from_directory('/home/thomaxxl/mysite/jsonapi-admin/build', path)
+
+
+description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
+- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> <br/>
+- Auto-generated swagger spec: <a href=swagger.json>swagger.json</a> <br/> 
+- Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
+- <a href="http://thomaxxl.pythonanywhere.com/ja/index.html">reactjs+redux frontend</a>
+- <a href="/admin/person">Flask-Admin frontend</a>
+'''
 
 if __name__ == '__main__':
     HOST = sys.argv[1] if len(sys.argv) > 1 else 'thomaxxl.pythonanywhere.com'
