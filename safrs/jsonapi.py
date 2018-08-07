@@ -904,10 +904,11 @@ class SAFRSRestAPI(Resource, object):
                     db.session.commit()
                 except sqlalchemy.exc.SQLAlchemyError as exc:
                     # Exception may arise when a db constrained has been violated (e.g. duplicate key)
+                    log.warning(str(exc))
                     raise GenericError(str(exc))
 
              # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-            obj_args = { instance.object_id : instance.id }
+            obj_args = { instance.object_id : instance.jsonapi_id }
             # Retrieve the object json and return it to the client
             obj_data = self.get(**obj_args)
             response = make_response(obj_data, 201)

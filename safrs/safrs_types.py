@@ -108,7 +108,7 @@ class SAFRSID(object):
     delimiter = ','
 
     def __new__(cls, id = None):
-        
+
         if id == None:
             return cls.gen_id()
         else:
@@ -158,11 +158,10 @@ class SAFRSID(object):
         return result
 
 
-def get_id_type(cls):
+def get_id_type(cls, Super = SAFRSID):
     columns = [ col for col in cls.__table__.columns if col.primary_key ]
     primary_keys = [ col.name for col in columns ]
-
-    id_type_class = type(cls.__name__ + '_ID' , (SAFRSID,), {'primary_keys' : primary_keys, 'columns' : columns })
+    id_type_class = type(cls.__name__ + '_ID' , (Super,), {'primary_keys' : primary_keys, 'columns' : columns })
     return id_type_class
 
 
@@ -182,4 +181,3 @@ class SAFRSSHA256HashID(SAFRSID):
     def validate_id(self, id):
         # todo
         pass
-

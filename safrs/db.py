@@ -313,7 +313,7 @@ class SAFRSBase(Model):
 
         sample = cls.sample()
         if sample:
-            id = sample.id
+            id = sample.jsonapi_id
         else:
             id = ""
         return id
@@ -325,7 +325,7 @@ class SAFRSBase(Model):
         '''
 
         first = None
-        return
+
         try:
             first = cls._s_query.first()
         except Exception as exc:

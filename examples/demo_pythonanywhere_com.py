@@ -18,7 +18,7 @@
 # - Flask-Admin frontend is created
 # - jsonapi-admin pages are served
 #
-import sys
+import sys, logging
 from flask import Flask, render_template, Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -148,6 +148,8 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 - <a href="/admin/person">Flask-Admin frontend</a>
 '''
 
+HOST = 'thomaxxl.pythonanywhere.com'
+HOST = 'automat-c2:5000'
 
 with app.app_context():
     # populate the database
@@ -158,7 +160,6 @@ with app.app_context():
         review = Review(reader_id=reader.id, book_id=book.id, review='review ' + str(i))
         publisher = Publisher(name = 'name' + str(i))
         publisher.books.append(book)
-        
         reader.books_read.append(book)
         author.books_written.append(book)
         db.session.add(reader)
@@ -168,7 +169,7 @@ with app.app_context():
         db.session.add(review)
         db.session.commit()
     
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}'.format('thomaxxl.pythonanywhere.com'), schemes = [ "http" ], description = description )
+    api  = Api(app, api_spec_url = '/api/swagger', host = '{}'.format(HOST), schemes = [ "http" ], description = description )
     # Expose the Person object
     api.expose_object(Person)
     api.expose_object(Book)
@@ -176,7 +177,7 @@ with app.app_context():
     api.expose_object(Review)
     # Set the JSON encoder used for object to json marshalling
     app.json_encoder = SAFRSJSONEncoder
-    # Register the API at /api/docs
+    # Register the API at /api
     swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
     app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
 
@@ -189,5 +190,3 @@ if __name__ == '__main__':
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
     PORT = 5000
     app.run(host=HOST, port=PORT)
-
-

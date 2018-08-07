@@ -1,7 +1,7 @@
 from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 from .swagger_doc import documented_api_method, jsonapi_rpc
 from .errors import GenericError, NotFoundError
-from .safrs_types import SAFRSID
+from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 from sqlalchemy import or_
 
 def get_list(self, id_list):
@@ -29,7 +29,6 @@ def lookup_re_mysql(cls, **kwargs):
         args:
             name: thom.*
     '''
-    from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 
     result = cls
     response = SAFRSFormattedResponse()
@@ -60,7 +59,6 @@ def startswith(cls, **kwargs):
         args:
             name: t
     '''
-    from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 
     result = cls
     response = SAFRSFormattedResponse()
@@ -137,3 +135,4 @@ def search(cls, **kwargs):
     response.response = jsonapi_format_response(data, meta, links, errors, count)
 
     return response
+

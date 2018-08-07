@@ -22,7 +22,7 @@ class NotFoundError(Exception, DontWrapMixin):
     def __init__(self, message = '', status_code=404, payload=None):
         Exception.__init__(self)
         
-        if log.getEffectiveLevel() == logging.DEBUG:
+        if log.getEffectiveLevel() <= logging.DEBUG:
         
             self.message = message
             log.error('Not found: {}'.format(message))
@@ -39,7 +39,7 @@ class ValidationError(Exception, DontWrapMixin):
 
     def __init__(self, message = '', status_code=None, payload=None):
         Exception.__init__(self)
-        if log.getEffectiveLevel() == logging.DEBUG:
+        if log.getEffectiveLevel() <= logging.DEBUG:
             self.message = message
             log.error('ValidationError: {}'.format(message))
         # todo: security logging... 
@@ -58,10 +58,12 @@ class GenericError(Exception, DontWrapMixin):
     def __init__(self, message):
         Exception.__init__(self)
         
-        if log.getEffectiveLevel() == logging.DEBUG:
+        if log.getEffectiveLevel() <= logging.DEBUG:
             self.message = message
         
         log.debug(traceback.format_exc())
         log.error('Generic Error: {}'.format(message))
 
+
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
