@@ -149,7 +149,6 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 '''
 
 HOST = 'thomaxxl.pythonanywhere.com'
-HOST = 'automat-c2:5000'
 
 with app.app_context():
     # populate the database
