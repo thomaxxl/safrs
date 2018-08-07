@@ -66,4 +66,3 @@ class GenericError(Exception, DontWrapMixin):
 
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)

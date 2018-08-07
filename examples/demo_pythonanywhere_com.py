@@ -148,7 +148,7 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 - <a href="/admin/person">Flask-Admin frontend</a>
 '''
 
-def start_api(HOST,PORT):
+def start_api(HOST = '0.0.0.0' ,PORT = 80):
     with app.app_context():
         # populate the database
         for i in range(500):

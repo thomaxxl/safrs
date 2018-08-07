@@ -105,7 +105,7 @@ class SAFRSID(object):
     '''
     primary_keys = None
     columns = None
-    delimiter = ','
+    delimiter = '_'
 
     def __new__(cls, id = None):
 
