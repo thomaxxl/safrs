@@ -1258,7 +1258,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 null, to remove the relationship.
         '''    
         parent, relation = self.parse_args(**kwargs)
-
+        print(kwargs)
         json  = request.get_json()
         if type(json) != dict:
             raise ValidationError('Invalid Object Type')
