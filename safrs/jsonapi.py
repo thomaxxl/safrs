@@ -1341,6 +1341,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         result = {'data' : result, 'links' : {'self' : request.url}, 'meta' : meta}
         return jsonify(result)
 
+    # Relationship patching
     def patch(self, **kwargs):
         '''
             responses:
@@ -1371,6 +1372,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
             a resource identifier object corresponding to the new related resource.
             null, to remove the relationship.
         '''
+        print('PPP')
         parent, relation = self.parse_args(**kwargs)
         json_reponse = request.get_json()
         if not isinstance(json_reponse, dict):
