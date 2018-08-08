@@ -528,7 +528,7 @@ def paginate(object_query):
         del request_args['page[limit]']
         limit = int(limit)
     except:
-        limit = UNLIMITED
+        log.debug('Invalid page[limit]')
 
     page_base = int(page_offset / limit) * limit
     count = object_query.count()

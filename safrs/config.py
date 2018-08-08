@@ -40,7 +40,8 @@ CLASSMETHOD_URL_FMT = '{}{}/methods/{}'
 INSTANCE_ENDPOINT_FMT = '{}api.{}Id'
 ENDPOINT_FMT = '{}-api.{}'
 
-UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 1<<32))
+#UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 1<<32))
+UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 250))
 # This is the default query limit
 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
 BIG_QUERY_THRESHOLD = 1000 # Warning level
