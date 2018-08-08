@@ -1,3 +1,6 @@
+'''
+config.py
+'''
 # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
 import os
 

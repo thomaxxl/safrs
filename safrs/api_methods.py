@@ -1,12 +1,15 @@
+'''
+api_methods.py
+'''
+from sqlalchemy import or_
 from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 from .swagger_doc import documented_api_method, jsonapi_rpc
-from .errors import GenericError, NotFoundError
-from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
-from sqlalchemy import or_
+from .errors import GenericError, ValidationError
+#from .safrs_types import SAFRSID
 
 def get_list(self, id_list):
     '''
-        description: [deprecated] use csv filter[id] instead
+        description: [deprecated] use csv filter[idx] instead
         args:
             id_list:
                 - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
@@ -14,9 +17,9 @@ def get_list(self, id_list):
     '''
 
     result = []
-    for id in id_list:
-        instance = self._s_query.get(id)
-        if id:
+    for idx in id_list:
+        instance = self._s_query.get(idx)
+        if idx:
             result.append(instance)
 
     return result
@@ -29,19 +32,19 @@ def lookup_re_mysql(cls, **kwargs):
         args:
             name: thom.*
     '''
+    #from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 
     result = cls
     response = SAFRSFormattedResponse()
-    
-    for k, v in kwargs.items():
-        column = getattr(cls, k, None)
+    for key, value in kwargs.items():
+        column = getattr(cls, key, None)
         if not column:
-            raise ValidationError('Invalid Column "{}"'.format(k))
+            raise ValidationError('Invalid Column "{}"'.format(key))
         try:
-            result = result.query.filter(column.op('regexp')(v))
+            result = result.query.filter(column.op('regexp')(value))
             instances = result
             links, instances, count = paginate(instances)
-            data = [ item for item in instances ]
+            data = [item for item in instances]
             meta = {}
             errors = None
             response.response = jsonapi_format_response(data, meta, links, errors, count)
@@ -57,42 +60,40 @@ def startswith(cls, **kwargs):
         pageable: True
         description : lookup column names
         args:
-            name: t
+        name: t
     '''
-
+    #from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
     result = cls
     response = SAFRSFormattedResponse()
     try:
         instances = result.query
         links, instances, count = paginate(instances)
-        data = [ item for item in instances ]
+        data = [item for item in instances]
         meta = {}
         errors = None
         response.response = jsonapi_format_response(data, meta, links, errors, count)
-
     except Exception as exc:
         raise GenericError("Failed to execute query {}".format(exc))
 
-    for k, v in kwargs.items():
-        column = getattr(cls, k, None)
+    for key, value in kwargs.items():
+        column = getattr(cls, key, None)
         if not column:
-            raise ValidationError('Invalid Column "{}"'.format(k))
+            raise ValidationError('Invalid Column "{}"'.format(key))
         try:
-            instances = result.query.filter(column.like(v + '%'))
+            instances = result.query.filter(column.like(value + '%'))
             links, instances, count = paginate(instances)
-            data = [ item for item in instances ]
+            data = [item for item in instances]
             meta = {}
             errors = None
             response.response = jsonapi_format_response(data, meta, links, errors, count)
 
         except Exception as exc:
             raise GenericError("Failed to execute query {}".format(exc))
-
     return response
 
 
 @classmethod
-@jsonapi_rpc(http_methods = ['POST'])
+@jsonapi_rpc(http_methods=['POST'])
 def re_search(cls, **kwargs):
     '''
         pageable: True
@@ -100,22 +101,20 @@ def re_search(cls, **kwargs):
         args:
             query: search.*all
     '''
-    query = kwargs.get('query','')
+    query = kwargs.get('query', '')
     response = SAFRSFormattedResponse()
     result = cls.query.filter(or_(column.op('regexp')(query) for column in cls._s_columns))
-    
     instances = result
     links, instances, count = paginate(instances)
-    data = [ item for item in instances ]
+    data = [item for item in instances]
     meta = {}
     errors = None
     response.response = jsonapi_format_response(data, meta, links, errors, count)
-
     return response
 
 
 @classmethod
-@jsonapi_rpc(http_methods = ['POST'])
+@jsonapi_rpc(http_methods=['POST'])
 def search(cls, **kwargs):
     '''
         pageable: True
@@ -123,16 +122,13 @@ def search(cls, **kwargs):
         args:
             query: keyword
     '''
-    query = kwargs.get('query','')
+    query = kwargs.get('query', '')
     response = SAFRSFormattedResponse()
     result = cls.query.filter(or_(column.like('%' + query + '%') for column in cls._s_columns))
-    
     instances = result
     links, instances, count = paginate(instances)
-    data = [ item for item in instances ]
+    data = [item for item in instances]
     meta = {}
     errors = None
     response.response = jsonapi_format_response(data, meta, links, errors, count)
-
     return response
-
