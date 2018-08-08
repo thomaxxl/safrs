@@ -8,6 +8,7 @@ import logging
 #import hashlib
 import datetime
 import yaml
+import pprint
 
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
@@ -18,19 +19,20 @@ LOGGER = logging.getLogger()
 REST_DOC = '__rest_doc' # swagger doc attribute name. If this attribute is set
                         # this means that the function is reachable through HTTP POST
 HTTP_METHODS = '__http_method'
-DOC_DELIMITER = '----'  # used as delimiter between the rest_doc swagger yaml spec
+DOC_DELIMITER = '---'  # used as delimiter between the rest_doc swagger yaml spec
                         # and regular documentation
 PAGEABLE = 'pageable' # denotes whether an api method is pageable
 FILTERABLE = 'filterable'
 
 def parse_object_doc(object):
     '''
-        Parse the yaml description from the "documented_api_method"-decorated methods
+        Parse the yaml description from the documented methods
     '''
     api_doc = {}
     obj_doc = str(inspect.getdoc(object))
     raw_doc = obj_doc.split(DOC_DELIMITER)[0]
     yaml_doc = None
+
     try:
         yaml_doc = yaml.load(raw_doc)
     except (SyntaxError, yaml.scanner.ScannerError) as exc:
@@ -112,7 +114,7 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise ValidationError('Argument {} not valid for {}'.format(\
+                raise ValidationError('Argument {} not valid for {}'.format(
                                                 (key, self.__class__.__name__)))
             setattr(self, key, value)
 
@@ -127,32 +129,34 @@ def SchemaClassFactory(name, properties):
 
 _references = []
 
+def encode_schema(object):
+    '''
+    encode_schema
+    '''
+    # None aka "null" is invalid in swagger schema definition
+    # => recursively replace all "None" by ""
+    if object is None:
+        return ''
+    if isinstance(object, (datetime.datetime, datetime.date)):
+        return str(object)
+    if isinstance(object, dict):
+        result = {}
+        for k, v in object.items():
+            v = encode_schema(v)
+            result[k] = v
+        return result
+    if isinstance(object, list):
+        result = []
+        for i in object:
+            result.append(encode_schema(i))
+        return result
+    return object
+
+
 def schema_from_object(name, object):
     '''
     schema_from_object
     '''
-    def replace_None(object):
-        '''
-        replace_None
-        '''
-        # None aka "null" is invalid in swagger schema definition
-        # => recursively replace all "None" by ""
-        if object is None:
-            return ''
-        if isinstance(object, (datetime.datetime, datetime.date)):
-            return str(object)
-        if isinstance(object, dict):
-            result = {}
-            for k, v in object.items():
-                v = replace_None(v)
-                result[k] = v
-            return result
-        if isinstance(object, list):
-            result = []
-            for i in object:
-                result.append(replace_None(i))
-            return result
-        return object
 
     properties = {}
 
@@ -162,7 +166,7 @@ def schema_from_object(name, object):
     elif isinstance(object, int):
         properties = {'example' : k, 'type' : 'integer'}
 
-    elif isinstance(object, datetime.datetime):
+    elif isinstance(object, (datetime.datetime, datetime.date)):
         properties = {'example' : str(k), 'type' : 'string'}
     elif isinstance(object, dict):
         for k, v in object.items():
@@ -172,7 +176,7 @@ def schema_from_object(name, object):
                 properties[k] = {'example' : v, 'type' : 'integer'}
             elif isinstance(v, (dict, list)):
                 if isinstance(v, dict):
-                    v = replace_None(v)
+                    v = encode_schema(v)
                 properties[k] = {'example' : v, 'type' : 'string'}
             elif v is None:
                 properties[k] = {'example' : "", 'type' : 'string'}
@@ -189,6 +193,19 @@ def schema_from_object(name, object):
     #name = urllib.parse.quote(name)
     _references.append(name)
     return SchemaClassFactory(name, properties)
+
+
+def get_sample_dict(sample):
+    '''
+    get_sample_dict
+    '''
+    if getattr(sample, '_s_to_dict', False):
+        # ==> isinstance SAFRSBASE
+        sample_dict = sample._s_to_dict()
+    else:
+        cols = sample.__table__.columns
+        sample_dict = {col.name : "" for col in cols if not col.name == 'id'}
+    return encode_schema(sample_dict)
 
 
 def get_swagger_doc_post_arguments(cls, method_name):
@@ -224,18 +241,18 @@ def get_swagger_doc_post_arguments(cls, method_name):
             method_args = rest_doc.get('args', [])
             if method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
-                method_field = {\
-                                'method' : method_name,\
-                                'args' : method_args,\
+                method_field = {
+                                'method' : method_name,
+                                'args' : method_args,
                                 }
                 fields['meta'] = schema_from_object(model_name, method_field)
 
             elif method_args:
                 model_name = '{}_{}'.format(cls.__name__, method_name)
                 model = SchemaClassFactory(model_name, method_args)
-                arg_field = {\
-                             'schema' : model,\
-                             'type'   : 'string',\
+                arg_field = {
+                             'schema' : model,
+                             'type'   : 'string',
                              }
                 fields['meta'] = arg_field
             parameters = rest_doc.get('parameters', [])
@@ -271,16 +288,16 @@ def swagger_method_doc(cls, method_name, tags=None):
         param_model = SchemaClassFactory(model_name, {})
 
         if func.__name__ == 'get':
-            parameters = [{\
-                           'name': 'varargs',\
-                           'in': 'query',\
-                           'description' : '{} arguments'.format(method_name),\
-                           'required' : False,\
-                           'type' : 'string'\
+            parameters = [{
+                           'name': 'varargs',
+                           'in': 'query',
+                           'description' : '{} arguments'.format(method_name),
+                           'required' : False,
+                           'type' : 'string'
                            }]
         else:
             # typically POST
-            parameters, fields, description, \
+            parameters, fields, description, 
             method = get_swagger_doc_post_arguments(cls, method_name)
 
             '''if inspect.ismethod(method) and method.__self__ is cls:
@@ -293,29 +310,29 @@ def swagger_method_doc(cls, method_name, tags=None):
             #
             model_name = '{}_{}_{}'.format(func.__name__, cls.__name__, method_name)
             param_model = SchemaClassFactory(model_name, fields)
-            parameters.append({\
-                               'name': model_name,\
-                               'in': 'body',\
-                               'description' : description,\
-                               'schema' : param_model,\
-                               'required' : True\
+            parameters.append({
+                               'name': model_name,
+                               'in': 'body',
+                               'description' : description,
+                               'schema' : param_model,
+                               'required' : True
                                })
 
         # URL Path Parameter
         default_id = cls.sample_id()
-        parameters.append({\
-                           'name': cls.object_id, # parameter id, e.g. UserId\
-                           'in': 'path',\
-                           'type': 'string',\
-                           'default': default_id,\
-                           'required' : True\
+        parameters.append({
+                           'name': cls.object_id, # parameter id, e.g. UserId
+                           'in': 'path',
+                           'type': 'string',
+                           'default': default_id,
+                           'required' : True
                            })
         doc['parameters'] = parameters
         doc["produces"] = ["application/json"]
         doc['responses'] = responses = {'200' : {'description' : 'Success'}}
 
-        '''doc['parameters'] = [{'required': True, 'name': 'post Hash get_list', \
-        'schema': param_model, 'type': 'string', 'in': 'body', \
+        '''doc['parameters'] = [{'required': True, 'name': 'post Hash get_list', 
+        'schema': param_model, 'type': 'string', 'in': 'body', 
         'description': 'Retrieve a list of objects with the ids in id_list. (classmethod)'}]'''
 
         @swagger.doc(doc)
@@ -329,17 +346,6 @@ def swagger_method_doc(cls, method_name, tags=None):
     return swagger_doc_gen
 
 
-def get_sample_dict(sample):
-    '''
-    get_sample_dict
-    '''
-    if getattr(sample, '_s_to_dict', False):
-        # ==> isinstance SAFRSBASE
-        sample_dict = sample._s_to_dict()
-    else:
-        cols = sample.__table__.columns
-        sample_dict = {col.name : "" for col in cols if not col.name == 'id'}
-    return sample_dict
 
 #
 # Decorator is called when a swagger endpoint class is instantiated
@@ -358,19 +364,19 @@ def swagger_doc(cls, tags=None):
         class_name = cls.__name__
         table_name = cls.__tablename__
         http_method = func.__name__.lower()
-        parameters = [{'name': cls.object_id, # parameter id, e.g. UserId\
-                       'in': 'path',\
-                       'type': 'string',\
-                       'default': default_id,\
-                       'required' : True\
+        parameters = [{'name': cls.object_id, # parameter id, e.g. UserId
+                       'in': 'path',
+                       'type': 'string',
+                       'default': default_id,
+                       'required' : True
                        }]
         if tags is None:
             doc_tags = [table_name]
         else:
             doc_tags = tags
 
-        doc = {'tags': doc_tags,\
-               'description': 'Returns a {}'.format(class_name)\
+        doc = {'tags': doc_tags,
+               'description': 'Returns a {}'.format(class_name)
                }
 
         responses = {}
@@ -390,42 +396,42 @@ def swagger_doc(cls, tags=None):
             sample = cls.sample()
             if sample:
                 sample_dict = get_sample_dict(sample)
-                sample_data = schema_from_object(model_name,\
-                                                 {\
-                                                  'data' : \
-                                                  {\
-                                                   'attributes' : sample_dict,\
-                                                   'type' : class_name\
-                                                   }\
+                sample_data = schema_from_object(model_name,
+                                                 {
+                                                  'data' : 
+                                                  {
+                                                   'attributes' : sample_dict,
+                                                   'type' : class_name
+                                                   }
                                                 })
             elif cls.sample_id():
-                sample_data = schema_from_object(model_name,\
-                                                 {\
-                                                  'data' :\
-                                                  {'attributes' :\
-                                                   {\
-                                                    attr: '' for attr in cls._s_jsonapi_attrs},\
-                                                   'type' : class_name\
-                                                   }\
+                sample_data = schema_from_object(model_name,
+                                                 {
+                                                  'data' :
+                                                  {'attributes' :
+                                                   {
+                                                    attr: '' for attr in cls._s_jsonapi_attrs},
+                                                   'type' : class_name
+                                                   }
                                                 })
             else:
                 sample_data = {}
-            parameters.append({\
-                               'name': 'POST body',\
-                               'in': 'body',\
-                               'description' : '{} attributes'.format(class_name),\
-                               'schema' : sample_data,\
-                               'required' : True\
+            parameters.append({
+                               'name': 'POST body',
+                               'in': 'body',
+                               'description' : '{} attributes'.format(class_name),
+                               'schema' : sample_data,
+                               'required' : True
                                })
 
         elif http_method == 'delete':
             doc['summary'] = doc['description'] = 'Delete a {} object'.format(class_name)
-            responses = {'204' : {\
-                                  'description' : 'Object Deleted'\
-                                  },\
-                         '404' : {\
-                                  'description' : 'Object Not Found'\
-                                  }\
+            responses = {'204' : {
+                                  'description' : 'Object Deleted'
+                                  },
+                         '404' : {
+                                  'description' : 'Object Not Found'
+                                  }
                          }
 
         elif http_method == 'patch':
@@ -434,35 +440,44 @@ def swagger_doc(cls, tags=None):
             sample = cls.sample()
             if sample:
                 sample_dict = get_sample_dict(sample)
-                sample_data = schema_from_object(model_name,\
-                                                 {'data' :\
-                                                  {'attributes' : sample_dict,\
-                                                   'id' : cls.sample_id(),\
-                                                   'type' : class_name\
-                                                   }\
+                sample_data = schema_from_object(model_name,
+                                                 {'data' :
+                                                  {'attributes' : sample_dict,
+                                                   'id' : cls.sample_id(),
+                                                   'type' : class_name
+                                                   }
                                                 })
             else:
-                sample_data = schema_from_object(model_name,\
-                                                 {'data' :\
-                                                  {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs},\
-                                                   'id' : cls.sample_id(),\
-                                                   'type' : class_name\
-                                                   }\
+                sample_data = schema_from_object(model_name,
+                                                 {'data' :
+                                                  {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs},
+                                                   'id' : cls.sample_id(),
+                                                   'type' : class_name
+                                                   }
                                                 })
-            parameters.append({\
-                               'name': 'POST body',\
-                               'in': 'body',\
-                               'description' : '{} attributes'.format(class_name),\
-                               'schema' : sample_data,\
-                               'required' : True\
+            parameters.append({
+                               'name': 'POST body',
+                               'in': 'body',
+                               'description' : '{} attributes'.format(class_name),
+                               'schema' : sample_data,
+                               'required' : True
                                })
         else:
             # one of 'options', 'head', 'patch'
             LOGGER.debug('no documentation for "%s" ', http_method)
+
+        method_doc = parse_object_doc(func)
+        responses.update(method_doc.get('responses',{}))
+        responses_str = {}
+        for k, v in responses.items():
+            # convert int response code to string
+            responses_str[str(k)] = v
+
         doc['parameters'] = parameters
-        doc['responses'] = responses
-        doc["produces"] = ["application/json"]
+        doc['responses'] = responses_str
+        doc['produces'] = ["application/json"]
         return swagger.doc(doc)(func)
+
     return swagger_doc_gen
 
 
@@ -497,21 +512,21 @@ def swagger_relationship_doc(cls, tags=None):
         #
         #######################################################################
 
-        parameters = [{\
-                       'name': parent_class.object_id,\
-                       'in': 'path',\
-                       'type': 'string',\
-                       'default': parent_class.sample_id(),\
-                       'description': '{} item'.format(parent_class.__name__),\
-                       'required' : True\
-                       },\
-                      {\
-                       'name': child_class.object_id,\
-                       'in': 'path',\
-                       'type': 'string',\
-                       'default': child_class.sample_id(),\
-                       'description': '{} item'.format(class_name),\
-                       'required' : True\
+        parameters = [{
+                       'name': parent_class.object_id,
+                       'in': 'path',
+                       'type': 'string',
+                       'default': parent_class.sample_id(),
+                       'description': '{} item'.format(parent_class.__name__),
+                       'required' : True
+                       },
+                      {
+                       'name': child_class.object_id,
+                       'in': 'path',
+                       'type': 'string',
+                       'default': child_class.sample_id(),
+                       'description': '{} item'.format(class_name),
+                       'required' : True
                        }]
 
         parent_name = parent_class.__name__
@@ -521,8 +536,8 @@ def swagger_relationship_doc(cls, tags=None):
         else:
             doc_tags = tags
 
-        doc = {'tags': doc_tags,\
-               'description': 'Returns {} {} ids'.format(parent_name, cls.relationship.key),\
+        doc = {'tags': doc_tags,
+               'description': 'Returns {} {} ids'.format(parent_name, cls.relationship.key),
                }
 
         responses = {}
@@ -533,33 +548,33 @@ def swagger_relationship_doc(cls, tags=None):
         elif http_method == 'post':
             _, responses = cls.get_swagger_doc(http_method)
             doc['summary'] = 'Update {}'.format(cls.relationship.key)
-            doc['description'] = 'Add a {} object to the {} relation on {}'.format(child_class.__name__,\
-                                                                                   cls.relationship.key,\
+            doc['description'] = 'Add a {} object to the {} relation on {}'.format(child_class.__name__,
+                                                                                   cls.relationship.key,
                                                                                    parent_name)
             # TODO: change this crap
             _, responses = child_class.get_swagger_doc('patch')
-            rel_post_schema = schema_from_object('{}_Relationship'.format(class_name),\
-                                                 {'data':\
-                                                  [\
-                                                   {'type': child_class.__name__,\
-                                                    'id': child_class.sample_id()\
-                                                    }\
-                                                  ]\
+            rel_post_schema = schema_from_object('{}_Relationship'.format(class_name),
+                                                 {'data':
+                                                  [
+                                                   {'type': child_class.__name__,
+                                                    'id': child_class.sample_id()
+                                                    }
+                                                  ]
                                                 })
-            parameters.append({\
-                               'name': '{} body'.format(class_name),\
-                               'in': 'body',\
-                               'description' : '{} POST model'.format(class_name),\
-                               'schema' : rel_post_schema,\
-                               'required': True,\
-                               }\
+            parameters.append({
+                               'name': '{} body'.format(class_name),
+                               'in': 'body',
+                               'description' : '{} POST model'.format(class_name),
+                               'schema' : rel_post_schema,
+                               'required': True,
+                               }
                               )
 
 
         elif http_method == 'delete':
             doc['summary'] = 'Delete from {} {}'.format(parent_name, cls.relationship.key)
-            doc['description'] = 'Delete a {} object from the {} relation on {}'.format(child_class.__name__,\
-                                                                                        cls.relationship.key,\
+            doc['description'] = 'Delete a {} object from the {} relation on {}'.format(child_class.__name__,
+                                                                                        cls.relationship.key,
                                                                                         parent_name)
             responses = {'204' : {'description' : 'Object Deleted'}}
 
@@ -588,23 +603,23 @@ def default_paging_parameters():
     '''
 
     parameters = []
-    param = {'default': 0,  # The 0 isn't rendered though\
-             'type': 'integer',\
-             'name': 'page[offset]',\
-             'in': 'query',\
-             'format' : 'int64',\
-             'required' : False,\
-             'description' : 'Page offset'\
+    param = {'default': 0,  # The 0 isn't rendered though
+             'type': 'integer',
+             'name': 'page[offset]',
+             'in': 'query',
+             'format' : 'int64',
+             'required' : False,
+             'description' : 'Page offset'
              }
     parameters.append(param)
 
-    param = {'default': 10,\
-             'type': 'integer',\
-             'name': 'page[limit]',\
-             'in': 'query',\
-             'format' : 'int64',\
-             'required' : False,\
-             'description' : 'Max number of items'\
+    param = {'default': 10,
+             'type': 'integer',
+             'name': 'page[limit]',
+             'in': 'query',
+             'format' : 'int64',
+             'required' : False,
+             'description' : 'Max number of items'
              }
     parameters.append(param)
     return parameters

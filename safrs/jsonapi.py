@@ -57,7 +57,7 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 #from sqlalchemy import or_, and_
 # safrs_rest dependencies:
 from .db import SAFRSBase, db, LOGGER
-from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters
+from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
@@ -291,8 +291,9 @@ class Api(FRSApiBase):
                 path_item[method] = operation
                 definitions.update(definitions_)
                 summary = parse_method_doc(f, operation)
+
                 if summary:
-                    operation['summary'] = summary.replace('<br/>', '')
+                    operation['summary'] = summary.split('<br/>')[0]
 
 
         validate_definitions_object(definitions)
@@ -741,6 +742,10 @@ class SAFRSRestAPI(Resource):
 
     def get(self, **kwargs):
         '''
+            responses : 
+                404 : 
+                    description : Not Found
+            ---
             HTTP GET: return instances
             If no id is given: return all instances
             If an id is given, get an instance by id
@@ -801,6 +806,21 @@ class SAFRSRestAPI(Resource):
 
     def patch(self, **kwargs):
         '''
+
+            responses:
+                200 : 
+                    description : Accepted
+                201 : 
+                    description: Created
+                204 :
+                    description : No Content
+                403:
+                    description : Forbidden
+                404 :
+                    description : Not Found
+                409 :
+                    description : Conflict
+            ---
             Create or update the object specified by id
         '''
         id = kwargs.get(self.object_id, None)
@@ -856,6 +876,18 @@ class SAFRSRestAPI(Resource):
 
     def post(self, **kwargs):
         '''
+            responses :
+                403: 
+                    description : This implementation does not accept client-generated IDs
+                201: 
+                    description: Created
+                202: 
+                    description : Accepted 
+                404: 
+                    description : Not Found
+                409: 
+                    description : Conflict
+            ---
             http://jsonapi.org/format/#crud-creating
             Creating Resources
             A resource can be created by sending a POST request to a URL
@@ -870,7 +902,7 @@ class SAFRSRestAPI(Resource):
             Response:
             403: This implementation does not accept client-generated IDs
             201: Created
-            202: Accepted (processing has not been completed by the time the server responds)
+            202: Accepted 
             404: Not Found
             409: Conflict
 
@@ -945,11 +977,23 @@ class SAFRSRestAPI(Resource):
 
     def delete(self, **kwargs):
         '''
+
+            responses: 
+                202 : 
+                    description: Accepted
+                204 : 
+                    description: No Content
+                200 : 
+                    description: Success
+                404 :
+                    description: Not Found
+
+            ---
             Delete an object by id or by filter
 
             http://jsonapi.org/format/1.1/#crud-deleting:
-            Responses
-                202 Accepted
+            Responses :
+                202 : Accepted
                 If a deletion request has been accepted for processing,
                 but the processing has not been completed by the time the server
                 responds, the server MUST return a 202 Accepted status code.
@@ -1058,6 +1102,18 @@ class SAFRSRestMethodAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
+            responses :
+                403: 
+                    description : This implementation does not accept client-generated IDs
+                201: 
+                    description: Created
+                202: 
+                    description : Accepted 
+                404: 
+                    description : Not Found
+                409: 
+                    description : Conflict
+            ---
             HTTP POST: apply actions, return 200 regardless
         '''
         id = kwargs.get(self.object_id, None)
@@ -1102,7 +1158,13 @@ class SAFRSRestMethodAPI(Resource, object):
 
     def get(self, **kwargs):
         '''
-            HTTP POST: apply actions, return 200 regardless
+            responses : 
+                404 : 
+                    description : Not Found
+                403 :
+                    description : Forbidden
+
+            ---
         '''
 
         id = kwargs.get(self.object_id, None)
@@ -1233,7 +1295,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     def get(self, **kwargs):
         '''
-
+            ---
             Retrieve a relationship or list of relationship member ids
 
             http://jsonapi.org/format/#fetching-relationships-responses :
@@ -1276,8 +1338,18 @@ class SAFRSRestRelationshipAPI(Resource, object):
     def patch(self, **kwargs):
         '''
             responses:
-                - 200 : Delete accepted
-                - 201 : Created
+                200 : 
+                    description : Accepted
+                201 : 
+                    description: Created
+                204 :
+                    description : No Content
+                403:
+                    description : Forbidden
+                404 :
+                    description : Not Found
+                409 :
+                    description : Conflict
             ----
             Update or create a relationship child item
             to be used to create or update one-to-many mappings
@@ -1294,7 +1366,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             null, to remove the relationship.
         '''
         parent, relation = self.parse_args(**kwargs)
-        print(kwargs)
         json_reponse = request.get_json()
         if not isinstance(json_reponse, dict):
             raise ValidationError('Invalid Object Type')
@@ -1371,6 +1442,18 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     def post(self, **kwargs):
         '''
+            responses :
+                403: 
+                    description : This implementation does not accept client-generated IDs
+                201: 
+                    description: Created
+                202: 
+                    description : Accepted
+                404: 
+                    description : Not Found
+                409: 
+                    description : Conflict
+            ---
             Add a child to a relationship
         '''
         errors = []

@@ -122,7 +122,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
     db.create_all()
     with app.app_context():
         # populate the database
-        for i in range(500):
+        for i in range(50):
             reader = Person(name='Reader '+str(i), email="reader_email"+str(i) )
             author = Person(name='Author '+str(i), email="author_email"+str(i) )
             book = Book(title='book_title' + str(i))
