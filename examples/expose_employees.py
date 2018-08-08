@@ -4,7 +4,7 @@ from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
-import sys, logging
+import sys, logging, inspect
 from flask import Flask, render_template, Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -36,7 +36,13 @@ ma = Marshmallow(app)
 import builtins
 builtins.db = db
 
-from mysql_test_db import *
+import mysql_test_db
+def get_safrs_models():
+    for k, v in inspect.getmembers(mysql_test_db):
+        bases = getattr(v, '__bases__', [] )
+        if SAFRSBase in bases:
+            yield v
+
 
 def start_api(HOST = '0.0.0.0' ,PORT = 80):
 
@@ -45,7 +51,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
         
         api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
 
-        for model in [ Department, Employee, DeptEmp, DeptManager, Salary, Title ] :
+        for model in get_safrs_models():
             # Create an API endpoint
             api.expose_object(model)
         
@@ -62,7 +68,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
 description = ''' '''
 
 if __name__ == '__main__':
-    HOST = sys.argv[1] if len(sys.argv) > 1 else 'thomaxxl.pythonanywhere.com'
+    HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
     PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
     start_api(HOST,PORT)
     app.run(host=HOST, port=PORT)
