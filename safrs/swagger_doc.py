@@ -9,7 +9,7 @@ import logging
 import datetime
 import yaml
 import pprint
-
+import decimal
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import USE_API_METHODS
@@ -129,26 +129,31 @@ def SchemaClassFactory(name, properties):
 
 _references = []
 
+
 def encode_schema(object):
     '''
-    encode_schema
+        None aka "null" is invalid in swagger schema definition
+        This breaks our samples :/
+        We don't add the item to the schema if it's None
     '''
-    # None aka "null" is invalid in swagger schema definition
-    # => recursively replace all "None" by ""
     if object is None:
-        return ''
-    if isinstance(object, (datetime.datetime, datetime.date)):
+        return None
+    if isinstance(object, (datetime.datetime, datetime.date, decimal.Decimal, bytes)):
         return str(object)
     if isinstance(object, dict):
         result = {}
         for k, v in object.items():
             v = encode_schema(v)
-            result[k] = v
+            if not v is None:
+                result[k] = v
         return result
-    if isinstance(object, list):
+    if isinstance(object, (list, set)):
         result = []
         for i in object:
-            result.append(encode_schema(i))
+            encoded = encode_schema(i)
+            if not encoded is None:
+                result.append(encoded)
+
         return result
     return object
 
@@ -199,9 +204,9 @@ def get_sample_dict(sample):
     '''
     get_sample_dict
     '''
-    if getattr(sample, '_s_to_dict', False):
+    if getattr(sample, 'to_dict', False):
         # ==> isinstance SAFRSBASE
-        sample_dict = sample._s_to_dict()
+        sample_dict = sample.to_dict()
     else:
         cols = sample.__table__.columns
         sample_dict = {col.name : "" for col in cols if not col.name == 'id'}

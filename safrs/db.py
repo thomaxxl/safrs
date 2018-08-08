@@ -48,7 +48,11 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     'INTERVAL'  : 'string',
     'CHAR'      : 'string',
     'TIMESTAMP' : 'string',
-    'NVARCHAR'  : 'string'
+    'TINYINT'   : 'integer',
+    'MEDIUMINT' : 'integer',
+    'NVARCHAR'  : 'string',
+    'YEAR' : 'integer',
+    'SET' : 'string'
 }
 
 
@@ -57,19 +61,25 @@ def init_object_schema(obj):
         set the json_params attribute
         one-to-one mapping between class attributes and db columns
         json_params specify which class attributes will be serialized to json
+
+        We don't need the schema anymore, it may be useful in the future however..
     '''
 
-    class ObjectSchema(ma.ModelSchema):
-        '''
-        ObjectSchema
-        '''
-        class Meta:
+    try:
+        class ObjectSchema(ma.ModelSchema):
             '''
-            Meta
+                ObjectSchema
             '''
-            model = obj.__class__
+            class Meta:
+                '''
+                Meta
+                '''
+                model = obj.__class__
 
-    obj.__class__.object_schema = ObjectSchema()
+        obj.__class__.object_schema = ObjectSchema()
+
+    except Exception as exc:
+        log.info('Failed to create objectschema for {} : {}'.format(obj, exc))
 
 
 #
@@ -297,6 +307,9 @@ class SAFRSBase(Model):
 
     to_dict = _s_to_dict
 
+    def __iter__(self):
+        return iter(self._s_to_dict())
+
     def _s_from_dict(self, data):
         '''
             Deserialization
@@ -472,3 +485,4 @@ def get_db():
 
 db = get_db()
 ma = Marshmallow()
+log = logging.getLogger(__name__)

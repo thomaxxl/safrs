@@ -78,7 +78,7 @@ class Model(object):
                 column.type = self._get_adapted_type(column.type, column.table.bind)
             except:
                 #print('Failed to get col type for {}, {}'.format(column, column.type))
-                print('Failed to get col type for {}'.format(column))
+                print('#Failed to get col type for {}'.format(column))
 
     def _get_adapted_type(self, coltype, bind):
         compiled_type = coltype.compile(bind.dialect)

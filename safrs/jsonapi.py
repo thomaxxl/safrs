@@ -40,6 +40,8 @@ import json
 #import pprint
 #from urllib.parse import urljoin
 from functools import wraps
+import decimal
+import werkzeug
 
 from flask import make_response, url_for
 from flask import jsonify, request
@@ -426,6 +428,10 @@ def http_method_decorator(fun):
             traceback.print_exc()
             status_code = getattr(exc, 'status_code')
             message = exc.message
+
+        except werkzeug.exceptions.NotFound:
+            status_code = 404
+            message = 'Not Found'
 
         except Exception as exc:
             status_code = getattr(exc, 'status_code', 500)
@@ -1564,8 +1570,12 @@ class SAFRSJSONEncoder(JSONEncoder):
             return object.to_dict()
         if isinstance(object, SAFRSFormattedResponse):
             return object.to_dict()
+        if isinstance(object, decimal.Decimal):
+            return str(object)
+
         if isinstance(object, bytes):
             LOGGER.warning('bytes object, TODO')
+
         else:
             LOGGER.warning('Unknown object type "{}" for {}'.format(type(object), object))
         return self.ghetto_encode(object)

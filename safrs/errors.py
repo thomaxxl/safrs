@@ -7,10 +7,8 @@
 #
 import traceback
 import logging
-
 from sqlalchemy.exc import DontWrapMixin
-#from flask_restful import abort
-#from flask_sqlalchemy import SQLAlchemy
+
 
 class NotFoundError(Exception, DontWrapMixin):
     '''
