@@ -1,60 +1,39 @@
-# coding: utf-8
+#
+# This script exposes a mysql database as a webservice.
+# The db models are described in employees.py
+#
+import sys, logging, inspect, builtins
 from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
-
-import sys, logging, inspect
-from flask import Flask, render_template, Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, redirect
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask_marshmallow import Marshmallow
-from flask_cors import CORS
-from flask_admin import Admin, BaseView
-from flask_admin.contrib import sqla
 from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api
 from safrs import search, startswith
 
-# Needed because we don't want to implicitly commit when using flask-admin
-SAFRSBase.db_commit = False
-SAFRSBase.search = search
-SAFRSBase.startswith = startswith
 
-app = Flask('SAFRS Demo App', template_folder='/home/thomaxxl/mysite/templates')
-app.secret_key ='not so secret'
-CORS( app,
-      origins="*",
-      allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-      supports_credentials = True)
-
+app = Flask('SAFRS Demo App')
 app.config.update( SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost/employees',
                    DEBUG = True)
 app.url_map.strict_slashes = False
-db = SQLAlchemy(app)
-ma = Marshmallow(app)
-
-import builtins
-builtins.db = db
-
-import mysql_test_db
-def get_safrs_models():
-    for k, v in inspect.getmembers(mysql_test_db):
-        bases = getattr(v, '__bases__', [] )
-        if SAFRSBase in bases:
-            yield v
-
+SAFRSBase.db_commit = False
+builtins.db  = SQLAlchemy(app) # set db as a global variable to be used in employees.py
+import employees
 
 def start_api(HOST = '0.0.0.0' ,PORT = 80):
 
-    db.create_all()
     with app.app_context():
-        
-        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
+        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = '' )
 
-        for model in get_safrs_models():
-            # Create an API endpoint
-            api.expose_object(model)
-        
+        # Get the SAFRSBase models from employees
+        for name, model in inspect.getmembers(employees):
+            bases = getattr(model, '__bases__', [] )
+            if SAFRSBase in bases:
+                # Create an API endpoint
+                api.expose_object(model)
+
         # Set the JSON encoder used for object to json marshalling
         app.json_encoder = SAFRSJSONEncoder
         # Register the API at /api
@@ -64,8 +43,6 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
         @app.route('/')
         def goto_api():
             return redirect('/api')
-
-description = ''' '''
 
 if __name__ == '__main__':
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
