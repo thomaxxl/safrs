@@ -239,7 +239,7 @@ Some configuration parameters can be set in [config.py](safrs/config.py):
 <a class="mk-toclify" id="more-examples-and-use-cases"></a>
 ## More Examples and Use Cases
 The [examples](examples) folder contains more example scripts:
-- Exposing an exisitng sqlite database as a REST service
+- Exposing existing databases as REST services
 - Using a sha hash as primary key (id)
 - CORS usage
 - Flask-Admin integration example, eg.:
