@@ -1,6 +1,6 @@
-#Failed to get col type for address.location
-#Failed to get col type for film.special_features
 # coding: utf-8
+##Failed to get col type for address.location
+#Failed to get col type for film.special_features
 from sqlalchemy import CHAR, Column, DECIMAL, DateTime, Enum, ForeignKey, INTEGER, Index, LargeBinary, SMALLINT, String, TIMESTAMP, Table, Text, VARCHAR, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship

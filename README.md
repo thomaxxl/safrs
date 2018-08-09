@@ -250,7 +250,7 @@ The [examples](examples) folder contains more example scripts:
 
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. 
 
-- Composite keys might not work well.
+- Relationships with composite keys might not work well
 - Includes are disabled by default for performance reasons and I haven't worked out how to handle recursive relations.
 - I am not a big fan of the multiple inheritance needed to declare SAFRSBase instances but I couldn't subclass sqla's db.Model and I think inheritance is more clear than class decorators.
 - Not all of the documentation available in swagger1 is shown with swagger2

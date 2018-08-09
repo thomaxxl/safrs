@@ -1,3 +1,4 @@
+# coding: utf-8
 #
 # This script exposes a mysql database as a webservice.
 # The db models are described in sakila.py
@@ -17,7 +18,6 @@ from safrs import search, startswith
 app = Flask('SAFRS Demo App')
 app.config.update( SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost/sakila',
                    DEBUG = True)
-app.url_map.strict_slashes = False
 SAFRSBase.db_commit = False
 builtins.db  = SQLAlchemy(app) # set db as a global variable to be used in sakila.py
 import sakila

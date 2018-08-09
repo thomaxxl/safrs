@@ -209,6 +209,8 @@ def get_sample_dict(sample):
         sample_dict = sample.to_dict()
     else:
         cols = sample.__table__.columns
+        for col in cols:
+            print(col)
         sample_dict = {col.name : "" for col in cols if not col.name == 'id'}
     return encode_schema(sample_dict)
 
