@@ -411,7 +411,7 @@ class SAFRSBase(Model):
         get_documented_api_methods
         '''
         result = []
-        for method in inspect.getmembers(cls):
+        for name, method in inspect.getmembers(cls):
             rest_doc = get_doc(method)
             if rest_doc is not None:
                 result.append(method)

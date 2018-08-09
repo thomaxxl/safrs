@@ -48,26 +48,27 @@ def parse_object_doc(object):
     return api_doc
 
 
-def documented_api_method(func):
+def documented_api_method(method):
     '''
         Decorator to expose functions in the REST API:
         When a method is decorated with documented_api_method, this means
         it becomes available for use through HTTP POST (i.e. public)
     '''
+    
     if USE_API_METHODS:
         try:
-            api_doc = parse_object_doc(func)
+            api_doc = parse_object_doc(method)
         except yaml.scanner.ScannerError:
-            LOGGER.error('Failed to parse documentation for %s', func)
-        setattr(func, REST_DOC, api_doc)
-    return func
+            LOGGER.error('Failed to parse documentation for %s', method)
+        setattr(method, REST_DOC, api_doc)
+    return method
 
 
 def jsonapi_rpc(http_methods):
     '''
     jsonapi_rpc
     '''
-    def documented_api_method(func):
+    def _documented_api_method(method):
         '''
             Decorator to expose functions in the REST API:
             When a method is decorated with documented_api_method, this means
@@ -75,14 +76,14 @@ def jsonapi_rpc(http_methods):
         '''
         if USE_API_METHODS:
             try:
-                api_doc = parse_object_doc(func)
+                api_doc = parse_object_doc(method)
             except yaml.scanner.ScannerError:
-                LOGGER.error('Failed to parse documentation for %s', func)
-            setattr(func, REST_DOC, api_doc)
-            setattr(func, HTTP_METHODS, http_methods)
-        return func
+                LOGGER.error('Failed to parse documentation for %s', method)
+            setattr(method, REST_DOC, api_doc)
+            setattr(method, HTTP_METHODS, http_methods)
+        return method
 
-    return documented_api_method
+    return _documented_api_method
 
 
 def is_public(method):
@@ -95,13 +96,14 @@ def get_doc(method):
     '''
     get_doc
     '''
+
     return getattr(method, REST_DOC, None)
 
-def get_http_methods(func):
+def get_http_methods(method):
     '''
     get_http_methods
     '''
-    return getattr(func, HTTP_METHODS, ['POST'])
+    return getattr(method, HTTP_METHODS, ['POST'])
 
 
 def SchemaClassFactory(name, properties):
@@ -209,8 +211,6 @@ def get_sample_dict(sample):
         sample_dict = sample.to_dict()
     else:
         cols = sample.__table__.columns
-        for col in cols:
-            print(col)
         sample_dict = {col.name : "" for col in cols if not col.name == 'id'}
     return encode_schema(sample_dict)
 
