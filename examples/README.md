@@ -25,7 +25,7 @@ Exposed sakila database:
 ![Skype Swagger](../docs/images/sakila.png)
 
 
-Unfortunatley, the code generated with sqlacodegen needed some minor changes before it was usable. For example, the declarative column types for INTEGER and SMALLINT didn't work so I had to create small wrappers to fix this:
+Unfortunatley, the code generated with sqlacodegen needed some manual changes before it was usable. For example, the declarative column types for INTEGER and SMALLINT didn't work so I had to create small wrappers to fix this:
 ```python
 def SMALLINT(_):
     return db.SMALLINT
@@ -33,4 +33,6 @@ def SMALLINT(_):
 def INTEGER(_):
     return db.INTEGER
 ```
-You may run into similar problems trying to expose other schemas. Feel free to open a github ticket and I'll try to help you out.
+
+You may run into similar problems trying to expose other schemas. These problems may be hard to solve if you're unfamiliar with SQLAlchemy. 
+Feel free to open a github issue and I'll try to help you out.
