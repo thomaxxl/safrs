@@ -154,8 +154,6 @@ class Api(FRSApiBase):
 
         safrs_object = self.safrs_object
         api_methods = safrs_object.get_documented_api_methods()
-        print('api_methods')
-        print(api_methods)
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)

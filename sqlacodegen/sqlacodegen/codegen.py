@@ -431,8 +431,33 @@ class CodeGenerator(object):
 
     def render_metadata_declarations(self):
         if 'sqlalchemy.ext.declarative' in self.collector:
-            return 'Base = db.Model\nmetadata = Base.metadata'
-            return 'Base = declarative_base()\nmetadata = Base.metadata'
+            return '''
+########################################################################################################################
+# Manually Added for safrs, TODO: improve this crap
+#
+from safrs import SAFRSBase
+
+Base = db.Model
+metadata = Base.metadata
+
+def BIGINT(_):
+    return db.SMALLINT
+
+def SMALLINT(_):
+    return db.SMALLINT
+
+def INTEGER(_):
+    return db.INTEGER
+
+def TIME(**kwargs):
+    return db.TIME
+
+TIMESTAMP= db.TIMESTAMP
+NullType = db.String
+
+########################################################################################################################
+'''
+            #return 'Base = declarative_base()\nmetadata = Base.metadata'
         return 'metadata = MetaData()'
 
     def _get_compiled_expression(self, statement):
@@ -578,8 +603,11 @@ class CodeGenerator(object):
         return rendered + delimiter.join(args) + end
 
     def render_table(self, model):
+        # Manual edit: 
+        # replace invalid chars
+        table_name = model.table.name.replace('$','_S_')
         rendered = 't_{0} = Table(\n{1}{0!r}, metadata,\n'.format(
-            model.table.name, self.indentation)
+            table_name, self.indentation)
 
         for column in model.table.columns:
             rendered += '{0}{1},\n'.format(self.indentation, self.render_column(column, True))

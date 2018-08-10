@@ -1,7 +1,7 @@
 # coding: utf-8
 #
-# This script exposes a sakila database as a webservice.
-# The db models are described in sakila.py
+# This script exposes a mysql database as a webservice.
+# The db models are described in mysql.py
 #
 import sys, logging, inspect, builtins
 from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
@@ -14,22 +14,22 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api
 from safrs import search, startswith
 
-
 app = Flask('SAFRS Demo App')
-app.config.update( SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost/sakila',
+app.config.update( SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost/mysql',
                    DEBUG = True)
 SAFRSBase.db_commit = False
 builtins.db  = SQLAlchemy(app) # set global variables to be used in the import
+builtins.SAFRSBase = SAFRSBase
 
-import sakila
+import mysql
 
 def start_api(HOST = '0.0.0.0' ,PORT = 80):
 
     with app.app_context():
         api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = '' )
 
-        # Get the SAFRSBase models from sakila
-        for name, model in inspect.getmembers(sakila):
+        # Get the SAFRSBase models from mysql
+        for name, model in inspect.getmembers(mysql):
             bases = getattr(model, '__bases__', [] )
             if SAFRSBase in bases:
                 # Create an API endpoint

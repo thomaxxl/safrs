@@ -52,7 +52,8 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     'MEDIUMINT' : 'integer',
     'NVARCHAR'  : 'string',
     'YEAR' : 'integer',
-    'SET' : 'string'
+    'SET' : 'string',
+    'LONGBLOB' : 'string'
 }
 
 
@@ -434,7 +435,10 @@ class SAFRSBase(Model):
             column_type = str(column.type)
             if '(' in column_type:
                 column_type = column_type.split('(')[0]
-            swagger_type = SQLALCHEMY_SWAGGER2_TYPE[column_type]
+            swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type,None)
+            if swagger_type is None:
+                log.warning('Could not match json type for db column type `{}`, using "string"'.format(column_type))
+                swagger_type = 'string'
             default = getattr(sample_instance, column.name, None)
             if default is None:
                 # swagger api spec doesn't support nullable values
