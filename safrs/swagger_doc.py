@@ -304,8 +304,7 @@ def swagger_method_doc(cls, method_name, tags=None):
                            }]
         else:
             # typically POST
-            parameters, fields, description, 
-            method = get_swagger_doc_post_arguments(cls, method_name)
+            parameters, fields, description, method = get_swagger_doc_post_arguments(cls, method_name)
 
             '''if inspect.ismethod(method) and method.__self__ is cls:
                 # Mark classmethods: only these can be called when no {id} is given as parameter
@@ -408,7 +407,7 @@ def swagger_doc(cls, tags=None):
                                                   'data' : 
                                                   {
                                                    'attributes' : sample_dict,
-                                                   'type' : class_name
+                                                   'type' : table_name
                                                    }
                                                 })
             elif cls.sample_id():
@@ -418,7 +417,7 @@ def swagger_doc(cls, tags=None):
                                                   {'attributes' :
                                                    {
                                                     attr: '' for attr in cls._s_jsonapi_attrs},
-                                                   'type' : class_name
+                                                   'type' : table_name
                                                    }
                                                 })
             else:
@@ -451,7 +450,7 @@ def swagger_doc(cls, tags=None):
                                                  {'data' :
                                                   {'attributes' : sample_dict,
                                                    'id' : cls.sample_id(),
-                                                   'type' : class_name
+                                                   'type' : table_name
                                                    }
                                                 })
             else:
@@ -459,7 +458,7 @@ def swagger_doc(cls, tags=None):
                                                  {'data' :
                                                   {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs},
                                                    'id' : cls.sample_id(),
-                                                   'type' : class_name
+                                                   'type' : table_name
                                                    }
                                                 })
             parameters.append({
@@ -564,12 +563,15 @@ def swagger_relationship_doc(cls, tags=None):
                 sample_attrs = get_sample_dict(sample)
                 sample_id = sample.id
 
+            child_sample_id = child_class.sample_id()
+
             _, responses = child_class.get_swagger_doc('patch')
             rel_post_schema = schema_from_object('{}_Relationship'.format(class_name),
                                                  {'data':
                                                   [
-                                                   {'type': child_class.__name__,
-                                                    'attributes' : sample_attrs
+                                                   {'type': child_class.__tablename__,
+                                                    'attributes' : sample_attrs,
+                                                    'id' : child_sample_id
                                                     }
                                                   ]
                                                 })

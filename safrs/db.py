@@ -443,6 +443,7 @@ class SAFRSBase(Model):
             if default is None:
                 # swagger api spec doesn't support nullable values
                 continue
+
             field = {\
                      'type' : swagger_type,\
                      'example' : unicode(default)\
@@ -451,7 +452,6 @@ class SAFRSBase(Model):
 
         model_name = '{}_{}'.format(cls.__name__, 'patch')
         model = SchemaClassFactory(model_name, fields)
-
         return model
 
     @classmethod
