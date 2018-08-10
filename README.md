@@ -256,6 +256,7 @@ This code was developed for a specific use-case and may not be flexible enough f
 - Not all of the documentation available in swagger1 is shown with swagger2
 - I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
 - By default, SAFRSBase objects are commited to the database in `__init__`, as specified by the SAFRSBase.db_commit boolean. When using SAFRSBase in combination with other frameworks (eg. flask-admin), care should be taken of how and when objects are added to the session and commited. An example of flask-admin integration can be found in the [examples directory](examples/demo_flask_admin.py). 
+- SAFRS needs more unit tests, ideally, we should be able to generate a test sutie using swager-cli-codegen but I didn't find the time to implement tests.
 
 <a class="mk-toclify" id="references"></a>
 ## References
@@ -269,5 +270,3 @@ This code was developed for a specific use-case and may not be flexible enough f
 ## Thanks
 
 I developed this code when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to open source it when I stopped working there.
-
-<img src="http://thomaxxl.pythonanywhere.com/evpng">
