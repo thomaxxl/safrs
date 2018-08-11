@@ -48,9 +48,10 @@ odels.py
 The above command will create a python script containing the SQLAlchemy models: [employees.py](https://github.com/thomaxxl/safrs/blob/master/examples/employees.py)
 
 To create a webservice exposing these models as a JSON API, we create another script where we configure a Flask webservice and import the SQLAlchemy models.
-The complete script can be found [here](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py).
+The small script can be found [here](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py).
 
-After creating the webservice script, we can start the service:
+After adopting the webservice script, we can start the service:
+
 ```
 PYTHONPATH=$PWD python3 ./expose_employees.py localhost 5000
 ```
@@ -85,20 +86,42 @@ u@srv:~$ curl http://localhost:5000/dept_emp/10001_d005/department
 }
 ```
 
-In the table definition we see that the dept_emp table has a composite PK (emp_no,dept_no)
-```
-mysql> desc dept_emp;
-+-----------+---------+------+-----+---------+-------+
-| Field     | Type    | Null | Key | Default | Extra |
-+-----------+---------+------+-----+---------+-------+
-| emp_no    | int(11) | NO   | PRI | NULL    |       |
-| dept_no   | char(4) | NO   | PRI | NULL    |       |
-| from_date | date    | NO   |     | NULL    |       |
-| to_date   | date    | NO   |     | NULL    |       |
-+-----------+---------+------+-----+---------+-------+
+## Implementation
+
+The [webservice script](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py) has to be modified to reflect our configuration. First we have to set the database URI parameter `DB_URI`
+
+```python
+DB_URI = 'mysql+pymysql://root:password@localhost/employees'
+app = Flask('SAFRS Demo App')
+app.config.update( SQLALCHEMY_DATABASE_URI = DB_URI,
+                   DEBUG = True)
+
 ```
 
-This composite PK is translated to a JSON:API "id" by joining the PKs, separated by an underscore ( `'_'.join(emp_no,dept_no)` ).
-The result id 
+We also have to make sure that the models.py module is in our path:
 
- with composite primary keys (emp_no,dept_no)
+```python
+import models 
+```
+
+models.py contains the SQLAlchemy models created by our modified sqlacodegen script. The models that will be exposed inherit both
+from `SAFRSBase` and the SQLAlchemy `Base` model:
+
+```python
+class Department(SAFRSBase, Base):
+    __tablename__ = 'departments'
+
+    dept_no = Column(CHAR(4), primary_key=True)
+    dept_name = Column(String(40), nullable=False, unique=True)
+```
+
+The [expose_models.py](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py) script will look in the imported models module for classes that will be exposed.
+```python
+        for name, model in inspect.getmembers(models):
+            bases = getattr(model, '__bases__', [] )
+            if SAFRSBase in bases:
+                # Create an API endpoint
+                api.expose_object(model)
+```                
+
+When the models are loaded, the openapi (fka swagger) schema will be generated and the app will be started.
