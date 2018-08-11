@@ -8,7 +8,7 @@ A live version of this API can be found [here](http://www.blackbirdbits.com/).
 
 ## Configuration
 
-After installing the employee database as described in the github [readme](https://github.com/datacharmer/test_db), the database contains the following tables:
+After installing the employee database as described in the [readme](https://github.com/datacharmer/test_db), the database contains the following tables:
 ```
 mysql> show tables;
 +----------------------+
@@ -57,13 +57,15 @@ PYTHONPATH=$PWD python3 ./expose_employees.py localhost 5000
 
 This will start the flask webserver at http://localhost:5000 . Here we can see the exposed tables:
 
-!(images/employees1.PNG)
+![1](images/employees1.PNG)
 
 ## API Usage
 
 At this point we are able to query the database objects and relationships over HTTP:
 
-!(images/employees2.PNG)
+![2](images/employees2.PNG)
+
+For example, to query the department information of an employee:
 
 ```bash
 u@srv:~$ curl http://localhost:5000/dept_emp/10001_d005/department
@@ -82,3 +84,21 @@ u@srv:~$ curl http://localhost:5000/dept_emp/10001_d005/department
   }
 }
 ```
+
+In the table definition we see that the dept_emp table has a composite PK (emp_no,dept_no)
+```
+mysql> desc dept_emp;
++-----------+---------+------+-----+---------+-------+
+| Field     | Type    | Null | Key | Default | Extra |
++-----------+---------+------+-----+---------+-------+
+| emp_no    | int(11) | NO   | PRI | NULL    |       |
+| dept_no   | char(4) | NO   | PRI | NULL    |       |
+| from_date | date    | NO   |     | NULL    |       |
+| to_date   | date    | NO   |     | NULL    |       |
++-----------+---------+------+-----+---------+-------+
+```
+
+This composite PK is translated to a JSON:API "id" by joining the PKs, separated by an underscore ( `'_'.join(emp_no,dept_no)` ).
+The result id 
+
+ with composite primary keys (emp_no,dept_no)
