@@ -1,4 +1,4 @@
-# Expose an Existing Database as a JSON API
+# Expose an Existing Database as a JSON API with Flask, SQLAlchemy and OpenApi
 
 ## Introduction
 This document describes how to expose a database as a [JSON:API](http://jsonapi.org/) REST api. 
