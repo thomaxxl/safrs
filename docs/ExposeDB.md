@@ -1,6 +1,6 @@
 # Expose an Existing Database as a JSON API
 
-This document describes how to expose a database as a JSON:API rest api. 
+This document describes how to expose a database as a [JSON:API](http://jsonapi.org/) REST api. 
 This approach can be used for most databases with SQLAlchemy support (such as mysql, postges, sqlite etc.)
 Here we use the MySQL [employee sample database](https://github.com/datacharmer/test_db) as an example.
 
