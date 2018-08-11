@@ -125,3 +125,4 @@ The [expose_models.py](https://github.com/thomaxxl/safrs/blob/master/examples/ex
 ```                
 
 When the models are loaded, the openapi (fka swagger) schema will be generated and the app will be started.
+
