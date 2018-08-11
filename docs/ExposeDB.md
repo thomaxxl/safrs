@@ -45,7 +45,7 @@ The above command will create a python script containing the SQLAlchemy models: 
 To create a webservice exposing these models as a JSON API, we create another script where we configure a Flask webservice and import the SQLAlchemy models.
 The complete script can be found [here](https://github.com/thomaxxl/safrs/blob/master/examples/expose_employees.py).
 
-Now that we create
+After creating the webservice script, we can start the service:
 ```
 PYTHONPATH=$PWD python3 ./expose_employees.py localhost
 ```
