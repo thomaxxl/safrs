@@ -395,7 +395,9 @@ class CodeGenerator(object):
 
             # Only form model classes for tables that have a primary key and are not association
             # tables
-            if noclasses or not table.primary_key or table.name in association_tables:
+            if noclasses or not table.primary_key:
+                model = self.table_model(table)
+            elif table.name in association_tables:
                 model = self.table_model(table)
             else:
                 model = self.class_model(table, links[table.name], self.inflect_engine,
@@ -630,6 +632,7 @@ NullType = db.String
         return rendered.rstrip('\n,') + '\n)\n'
 
     def render_class(self, model):
+        print('#RENDER', model)
         rendered = 'class {0}(SAFRSBase, {1}):\n'.format(model.name, model.parent_name)
         rendered += '{0}__tablename__ = {1!r}\n'.format(self.indentation, model.table.name)
 
