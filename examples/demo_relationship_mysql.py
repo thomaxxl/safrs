@@ -21,7 +21,7 @@ from safrs.db import SAFRSBase, jsonapi_rpc
 from safrs.jsonapi import SAFRSJSONEncoder, Api, paginate, jsonapi_format_response, SAFRSFormattedResponse
 from safrs.errors import ValidationError, GenericError
 from safrs.api_methods import search, startswith
-from safrs.safrs_types import SAFRSID
+from safrs.safrs_types import SAFRSID, get_id_type
 
 DB_NAME = 'test'
 SQLALCHEMY_DATABASE_PREFIX='mysql+pymysql://root:password@localhost'
@@ -54,7 +54,7 @@ def next_val(db_name, table_name):
         return row[0]
 
 
-def get_id_type(db_name, table_name):
+def get_id_type_mysql(db_name, table_name, cls):
     '''
         Create the id_type class which generates the autoincrement id for our table
     '''
@@ -69,7 +69,7 @@ def get_id_type(db_name, table_name):
         def validate_id(id):
             return int(id)
 
-    return SAFRSAutoIncrementId
+    return get_id_type(cls, SAFRSAutoIncrementId)
 
 
 # Example sqla database object
@@ -82,8 +82,6 @@ class User(SAFRSBase, db.Model):
     name = db.Column(myString, default='')
     email = db.Column(myString, default='')
     books = db.relationship('Book', back_populates="user", lazy='dynamic')
-
-    id_type = get_id_type(DB_NAME, 'Users')
 
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
@@ -102,6 +100,9 @@ class User(SAFRSBase, db.Model):
     startswith = startswith
     search = search
 
+
+User.id_type = get_id_type_mysql(DB_NAME, 'Users', User)
+
 class Book(SAFRSBase, db.Model):
     '''
         description: Book description
@@ -111,10 +112,9 @@ class Book(SAFRSBase, db.Model):
     name = db.Column(myString, default='')
     user_id = db.Column(db.Integer, db.ForeignKey('Users.id'))
     user = db.relationship('User', back_populates='books')
-    id_type = get_id_type(DB_NAME, 'Books')
 
 
-
+Book.id_type = get_id_type_mysql(DB_NAME, 'Books', Book)
 
 
 if __name__ == '__main__':
@@ -148,8 +148,7 @@ if __name__ == '__main__':
             user= User( name = 'test_name_' +str(i) )
             user.books.append(book)
 
-        bbb = 'www.blackbirdbits.com'
-        api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(bbb, PORT))
+        api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(HOST, PORT))
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
