@@ -11,13 +11,10 @@
 # - validation
 # - hardcoded strings > config (SAFRS_INSTANCE_SUFFIX, URL_FMT)
 # - expose canonical endpoints
-# - jsonapi : pagination, include
 # - move all swagger related stuffto swagger_doc
-# - pagination, fieldsets, filtering, inclusion => filter page fields sort include
-# - duplicate entries / pk's => error
-# - orm reconstructor
+# - fieldsets
 # - safrs subclassing
-# - marshmallow & encoding
+# - encoding
 #
 '''
 http://jsonapi.org/format/#content-negotiation-servers
@@ -96,11 +93,17 @@ class Api(FRSApiBase):
             classname: safrs_object.__name__, e.g. "User"
 
         '''
-        try:
-            tmp_obj = safrs_object()
-            del tmp_obj
-        except:
-            pass
+
+        '''
+        if getattr(safrs_object,'create_test', None) and not safrs_object.query.first():
+          try:
+              # Used to 
+              LOGGER.info('Instantiating test object for {}'.format(safrs_object))
+              tmp_obj = safrs_object()
+              del tmp_obj
+          except:
+              LOGGER.warning('Failed to create test object for {}'.format(safrs_object))
+        '''
         self.safrs_object = safrs_object
         api_class_name = '{}_API'.format(safrs_object._s_type)
 
@@ -467,6 +470,11 @@ def api_decorator(cls, swagger_decorator):
         try:
             # Add swagger documentation
             decorated_method = swagger_decorator(method)
+        except RecursionError:
+            # Got this error when exposing WP DB, TODO: investigate where it comes from
+            LOGGER.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, method))
+            decorated_method = method
+
         except Exception as exc:
             LOGGER.error(exc)
             traceback.print_exc()

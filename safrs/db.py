@@ -25,7 +25,7 @@ from .config import OBJECT_ID_SUFFIX
 if sys.version_info[0] == 3:
     unicode = str
 #
-# Map SQLA types to swagger2 types
+# Map SQLA types to swagger2 types 
 #
 SQLALCHEMY_SWAGGER2_TYPE = {
     'INTEGER'   : 'integer',
@@ -53,7 +53,10 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     'NVARCHAR'  : 'string',
     'YEAR' : 'integer',
     'SET' : 'string',
-    'LONGBLOB' : 'string'
+    'LONGBLOB' : 'string',
+    'TINYTEXT' : 'string',
+    'LONGTEXT' : 'string',
+    'MEDIUMTEXT' : 'string'
 }
 
 
@@ -469,6 +472,7 @@ class SAFRSBase(Model):
             may be implemented by the app
         '''
         return {}
+
 
 
 LOGGER = logging.getLogger(__name__)
