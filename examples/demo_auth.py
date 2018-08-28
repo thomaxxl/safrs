@@ -13,6 +13,9 @@
 #
 import sys
 import os
+import logging
+import builtins
+from functools import wraps
 from flask import Flask, redirect, jsonify, make_response
 from flask import abort, request, g, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -23,16 +26,18 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from passlib.apps import custom_app_context as pwd_context
 from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
+from flask.ext.login import LoginManager, UserMixin, \
+                                login_required, login_user, logout_user 
 
 db  = SQLAlchemy()
 auth = HTTPBasicAuth()
-
 
 # Example sqla database object
 class Item(SAFRSBase, db.Model):
     '''
         description: Item description
     '''
+
     __tablename__ = 'items'
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
@@ -46,6 +51,7 @@ class User(SAFRSBase, db.Model):
     id = db.Column(String, primary_key=True)
     username = db.Column(db.String(32), index=True)
     password_hash = db.Column(db.String(64))
+    custom_decorators = [auth.login_required]
 
     @jsonapi_rpc(http_methods = ['POST'])
     def hash_password(self, password):
@@ -73,14 +79,13 @@ class User(SAFRSBase, db.Model):
         user = User.query.get(data['id'])
         return user
 
-
 def start_app(app):
 
     api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
     
     item = Item(name='test',email='em@il')
     user = User(username='admin')
-    user.hash_password('admin')
+    user.hash_password('adminPASS')
 
     api.expose_object(Item)
     api.expose_object(User)
@@ -91,7 +96,6 @@ def start_app(app):
     # Register the API at /api/docs
     swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
     app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
-
 
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
     app.run(host=HOST, port = PORT)
@@ -116,7 +120,6 @@ db.init_app(app)
 #
 @auth.verify_password
 def verify_password(username_or_token, password):
-    # first try to authenticate by token
     user = User.verify_auth_token(username_or_token)
     if not user:
         # try to authenticate with username/password
@@ -124,52 +127,8 @@ def verify_password(username_or_token, password):
         if not user or not user.verify_password(password):
             return False
     print('Authentication Successful for "{}"'.format(user.username))
-    g.user = user
     return True
 
-@app.route('/api/token', endpoint='get_auth_token')
-@auth.login_required
-def get_auth_token():
-    '''
-        Get username/pass from basic auth header, if valid:
-        - Return the token
-        - Set cookie token
-    '''
-    duration = 600
-    token = g.user.generate_auth_token(duration).decode('ascii')
-    response = make_response(jsonify({'token': token, 'duration': duration}) )
-    response.set_cookie('token', token)
-    return response
-
-@app.before_request
-def before_request():
-    
-    _insecure_views = ['get_auth_token']
-    
-    if request.method == 'OPTIONS': 
-        return
-
-    if request.endpoint in _insecure_views:
-        return
-
-    # Authentication is ok if a valid token is provided in one of these:
-    # - "bearer" authorization header *OR*
-    # - request "token" query arg *OR*
-    # - cookie 
-
-    token = None
-    auth_header = request.headers.get('Authorization','')
-    if auth_header.upper().startswith('BEARER '):
-        token = auth_header.split()[1]
-
-    token = request.cookies.get('token', token)
-    token = request.args.get('token',token)
-
-    if token and verify_password(token, None):
-        return
-
-    print('Authentication failed for endpoint {}'.format(request.endpoint))
-    return redirect(url_for('get_auth_token'))
 
 @app.route('/')
 def goto_api():
@@ -185,3 +144,4 @@ def shutdown_session(exception=None):
 with app.app_context():
     db.create_all()
     start_app(app)
+
