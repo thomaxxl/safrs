@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# This is a demo application to demonstrate the functionality of the safrs_rest REST API with authentication
+# This is a demo application to demonstrate the functionality of the safrs_rest REST API with JWT auth
 #
 # It can be ran standalone like this:
 # python demo.py [Listener-IP]
@@ -11,6 +11,38 @@
 # - A rest api is available
 # - swagger2 documentation is generated
 #
+'''
+Example invocation: 
+
+t@TEMP:~$ token=$(curl -X POST localhost:5000/login -d '{ "username" : "test", "password" : "test" }' --header "Content-Type: application/json" | jq .access_token -r)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   344  100   300  100    44  19197   2815 --:--:-- --:--:-- --:--:-- 18750
+t@TEMP:~$ curl localhost:5000/users/ -H "Authorization: Bearer $token"
+{
+  "data": [
+    {
+      "attributes": {
+        "password_hash": null,
+        "username": "admin"
+      },
+      "id": "ac608ebb-1b67-48d3-a9a0-1fba75a78227",
+      "relationships": {},
+      "type": "users"
+    }
+  ],
+  "jsonapi": {
+    "version": "1.0"
+  },
+  "links": {
+    "self": "http://localhost:5000/users/?page[offset]=0&page[limit]=250"
+  },
+  "meta": {
+    "count": 1,
+    "limit": 250
+  }
+}
+'''
 import sys
 import os
 import logging
