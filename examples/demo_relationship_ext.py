@@ -106,4 +106,6 @@ if __name__ == '__main__':
         swaggerui_blueprint = get_swaggerui_blueprint(API_PREFIX, API_PREFIX + '/swagger.json')
         app.register_blueprint(swaggerui_blueprint, url_prefix=API_PREFIX)
         print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
+        print(dir(api))
+        print(api.endpoints)
         app.run(host=HOST, port=PORT)
