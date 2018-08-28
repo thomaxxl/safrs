@@ -38,7 +38,7 @@ CLASSMETHOD_URL_FMT = '{}{}/methods/{}'
 
 # endpoint naming
 INSTANCE_ENDPOINT_FMT = '{}api.{}Id'
-ENDPOINT_FMT = '{}-api.{}'
+ENDPOINT_FMT = '{}api.{}'
 
 #UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 1<<32))
 UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 250))

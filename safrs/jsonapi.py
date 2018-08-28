@@ -34,8 +34,6 @@ import datetime
 import logging
 import re
 import json
-#import pprint
-#from urllib.parse import urljoin
 from functools import wraps
 import decimal
 import werkzeug
@@ -125,7 +123,7 @@ class Api(FRSApiBase):
 
         # Expose the collection
         LOGGER.info('Exposing %s on %s, endpoint: %s', safrs_object._s_type, url, endpoint)
-        self.add_resource(api_class,
+        resource = self.add_resource(api_class,
                           url,
                           endpoint=endpoint,
                           methods=['GET', 'POST'])
@@ -411,6 +409,7 @@ class Api(FRSApiBase):
         return '{}_{}'.format(summary, cls._operation_ids[summary])
 
 
+
 def http_method_decorator(fun):
     '''
         Decorator for the REST methods
@@ -419,6 +418,7 @@ def http_method_decorator(fun):
 
         This method will be called for all requests
     '''
+
 
     @wraps(fun)
     def method_wrapper(*args, **kwargs):
@@ -485,6 +485,9 @@ def api_decorator(cls, swagger_decorator):
             decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
         # Add exception handling
         decorated_method = http_method_decorator(decorated_method)
+
+        for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators' , []):
+            decorated_method = custom_decorator(decorated_method)
         setattr(cls, method_name, decorated_method)
 
     return cls
@@ -536,7 +539,7 @@ def paginate(object_query):
         del request_args['page[limit]']
         limit = int(limit)
     except:
-        log.debug('Invalid page[limit]')
+        LOGGER.debug('Invalid page[limit]')
 
     page_base = int(page_offset / limit) * limit
     count = object_query.count()

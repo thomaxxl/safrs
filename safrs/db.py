@@ -13,7 +13,6 @@ import sqlalchemy
 from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
-from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy, Model
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jsonapi_rpc
@@ -60,32 +59,6 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 
 
-def init_object_schema(obj):
-    '''
-        set the json_params attribute
-        one-to-one mapping between class attributes and db columns
-        json_params specify which class attributes will be serialized to json
-
-        We don't need the schema anymore, it may be useful in the future however..
-    '''
-
-    try:
-        class ObjectSchema(ma.ModelSchema):
-            '''
-                ObjectSchema
-            '''
-            class Meta:
-                '''
-                Meta
-                '''
-                model = obj.__class__
-
-        obj.__class__.object_schema = ObjectSchema()
-
-    except Exception as exc:
-        log.info('Failed to create objectschema for {} : {}'.format(obj, exc))
-
-
 #
 # SAFRSBase superclass
 #
@@ -101,7 +74,6 @@ class SAFRSBase(Model):
         this is why the attributes have the '_s_' prefix!
     '''
 
-    object_schema = None
     query_limit = 50
     # set this to False if you want to use the SAFRSBase in combination
     # with another framework, eg flask-admin
@@ -137,8 +109,6 @@ class SAFRSBase(Model):
         # validation is implemented
         kwargs['id'] = self.id_type(kwargs.get('id', None))
 
-        # Set the json parameters
-        init_object_schema(self)
         # Initialize the attribute values: these have been passed as key-value pairs in the
         # kwargs dictionary (from json).
         # Retrieve the values from each attribute (== class table column)
@@ -295,7 +265,7 @@ class SAFRSBase(Model):
         '''
         init_object_schema
         '''
-        init_object_schema(self)
+        pass
 
     def _s_to_dict(self):
         '''
@@ -473,9 +443,6 @@ class SAFRSBase(Model):
         '''
         return {}
 
-
-
-LOGGER = logging.getLogger(__name__)
 #
 # Work around flask-sqlalchemy's session crap
 # ( globals() doesn't work when using "builtins" module )
@@ -491,6 +458,11 @@ def get_db():
         LOGGER.warning('Reinitializing Database')
         return SQLAlchemy()
 
+LOGGER = logging.getLogger(__name__)
 db = get_db()
-ma = Marshmallow()
-log = logging.getLogger(__name__)
+'''
+builtins.log = logging.getLogger()
+handler = logging.StreamHandler(sys.stdout)
+log.setLevel(logging.DEBUG)
+log.addHandler(handler)
+'''
