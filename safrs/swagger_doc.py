@@ -337,17 +337,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         doc["produces"] = ["application/json"]
         doc['responses'] = responses = {'200' : {'description' : 'Success'}}
 
-        '''doc['parameters'] = [{'required': True, 'name': 'post Hash get_list', 
-        'schema': param_model, 'type': 'string', 'in': 'body', 
-        'description': 'Retrieve a list of objects with the ids in id_list. (classmethod)'}]'''
-
-        @swagger.doc(doc)
-        def wrapper(self, *args, **kwargs):
-            '''
-            '''
-            val = func(self, *args, **kwargs)
-            return val
-        return wrapper
+        return swagger.doc(doc)(func)
 
     return swagger_doc_gen
 
@@ -604,12 +594,8 @@ def swagger_relationship_doc(cls, tags=None):
         doc['parameters'] = parameters
         doc['responses'] = responses
 
-        @swagger.doc(doc)
-        def wrapper(self, *args, **kwargs):
+        return swagger.doc(doc)(func)
 
-            val = func(self, *args, **kwargs)
-            return val
-        return wrapper
     return swagger_doc_gen
 
 def default_paging_parameters():

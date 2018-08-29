@@ -55,20 +55,19 @@ from sqlalchemy import Column, Integer, String
 from safrs import SAFRSBase, SAFRSJSONEncoder, Api, jsonapi_rpc
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_sqlalchemy import SQLAlchemy
-from flask_httpauth import HTTPBasicAuth
-from passlib.apps import custom_app_context as pwd_context
-from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
-from flask_jwt_extended import (
-    JWTManager, jwt_required, create_access_token,
-    get_jwt_identity
-)
+
 db  = SQLAlchemy()
-auth = HTTPBasicAuth()
 
 
-def test_dec(f):
-    print(f, f.__name__)
-    return f
+def test_decorator(fun):
+    print('Wrapping:', fun.SAFRSObject.__name__, fun.__name__, fun)
+    @wraps(fun)
+    def wrapped_fun(*args, **kwargs):
+        print('IN HERE:', fun.SAFRSObject.__name__, fun.__name__)
+        result = fun(*args, **kwargs)
+        return result
+    return wrapped_fun
+
 
 class Item(SAFRSBase, db.Model):
     '''
@@ -78,22 +77,22 @@ class Item(SAFRSBase, db.Model):
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     user_id = db.Column(db.String, db.ForeignKey('Users.id'))
-    user = db.relationship('User', back_populates="items")
+    user = db.relationship('User', back_populates="items_rel")
 
 
 class User(SAFRSBase, db.Model):
     '''
-        description: User description (With JWT Authentication)
+        description: User description (With test_decorator)
     '''    
     __tablename__ = 'Users'
     #
-    # Add the jwt_required decorator to the exposed methods
+    # Add the test_decorator decorator to the exposed methods
     #
-    custom_decorators = [jwt_required, test_dec]
+    custom_decorators = [test_decorator]
 
     id = db.Column(String, primary_key=True)
     username = db.Column(db.String(32), index=True)
-    items = db.relationship('Item', back_populates="user", lazy='dynamic')
+    items_rel = db.relationship('Item', back_populates="user", lazy='dynamic')
 
     
 
@@ -123,7 +122,6 @@ def start_app(app):
 #
 
 app = Flask('demo_app')
-jwt = JWTManager(app)
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
                    SQLALCHEMY_TRACK_MODIFICATIONS = False,   
                    SECRET_KEY = b'sdqfjqsdfqizroqnxwc',
@@ -132,26 +130,6 @@ app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
 HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
 PORT = 5000
 db.init_app(app)
-
-
-@app.route('/login', methods=['POST'])
-def login():
-    if not request.is_json:
-        return jsonify({"msg": "Missing JSON in request"}), 400
-
-    username = request.json.get('username', None)
-    password = request.json.get('password', None)
-    if not username:
-        return jsonify({"msg": "Missing username parameter"}), 400
-    if not password:
-        return jsonify({"msg": "Missing password parameter"}), 400
-
-    if username != 'test' or password != 'test':
-        return jsonify({"msg": "Bad username or password"}), 401
-
-    # Identity can be any data that is json serializable
-    access_token = create_access_token(identity=username)
-    return jsonify(access_token=access_token), 200
 
 
 @app.route('/')

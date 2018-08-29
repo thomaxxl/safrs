@@ -216,7 +216,11 @@ class Api(FRSApiBase):
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
-        rel_object = type(rel_name, (SAFRSRelationshipObject,), {'relationship' : relationship})
+        rel_object = type(rel_name, (SAFRSRelationshipObject,), {'relationship' : relationship, 
+                                                                # Merge the relationship decorators from the classes
+                                                                # This makes things really complicated!!!
+                                                                # TODO: simplify this by creating a proper superclass
+                                                                'custom_decorators' : getattr(parent_class, 'custom_decorators', []) + getattr(parent_class, 'custom_decorators', []) })
 
         properties['SAFRSObject'] = rel_object
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
@@ -467,6 +471,8 @@ def api_decorator(cls, swagger_decorator):
         method = getattr(cls, method_name, None)
         if not method:
             continue
+
+        # Apply custom decorators, specified as class variable list
         try:
             # Add swagger documentation
             decorated_method = swagger_decorator(method)
@@ -486,8 +492,10 @@ def api_decorator(cls, swagger_decorator):
         # Add exception handling
         decorated_method = http_method_decorator(decorated_method)
 
+        setattr(decorated_method, 'SAFRSObject', cls.SAFRSObject)
         for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators' , []):
             decorated_method = custom_decorator(decorated_method)
+
         setattr(cls, method_name, decorated_method)
 
     return cls
