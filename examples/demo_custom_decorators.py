@@ -23,7 +23,9 @@ def test_decorator(fun):
     @wraps(fun)
     def wrapped_fun(*args, **kwargs):
         print('IN HERE:', fun.SAFRSObject.__name__, fun.__name__)
+        print('Args:', kwargs)
         result = fun(*args, **kwargs)
+        print('Result:', result)
         return result
     return wrapped_fun
 
@@ -33,6 +35,7 @@ class Item(SAFRSBase, db.Model):
         description: Item description
     '''
     __tablename__ = 'Items'
+    custom_decorators = [test_decorator]
     id = Column(String, primary_key=True)
     name = Column(String, default = '')
     user_id = db.Column(db.String, db.ForeignKey('Users.id'))

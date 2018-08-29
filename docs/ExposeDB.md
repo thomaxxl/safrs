@@ -41,14 +41,13 @@ We use sqlacodegen to create the database models. Sqlacodegen is a tool that rea
 I added some small modifications so it works together with Flask and Safrs. In the safrs directory, go to the sqlacodegen subdirectory and execute the sqlacodegen main.py script to generate the SQLAlchemy models:
 (change the mysql username and password to work with your database first)
 ```
-PYTHONPATH=sqlacodegen/ python3 sqlacodegen/sqlacodegen/main.py mysql+pymysql://root:password@localhost/mysql > examples/m
-odels.py
+PYTHONPATH=sqlacodegen/ python3 sqlacodegen/sqlacodegen/main.py mysql+pymysql://root:password@localhost/mysql > examples/models.py
 ```
 
 The above command will create a python script containing the SQLAlchemy models: [employees.py](https://github.com/thomaxxl/safrs/blob/master/examples/employees.py)
 
 To create a webservice exposing these models as a JSON API, we create another script where we configure a Flask webservice and import the SQLAlchemy models.
-The small script can be found [here](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py).
+The small script can be found [here](https://github.com/thomaxxl/safrs/blob/master/examples/expose_existing/expose_models.py).
 
 After adopting the webservice script, we can start the service:
 
@@ -88,7 +87,7 @@ u@srv:~$ curl http://localhost:5000/dept_emp/10001_d005/department
 
 ## Implementation
 
-The [webservice script](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py) has to be modified to reflect our configuration. First we have to set the database URI parameter `DB_URI`
+The [webservice script](https://github.com/thomaxxl/safrs/blob/master/examples/expose_existing/expose_models.py) has to be modified to reflect our configuration. First we have to set the database URI parameter `DB_URI`
 
 ```python
 DB_URI = 'mysql+pymysql://root:password@localhost/employees'
@@ -115,7 +114,7 @@ class Department(SAFRSBase, Base):
     dept_name = Column(String(40), nullable=False, unique=True)
 ```
 
-The [expose_models.py](https://github.com/thomaxxl/safrs/blob/master/examples/expose_models.py) script will look in the imported models module for classes that will be exposed.
+The [expose_models.py](https://github.com/thomaxxl/safrs/blob/master/examples/expose_existing/expose_model.spy) script will look in the imported models module for classes that will be exposed.
 ```python
         for name, model in inspect.getmembers(models):
             bases = getattr(model, '__bases__', [] )
