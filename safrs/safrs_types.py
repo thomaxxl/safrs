@@ -129,6 +129,10 @@ class SAFRSID(object):
         '''
         gen_id
         '''
+        # This is the case if an autoincrement id is expected:
+        if len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
+            return None
+            
         return str(uuid.uuid4())
 
     @classmethod

@@ -1427,14 +1427,18 @@ class SAFRSRestRelationshipAPI(Resource, object):
             # we should empty the relationship by setting it to []
             # otherwise it is an instance of InstrumentedList and we have to empty it
             # ( we could loop all items but this is slower for large collections )
-            if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
-                relation[:] = []
-            else:
-                setattr(parent, self.rel_name, [])
+            tmp_rel = []
             for child in data:
                 if not isinstance(child, dict):
                     raise ValidationError('Invalid data object')
-                relation.append(self.child_class.get_instance(child))
+                child_instance = self.child_class.get_instance(child['id'])
+                tmp_rel.append(child_instance)
+
+            if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
+                print('IL')
+                relation[:] = tmp_rel
+            else:
+                setattr(parent, self.rel_name, tmp_rel)
 
         elif data is None:
             # { data : null } //=> clear the relationship

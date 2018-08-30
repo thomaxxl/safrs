@@ -202,19 +202,6 @@ def schema_from_object(name, object):
     return SchemaClassFactory(name, properties)
 
 
-def get_sample_dict(sample):
-    '''
-    get_sample_dict
-    '''
-    if getattr(sample, 'to_dict', False):
-        # ==> isinstance SAFRSBASE
-        sample_dict = sample.to_dict()
-    else:
-        cols = sample.__table__.columns
-        sample_dict = {col.name : "" for col in cols if not col.name == 'id'}
-    return encode_schema(sample_dict)
-
-
 def get_swagger_doc_post_arguments(cls, method_name):
     '''
         create a schema for all methods which can be called through the
@@ -389,29 +376,15 @@ def swagger_doc(cls, tags=None):
             #
             # Create the default POST body schema
             #
-            sample = cls.sample()
-            if sample:
-                sample_dict = get_sample_dict(sample)
-                sample_data = schema_from_object(model_name,
-                                                 {
-                                                  'data' : 
-                                                  {
-                                                   'attributes' : sample_dict,
-                                                   'type' : table_name
-                                                   }
-                                                })
-            elif cls.sample_id():
-                sample_data = schema_from_object(model_name,
-                                                 {
-                                                  'data' :
-                                                  {'attributes' :
-                                                   {
-                                                    attr: '' for attr in cls._s_jsonapi_attrs},
-                                                   'type' : table_name
-                                                   }
-                                                })
-            else:
-                sample_data = {}
+            sample_dict = cls.sample_dict()
+            sample_data = schema_from_object(model_name,
+                                             {
+                                              'data' : 
+                                              {
+                                               'attributes' : sample_dict,
+                                               'type' : table_name
+                                               }
+                                            })
             parameters.append({
                                'name': 'POST body',
                                'in': 'body',
@@ -433,9 +406,9 @@ def swagger_doc(cls, tags=None):
         elif http_method == 'patch':
             doc['summary'] = 'Update a {} object'.format(class_name)
             post_model, responses = cls.get_swagger_doc('patch')
-            sample = cls.sample()
+            sample = cls.sample_dict()
+            sample_dict = cls.sample_dict()
             if sample:
-                sample_dict = get_sample_dict(sample)
                 sample_data = schema_from_object(model_name,
                                                  {'data' :
                                                   {'attributes' : sample_dict,
@@ -446,7 +419,7 @@ def swagger_doc(cls, tags=None):
             else:
                 sample_data = schema_from_object(model_name,
                                                  {'data' :
-                                                  {'attributes' : {attr: '' for attr in cls._s_jsonapi_attrs},
+                                                  {'attributes' : sample_dict,
                                                    'id' : cls.sample_id(),
                                                    'type' : table_name
                                                    }
@@ -547,11 +520,10 @@ def swagger_relationship_doc(cls, tags=None):
             doc['description'] = 'Add a {} object to the {} relation on {}'.format(child_class.__name__,
                                                                                    cls.relationship.key,
                                                                                    parent_name)
-            sample_attrs = {}
+            
             sample = getattr(cls, 'sample',lambda: None ) ()
-            if sample:
-                sample_attrs = get_sample_dict(sample)
-                sample_id = sample.id
+            sample_attrs = sample.sample_dict()
+            sample_id = sample.id
 
             child_sample_id = child_class.sample_id()
 
