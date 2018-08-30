@@ -450,6 +450,20 @@ def swagger_doc(cls, tags=None):
     return swagger_doc_gen
 
 
+def get_sample_dict(sample):
+    '''
+    get_sample_dict
+    '''
+    if getattr(sample, 'to_dict', False):
+        # ==> isinstance SAFRSBASE
+        sample_dict = sample.to_dict()
+    else:
+        cols = sample.__table__.columns
+        sample_dict = {col.name : "" for col in cols if not col.name == 'id'}
+    return encode_schema(sample_dict)
+
+
+
 def swagger_relationship_doc(cls, tags=None):
     '''
     swagger_relationship_doc
@@ -520,10 +534,11 @@ def swagger_relationship_doc(cls, tags=None):
             doc['description'] = 'Add a {} object to the {} relation on {}'.format(child_class.__name__,
                                                                                    cls.relationship.key,
                                                                                    parent_name)
-            
+            sample_attrs = {}
             sample = getattr(cls, 'sample',lambda: None ) ()
-            sample_attrs = sample.sample_dict()
-            sample_id = sample.id
+            if sample:
+                sample_attrs = sample.sample_dict()
+                sample_id = sample.id
 
             child_sample_id = child_class.sample_id()
 
