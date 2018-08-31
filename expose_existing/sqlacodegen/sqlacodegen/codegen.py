@@ -632,7 +632,7 @@ NullType = db.String
         return rendered.rstrip('\n,') + '\n)\n'
 
     def render_class(self, model):
-        print('#RENDER', model)
+        print('# Render', model.name)
         rendered = 'class {0}(SAFRSBase, {1}):\n'.format(model.name, model.parent_name)
         rendered += '{0}__tablename__ = {1!r}\n'.format(self.indentation, model.table.name)
 

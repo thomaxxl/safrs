@@ -132,7 +132,7 @@ class SAFRSID(object):
         # This is the case if an autoincrement id is expected:
         if len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return None
-            
+
         return str(uuid.uuid4())
 
     @classmethod
@@ -172,12 +172,23 @@ class SAFRSID(object):
         values = str(id).split(cls.delimiter)
         result = dict()
         for pk_col, val in zip(cls.columns, values):
+            if not val:
+                if pk_col.type.python_type == int:
+                    val = 0
             try:
-                result[pk_col.name] = pk_col.type.python_type(val)
+                col_name = str(pk_col.name)
+                result[col_name] = pk_col.type.python_type(val)
             except (ValueError, TypeError):
-                # This may happen if when the swagger doc is generated with default uuids
+                # This may happen when val is empty '' or
+                # if when the swagger doc is generated with default uuids
                 # todo: fix
-                result[pk_col.name] = pk_col.default
+                if pk_col.default:
+                    result[col_name] = pk_col.default
+                else:
+                    result[col_name] = ''
+            except:
+                result[col_name] = ''
+
         return result
 
 

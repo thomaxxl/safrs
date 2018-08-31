@@ -1,5 +1,7 @@
 # Expose an Existing Database as a JSON API with Flask, SQLAlchemy and OpenApi
 
+Update: I've updated the code and moved things to [safrs/expose_existing](https://github.com/thomaxxl/safrs/expose_existing) , some links will no longer work. I will add updates to the readme there
+
 ## Introduction
 This document describes how to expose a database as a [JSON:API](http://jsonapi.org/) REST api. 
 This approach can be used for most databases with SQLAlchemy support (such as mysql, postges, sqlite etc.)
