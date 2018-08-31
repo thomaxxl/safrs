@@ -19,7 +19,7 @@ from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jso
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
-from .config import OBJECT_ID_SUFFIX
+from .config import OBJECT_ID_SUFFIX, LOGGER
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 
@@ -493,7 +493,6 @@ def get_db():
         LOGGER.warning('Reinitializing Database')
         return SQLAlchemy()
 
-LOGGER = logging.getLogger(__name__)
 db = get_db()
 '''
 builtins.log = logging.getLogger()

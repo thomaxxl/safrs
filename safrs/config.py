@@ -2,7 +2,7 @@
 config.py
 '''
 # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
-import os
+import os, logging, builtins, sys
 
 OBJECT_ID_SUFFIX = os.environ.get('OBJECT_ID_SUFFIX', None)
 if not OBJECT_ID_SUFFIX:
@@ -55,3 +55,28 @@ USE_API_METHODS = True
 ENABLE_RELATIONSHIPS = bool(os.environ.get('ENABLE_RELATIONSHIPS', None))
 if not ENABLE_RELATIONSHIPS:
     ENABLE_RELATIONSHIPS = True
+
+
+def init_logging(loglevel = logging.WARNING):
+    '''
+        Specify the log format used in the webserver logs
+        The webserver will catch stdout so we redirect eveything to sys.stdout
+    '''
+    builtins.log = log = logging.getLogger()
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter('[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s')
+    handler.setFormatter(formatter)
+    log.setLevel(loglevel)
+    #root.setLevel(logging.DEBUG)
+    log.addHandler(handler)
+    return log
+
+loglevel = logging.WARNING
+try:
+    debug = os.getenv('DEBUG',logging.WARNING)
+    loglevel=int(debug)
+except:
+    print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(debug) )
+    loglevel = logging.WARNING
+
+LOGGER = init_logging(loglevel)
