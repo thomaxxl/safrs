@@ -1,6 +1,6 @@
 validate_email==1.3
 SQLAlchemy==1.2.2
-Flask==0.12.2
+Flask==0.12.3
 flask_restful_swagger_2==0.35
 flask_marshmallow==0.8.0
 Flask_RESTful==0.3.6
