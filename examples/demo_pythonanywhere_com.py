@@ -116,7 +116,7 @@ class Review(SAFRSBase, db.Model):
     book = db.relationship(Book)
 
 
-def start_api(HOST = '0.0.0.0' ,PORT = 80):
+def start_api(HOST = '0.0.0.0' ,PORT = None):
 
     db.create_all()
     with app.app_context():
@@ -137,7 +137,10 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
             db.session.add(review)
             db.session.commit()
         
-        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http", "https" ], description = description )
+        swagger_host = HOST
+        if PORT and PORT != 80:
+            swagger_host += ':{}'.format(PORT)
+        api  = Api(app, api_spec_url = '/api/swagger', host = swagger_host, schemes = [ "http", "https" ], description = description )
 
         # Flask-Admin Config
         admin = Admin(app, url='/admin')
