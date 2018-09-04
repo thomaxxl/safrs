@@ -41,7 +41,7 @@ CORS( app,
       supports_credentials = True)
 
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
-                   DEBUG = False)
+                   DEBUG = True)
 
 SAFRS(app)
 
@@ -137,7 +137,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
             db.session.add(review)
             db.session.commit()
         
-        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
+        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http", "https" ], description = description )
 
         # Flask-Admin Config
         admin = Admin(app, url='/admin')
