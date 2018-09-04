@@ -78,7 +78,10 @@ class Api(FRSApiBase):
     def expose_object(self, safrs_object, url_prefix='', **properties):
         '''
             This methods creates the API url endpoints for the SAFRObjects
-
+            :param safrs_object: SAFSBase subclass that we would like to expose
+        '''
+        
+        '''
             creates a class of the form
 
             @api_decorator

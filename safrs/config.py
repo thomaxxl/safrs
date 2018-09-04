@@ -3,8 +3,9 @@ config.py
 '''
 # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
 import os, logging, builtins, sys
+from . import SAFRS
 
-OBJECT_ID_SUFFIX = os.environ.get('OBJECT_ID_SUFFIX', None)
+OBJECT_ID_SUFFIX = os.environ.get('OBJECT_ID_SUFFIX', SAFRS.OBJECT_ID_SUFFIX)
 if not OBJECT_ID_SUFFIX:
     OBJECT_ID_SUFFIX = 'Id'
 
@@ -18,7 +19,7 @@ if not OBJECT_ID_SUFFIX:
 RESOURCE_URL_FMT = '{}/{}/'
 INSTANCE_URL_FMT = RESOURCE_URL_FMT + '<string:{}' + OBJECT_ID_SUFFIX + '>/'
 # last parameter for the "method" urls below will be the method name
-INSTANCEMETHOD_URL_FMT = os.environ.get('INSTANCEMETHOD_URL_FMT', None)
+INSTANCEMETHOD_URL_FMT = os.environ.get('INSTANCEMETHOD_URL_FMT', SAFRS.ENABLE_RELATIONSHIPS)
 if not INSTANCEMETHOD_URL_FMT:
     INSTANCEMETHOD_URL_FMT = RESOURCE_URL_FMT + '<string:{}>/{}'
 # (eg. /Users/get_list)
@@ -41,7 +42,7 @@ INSTANCE_ENDPOINT_FMT = '{}api.{}Id'
 ENDPOINT_FMT = '{}api.{}'
 
 #UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 1<<32))
-UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', 250))
+UNLIMITED = int(os.environ.get('SAFRS_UNLIMITED', SAFRS.SAFRS_UNLIMITED))
 # This is the default query limit
 # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
 BIG_QUERY_THRESHOLD = 1000 # Warning level
@@ -52,31 +53,6 @@ USE_API_METHODS = True
 
 # ENABLE_RELATIONSHIPS enables relationships to be included.
 # This may slow down certain queries if the relationships are not properly configured!
-ENABLE_RELATIONSHIPS = bool(os.environ.get('ENABLE_RELATIONSHIPS', None))
+ENABLE_RELATIONSHIPS = bool(os.environ.get('ENABLE_RELATIONSHIPS', SAFRS.ENABLE_RELATIONSHIPS))
 if not ENABLE_RELATIONSHIPS:
     ENABLE_RELATIONSHIPS = True
-
-
-def init_logging(loglevel = logging.WARNING):
-    '''
-        Specify the log format used in the webserver logs
-        The webserver will catch stdout so we redirect eveything to sys.stdout
-    '''
-    builtins.log = log = logging.getLogger()
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s')
-    handler.setFormatter(formatter)
-    log.setLevel(loglevel)
-    #root.setLevel(logging.DEBUG)
-    log.addHandler(handler)
-    return log
-
-loglevel = logging.WARNING
-try:
-    debug = os.getenv('DEBUG',logging.WARNING)
-    loglevel=int(debug)
-except:
-    print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(debug) )
-    loglevel = logging.WARNING
-
-LOGGER = init_logging(loglevel)

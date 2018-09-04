@@ -19,7 +19,8 @@ from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jso
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
-from .config import OBJECT_ID_SUFFIX, LOGGER
+from .config import OBJECT_ID_SUFFIX
+from safrs import LOGGER
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 
@@ -66,11 +67,11 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 #
 class SAFRSBase(Model):
     '''
-        Implement Json Serialization for SAFRSMail SQLalchemy Persistent Objects
-        the serialization itself is performed by the to_dict() method
+        This class implements Json Serialization for SAFRS SQLalchemy Persistent Objects
+        Serialization itself is performed by the ``to_dict`` method
         Initialization and instantiation are quite complex because we rely on the DB schema
 
-        all instances have an id (uuid) and a name
+        The jsonapi id is generated from the primary keys of the columns
 
         The object attributes should not match column names,
         this is why the attributes have the '_s_' prefix!

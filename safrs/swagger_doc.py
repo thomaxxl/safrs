@@ -66,7 +66,7 @@ def documented_api_method(method):
 
 def jsonapi_rpc(http_methods):
     '''
-    jsonapi_rpc
+        :param http_methods:
     '''
     def _documented_api_method(method):
         '''
