@@ -3,7 +3,7 @@ __init__.py
 '''
 import logging, os, builtins, sys
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask
+from flask import Flask, redirect
 
 class SAFRS(object):
     '''This class configures the Flask application to serve SAFRSBase instances
@@ -45,7 +45,7 @@ class SAFRS(object):
 
         for k, v in app.config.items():
             setattr(cls, k, v)
-            
+
         cls.init_logging(SAFRS.LOGLEVEL)
 
         return object.__new__(object)
