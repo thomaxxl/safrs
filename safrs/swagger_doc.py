@@ -13,6 +13,7 @@ import decimal
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import USE_API_METHODS
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 
 LOGGER = logging.getLogger()
 
@@ -543,23 +544,18 @@ def swagger_relationship_doc(cls, tags=None):
             child_sample_id = child_class.sample_id()
 
             _, responses = child_class.get_swagger_doc('patch')
-            rel_post_schema = schema_from_object('{}_Relationship'.format(class_name),
-                                                 {'data':
-                                                  [
-                                                   {'type': child_class.__tablename__,
-                                                    'attributes' : sample_attrs,
-                                                    'id' : child_sample_id
-                                                    }
-                                                  ]
-                                                })
-            parameters.append({
-                               'name': '{} body'.format(class_name),
+            data =  {'type': child_class.__tablename__,
+                     'attributes' : sample_attrs,
+                     'id' : child_sample_id }
+
+            if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
+                data = [data]
+            rel_post_schema = schema_from_object('{}_Relationship'.format(class_name), {'data': data})
+            parameters.append({'name': '{} body'.format(class_name),
                                'in': 'body',
                                'description' : '{} POST model'.format(class_name),
                                'schema' : rel_post_schema,
-                               'required': True,
-                               }
-                              )
+                               'required': True})
 
 
         elif http_method == 'delete':

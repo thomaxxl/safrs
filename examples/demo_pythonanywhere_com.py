@@ -1,9 +1,4 @@
-# A very simple Flask Hello World app
-#
 # This script is deployed on thomaxxl.pythonanywhere.com
-#
-
-#!/usr/bin/env python
 #
 # This is a demo application to demonstrate the functionality of the safrs_rest REST API
 #
@@ -28,11 +23,6 @@ from flask_admin.contrib import sqla
 from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api, SAFRS
 from safrs import search, startswith
 
-# Needed because we don't want to implicitly commit when using flask-admin
-SAFRSBase.db_commit = False
-SAFRSBase.search = search
-SAFRSBase.startswith = startswith
-
 app = Flask('SAFRS Demo App', template_folder='/home/thomaxxl/mysite/templates')
 app.secret_key ='not so secret'
 CORS( app,
@@ -45,6 +35,12 @@ app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
 
 db = SQLAlchemy(app)
 SAFRS(app, db)
+
+# Add search and startswith methods so we can perform lookups from the frontend
+SAFRSBase.search = search
+SAFRSBase.startswith = startswith
+# Needed because we don't want to implicitly commit when using flask-admin
+SAFRSBase.db_commit = False
 
 class Book(SAFRSBase, db.Model):
     '''
@@ -154,11 +150,11 @@ def send_ja(path='index.html'):
 
 
 description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
-- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> <br/>
-- Auto-generated swagger spec: <a href=swagger.json>swagger.json</a> <br/> 
-- Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
+- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
 - <a href="http://thomaxxl.pythonanywhere.com/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
+- Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
+- Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
 '''
 
 if __name__ == '__main__':
@@ -166,4 +162,3 @@ if __name__ == '__main__':
     PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
     start_api(HOST,PORT)
     app.run(host=HOST, port=PORT)
-
