@@ -64,7 +64,7 @@ from .config import UNLIMITED, BIG_QUERY_THRESHOLD, MAX_QUERY_THRESHOLD
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 from .config import ENABLE_RELATIONSHIPS
 
-db = safrs
+db = safrs.db
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
 class Api(FRSApiBase):
