@@ -15,38 +15,45 @@ class NotFoundError(Exception, DontWrapMixin):
     This exception is raised when an item was not found
     '''
     status_code = 404
-    message = 'NotFoundError'
+    message = 'NotFoundError: '
 
     def __init__(self, message=''):
         Exception.__init__(self)
         if LOGGER.getEffectiveLevel() == logging.DEBUG:
-            self.message = message
+            self.message += message
             LOGGER.error('Not found: %s', message)
+        else:
+            self.message += '(debug logging disabled)'
+        
 
 class ValidationError(Exception, DontWrapMixin):
     '''
     This exception is raised when invalid input has been detected
     '''
     status_code = 400
-    message = 'Validation Error'
+    message = 'Validation Error: '
     def __init__(self, message=''):
         Exception.__init__(self)
         if LOGGER.getEffectiveLevel() == logging.DEBUG:
-            self.message = message
+            self.message += message
             LOGGER.error('ValidationError: %s', message)
-        # todo: security logging...
-
+        else:
+            self.message += '(debug logging disabled)'
+        
 class GenericError(Exception, DontWrapMixin):
     '''
     This exception is raised when an error has been detected
     TODO: maybe hide error info from user
     '''
     status_code = 500
-    message = 'Generic Error'
+    message = 'Generic Error: '
     def __init__(self, message):
         Exception.__init__(self)
         if LOGGER.getEffectiveLevel() == logging.DEBUG:
-            self.message = message
+            self.message += message
+        else:
+            self.message += '(debug logging disabled)'
+        
         LOGGER.debug(traceback.format_exc())
         LOGGER.error('Generic Error: %s', message)
 

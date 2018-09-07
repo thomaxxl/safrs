@@ -54,7 +54,7 @@ import sqlalchemy.orm.collections
 from sqlalchemy.ext.declarative import DeclarativeMeta
 #from sqlalchemy import or_, and_
 # safrs_rest dependencies:
-from .db import SAFRSBase, LOGGER
+from .db import SAFRSBase, db
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
@@ -64,7 +64,7 @@ from .config import UNLIMITED, BIG_QUERY_THRESHOLD, MAX_QUERY_THRESHOLD
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 from .config import ENABLE_RELATIONSHIPS
 
-db = safrs.db
+LOGGER = safrs.LOGGER
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
 class Api(FRSApiBase):

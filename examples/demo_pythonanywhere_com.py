@@ -54,12 +54,10 @@ class Book(SAFRSBase, db.Model):
     id = db.Column(db.String, primary_key=True)
     title = db.Column(db.String, default = '')
     reader_id = db.Column(db.String, db.ForeignKey('People.id'))
-    reader = db.relationship('Person', back_populates='books_read', foreign_keys=[reader_id])
     author_id = db.Column(db.String, db.ForeignKey('People.id'))
-    author = db.relationship('Person', back_populates='books_written', foreign_keys=[author_id])
     publisher_id = db.Column(db.String, db.ForeignKey('Publishers.id'))
     publisher = db.relationship('Publisher', back_populates='books')
-    reviews = db.relationship('Review')
+    reviews = db.relationship('Review', backref="book", cascade="save-update, merge, delete, delete-orphan")
 
 
 class Person(SAFRSBase, db.Model):
@@ -71,14 +69,14 @@ class Person(SAFRSBase, db.Model):
     name = db.Column(db.String, default = '')
     email = db.Column(db.String, default = '')
     comment = db.Column(db.Text, default = '')
-    books_read = db.relationship('Book', back_populates = "reader", foreign_keys = [Book.reader_id])
-    books_written = db.relationship('Book', back_populates = "author", foreign_keys = [Book.author_id])
-    reviews = db.relationship('Review', back_populates = "person")
+    books_read = db.relationship('Book', backref = "reader", foreign_keys = [Book.reader_id], cascade="save-update, merge, delete, delete-orphan")
+    books_written = db.relationship('Book', backref = "author", foreign_keys = [Book.author_id])
+    reviews = db.relationship('Review', backref = "reader")
 
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
     @classmethod
-    @jsonapi_rpc(http_methods = ['GET'])
+    @jsonapi_rpc(http_methods = ['POST'])
     def send_mail(self, email):
         '''
             description : Send an email
@@ -108,11 +106,9 @@ class Review(SAFRSBase, db.Model):
         description: Review description
     '''
     __tablename__ = 'Reviews'
-    reader_id = db.Column(db.String, db.ForeignKey('People.id'), primary_key=True)
+    reader_id = db.Column(db.String, db.ForeignKey('People.id',ondelete="CASCADE"), primary_key=True)
     book_id = db.Column(db.String, db.ForeignKey('Books.id'), primary_key=True)
     review = db.Column(db.String, default = '')
-    person = db.relationship(Person)
-    book = db.relationship(Book)
 
 
 def start_api(HOST = '0.0.0.0' ,PORT = None):

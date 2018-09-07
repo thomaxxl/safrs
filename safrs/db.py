@@ -24,7 +24,6 @@ from .config import OBJECT_ID_SUFFIX
 from safrs import LOGGER
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
-
 db = safrs.db
 
 #
