@@ -45,15 +45,12 @@ from flask.json import JSONEncoder
 from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 from flask_restful import abort
-#from flask_sqlalchemy import SQLAlchemy
 import sqlalchemy
 #from jsonschema import validate
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 from sqlalchemy.ext.declarative import DeclarativeMeta
-#from sqlalchemy import or_, and_
-# safrs_rest dependencies:
 from .db import SAFRSBase, db
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
@@ -446,7 +443,7 @@ def http_method_decorator(fun):
         except Exception as exc:
             status_code = getattr(exc, 'status_code', 500)
             traceback.print_exc()
-            if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
+            if LOGGER.getEffectiveLevel() > logging.DEBUG:
                 message = 'Unknown Error'
             else:
                 message = str(exc)
@@ -1706,10 +1703,11 @@ class SAFRSJSONEncoder(JSONEncoder):
                         data = {'id' : rel_item.jsonapi_id, 'type' : rel_item.__tablename__}
 
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    if relationship.direction == ONETOMANY:
-                        meta['direction'] = 'ONETOMANY'
-                    else:
-                        meta['direction'] = 'MANYTOMANY'
+                    if LOGGER.getEffectiveLevel() < logging.WARNING:
+                        if relationship.direction == ONETOMANY:
+                            meta['direction'] = 'ONETOMANY'
+                        else:
+                            meta['direction'] = 'MANYTOMANY'
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(object, rel_name)
                     limit = request.args.get('page[limit]', MAX_QUERY_THRESHOLD)
