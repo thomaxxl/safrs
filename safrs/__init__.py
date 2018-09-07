@@ -21,11 +21,12 @@ class SAFRS(object):
     OBJECT_ID_SUFFIX = None
     ENABLE_RELATIONSHIPS = None
 
-    def __new__(cls, app, prefix = '/api', **kwargs):
+    def __new__(cls, app, db, prefix = '/api', **kwargs):
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
         cls.app = app
+        cls.db = db
 
         if app.config.get('DEBUG', False):
             cls.LOGLEVEL = logging.DEBUG
@@ -39,6 +40,11 @@ class SAFRS(object):
         @app.route('/')
         def goto_api():
             return redirect(prefix)
+
+        @app.teardown_appcontext
+        def shutdown_session(exception=None):
+            '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
+            cls.db.session.remove()        
 
         for k, v in kwargs.items():
             setattr(cls, k, v)
@@ -56,12 +62,11 @@ class SAFRS(object):
             Specify the log format used in the webserver logs
             The webserver will catch stdout so we redirect eveything to sys.stdout
         '''
-        builtins.log = log = logging.getLogger()
+        log = logging.getLogger()
         handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter('[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s')
         handler.setFormatter(formatter)
         log.setLevel(loglevel)
-        #root.setLevel(logging.DEBUG)
         log.addHandler(handler)
         return log
 
