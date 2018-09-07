@@ -43,9 +43,8 @@ CORS( app,
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
                    DEBUG = True)
 
-SAFRS(app)
-
 db = SQLAlchemy(app)
+SAFRS(app, db)
 
 class Book(SAFRSBase, db.Model):
     '''

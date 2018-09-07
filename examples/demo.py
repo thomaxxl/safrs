@@ -12,15 +12,10 @@
 # - swagger2 documentation is generated
 #
 import sys
-
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
-from safrs.db import SAFRSBase, documented_api_method
-from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
-from flask_swagger_ui import get_swaggerui_blueprint
-
-
+from safrs import SAFRSBase, jsonapi_rpc, SAFRS, Api
 
 db  = SQLAlchemy()
 
@@ -35,8 +30,8 @@ class User(SAFRSBase, db.Model):
     email = Column(String, default = '')
 
     # Following method is exposed through the REST API 
-    # This means it can be invoked with a HTTP POST
-    @documented_api_method
+    # This means it can be invoked with the argument http_methods
+    @jsonapi_rpc(http_methods = ['POST', 'GET'])
     def send_mail(self, email):
         '''
             description : Send an email
@@ -53,17 +48,10 @@ class User(SAFRSBase, db.Model):
 
 def create_api(app):
 
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
+    api  = Api(app, host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
     # Expose the User object 
     api.expose_object(User)
     user = User(name='test',email='em@il')
-
-    # Set the JSON encoder used for object to json marshalling
-    app.json_encoder = SAFRSJSONEncoder
-    # Register the API at /api/docs
-    swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
-    app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
-
 
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
     app.run(host=HOST, port = PORT)
@@ -72,21 +60,10 @@ def create_api(app):
 
 if __name__ == '__main__':
     app = Flask('demo_app')
-    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',      
-                       SQLALCHEMY_TRACK_MODIFICATIONS = False,   
-                       DEBUG = True)
     db.init_app(app)
-
-    @app.route('/')
-    def goto_api():
-        return redirect('/api')
-
-    @app.teardown_appcontext
-    def shutdown_session(exception=None):
-        '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
-        db.session.remove()
-
-
+    SAFRS(app, db)
+    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
+    
     # Start the application
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
     PORT = 5000

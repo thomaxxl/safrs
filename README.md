@@ -3,6 +3,8 @@
 [![License](https://img.shields.io/pypi/l/safrs.svg)](https://github.com/thomaxxl/safrs/blob/master/LICENSE)
 
 
+_SAFRS v2 is being prepared which has a slightly different interface. The documentation may be off a bit_
+
 # SAFRS: Python OpenAPI & JSON:API Framework
 
 ![demo](docs/images/safrs.gif)
@@ -11,7 +13,8 @@
 
 - [Overview](#overview)
 - [Installation](#installation)
-- [HTTP Methods](#http-methods)
+- [JSON:API Interface](#http-methods)
+- [Initialization](#initialization)
 - [Resource Objects](#resource-objects)
 - [Relationships](#relationships)
 - [Methods](#methods)
@@ -55,14 +58,23 @@ python3 examples/demo_relationship.py "your-interface-ip"
 ```
 
 <a class="mk-toclify" id="http-methods"></a>
-## HTTP Methods
+## JSON:API Interface
 
-Exposed resource objects can be queried using a JSON API. The API support following HTTP operations:
+Exposed resource objects can be queried using the [JSON:API format](http://jsonapi.org/format/). The API supports following HTTP operations:
 
-- GET : Retrieve an object or a list of object identifiers
+- GET : Retrieve an object or a list of objects
 - PATCH : Update an object.
 - DELETE: Delete an object.
 - POST : Create an object. 
+
+Please check the [JSON:API spec](http://jsonapi.org/format/) for more implementation details. 
+You can also check the interface in the [live demo](http://thomaxxl.pythonanywhere.com/api).
+
+<a class="mk-toclify" id="initialization"></a>
+## Application Initialization
+```python
+
+```
 
 <a class="mk-toclify" id="resource-objects"></a>
 ## Resource Objects
@@ -219,6 +231,23 @@ In case of errors, the webservice will return a default HTTP status code 500 and
   "error": "Failed to execute query Entity '<class 'C2_server.Image'>' has no property 'namex'"
 }
 ```
+
+<a class="mk-toclify" id="ecurity></a>
+## Security
+
+### Authentication
+
+### Logging
+
+The default logging is configured to not show verbose error messages, so not to reveal information of the backend to the user, which may also mitigate script injection attacks in case the log messages are reflected in the user output.
+The loglevel can be set to DEBUG
+
+```python
+app.config.update( DEBUG = True )
+```
+
+
+
 
 <a class="mk-toclify" id="endpoint-naming"></a>
 ## Endpoint Naming
