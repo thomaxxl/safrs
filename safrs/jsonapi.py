@@ -34,10 +34,11 @@ import datetime
 import logging
 import re
 import json
-from functools import wraps
 import decimal
 import werkzeug
+import safrs
 
+from functools import wraps
 from flask import make_response, url_for
 from flask import jsonify, request
 from flask.json import JSONEncoder
@@ -53,7 +54,7 @@ import sqlalchemy.orm.collections
 from sqlalchemy.ext.declarative import DeclarativeMeta
 #from sqlalchemy import or_, and_
 # safrs_rest dependencies:
-from .db import SAFRSBase, db, LOGGER
+from .db import SAFRSBase, LOGGER
 from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
@@ -63,9 +64,8 @@ from .config import UNLIMITED, BIG_QUERY_THRESHOLD, MAX_QUERY_THRESHOLD
 from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
 from .config import ENABLE_RELATIONSHIPS
 
-
+db = safrs
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
-flatten = lambda l: [item for sublist in l for item in sublist]
 
 class Api(FRSApiBase):
     '''

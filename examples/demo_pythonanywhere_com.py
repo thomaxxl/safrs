@@ -41,7 +41,7 @@ CORS( app,
       supports_credentials = True)
 
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
-                   DEBUG = True)
+                   DEBUG = True ) # DEBUG will also show safrs log messages + exception messages
 
 db = SQLAlchemy(app)
 SAFRS(app, db)
@@ -98,7 +98,7 @@ class Publisher(SAFRSBase, db.Model):
         description: Publisher description
     '''
     __tablename__ = 'Publishers'
-    id = db.Column(db.String, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True) # Integer pk instead of str
     name = db.Column(db.String, default = '')
     books = db.relationship('Book', back_populates = "publisher")
         
@@ -152,11 +152,8 @@ def start_api(HOST = '0.0.0.0' ,PORT = None):
         
         
 @app.route('/ja')
-def redir_ja():
-    return redirect('/ja/index.html')
-
 @app.route('/ja/<path:path>', endpoint="jsonapi_admin")
-def send_ja(path):
+def send_ja(path='index.html'):
     return send_from_directory('/home/thomaxxl/mysite/jsonapi-admin/build', path)
 
 

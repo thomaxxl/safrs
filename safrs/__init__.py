@@ -4,6 +4,9 @@ __init__.py
 import logging, os, builtins, sys
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Flask, redirect
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 class SAFRS(object):
     '''This class configures the Flask application to serve SAFRSBase instances
@@ -21,12 +24,12 @@ class SAFRS(object):
     OBJECT_ID_SUFFIX = None
     ENABLE_RELATIONSHIPS = None
 
-    def __new__(cls, app, db, prefix = '/api', **kwargs):
+    def __new__(cls, app, app_db = db, prefix = '/api', **kwargs):
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
         cls.app = app
-        cls.db = db
+        db = cls.db = app_db
 
         if app.config.get('DEBUG', False):
             cls.LOGLEVEL = logging.DEBUG
