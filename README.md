@@ -21,6 +21,7 @@ _SAFRS v2 is being prepared which has a slightly different interface. The docume
     - [Custom Methods](#custom-methods)
     - [Class Methods](#class-methods)
 - [HTTP Status Codes](#http-status-codes)
+- [Security](security)
 - [Endpoint Naming](#endpoint-naming)
 - [Configuration](#configuration)
 - [More Examples and Use Cases](#more-examples-and-use-cases)
