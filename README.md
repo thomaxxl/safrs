@@ -24,6 +24,7 @@ _SAFRS v2 is being prepared which has a slightly different interface. The docume
 - [Security](security)
 - [Endpoint Naming](#endpoint-naming)
 - [Configuration](#configuration)
+- [Exposing Existing Databases](#expose-existing)
 - [More Examples and Use Cases](#more-examples-and-use-cases)
 - [Limitations & TODOs](#limitations--todos)
 - [References](#references)
@@ -269,10 +270,18 @@ Some configuration parameters can be set in [config.py](safrs/config.py):
 - INSTANCE_URL_FMT: This parameter declares the instance url path format
 - RELATIONSHIP_URL_FMT: This parameter declares the relationship endpoint path format
 
+<a class="mk-toclify" id="expose-existing"></a>
+## Exposing Existing Databases
+Safrs allows you to Expose existing databases as jsona:api services with the [expose_existing.py](expose_existing/expose_existing.py) script, for example:
+
+```bash
+python3 expose_existing/expose_existing.py mysql+pymysql://root:password@localhost/sakila  --host localhost
+```
+More details [here](docs/ExposeDB.md)
+
 <a class="mk-toclify" id="more-examples-and-use-cases"></a>
 ## More Examples and Use Cases
 The [examples](examples) folder contains more example scripts:
-- Exposing existing databases as REST services (see also [here](docs/ExposeDB.md) )
 - Using a sha hash as primary key (id)
 - CORS usage
 - Flask-Admin integration example, eg.:

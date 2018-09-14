@@ -441,11 +441,12 @@ class SAFRSBase(Model):
                 continue
             # convert the column type to string and map it to a swagger type
             column_type = str(column.type)
-            if '(' in column_type:
-                column_type = column_type.split('(')[0]
+            # Take care of extended column type declarations, eg. TEXT COLLATE "utf8mb4_unicode_ci" > TEXT
+            column_type = column_type.split('(')[0]
+            column_type = column_type.split(' ')[0]
             swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type,None)
             if swagger_type is None:
-                LOGGER.warning('Could not match json type for db column type `{}`, using "string"'.format(column_type))
+                LOGGER.warning('Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name))
                 swagger_type = 'string'
             default = getattr(sample_instance, column.name, None)
             if default is None:
