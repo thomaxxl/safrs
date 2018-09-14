@@ -12,7 +12,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, redirect
 from flask_swagger_ui import get_swaggerui_blueprint
 from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api
-from safrs import search, startswith
+from safrs import search, startswith, SAFRS
 from io import StringIO
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
@@ -93,9 +93,10 @@ def codegen(args):
     return generated
 
 args = get_args()
-app = Flask('SAFRS Demo App')
+app = Flask('DB App')
 app.config.update( SQLALCHEMY_DATABASE_URI = args.url,
                    DEBUG = True)
+SAFRS(app)
 app.url_map.strict_slashes = False
 SAFRSBase.db_commit = False
 builtins.db  = SQLAlchemy(app) # set db as a global variable to be used in employees.py
@@ -126,10 +127,10 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
                 api.expose_object(model)
 
         # Set the JSON encoder used for object to json marshalling
-        app.json_encoder = SAFRSJSONEncoder
+        #app.json_encoder = SAFRSJSONEncoder
         # Register the API at /api
-        swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
-        app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
+        #swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
+        #app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
 
         @app.route('/')
         def goto_api():
