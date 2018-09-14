@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import re
 import json
+import safrs
 from uuid import UUID
 from sqlalchemy.types import PickleType, String
 from sqlalchemy.types import TypeDecorator, BLOB
@@ -110,12 +111,16 @@ class UUIDType(TypeDecorator):
 
 class SAFRSID(object):
     '''
-        - gen_id
-        - validate_id
+        This class creates a jsonapi "id" from the classes PKs
+        In case of a composite PK, the pks are joined with the delimiter
+        eg.
+        pkA = 1, pkB = 2, delimiter = '_' => jsonapi_id = '1_2'
+
+        If you want to create a custom id_type, you can subclass SAFRSID
     '''
     primary_keys = None
     columns = None
-    delimiter = '_'
+    delimiter = '_' 
 
     def __new__(cls, id=None):
 
@@ -127,18 +132,20 @@ class SAFRSID(object):
     @classmethod
     def gen_id(cls):
         '''
-        gen_id
+            Generate a jsonapi id
         '''
         # This is the case if an autoincrement id is expected:
         if len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return None
 
+        # Some dialects support UUID
+        # Maybe we should use db.UUID() instead
         return str(uuid.uuid4())
 
     @classmethod
     def validate_id(cls, id):
         '''
-        validate_id
+            Validate a given id (eg. check if it's a valid uuid, email etc.)
         '''
         return
         for pk in id.split(cls.delimiter):
@@ -152,7 +159,7 @@ class SAFRSID(object):
     @property
     def name(self):
         '''
-        name
+            name
         '''
         return self.delimiter.join(self.primary_keys)
 

@@ -1,11 +1,7 @@
-'''
-db.py
-'''
 # -*- coding: utf-8 -*-
 #
 # SQLAlchemy database schemas
 #
-# Python3 compatibility
 import sys
 import inspect
 import logging
@@ -27,7 +23,8 @@ from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 db = safrs.db
 
 #
-# Map SQLA types to swagger2 types 
+# Map SQLA types to swagger2 json types
+# json supports only a couple of basic data types, which makes our job pretty easy :)
 #
 SQLALCHEMY_SWAGGER2_TYPE = {
     'INTEGER'   : 'integer',
@@ -37,7 +34,7 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     'VARCHAR'   : 'string',
     'TEXT'      : 'string',
     'DATE'      : 'string',
-    'BOOLEAN'   : 'integer',
+    'BOOLEAN'   : 'boolean',
     'BLOB'      : 'string',
     'BYTEA'     : 'string',
     'BINARY'    : 'string',
@@ -53,12 +50,13 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     'TINYINT'   : 'integer',
     'MEDIUMINT' : 'integer',
     'NVARCHAR'  : 'string',
-    'YEAR' : 'integer',
-    'SET' : 'string',
-    'LONGBLOB' : 'string',
-    'TINYTEXT' : 'string',
-    'LONGTEXT' : 'string',
-    'MEDIUMTEXT' : 'string'
+    'YEAR'      : 'integer',
+    'SET'       : 'string',
+    'LONGBLOB'  : 'string',
+    'TINYTEXT'  : 'string',
+    'LONGTEXT'  : 'string',
+    'MEDIUMTEXT': 'string',
+    'UUID'      : 'string'
 }
 
 
@@ -245,7 +243,7 @@ class SAFRSBase(Model):
         except AttributeError:
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
-            log.info('AttributeError for class "{}"'.format(cls.__name__))
+            LOGGER.info('AttributeError for class "{}"'.format(cls.__name__))
             return
 
         instance = None
@@ -355,7 +353,7 @@ class SAFRSBase(Model):
             try:
                 arg = column.type.python_type()
             except:
-                log.debug('Failed to get python type for column {}'.format(column))
+                LOGGER.debug('Failed to get python type for column {}'.format(column))
             if column.default:
                 arg = column.default.arg
 
@@ -383,33 +381,33 @@ class SAFRSBase(Model):
         object_name = cls.__name__
 
         object_model = cls.get_swagger_doc_object_model()
-        responses = {'200': {\
-                             'description' : '{} object'.format(object_name),\
-                             'schema': object_model\
-                            }\
+        responses = {'200': {
+                             'description' : '{} object'.format(object_name),
+                             'schema': object_model
+                            }
                     }
 
         if http_method == 'patch':
             body = object_model
-            responses = {'200' : {\
-                                  'description' : 'Object successfully updated',\
-                                }\
+            responses = {'200' : {
+                                  'description' : 'Object successfully updated',
+                                }
                         }
 
         if http_method == 'post':
             #body = cls.get_swagger_doc_post_parameters()
-            responses = {'201' : {\
-                                  'description' : 'Object successfully created',\
-                                },\
-                         '403' : {\
-                                  'description' : 'Invalid data',\
-                                },\
+            responses = {'201' : {
+                                  'description' : 'Object successfully created',
+                                },
+                         '403' : {
+                                  'description' : 'Invalid data',
+                                },
                         }
 
         if http_method == 'get':
-            responses = {'200' : {\
-                                  'description' : 'Success',\
-                                }\
+            responses = {'200' : {
+                                  'description' : 'Success',
+                                }
                         }
             #responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
 
@@ -418,6 +416,7 @@ class SAFRSBase(Model):
     @classmethod
     def get_documented_api_methods(cls):
         '''
+        Retrieve the jsonapi_rpc methods (fka documented_api_method)
         get_documented_api_methods
         '''
         result = []
@@ -430,7 +429,7 @@ class SAFRSBase(Model):
     @classmethod
     def get_swagger_doc_object_model(cls):
         '''
-            Create a schema for object creation and updates through the HTTP PUT interface
+            Create a schema for object creation and updates through the HTTP PATCH and POST interfaces
             The schema is created using the sqlalchemy database schema. So there
             is a one-to-one mapping between json input data and db columns
         '''
@@ -446,17 +445,15 @@ class SAFRSBase(Model):
                 column_type = column_type.split('(')[0]
             swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type,None)
             if swagger_type is None:
-                log.warning('Could not match json type for db column type `{}`, using "string"'.format(column_type))
+                LOGGER.warning('Could not match json type for db column type `{}`, using "string"'.format(column_type))
                 swagger_type = 'string'
             default = getattr(sample_instance, column.name, None)
             if default is None:
                 # swagger api spec doesn't support nullable values
                 continue
 
-            field = {\
-                     'type' : swagger_type,\
-                     'example' : str(default)\
-                     } # added unicode str() for datetime encoding
+            field = {'type' : swagger_type,
+                     'example' : str(default) } # added unicode str() for datetime encoding
             fields[column.name] = field
 
         model_name = '{}_{}'.format(cls.__name__, 'patch')

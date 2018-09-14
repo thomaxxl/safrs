@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 #
-# This code implements REST HTTP methods and sqlalchemy to json marshalling
+# This code implements REST HTTP methods and sqlalchemy to json serialization
 #
 # Configuration parameters:
 # - endpoint
 #
 # todo:
-# - __ underscores
-# - tests
 # - validation
 # - hardcoded strings > config (SAFRS_INSTANCE_SUFFIX, URL_FMT)
 # - expose canonical endpoints
@@ -15,6 +13,8 @@
 # - fieldsets
 # - safrs subclassing
 # - encoding
+# - __ underscores
+# - tests
 #
 '''
 http://jsonapi.org/format/#content-negotiation-servers
@@ -46,7 +46,6 @@ from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 from flask_restful import abort
 import sqlalchemy
-#from jsonschema import validate
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
@@ -1391,6 +1390,8 @@ class SAFRSRestRelationshipAPI(Resource, object):
             a resource identifier object corresponding to the new related resource.
             null, to remove the relationship.
         '''
+        print('XXX'*100)
+
         parent, relation = self.parse_args(**kwargs)
         json_reponse = request.get_json()
         if not isinstance(json_reponse, dict):

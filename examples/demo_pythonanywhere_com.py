@@ -34,7 +34,8 @@ app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
                    DEBUG = True ) # DEBUG will also show safrs log messages + exception messages
 
 db = SQLAlchemy(app)
-SAFRS(app, db)
+prefix = '/api'
+SAFRS(app, db, prefix = prefix)
 
 # Add search and startswith methods so we can perform lookups from the frontend
 SAFRSBase.search = search
@@ -148,6 +149,9 @@ def start_api(HOST = '0.0.0.0' ,PORT = None):
 def send_ja(path='index.html'):
     return send_from_directory('/home/thomaxxl/mysite/jsonapi-admin/build', path)
 
+@app.route('/')
+def goto_api():
+    return redirect(prefix)
 
 description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>

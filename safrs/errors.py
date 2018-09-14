@@ -7,6 +7,7 @@
 #
 import traceback
 import logging
+import safrs
 from sqlalchemy.exc import DontWrapMixin
 
 
@@ -57,4 +58,4 @@ class GenericError(Exception, DontWrapMixin):
         LOGGER.debug(traceback.format_exc())
         LOGGER.error('Generic Error: %s', message)
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = safrs.LOGGER

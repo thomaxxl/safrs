@@ -3,7 +3,8 @@ __init__.py
 '''
 import logging, os, builtins, sys
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, redirect
+from flask import Flask, redirect, url_for
+from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -34,16 +35,19 @@ class SAFRS(object):
         if app.config.get('DEBUG', False):
             cls.LOGLEVEL = logging.DEBUG
 
+        log = cls.init_logging(SAFRS.LOGLEVEL)
+
         app.url_map.strict_slashes = False
         app.json_encoder = SAFRSJSONEncoder
-        # Register the API at /api
-        swaggerui_blueprint = get_swaggerui_blueprint(prefix, '/api/swagger.json')
-        app.register_blueprint(swaggerui_blueprint, url_prefix= prefix)
 
-        @app.route('/')
-        def goto_api():
-            return redirect(prefix)
-
+        # Register the API blueprint
+        swaggerui_blueprint = kwargs.get('swaggerui_blueprint', None)
+        if swaggerui_blueprint is None:
+            swaggerui_blueprint = get_swaggerui_blueprint(prefix, '/api/swagger.json')
+            app.register_blueprint(swaggerui_blueprint, url_prefix= prefix)
+            swaggerui_blueprint.json_encoder = JSONEncoder
+        
+        
         @app.teardown_appcontext
         def shutdown_session(exception=None):
             '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
@@ -55,7 +59,7 @@ class SAFRS(object):
         for k, v in app.config.items():
             setattr(cls, k, v)
 
-        cls.init_logging(SAFRS.LOGLEVEL)
+        
 
         return object.__new__(object)
 
