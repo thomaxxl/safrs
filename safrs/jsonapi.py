@@ -657,17 +657,15 @@ def get_included(data, limit, include=None):
             # relationship direction in (ONETOMANY, MANYTOMANY):
             if included and isinstance(included, SAFRSBase) and not included in result:
                 result.add(included)
+            elif isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
+                # included should be an InstrumentedList
+                included = included[:limit]
+                result = result.union(included)
             elif not included or included in result:
                 continue
             else:
-                # included should be an InstrumentedList
-                try:
-                    included = included[:limit]
-                    result = result.union(included)
-                except:
-                    LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship, included))
-                    LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship.direction, included))
-                    result.add(included)
+                LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship, included))
+                result.add(included)
 
         if nested_rel:
             for nested_included in [get_included(result, limit, nested_rel) for obj in result]:
