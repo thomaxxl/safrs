@@ -3,7 +3,7 @@
 # A lot of dirty things going on here because we have to handle all sorts of edge cases
 #
 
-import sys, logging, inspect, builtins, os, argparse
+import sys, logging, inspect, builtins, os, argparse, tempfile, atexit, shutil
 from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
@@ -16,12 +16,15 @@ from safrs import search, startswith, SAFRS
 from io import StringIO
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
+from flask_cors import CORS
+
+MODEL_DIR=tempfile.mkdtemp() # directory where the generated models.py will be saved
 
 sqlacodegen_dir = os.path.join(os.path.dirname(__file__), 'sqlacodegen')
 if not os.path.isdir(sqlacodegen_dir):
     print('sqlacodegen not found')
 
-
+sys.path.insert(0,MODEL_DIR)
 sys.path.insert(0,sqlacodegen_dir)
 from sqlacodegen.codegen import CodeGenerator
 
@@ -94,6 +97,8 @@ def codegen(args):
 
 args = get_args()
 app = Flask('DB App')
+CORS(app, origins= ["*"])
+
 app.config.update( SQLALCHEMY_DATABASE_URI = args.url,
                    DEBUG = True)
 SAFRS(app)
@@ -108,13 +113,13 @@ models = codegen(args)
 # Also, we can modify models.py in case things go awry
 #
 if not args.models:
-    with open('models.py','w+') as models_f:
+    with open(os.path.join(MODEL_DIR, 'models.py'),'w+') as models_f:
         models_f.write(models)
 
 import models
 
 
-def start_api(HOST = '0.0.0.0' ,PORT = 80):
+def start_api(HOST = '0.0.0.0', PORT = 80):
     
     with app.app_context():
         api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = '' )
@@ -137,10 +142,10 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
             return redirect('/api')
 
 if __name__ == '__main__':
-    print()
+    atexit.register(lambda : shutil.rmtree(MODEL_DIR))
     HOST = args.host
     PORT = args.port
     start_api(HOST,PORT)
-
+    print('API URL: http://{}:{}/api , model dir: {}'.format(HOST,PORT,MODEL_DIR))
     app.run(host=HOST, port=PORT)
 
