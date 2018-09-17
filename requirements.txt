@@ -13,3 +13,4 @@ PyYAML==3.13
 marshmallow-sqlalchemy==0.13.2
 Flask-Cors==3.0.3
 pymysql==0.8.1
+inflect==0.3.1
