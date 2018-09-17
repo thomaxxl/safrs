@@ -657,7 +657,7 @@ def get_included(data, limit, include=None):
             # relationship direction in (ONETOMANY, MANYTOMANY):
             if included and isinstance(included, SAFRSBase) and not included in result:
                 result.add(included)
-            elif not included:
+            elif not included or included in result:
                 continue
             else:
                 # included should be an InstrumentedList
@@ -665,8 +665,8 @@ def get_included(data, limit, include=None):
                     included = included[:limit]
                     result = result.union(included)
                 except:
-                    LOGGER.critical('Failed to add included for {},\
-                                 please file a bug report'.format(relationship))
+                    LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship, included))
+                    LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship.direction, included))
                     result.add(included)
 
         if nested_rel:
@@ -1391,7 +1391,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             null, to remove the relationship.
         '''
         print('XXX'*100)
-
         parent, relation = self.parse_args(**kwargs)
         json_reponse = request.get_json()
         if not isinstance(json_reponse, dict):
