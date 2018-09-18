@@ -168,8 +168,11 @@ class SAFRSID(object):
         '''
             Retrieve the id string derived from the pks of obj
         '''
-        values = [str(getattr(obj, pk.name)) for pk in self.columns]
-        return self.delimiter.join(values)
+        if len(self.columns) > 1:
+            values = [str(getattr(obj, pk.name)) for pk in self.columns]
+            return self.delimiter.join(values)
+
+        return getattr(obj, self.primary_keys[0])
 
     @classmethod
     def get_pks(cls, id):
