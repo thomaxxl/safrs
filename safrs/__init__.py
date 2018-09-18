@@ -24,6 +24,7 @@ class SAFRS(object):
     LOGLEVEL = logging.WARNING
     OBJECT_ID_SUFFIX = None
     ENABLE_RELATIONSHIPS = None
+    DEFAULT_INCLUDED = '' # change to +all to include eeverything (slower because relationships will be fetched)
 
     def __new__(cls, app, app_db = db, prefix = '/api', **kwargs):
         if not isinstance(app, Flask):

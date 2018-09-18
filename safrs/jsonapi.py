@@ -62,6 +62,7 @@ from .config import ENABLE_RELATIONSHIPS
 
 LOGGER = safrs.LOGGER
 SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
+INCLUDE_ALL = '+all'
 
 class Api(FRSApiBase):
     '''
@@ -615,7 +616,7 @@ def jsonapi_sort(object_query, safrs_object):
 
     return object_query
 
-def get_included(data, limit, include=None):
+def get_included(data, limit, include=''):
     '''
         return a set of included items
 
@@ -647,7 +648,10 @@ def get_included(data, limit, include=None):
     # Multiple related resources can be requested in a comma-separated list
     includes = include.split(',')
 
-    for include in includes:
+    if INCLUDE_ALL in includes:
+        includes += [r.key for r in instance._s_relationships]
+
+    for include in set(includes):
         relationship = include.split('.')[0]
         nested_rel = None
         if '.' in include:
@@ -667,7 +671,11 @@ def get_included(data, limit, include=None):
                 LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship, included))
                 result.add(included)
 
-        if nested_rel:
+        if INCLUDE_ALL in includes:
+            for nested_included in [get_included(result, limit) for obj in result]: # Removed recursion with get_included(result, limit, INCLUDE_ALL)
+                result = result.union(nested_included)
+
+        elif nested_rel:
             for nested_included in [get_included(result, limit, nested_rel) for obj in result]:
                 result = result.union(nested_included)
 
@@ -688,7 +696,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     meta['count'] = count
 
     jsonapi = dict(version='1.0')
-    included = list(get_included(data, limit, include=request.args.get('include', None)))
+    included = list(get_included(data, limit, include=request.args.get('include', safrs.SAFRS.DEFAULT_INCLUDED )))
     '''if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)'''
     result = dict(data=data)
