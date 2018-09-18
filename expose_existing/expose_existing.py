@@ -37,7 +37,7 @@ def get_args():
     parser.add_argument('--version', action='store_true', help="print the version number and exit")
     parser.add_argument('--host',  default = '0.0.0.0', help="host (interface ip) to run")
     parser.add_argument('--port',  default = 5000, type=int, help="host (interface ip) to run")
-    parser.add_argument('--models', action='store_true', help="Load models from file instead of generating them dynamically")
+    parser.add_argument('--models', default=None, help="Load models from file instead of generating them dynamically")
     parser.add_argument('--schema', help='load tables from an alternate schema')
     parser.add_argument('--tables', help='tables to process (comma-separated, default: all)')
     parser.add_argument('--noviews', action='store_true', help="ignore views")
@@ -112,9 +112,13 @@ models = codegen(args)
 # Write the models to file, we could try to exec() but this makes our code more complicated
 # Also, we can modify models.py in case things go awry
 #
-if not args.models:
+if args.models:
+    model_dir = os.path.basename(args.models)
+    sys.path.insert(0,model_dir)
+else:
     with open(os.path.join(MODEL_DIR, 'models.py'),'w+') as models_f:
         models_f.write(models)
+    #atexit.register(lambda : shutil.rmtree(MODEL_DIR))
 
 import models
 
@@ -144,7 +148,6 @@ def start_api(HOST = '0.0.0.0', PORT = 80):
             return redirect('/api')
 
 if __name__ == '__main__':
-    atexit.register(lambda : shutil.rmtree(MODEL_DIR))
     HOST = args.host
     PORT = args.port
     start_api(HOST,PORT)

@@ -204,9 +204,10 @@ class ModelClass(Model):
 
     def _add_attribute(self, attrname, value):
         attrname = tempname = self._convert_to_valid_identifier(attrname)
-        counter = 1
+        counter = 0
         while tempname in self.attributes:
-            tempname = attrname + str(counter)
+            if counter > 0:
+                tempname = attrname + str(counter)
             counter += 1
 
         self.attributes[tempname] = value
