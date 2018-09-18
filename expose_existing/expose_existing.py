@@ -12,7 +12,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, redirect
 from flask_swagger_ui import get_swaggerui_blueprint
 from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api
-from safrs import search, startswith, SAFRS
+from safrs import search, SAFRS
 from io import StringIO
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
@@ -129,6 +129,8 @@ def start_api(HOST = '0.0.0.0', PORT = 80):
             
             if SAFRSBase in bases:
                 # Create an API endpoint
+                # Add search method so we can perform lookups from the frontend
+                model.search = search
                 api.expose_object(model)
 
         # Set the JSON encoder used for object to json marshalling
