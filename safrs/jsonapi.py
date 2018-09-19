@@ -658,19 +658,28 @@ def get_included(data, limit, include=''):
             nested_rel = '.'.join(include.split('.')[1:])
         if relationship in [r.key for r in instance._s_relationships]:
             included = getattr(instance, relationship)
+            #if isinstance(included, sqlalchemy.orm.dynamic.AppenderBaseQuery):
+            #    included = included.all()
+
             # relationship direction in (ONETOMANY, MANYTOMANY):
             if included and isinstance(included, SAFRSBase) and not included in result:
                 result.add(included)
-            elif isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
+                continue
+            if isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
                 # included should be an InstrumentedList
                 included = included[:limit]
                 result = result.union(included)
-            elif not included or included in result:
                 continue
-            else:
-                LOGGER.critical('Failed to add included for {} (included: {})'.format(relationship, included))
-                result.add(included)
-
+            if not included or included in result:
+                continue
+            try:
+                # This works on sqlalchemy.orm.dynamic.AppenderBaseQuery
+                included = included[:limit]
+                result = result.union(included)
+            except:
+                LOGGER.critical('Failed to add included for {} (included: {} - {})'.format(relationship, type(included), included))
+                result.add(included)                
+                
         if INCLUDE_ALL in includes:
             for nested_included in [get_included(result, limit) for obj in result]: # Removed recursion with get_included(result, limit, INCLUDE_ALL)
                 result = result.union(nested_included)
