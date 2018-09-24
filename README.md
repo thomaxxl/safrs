@@ -1,6 +1,7 @@
 [![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![License](https://img.shields.io/pypi/l/safrs.svg)](https://github.com/thomaxxl/safrs/blob/master/LICENSE)
+[![Downloads](https://pepy.tech/badge/safrs)](https://pepy.tech/project/safrs)
 
 
 _SAFRS v2 is being prepared which has a slightly different interface. The documentation may be off a bit_
