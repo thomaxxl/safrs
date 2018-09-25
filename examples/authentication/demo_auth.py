@@ -2,13 +2,15 @@
 #
 # This is a demo application to demonstrate the functionality of the safrs_rest REST API with authentication
 #
-# It can be ran standalone like this:
-# python demo.py [Listener-IP]
+# you will have to install the requirements: 
+# pip3 install passlib flask_httpauth flask_login  
 #
+# This script can be ran standalone like this:
+# python demo_auth.py [Listener-IP]
 # This will run the example on http://Listener-Ip:5000
-#
+# 
 # - A database is created and a item is added
-# - A rest api is available
+# - User is created and the User endpoint is protected by user:admin & pass: adminPASS
 # - swagger2 documentation is generated
 #
 import sys
