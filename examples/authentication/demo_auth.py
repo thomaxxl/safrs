@@ -6,7 +6,7 @@
 # pip3 install passlib flask_httpauth flask_login  
 #
 # This script can be ran standalone like this:
-# python demo_auth.py [Listener-IP]
+# python3 demo_auth.py [Listener-IP]
 # This will run the example on http://Listener-Ip:5000
 # 
 # - A database is created and a item is added
