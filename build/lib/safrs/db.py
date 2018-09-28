@@ -206,12 +206,11 @@ class SAFRSBase(Model):
                 result.append(attr)
 
         return result
-    
     #pylint: disable=
     @classproperty
     def _s_class_name(cls):
         return cls.__tablename__
-
+        
     #pylint: disable=
     @classproperty
     def _s_type(cls):
@@ -221,7 +220,7 @@ class SAFRSBase(Model):
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
     @property
     def Type(self):
-        log.warning('attribute "type" is not supported ({}), renamed to "Type"'.format(self))
+        log.warning('attribute "type" is not supported')
         return self.type
 
     @Type.setter

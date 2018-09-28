@@ -1,0 +1,135 @@
+.container-fluid{
+    margin: auto;
+}.react-bootstrap-table, .form-control .search {
+	font-size: 0.8em;
+}
+
+.dropdown-item {
+	background-color:black !important;
+}
+.btn-group {
+	width : 100%;
+}
+
+.search{
+	position: absolute;
+	right: 0px;
+	font-size: 0.8em;
+	margin: 2px;
+}
+
+.textFilter{
+	display: inline;
+	visibility: hidden;
+}
+
+.column-filter{
+	color: #c2c2c2;
+	font-size: 0.8em;
+	margin-left: 0.4em;
+	margin-bottom: 0.4em;
+}
+
+.cell {
+	border: 1px solid red;
+}
+
+.ja-popover {
+	color: red;
+	position: absolute;
+	left: 100px;
+    top: 150px;
+}
+
+.image-name{
+	cursor: pointer;
+}
+
+.image-popover {
+	max-width: 100%;
+}
+
+.table th, .table td {
+	padding: 0.7rem;
+}
+
+.caretupdown {
+	margin-left: 1em;
+}
+
+.caretupdown svg{
+	margin-right: 0.6em;
+}
+
+
+td.react-bootstrap-table-editing-cell input {
+	border: none;
+	font-size: 0.8em;
+}
+td.react-bootstrap-table-editing-cell input:focus {
+	border: none;
+	padding: 1px;
+}
+td.react-bootstrap-table-editing-cell input:active{
+	border: none;
+}
+
+.btn-none {
+	background-color: white;
+}
+
+.btn-none:hover {
+	background-color: #343a40;
+	color: #f7f7f7;
+}
+
+
+a {
+ color: red;
+}
+
+
+.btn-analysis{
+	color: #343a40;
+}
+
+.analyze-form{
+	font-size: 0.8em;
+}
+
+.form-group{
+
+}
+
+.page-item.active .page-link {
+	/*border: 1px solid red;*/
+}
+
+.from-label{
+	font-weight: bold;
+}
+
+.editable{
+	font-weight: bold;
+	cursor: pointer;
+}
+
+.RelationDeleteIcon {
+	margin-left: 0.6em;
+}
+
+.editable{
+	cursor: pointer;
+	font-weight: bold;
+}
+
+
+.container-fluid{
+	max-width: 100%;
+}
+
+
+.search {
+	/* stupid adaptation to bootstrap col-sm-12 , todo: fix*/
+	margin-right: 15px;
+}

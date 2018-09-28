@@ -1,0 +1,204 @@
+{
+  "Books": {
+    "column": [
+      {
+        "text": "Title",
+        "dataField": "title",
+        "sort": true,
+        "type": "text"
+      },
+      {
+        "text": "Publisher",
+        "dataField": "publisher_id",
+        "formatter": "toOneFormatter",
+        "editorRenderer": "toOneEditor",
+        "relation_url": "publisher",
+        "type": "text",
+        "relationship": "Publishers"
+      },
+      {
+        "text": "Reviews",
+        "dataField": "reviews",
+        "formatter": "toManyFormatter",
+        "editorRenderer": "ToManyRelationshipEditor",
+        "relation_url": "reviews",
+        "type": "text",
+        "relationship": "Reviews"
+      },
+      {
+        "text": "Reader",
+        "dataField": "reader_id",
+        "formatter": "toOneFormatter",
+        "editorRenderer": "toOneEditor",
+        "relation_url": "reader",
+        "type": "text",
+        "relationship": "People"
+      },
+      {
+        "text": "Author",
+        "dataField": "author_id",
+        "formatter": "toOneFormatter",
+        "editorRenderer": "toOneEditor",
+        "relation_url": "author",
+        "type": "text",
+        "relationship": "People"
+      }
+    ],
+    "actions": [
+      "CreateAction",
+      "EditAction",
+      "DeleteAction",
+      "InfoAction"
+    ],
+    "API": "Books",
+    "API_TYPE": "Books",
+    "path": "/books",
+    "menu": "Books",
+    "Title": "Books",
+    "main_show": "title",
+    "request_args": {
+      "include": "publisher,reviews,reader,author"
+    }
+  },
+  "People": {
+    "column": [
+      {
+        "text": "Name",
+        "dataField": "name",
+        "sort": true,
+        "type": "text"
+      },
+      {
+        "text": "Email",
+        "dataField": "email",
+        "sort": true,
+        "type": "text"
+      },
+      {
+        "text": "Comment",
+        "dataField": "comment",
+        "sort": true,
+        "type": "text"
+      },
+      {
+        "text": "Books_read",
+        "dataField": "books_read",
+        "formatter": "toManyFormatter",
+        "editorRenderer": "ToManyRelationshipEditor",
+        "relation_url": "books_read",
+        "type": "text",
+        "relationship": "Books"
+      },
+      {
+        "text": "Books_written",
+        "dataField": "books_written",
+        "formatter": "toManyFormatter",
+        "editorRenderer": "ToManyRelationshipEditor",
+        "relation_url": "books_written",
+        "type": "text",
+        "relationship": "Books"
+      },
+      {
+        "text": "Reviews",
+        "dataField": "reviews",
+        "formatter": "toManyFormatter",
+        "editorRenderer": "ToManyRelationshipEditor",
+        "relation_url": "reviews",
+        "type": "text",
+        "relationship": "Reviews"
+      }
+    ],
+    "actions": [
+      "CreateAction",
+      "EditAction",
+      "DeleteAction",
+      "InfoAction"
+    ],
+    "API": "People",
+    "API_TYPE": "People",
+    "path": "/people",
+    "menu": "People",
+    "Title": "People",
+    "main_show": "name",
+    "request_args": {
+      "include": "books_read,books_written,reviews"
+    }
+  },
+  "Publishers": {
+    "column": [
+      {
+        "text": "Name",
+        "dataField": "name",
+        "sort": true,
+        "type": "text"
+      },
+      {
+        "text": "Books",
+        "dataField": "books",
+        "formatter": "toManyFormatter",
+        "editorRenderer": "ToManyRelationshipEditor",
+        "relation_url": "books",
+        "type": "text",
+        "relationship": "Books"
+      }
+    ],
+    "actions": [
+      "CreateAction",
+      "EditAction",
+      "DeleteAction",
+      "InfoAction"
+    ],
+    "API": "Publishers",
+    "API_TYPE": "Publishers",
+    "path": "/publishers",
+    "menu": "Publishers",
+    "Title": "Publishers",
+    "main_show": "name",
+    "request_args": {
+      "include": "books"
+    }
+  },
+  "Reviews": {
+    "column": [
+      {
+        "text": "Review",
+        "dataField": "review",
+        "sort": true,
+        "type": "text"
+      },
+      {
+        "text": "Book",
+        "dataField": "book_id",
+        "formatter": "toOneFormatter",
+        "editorRenderer": "toOneEditor",
+        "relation_url": "book",
+        "type": "text",
+        "relationship": "Books"
+      },
+      {
+        "text": "Reader",
+        "dataField": "reader_id",
+        "formatter": "toOneFormatter",
+        "editorRenderer": "toOneEditor",
+        "relation_url": "reader",
+        "type": "text",
+        "relationship": "People"
+      }
+    ],
+    "actions": [
+      "CreateAction",
+      "EditAction",
+      "DeleteAction",
+      "InfoAction"
+    ],
+    "API": "Reviews",
+    "API_TYPE": "Reviews",
+    "path": "/reviews",
+    "menu": "Reviews",
+    "Title": "Reviews",
+    "main_show": "review",
+    "request_args": {
+      "include": "book,reader"
+    }
+  }
+}
