@@ -52,8 +52,7 @@ from flask import Flask, redirect, jsonify, make_response
 from flask import abort, request, g, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, SAFRSJSONEncoder, Api, jsonapi_rpc
-from flask_swagger_ui import get_swaggerui_blueprint
+from safrs import SAFRSBase, SAFRS, Api, jsonapi_rpc
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from passlib.apps import custom_app_context as pwd_context
@@ -84,7 +83,7 @@ class Item(SAFRSBase, db.Model):
 class User(SAFRSBase, db.Model):
     '''
         description: User description (With JWT Authentication)
-    '''    
+    '''
     __tablename__ = 'Users'
     #
     # Add the jwt_required decorator to the exposed methods
@@ -95,26 +94,33 @@ class User(SAFRSBase, db.Model):
     username = db.Column(db.String(32), index=True)
     items = db.relationship('Item', back_populates="user", lazy='dynamic')
 
-    
+
 
 def start_app(app):
 
+    SAFRS(app)
     api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
-    
+
+    username='admin'
+
     item = Item(name='test',email='em@il')
-    user = User(username='admin')
+    user = User(username=username)
 
     api.expose_object(Item)
     api.expose_object(User)
 
-
-    # Set the JSON encoder used for object to json marshalling
-    app.json_encoder = SAFRSJSONEncoder
-    # Register the API at /api/docs
-    swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
-    app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
-
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
+
+    # Identity can be any data that is json serializable
+    access_token = create_access_token(identity=username)
+    print('Test Authorization header access_token: Bearer', access_token)
+    api._swagger_object['securityDefinitions'] = {
+                "Bearer": {
+                    "type": "apiKey",
+                    "name": "Authorization",
+                    "in": "header"
+                }}
+
     app.run(host=HOST, port = PORT)
 
 
@@ -125,7 +131,7 @@ def start_app(app):
 app = Flask('demo_app')
 jwt = JWTManager(app)
 app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
-                   SQLALCHEMY_TRACK_MODIFICATIONS = False,   
+                   SQLALCHEMY_TRACK_MODIFICATIONS = False,
                    SECRET_KEY = b'sdqfjqsdfqizroqnxwc',
                    JWT_SECRET_KEY = 'ik,ncbxh',
                    DEBUG = True)
@@ -139,6 +145,9 @@ def login():
     if not request.is_json:
         return jsonify({"msg": "Missing JSON in request"}), 400
 
+    # Identity can be any data that is json serializable
+    access_token = create_access_token(identity=username)
+
     username = request.json.get('username', None)
     password = request.json.get('password', None)
     if not username:
@@ -149,8 +158,6 @@ def login():
     if username != 'test' or password != 'test':
         return jsonify({"msg": "Bad username or password"}), 401
 
-    # Identity can be any data that is json serializable
-    access_token = create_access_token(identity=username)
     return jsonify(access_token=access_token), 200
 
 

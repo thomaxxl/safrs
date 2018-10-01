@@ -390,14 +390,6 @@ class Api(FRSApiBase):
 
                 self._swagger_object['paths'][swagger_url] = path_item
 
-        '''self._swagger_object['securityDefinitions'] = {
-                "api_key": {
-                    "type": "apiKey",
-                    "name": "api_key",
-                    "in": "query"
-                }}
-
-        self._swagger_object['security'] = [ "api_key" ]'''
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
     @classmethod
