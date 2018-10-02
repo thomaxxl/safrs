@@ -15,7 +15,8 @@ import sys
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, jsonapi_rpc, SAFRS, Api
+from safrs import SAFRSBase, jsonapi_rpc, SAFRS, Api, SAFRSJSONEncoder
+from flask_swagger_ui import get_swaggerui_blueprint
 
 db  = SQLAlchemy()
 
@@ -47,22 +48,26 @@ class User(SAFRSBase, db.Model):
 
 
 def create_api(app):
-
-    api  = Api(app, host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
+    API_PREFIX = ''
+    api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(HOST, PORT))
     # Expose the User object 
+    app.json_encoder = SAFRSJSONEncoder
+    swaggerui_blueprint = get_swaggerui_blueprint(API_PREFIX, API_PREFIX + '/swagger.json')
+    app.register_blueprint(swaggerui_blueprint, url_prefix=API_PREFIX)
+
+    
     api.expose_object(User)
     user = User(name='test',email='em@il')
-
+    
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
-    app.run(host=HOST, port = PORT)
-
 
 
 if __name__ == '__main__':
     app = Flask('demo_app')
     db.init_app(app)
-    SAFRS(app, db)
-    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
+    
+    #SAFRS(app, db, swaggerui_blueprint= swaggerui_blueprint)
+    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://', DEBUG=True )
     
     # Start the application
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
@@ -74,3 +79,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         create_api(app)
+        app.run(host=HOST, port = PORT)
