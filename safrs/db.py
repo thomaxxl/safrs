@@ -17,7 +17,6 @@ from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
 from .config import OBJECT_ID_SUFFIX
-from safrs import LOGGER
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 db = safrs.db
@@ -93,7 +92,7 @@ class SAFRSBase(Model):
         if not instance:
             instance = object.__new__(cls)
         else:
-            LOGGER.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
+            safrs.LOGGER.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
 
         return instance
 
@@ -129,7 +128,7 @@ class SAFRSBase(Model):
             db.Model.__init__(self, **db_args)
         except Exception as exc:
             # OOPS .. things are going bad , this might happen using sqla automap
-            LOGGER.error('Failed to instantiate object')
+            safrs.LOGGER.error('Failed to instantiate object')
             db.Model.__init__(self)
 
         # Parse all provided relationships: empty the existing relationship and
@@ -264,7 +263,7 @@ class SAFRSBase(Model):
         except AttributeError:
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
-            LOGGER.info('AttributeError for class "{}"'.format(cls.__name__))
+            safrs.LOGGER.info('AttributeError for class "{}"'.format(cls.__name__))
             return
 
         instance = None
@@ -272,7 +271,7 @@ class SAFRSBase(Model):
             try:
                 instance = cls.query.filter_by(**primary_keys).first()
             except Exception as exc:
-                LOGGER.error('get_instance : %s', str(exc))
+                safrs.LOGGER.error('get_instance : %s', str(exc))
             
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
@@ -360,7 +359,7 @@ class SAFRSBase(Model):
         try:
             first = cls._s_query.first()
         except Exception as exc:
-            LOGGER.warning('Failed to retrieve sample for {}({})'.format(cls, exc))
+            safrs.LOGGER.warning('Failed to retrieve sample for {}({})'.format(cls, exc))
         return first
 
     @classmethod
@@ -377,7 +376,7 @@ class SAFRSBase(Model):
             try:
                 arg = column.type.python_type()
             except:
-                LOGGER.debug('Failed to get python type for column {}'.format(column))
+                safrs.LOGGER.debug('Failed to get python type for column {}'.format(column))
             if column.default:
                 arg = column.default.arg
 
@@ -470,7 +469,7 @@ class SAFRSBase(Model):
             column_type = column_type.split(' ')[0]
             swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type,None)
             if swagger_type is None:
-                LOGGER.warning('Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name))
+                safrs.LOGGER.warning('Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name))
                 swagger_type = 'string'
             default = getattr(sample_instance, column.name, None)
             if default is None:

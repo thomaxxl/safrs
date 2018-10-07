@@ -20,9 +20,9 @@ class NotFoundError(Exception, DontWrapMixin):
 
     def __init__(self, message=''):
         Exception.__init__(self)
-        if LOGGER.getEffectiveLevel() == logging.DEBUG:
+        if safrs.LOGGER.getEffectiveLevel() == logging.DEBUG:
             self.message += message
-            LOGGER.error('Not found: %s', message)
+            safrs.LOGGER.error('Not found: %s', message)
         else:
             self.message += '(debug logging disabled)'
         
@@ -35,9 +35,9 @@ class ValidationError(Exception, DontWrapMixin):
     message = 'Validation Error: '
     def __init__(self, message=''):
         Exception.__init__(self)
-        if LOGGER.getEffectiveLevel() == logging.DEBUG:
+        if safrs.LOGGER.getEffectiveLevel() == logging.DEBUG:
             self.message += message
-            LOGGER.error('ValidationError: %s', message)
+            safrs.LOGGER.error('ValidationError: %s', message)
         else:
             self.message += '(debug logging disabled)'
         
@@ -50,12 +50,10 @@ class GenericError(Exception, DontWrapMixin):
     message = 'Generic Error: '
     def __init__(self, message):
         Exception.__init__(self)
-        if LOGGER.getEffectiveLevel() == logging.DEBUG:
+        if safrs.LOGGER.getEffectiveLevel() == logging.DEBUG:
             self.message += message
         else:
             self.message += '(debug logging disabled)'
         
-        LOGGER.debug(traceback.format_exc())
-        LOGGER.error('Generic Error: %s', message)
-
-LOGGER = safrs.LOGGER
+        safrs.LOGGER.debug(traceback.format_exc())
+        safrs.LOGGER.error('Generic Error: %s', message)
