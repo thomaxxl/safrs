@@ -276,10 +276,10 @@ Some configuration parameters can be set in [config.py](safrs/config.py):
 Safrs allows you to Expose existing databases as jsona:api services with the [expose_existing.py](expose_existing/expose_existing.py) script, for example:
 
 ```bash
-python3 expose_existing.py mysql+pymysql://root:password@localhost/sakila  --host localhost
+python3 expose_existing.py mysql+pymysql://root:password@localhost/sakila --host localhost
 ```
 
-This script generates a source file containing the SQLAlchemy and `SAFRSBase` database models and executes the script.
+This script uses sqlacodegen to generate a source file containing the SQLAlchemy and `SAFRSBase` database models and starts the API webservice.
 
 More details [here](docs/ExposeDB.md)
 
