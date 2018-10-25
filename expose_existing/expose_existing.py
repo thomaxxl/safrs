@@ -3,7 +3,7 @@
 # A lot of dirty things going on here because we have to handle all sorts of edge cases
 #
 
-import sys, logging, inspect, builtins, os, argparse, tempfile, atexit, shutil
+import sys, logging, inspect, builtins, os, argparse, tempfile, atexit, shutil, io
 from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
@@ -87,12 +87,15 @@ def codegen(args):
     # Write the generated model code to the specified file or standard output
 
     capture = StringIO()
-    outfile = io.open(args.outfile, 'w', encoding='utf-8') if args.outfile else capture # sys.stdout
+    #outfile = io.open(args.outfile, 'w', encoding='utf-8') if args.outfile else capture # sys.stdout
     generator = CodeGenerator(metadata, args.noindexes, args.noconstraints, args.nojoined,
                               args.noinflect, args.noclasses)
-    generator.render(outfile)
-    generated = outfile.getvalue()
+    generator.render(capture)
+    generated = capture.getvalue()
     generated = fix_generated(generated)
+    if args.outfile:
+        outfile = io.open(args.outfile, 'w', encoding='utf-8')
+        outfile.write(generated)
     return generated
 
 args = get_args()
