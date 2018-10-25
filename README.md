@@ -246,7 +246,7 @@ Examples for flask_login and flask_jwt_extended can be found in the [examples/au
 ### Logging
 
 The default logging is configured to not show verbose error messages, so not to reveal information of the backend to the user, which may also mitigate script injection attacks in case the log messages are reflected in the user output.
-The loglevel can be set to DEBUG
+In case you do want verbose logging, you can set the log level to DEBUG:
 
 ```python
 app.config.update( DEBUG = True )
