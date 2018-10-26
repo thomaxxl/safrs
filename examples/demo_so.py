@@ -50,8 +50,8 @@ class Item(SAFRSBase, db.Model):
     category = db.relationship(Category)
     user_id = Column(Integer, db.ForeignKey('users.id'))
     user = db.relationship(User)
-    last_updated = Column(DateTime)
-    create_date = Column(DateTime)
+    last_updated = Column(DateTime, default = datetime.datetime.now())
+    create_date = Column(DateTime, default = datetime.datetime.now())
 
 
 def create_api(app):
