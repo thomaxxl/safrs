@@ -19,8 +19,8 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from safrs.db import SAFRSBase, documented_api_method, jsonapi_rpc
-from safrs.jsonapi import SAFRSJSONEncoder, Api
+from safrs import SAFRSBase, jsonapi_rpc
+from safrs import SAFRSJSONEncoder, Api
 db = SQLAlchemy()
 
 # Example sqla database object
