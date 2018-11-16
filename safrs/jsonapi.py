@@ -1054,7 +1054,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
             a resource identifier object corresponding to the new related resource.
             null, to remove the relationship.
         '''
-        print('XXX'*100)
         parent, relation = self.parse_args(**kwargs)
         json_reponse = request.get_json()
         if not isinstance(json_reponse, dict):
@@ -1099,7 +1098,6 @@ class SAFRSRestRelationshipAPI(Resource, object):
                 tmp_rel.append(child_instance)
 
             if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
-                print('IL')
                 relation[:] = tmp_rel
             else:
                 setattr(parent, self.rel_name, tmp_rel)
