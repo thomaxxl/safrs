@@ -10,7 +10,6 @@ jsonschema==2.6.0
 Werkzeug==0.14.1
 Flask_SQLAlchemy==2.3.2
 PyYAML==3.13
-marshmallow-sqlalchemy==0.13.2
 Flask-Cors==3.0.3
 pymysql==0.8.1
 inflect==0.3.1
