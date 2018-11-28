@@ -37,9 +37,7 @@ class SAFRS(object):
         db = cls.db = app_db
 
         if app.config.get('DEBUG', False):
-            cls.LOGLEVEL = logging.DEBUG
-
-        log = cls.init_logging(SAFRS.LOGLEVEL)
+            LOGGER.setLevel(logging.DEBUG)
 
         app.url_map.strict_slashes = False
         app.json_encoder = SAFRSJSONEncoder
