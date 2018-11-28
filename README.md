@@ -297,7 +297,7 @@ Serialization and deserialization are implemented by the SAFRSBase `to_dict` and
 
 <a class="mk-toclify" id="custom-decorators"></a>
 ### Custom Decorators
-The custom_decorators class attribute list can be used to add custom decorators to the instance HTTP endpoint. An example of this functionality is implemented
+The `custom_decorators` class attribute list can be used to add custom decorators to the instance HTTP endpoint. An example of this functionality is implemented
 in the [authentication examples](examples/authentication).
 
 <a class="mk-toclify" id="limitations--todos"></a>
