@@ -27,6 +27,7 @@
 - [Advanced Usage](#advanced-usage)
     - [Custom Serialization](#custom-serialization)
     - [Custom Decorators](#custom-decorators)
+    - [API Methods](#api-methods)
 - [Limitations & TODOs](#limitations--todos)
 - [References](#references)
 - [Thanks](#thanks)
@@ -299,6 +300,10 @@ Serialization and deserialization are implemented by the SAFRSBase `to_dict` and
 ### Custom Decorators
 The `custom_decorators` class attribute list can be used to add custom decorators to the instance HTTP endpoint. An example of this functionality is implemented
 in the [authentication examples](examples/authentication).
+
+<a class="mk-toclify" id="api-methods"></a>
+### API Methods
+Some additional API RPC methods are implemented in [api_methods.py](safrs/api_methods.py), e.g. mysql regex search. 
 
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs
