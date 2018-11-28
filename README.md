@@ -293,7 +293,7 @@ The [examples](examples) folder contains more example scripts:
 
 <a class="mk-toclify" id="custom-serialization"></a>
 ### Custom Serialization
-Serialization and deserialization are implemented by the SAFRSBase to_dict and __init__ respectively: you can extend these methods as usual.
+Serialization and deserialization are implemented by the SAFRSBase `to_dict` and `__init__` respectively: you can extend these methods as usual.
 
 <a class="mk-toclify" id="custom-decorators"></a>
 ### Custom Decorators
