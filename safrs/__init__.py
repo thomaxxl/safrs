@@ -73,12 +73,13 @@ class SAFRS(object):
             Specify the log format used in the webserver logs
             The webserver will catch stdout so we redirect eveything to sys.stdout
         '''
-        log = logging.getLogger()
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter('[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s')
-        handler.setFormatter(formatter)
-        log.setLevel(loglevel)
-        log.addHandler(handler)
+        log = logging.getLogger(__name__)
+        if log.level == logging.NOTSET:
+            handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter('[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s')
+            handler.setFormatter(formatter)
+            log.setLevel(loglevel)
+            log.addHandler(handler)
         return log
 
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
