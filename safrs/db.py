@@ -4,6 +4,7 @@
 #
 import sys
 import inspect
+import datetime
 import logging
 import sqlalchemy
 import safrs
@@ -119,6 +120,13 @@ class SAFRSBase(Model):
             arg_value = kwargs.get(column.name, None)
             if arg_value is None and column.default:
                 arg_value = column.default.arg
+
+            # Parse datetime and date values
+            if column.type.python_type == datetime.datetime:
+                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d %H:%M:%S.%f')
+            elif column.type.python_type == datetime.date:
+                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
+
             db_args[column.name] = arg_value
 
         # db_args now contains the class attributes. Initialize the DB model with them
@@ -279,7 +287,7 @@ class SAFRSBase(Model):
                 raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
 
-    def clone(self, **kwargs):
+    def _s_clone(self, **kwargs):
         '''
             Clone an object: copy the parameters and create a new id
         '''
@@ -338,19 +346,20 @@ class SAFRSBase(Model):
     #
     #pylint: disable=
     @classmethod
-    def sample_id(cls):
+    def _s_sample_id(cls):
         '''
         Retrieve a sample id for the API documentation, i.e. the first item in the DB
         '''
-        sample = cls.sample()
+        sample = cls._s_sample()
         if sample:
             id = sample.jsonapi_id
         else:
             id = ""
         return id
+  
     #pylint: disable=
     @classmethod
-    def sample(cls):
+    def _s_sample(cls):
         '''
         Retrieve a sample instance for the API documentation, i.e. the first item in the DB
         '''
@@ -363,8 +372,8 @@ class SAFRSBase(Model):
         return first
 
     @classmethod
-    def sample_dict(cls):
-        sample = cls.sample()
+    def _s_sample_dict(cls):
+        sample = cls._s_sample()
         if sample:
             return sample._s_to_dict()
         
@@ -382,7 +391,6 @@ class SAFRSBase(Model):
 
             sample[column.name] = arg
         return sample
-
 
     #pylint: disable=
     @classproperty
@@ -457,7 +465,7 @@ class SAFRSBase(Model):
             is a one-to-one mapping between json input data and db columns
         '''
         fields = {}
-        sample_id = cls.sample_id()
+        sample_id = cls._s_sample_id()
         sample_instance = cls.get_instance(sample_id, failsafe=True)
         for column in cls._s_columns:
             if column.name in ('id', 'type'):
