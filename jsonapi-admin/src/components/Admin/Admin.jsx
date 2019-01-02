@@ -11,19 +11,17 @@ import {
   Segment, 
   Header,
   List,
-  Tab
+  Tab,
+  TextArea, 
+  Form
 } from 'semantic-ui-react'
-
 import Confactions from './confactions'
 import Otheroption from './otheroption'
 import Attributes from './attributes'
 import Relationship from './relationship'
-
-
 import 'semantic-ui-css/semantic.min.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import './Admin.css'
-
 import {
   InputGroup,
   InputGroupAddon,
@@ -32,6 +30,8 @@ import {
   Row,
   Button,
 } from 'reactstrap';
+import {TestCfg} from './Tests'
+import {JSONCfg} from './JsonCfg'
 
 const toasterPosition =  {positionClass: "toast-top-center"}
 
@@ -74,7 +74,25 @@ var styleheight3 = {
   overflowY: "scroll",
   maxHeight:"330px",
 }
+
+
+
+
 class Admin extends React.Component {
+
+    render(){
+
+      const panes = [
+        { menuItem: 'Admin', render: () => <Tab.Pane><AdminCfg {...this.props}/></Tab.Pane> },
+        { menuItem: 'JSON', render: () => <Tab.Pane><JSONCfg/></Tab.Pane> },
+        { menuItem: 'Tests', render: () => <Tab.Pane><TestCfg></TestCfg></Tab.Pane> },
+      ]
+      
+      return <Tab panes={panes} />
+    }
+}
+
+class AdminCfg extends React.Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -133,7 +151,7 @@ class Admin extends React.Component {
       // this.props.spinnerAction.getSpinnerEnd()
       if (data.status === undefined) {
       } else {
-        toastr.info('Now Generate Config !')
+        //toastr.info('Now Generate Config !')
         this.props.analyze.analyzejsonrelationship(data)
         //this.handlegenerate()
       }
@@ -203,8 +221,9 @@ class Admin extends React.Component {
       return true
     }, this)
     localStorage.setItem('json', JSON.stringify(this.props.json))
-    this.props.history.push('/')
-    window.location.reload()
+    //this.props.history.push('/')
+    //window.location.reload()
+    toastr.info('Done')
   }
 
   handleRemove(){
@@ -224,12 +243,7 @@ class Admin extends React.Component {
   render() {
     let collections = []
     
-    const panes = [
-      { menuItem: 'Admin', render: () => <Tab.Pane>Admin</Tab.Pane> },
-      { menuItem: 'JSON', render: () => <Tab.Pane>JSON</Tab.Pane> }
-    ]
-
-
+    
     if(Object.keys(this.props.json).length !== 0){
       Object.keys(this.props.json).map(function(key, index) {
         collections.push(key)
@@ -261,8 +275,7 @@ class Admin extends React.Component {
             }
           </InputGroup>
         </Row>
-        <Tab panes={panes} />
-
+        
         <Grid>
           <Grid.Row className="rowstyle">
             <Grid.Column width={4}>

@@ -65,7 +65,7 @@ class App extends Component {
                   <div>
                       <HeaderNavContainer/>
                       {/* <Switch> */}
-                          <Route exact path="/" component={Home} />
+                          <Route exact path="/" component={Admin} />
                           <Route sensitive key="100" path="/Admin" component={Admin}/>
                           {/* <Route path="/admin" component={Admin} /> */}
                           {collectionRoutes}
