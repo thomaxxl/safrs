@@ -9,12 +9,11 @@ This directory contains the code to construct documented REST APIs:
 - [swagger_doc.py](swagger_doc.py) : API documentation, implemented as decorators
 - [errors.py](errors.py) : Exceptions
 
-### Variables for SQLAlchemy, Flask, MarshMallow, Logging
+### Variables for SQLAlchemy, Flask Logging
 
 Some variables have to be globally (cross-module) defined:
 - app : flask app
 - db  : flask-sqlalchemy database instance
-- ma  : sqlalchemy-marshmallow instance (used for serialization of database objects)
 - log : python logging instances
 
 ### SAFRSBase
@@ -53,7 +52,6 @@ SAFRSRestAPI is a superclass for dynamically generated flask-restful endpoints.
 
 ### Serialization
 
-- MarshMallow
 - ```safrs_serialize```
 - The restful ```SAFRSJSONEncoder``` class calls the SAFRSBase subclass to_dict method to convert object attributes to a python dictionary which is then converted to JSON.
 

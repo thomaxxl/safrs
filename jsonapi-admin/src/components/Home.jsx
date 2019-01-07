@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import {
     TextArea, Button, Form, Tab
   } from 'semantic-ui-react'
-  import toastr from 'toastr';
+import toastr from 'toastr';
 
 import 'semantic-ui-css/semantic.min.css'
 

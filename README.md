@@ -3,9 +3,6 @@
 [![License](https://img.shields.io/pypi/l/safrs.svg)](https://github.com/thomaxxl/safrs/blob/master/LICENSE)
 [![Downloads](https://pepy.tech/badge/safrs)](https://pepy.tech/project/safrs)
 
-
-_SAFRS v2 is being prepared which has a slightly different interface. The documentation may be off a bit_
-
 # SAFRS: Python OpenAPI & JSON:API Framework
 
 ![demo](docs/images/safrs.gif)
@@ -27,6 +24,10 @@ _SAFRS v2 is being prepared which has a slightly different interface. The docume
 - [Configuration](#configuration)
 - [Exposing Existing Databases](#expose-existing)
 - [More Examples and Use Cases](#more-examples-and-use-cases)
+- [Advanced Usage](#advanced-usage)
+    - [Custom Serialization](#custom-serialization)
+    - [Custom Decorators](#custom-decorators)
+    - [API Methods](#api-methods)
 - [Limitations & TODOs](#limitations--todos)
 - [References](#references)
 - [Thanks](#thanks)
@@ -252,9 +253,6 @@ In case you do want verbose logging, you can set the log level to DEBUG:
 app.config.update( DEBUG = True )
 ```
 
-
-
-
 <a class="mk-toclify" id="endpoint-naming"></a>
 ## Endpoint Naming
 As can be seen in the swagger UI:
@@ -291,15 +289,30 @@ The [examples](examples) folder contains more example scripts:
 - Flask-Admin integration example, eg.:
 ![demo](docs/images/flask-admin.png)
 
+<a class="mk-toclify" id="advanced-usage"></a>
+## Advanced Usage
+
+<a class="mk-toclify" id="custom-serialization"></a>
+### Custom Serialization
+Serialization and deserialization are implemented by the SAFRSBase `to_dict` and `__init__` respectively: you can extend these methods as usual.
+
+<a class="mk-toclify" id="custom-decorators"></a>
+### Custom Decorators
+The `custom_decorators` class attribute list can be used to add custom decorators to the instance HTTP endpoint. An example of this functionality is implemented
+in the [authentication examples](examples/authentication).
+
+<a class="mk-toclify" id="api-methods"></a>
+### API Methods
+Some additional API RPC methods are implemented in [api_methods.py](safrs/api_methods.py), e.g. mysql regex search. 
+
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs
 
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. 
 
 - Relationships with composite keys might not work well
-- Includes are disabled by default for performance reasons and I haven't worked out how to handle recursive relations.
+- Includes are disabled by default for performance reasons and recursive relations don't work well.
 - I am not a big fan of the multiple inheritance needed to declare SAFRSBase instances but I couldn't subclass sqla's db.Model and I think inheritance is more clear than class decorators.
-- Not all of the documentation available in swagger1 is shown with swagger2
 - I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
 - By default, SAFRSBase objects are commited to the database in `__init__`, as specified by the SAFRSBase.db_commit boolean. When using SAFRSBase in combination with other frameworks (eg. flask-admin), care should be taken of how and when objects are added to the session and commited. An example of flask-admin integration can be found in the [examples directory](examples/demo_flask_admin.py). 
 - SAFRS needs more unit tests, ideally, we should be able to generate a test sutie using swager-cli-codegen but I didn't find the time to implement tests.

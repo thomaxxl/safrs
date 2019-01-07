@@ -313,7 +313,7 @@ def swagger_method_doc(cls, method_name, tags=None):
                                })
 
         # URL Path Parameter
-        default_id = cls.sample_id()
+        default_id = cls._s_sample_id()
         parameters.append({
                            'name': cls.object_id, # parameter id, e.g. UserId
                            'in': 'path',
@@ -344,7 +344,7 @@ def swagger_doc(cls, tags=None):
         '''
             Decorator used to document (SAFRSBase) class methods exposed in the API
         '''
-        default_id = cls.sample_id()
+        default_id = cls._s_sample_id()
         class_name = cls.__name__
         table_name = cls.__tablename__
         http_method = func.__name__.lower()
@@ -377,7 +377,7 @@ def swagger_doc(cls, tags=None):
             #
             # Create the default POST body schema
             #
-            sample_dict = cls.sample_dict()
+            sample_dict = cls._s_sample_dict()
             sample_data = schema_from_object(model_name,
                                              {
                                               'data' : 
@@ -407,13 +407,13 @@ def swagger_doc(cls, tags=None):
         elif http_method == 'patch':
             doc['summary'] = 'Update a {} object'.format(class_name)
             post_model, responses = cls.get_swagger_doc('patch')
-            sample = cls.sample_dict()
-            sample_dict = cls.sample_dict()
+            sample = cls._s_sample_dict()
+            sample_dict = cls._s_sample_dict()
             if sample:
                 sample_data = schema_from_object(model_name,
                                                  {'data' :
                                                   {'attributes' : sample_dict,
-                                                   'id' : cls.sample_id(),
+                                                   'id' : cls._s_sample_id(),
                                                    'type' : table_name
                                                    }
                                                 })
@@ -421,7 +421,7 @@ def swagger_doc(cls, tags=None):
                 sample_data = schema_from_object(model_name,
                                                  {'data' :
                                                   {'attributes' : sample_dict,
-                                                   'id' : cls.sample_id(),
+                                                   'id' : cls._s_sample_id(),
                                                    'type' : table_name
                                                    }
                                                 })
@@ -500,7 +500,7 @@ def swagger_relationship_doc(cls, tags=None):
                        'name': parent_class.object_id,
                        'in': 'path',
                        'type': 'string',
-                       'default': parent_class.sample_id(),
+                       'default': parent_class._s_sample_id(),
                        'description': '{} item'.format(parent_class.__name__),
                        'required' : True
                        },
@@ -508,7 +508,7 @@ def swagger_relationship_doc(cls, tags=None):
                        'name': child_class.object_id,
                        'in': 'path',
                        'type': 'string',
-                       'default': child_class.sample_id(),
+                       'default': child_class._s_sample_id(),
                        'description': '{} item'.format(class_name),
                        'required' : True
                        }]
@@ -538,10 +538,10 @@ def swagger_relationship_doc(cls, tags=None):
             sample_attrs = {}
             sample = getattr(cls, 'sample',lambda: None ) ()
             if sample:
-                sample_attrs = sample.sample_dict()
+                sample_attrs = sample._s_sample_dict()
                 sample_id = sample.id
 
-            child_sample_id = child_class.sample_id()
+            child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class.get_swagger_doc('patch')
             data =  {'type': child_class.__tablename__,
