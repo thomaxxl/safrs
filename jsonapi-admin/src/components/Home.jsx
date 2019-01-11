@@ -85,7 +85,7 @@ class HomeTab extends React.Component {
                             <InputGroupAddon addonType="prepend">Json:API Root URL</InputGroupAddon>
                                 <Input  value={this.props.inputflag.url===''?Param.URL:this.props.inputflag.url} 
                                         onChange={this.change_url.bind(this)} 
-                                        placeholder="Root URL"/>
+                                        placeholder="API Root (without trailing '/' !)"/>
                           </InputGroup>
         return (<div className="container">
                     <ul>
