@@ -104,7 +104,7 @@ class AdminTab extends React.Component {
   }
 
   componentDidMount() {
-    this.setState({url: localStorage.getItem('json_url') === null? '/api/swagger.json': localStorage.getItem('json_url')})
+    this.setState({url: localStorage.getItem('json_url') === null? '/swagger.json': localStorage.getItem('json_url')})
   }
 
   analyzeOAS(e) {

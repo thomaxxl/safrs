@@ -162,7 +162,7 @@ description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built wit
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
-- Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
+- Auto-generated swagger spec: <a href=/swagger.json>swagger.json</a><br/> 
 - Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
 '''
 
