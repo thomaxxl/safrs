@@ -15,6 +15,7 @@
 #
 import sys
 import os
+import datetime
 from flask import Flask, render_template, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -55,6 +56,7 @@ class Person(SAFRSBase, db.Model):
     name = db.Column(db.String, default = '')
     email = db.Column(db.String, default = '')
     comment = db.Column(db.Text, default = '')
+    dob = db.Column(db.Date, default='1970-01-01')
     books_read = db.relationship('Book', backref = "reader", foreign_keys = [Book.reader_id], cascade="save-update, merge, delete, delete-orphan")
     books_written = db.relationship('Book', backref = "author", foreign_keys = [Book.author_id])
     reviews = db.relationship('Review', backref = "reader")
@@ -94,6 +96,7 @@ class Review(SAFRSBase, db.Model):
     reader_id = db.Column(db.String, db.ForeignKey('People.id',ondelete="CASCADE"), primary_key=True)
     book_id = db.Column(db.String, db.ForeignKey('Books.id'), primary_key=True)
     review = db.Column(db.String, default = '')
+    created = db.Column(db.DateTime, default=datetime.datetime.now())
 
 
 def start_api(HOST = '0.0.0.0' ,PORT = None):
