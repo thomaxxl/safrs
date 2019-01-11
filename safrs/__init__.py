@@ -12,6 +12,16 @@ from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 
 db = SQLAlchemy()
 
+def SAFRSAPI(app, **kwargs):
+    host = kwargs.get('host', 'localhost')
+    port = kwargs.get('port', 5000)
+    prefix = kwargs.get('prefix','')
+    SAFRS(app, host=host, port=port, prefix=prefix)
+    api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port))
+    
+    return api
+
+
 class SAFRS(object):
     '''This class configures the Flask application to serve SAFRSBase instances
 
@@ -29,7 +39,7 @@ class SAFRS(object):
     DEFAULT_INCLUDED = '' # change to +all to include eeverything (slower because relationships will be fetched)
     config = {}
 
-    def __new__(cls, app, app_db = db, prefix = '/api', **kwargs):
+    def __new__(cls, app, app_db = db, prefix = '', **kwargs):
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
@@ -45,10 +55,9 @@ class SAFRS(object):
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get('swaggerui_blueprint', None)
         if swaggerui_blueprint is None:
-            swaggerui_blueprint = get_swaggerui_blueprint(prefix, '/api/swagger.json')
+            swaggerui_blueprint = get_swaggerui_blueprint(prefix, prefix + '/swagger.json')
             app.register_blueprint(swaggerui_blueprint, url_prefix= prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
-        
         
         @app.teardown_appcontext
         def shutdown_session(exception=None):
