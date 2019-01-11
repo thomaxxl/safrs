@@ -15,28 +15,17 @@
 #
 import sys
 import os
-from flask import Flask, render_template, Flask, redirect, send_from_directory
+from flask import Flask, render_template, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_admin import Admin, BaseView
 from flask_admin.contrib import sqla
-from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api, SAFRS
-from safrs import search, startswith
+from safrs import SAFRSAPI # api factory
+from safrs import SAFRSBase # db Mixin
+from safrs import jsonapi_rpc # rpc decorator
+from safrs import search, startswith # rpc methods
 
-app = Flask('SAFRS Demo App', template_folder='/home/thomaxxl/mysite/templates')
-app.secret_key ='not so secret'
-CORS( app,
-      origins="*",
-      allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-      supports_credentials = True)
-
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
-                   DEBUG = True ) # DEBUG will also show safrs log messages + exception messages
-
-db = SQLAlchemy(app)
-prefix = '/api'
-SAFRS(app, db, prefix = prefix)
-
+db = SQLAlchemy()
 # Add search and startswith methods so we can perform lookups from the frontend
 SAFRSBase.search = search
 SAFRSBase.startswith = startswith
@@ -69,7 +58,6 @@ class Person(SAFRSBase, db.Model):
     books_read = db.relationship('Book', backref = "reader", foreign_keys = [Book.reader_id], cascade="save-update, merge, delete, delete-orphan")
     books_written = db.relationship('Book', backref = "author", foreign_keys = [Book.author_id])
     reviews = db.relationship('Review', backref = "reader")
-
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
     @classmethod
@@ -110,8 +98,9 @@ class Review(SAFRSBase, db.Model):
 
 def start_api(HOST = '0.0.0.0' ,PORT = None):
 
-    db.create_all()
     with app.app_context():
+        db.init_app(app)
+        db.create_all()
         # populate the database
         for i in range(300):
             reader = Person(name='Reader '+str(i), email="reader_email"+str(i) )
@@ -132,7 +121,9 @@ def start_api(HOST = '0.0.0.0' ,PORT = None):
         swagger_host = HOST
         if PORT and PORT != 80:
             swagger_host += ':{}'.format(PORT)
-        api  = Api(app, api_spec_url = '/api/swagger', host = swagger_host, schemes = [ "http", "https" ], description = description )
+        
+        #api  = Api(app, api_spec_url = '/api/swagger', host = swagger_host, schemes = [ "http", "https" ], description = description )
+        api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX, api_spec_url = '/api/swagger', schemes = [ "http", "https" ], description = description )
 
         # Flask-Admin Config
         admin = Admin(app, url='/admin')
@@ -142,8 +133,19 @@ def start_api(HOST = '0.0.0.0' ,PORT = None):
             admin.add_view(sqla.ModelView(model, db.session))
             # Create an API endpoint
             api.expose_object(model)
-        
-        
+
+
+API_PREFIX='/api'
+app = Flask('SAFRS Demo App', template_folder='/home/thomaxxl/mysite/templates')
+app.secret_key ='not so secret'
+CORS( app,
+      origins="*",
+      allow_headers=[ "Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+      supports_credentials = True)
+
+app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
+                   DEBUG = True ) # DEBUG will also show safrs log messages + exception messages
+
 @app.route('/ja')
 @app.route('/ja/<path:path>', endpoint="jsonapi_admin")
 def send_ja(path='index.html'):
@@ -151,7 +153,7 @@ def send_ja(path='index.html'):
 
 @app.route('/')
 def goto_api():
-    return redirect(prefix)
+    return redirect(API_PREFIX)
 
 description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
