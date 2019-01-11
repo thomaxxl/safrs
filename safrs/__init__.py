@@ -13,10 +13,13 @@ from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 db = SQLAlchemy()
 
 def SAFRSAPI(app, host = 'localhost', port = 5000, prefix = '', description= 'SAFRSAPI', **kwargs):
-    
+    '''
+        APi factory method:
+        - configure SAFRS
+        - create API
+    '''
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port), description = description)
-    
     return api
 
 
