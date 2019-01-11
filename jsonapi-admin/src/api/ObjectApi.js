@@ -92,7 +92,7 @@ const apiEndpoints = {
 
 
 const cookies = new Cookies()
-let api_url = cookies.get('api_url') ? cookies.get('api_url') : api_config.URL
+let api_url = cookies.get('api_url') || api_config.URL || ''
 localStorage.setItem('url',api_url)
  
 let api = buildApi(apiEndpoints, api_config);

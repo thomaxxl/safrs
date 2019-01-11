@@ -14,6 +14,7 @@
 # - jsonapi-admin pages are served
 #
 import sys
+import os
 from flask import Flask, render_template, Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -146,7 +147,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = None):
 @app.route('/ja')
 @app.route('/ja/<path:path>', endpoint="jsonapi_admin")
 def send_ja(path='index.html'):
-    return send_from_directory('/home/thomaxxl/mysite/jsonapi-admin/build', path)
+    return send_from_directory(os.path.join(os.path.dirname(__file__),'..','jsonapi-admin/build'), path)
 
 @app.route('/')
 def goto_api():
@@ -154,7 +155,7 @@ def goto_api():
 
 description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
-- <a href="http://thomaxxl.pythonanywhere.com/ja/index.html">reactjs+redux frontend</a>
+- <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
 - Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
 - Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>

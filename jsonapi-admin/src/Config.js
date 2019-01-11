@@ -23,7 +23,7 @@ if (APP === null){
 }
 
 
-const BaseUrl = 'http://thomaxxl.pythonanywhere.com'
+const BaseUrl = ''
 const Timing = 5000
 Object.keys(APP).map(function(key, index) {
     var initVal = {
@@ -52,7 +52,7 @@ export {FormatterList}
 
 
 export const config = {
-  baseUrl: BaseUrl,
+  URL : BaseUrl,
   configureHeaders(headers) {
     const cookies = new Cookies()
     var token = cookies.get('token')

@@ -29,7 +29,7 @@ class Home extends React.Component {
         { menuItem: 'Tests', render: () => <Tab.Pane><TestCfg></TestCfg></Tab.Pane> },
       ]
       
-      return <Tab panes={panes} defaultActiveIndex={1} />
+      return <Tab panes={panes} defaultActiveIndex={0} />
       /*return <div>
                 <header>
                     <div className="jumbotron jumbotron-fluid bg-info text-white text-center">
@@ -83,7 +83,9 @@ class HomeTab extends React.Component {
 
         const url_input=  <InputGroup className="Left">
                             <InputGroupAddon addonType="prepend">Json:API Root URL</InputGroupAddon>
-                            <Input value={this.props.inputflag.url===''?Param.URL:this.props.inputflag.url} onChange={this.change_url.bind(this)}/>
+                                <Input  value={this.props.inputflag.url===''?Param.URL:this.props.inputflag.url} 
+                                        onChange={this.change_url.bind(this)} 
+                                        placeholder="Root URL"/>
                           </InputGroup>
         return (<div className="container">
                     <ul>
