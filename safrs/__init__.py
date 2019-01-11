@@ -55,8 +55,8 @@ class SAFRS(object):
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get('swaggerui_blueprint', None)
         if swaggerui_blueprint is None:
-            swaggerui_blueprint = get_swaggerui_blueprint(prefix, prefix + '/swagger.json')
-            app.register_blueprint(swaggerui_blueprint, url_prefix= prefix)
+            swaggerui_blueprint = get_swaggerui_blueprint(prefix, '/swagger.json')
+            app.register_blueprint(swaggerui_blueprint, url_prefix = prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
         
         @app.teardown_appcontext
