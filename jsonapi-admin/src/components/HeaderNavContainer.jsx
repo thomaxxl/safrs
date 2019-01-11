@@ -55,10 +55,7 @@ class HeaderNavContainer extends React.Component {
                   <InputGroupAddon addonType="prepend">{this.props.inputflag.url===''?Param.URL:this.props.inputflag.url}</InputGroupAddon>
                 </InputGroup>)
     if(this.props.inputflag.flag){
-      INPUT =     (<InputGroup className="Left">
-                    <InputGroupAddon addonType="prepend">Json:API Backend URL</InputGroupAddon>
-                    <Input placeholder={this.props.inputflag.url===''?Param.URL:this.props.inputflag.url} onChange={this.change_url.bind(this)}/>
-                  </InputGroup>)
+      INPUT =     (<div/>)
     }
 
     // if(Param.disable_api_url){

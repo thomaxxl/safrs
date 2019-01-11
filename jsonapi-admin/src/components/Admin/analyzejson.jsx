@@ -1,7 +1,7 @@
 import * as ActionType from 'action/ActionType';
 import ObjectApi from 'api/ObjectApi'
 
-export function analyzejsonrelationship(data) {
+export function analyzejsonrelationship(data, admin) {
   const D = data.body.paths
   let getPath = {}
   getPath['path'] = []
@@ -43,6 +43,7 @@ export function analyzejsonrelationship(data) {
     ObjectApi.getJsondata(getPath, 'discover')
     .then((res) => {
       dispatch(SetJsonRelationship(res))
+      admin.handlegenerate()
     })
   }
 }

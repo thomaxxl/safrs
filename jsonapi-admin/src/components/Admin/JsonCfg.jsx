@@ -45,7 +45,7 @@ class JSONCfg extends React.Component{
     return  <Form>
               <h3>Configuration JSON</h3>
               <Button onClick={this.updateConfig.bind(this)}>Update</Button>
-              <TextArea onChange={this.handleOnchange.bind(this)} autoHeight>{this.state.app_string}</TextArea>
+              <TextArea onChange={this.handleOnchange.bind(this)} autoHeight value={this.state.app_string} />
             </Form>
   }
 }

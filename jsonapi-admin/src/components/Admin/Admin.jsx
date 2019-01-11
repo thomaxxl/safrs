@@ -30,8 +30,6 @@ import {
   Row,
   Button,
 } from 'reactstrap';
-import {TestCfg} from './Tests'
-import {JSONCfg} from './JsonCfg'
 
 const toasterPosition =  {positionClass: "toast-top-center"}
 
@@ -75,24 +73,7 @@ var styleheight3 = {
   maxHeight:"330px",
 }
 
-
-
-
-class Admin extends React.Component {
-
-    render(){
-
-      const panes = [
-        { menuItem: 'Admin', render: () => <Tab.Pane><AdminCfg {...this.props}/></Tab.Pane> },
-        { menuItem: 'JSON', render: () => <Tab.Pane><JSONCfg/></Tab.Pane> },
-        { menuItem: 'Tests', render: () => <Tab.Pane><TestCfg></TestCfg></Tab.Pane> },
-      ]
-      
-      return <Tab panes={panes} />
-    }
-}
-
-class AdminCfg extends React.Component {
+class AdminTab extends React.Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -100,11 +81,11 @@ class AdminCfg extends React.Component {
       discover: 0,
       url: '',
       selected: 0,
-      collections: ['Book', 'School', 'Color', 'Love'],
+      collections: [],
       otheroption: ['path', 'API', 'API_TYPE', 'menu', 'Title', 'request_args']
     }
     this.handle_json_url = this.handle_json_url.bind(this)
-    this.handleClick = this.handleClick.bind(this)
+    this.analyzeOAS = this.analyzeOAS.bind(this)
     this.handleselect = this.handleselect.bind(this)
     this.handlegenerate = this.handlegenerate.bind(this)
     this.handleRemove = this.handleRemove.bind(this)
@@ -126,40 +107,48 @@ class AdminCfg extends React.Component {
     this.setState({url: localStorage.getItem('json_url') === null? 'http://thomaxxl.pythonanywhere.com/api/swagger.json': localStorage.getItem('json_url')})
   }
 
-  handleClick(e) {
+  analyzeOAS(e) {
     e.preventDefault()
     this.props.spinnerAction.getSpinnerStart()
     localStorage.setItem('json_url', this.state.url)
     ObjectAction.getJsondata(this.state.url)
     .then((data) => {
-      this.props.spinnerAction.getSpinnerEnd()
       if (data.status === undefined) {
-        toastr.error('Please input valid url', '', toasterPosition)
+        console.log(data)
+        toastr.error('Invalid OAS url', '', toasterPosition)
         this.setState({discover: 0})
       } else {
         this.props.analyze.analyzejson(data)
         this.setState({discover: 1})
-      }
-    })
-      // toastr.error('Please input valid url', '', toasterPosition)
-    .then(()=> {
-
-    toastr.info('Discovering Relationships')
-    this.props.spinnerAction.getSpinnerStart()
-    ObjectAction.getJsondata(this.state.url)
-    .then((data) => {
-      // this.props.spinnerAction.getSpinnerEnd()
-      if (data.status === undefined) {
-      } else {
-        //toastr.info('Now Generate Config !')
-        this.props.analyze.analyzejsonrelationship(data)
+        toastr.info('Fetched OAS')
+        toastr.info('Generating Config')
+        this.props.analyze.analyzejsonrelationship(data, this)//.then(()=>alert())
         //this.handlegenerate()
+        
       }
+      return data
     })
+    /*.then(()=> {
+      toastr.info('Discovering Relationships')
+      this.props.spinnerAction.getSpinnerStart()
+      ObjectAction.getJsondata(this.state.url)
+        .then((data) => {
+          // this.props.spinnerAction.getSpinnerEnd()
+          if (data.status === undefined) {
+            toastr.error('Error fetching json')
+          } else {
+            //toastr.info('Now Generate Config !')
+            this.props.analyze.analyzejsonrelationship(data)
+            toastr.info('Generating Config')
+            this.handlegenerate()
+          }
+    })*/
     .catch((error) => {
       console.log(error)
       toastr.error('Please input valid url', '', toasterPosition)
-    }) } )
+    }) //} )
+    .finally(()=> this.props.spinnerAction.getSpinnerEnd()
+    )
   }
 
   handleDiscoverClick(e) {
@@ -183,6 +172,7 @@ class AdminCfg extends React.Component {
     let errors = []
     Object.keys(this.props.json).map(function(key, index) {
       this.props.json[key]['relationship'].map((rkey, rindex) => {
+        console.log(rkey, this.props.json[key]['relationship'])
         if (this.props.json[key]['relationship'][rkey]['relationship'] === '') { 
           check += 1
           errors.push({
@@ -243,7 +233,6 @@ class AdminCfg extends React.Component {
   render() {
     let collections = []
     
-    
     if(Object.keys(this.props.json).length !== 0){
       Object.keys(this.props.json).map(function(key, index) {
         collections.push(key)
@@ -267,11 +256,11 @@ class AdminCfg extends React.Component {
               onChange={this.handle_json_url}
               value={this.state.url }
             />
-            <Button color="secondary" onClick={this.handleClick}>Analyze OAS</Button>
+            <Button color="secondary" onClick={(e)=>this.analyzeOAS(e)}>Analyze OAS</Button>
             {
-              this.state.discover === 1?
-                <Button style={btnstyle} onClick={this.handleDiscoverClick}>Discover relationship</Button>
-                :<div></div>
+            /*  this.state.discover === 1?
+                <Button style={btnstyle} onClick={this.handleDiscoverClick}>Discover relationships</Button>
+                :<div></div>*/
             }
           </InputGroup>
         </Row>
@@ -364,5 +353,6 @@ const mapDispatchToProps = dispatch => ({
   analyze: bindActionCreators(analyzejson, dispatch)
 })
 
+const Connected_AdminTab = connect(mapStateToProps, mapDispatchToProps)(AdminTab)
 
-export default connect(mapStateToProps, mapDispatchToProps)(Admin)
+export { Connected_AdminTab as AdminTab }

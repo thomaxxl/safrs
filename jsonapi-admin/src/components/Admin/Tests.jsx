@@ -20,11 +20,12 @@ class TestCfg extends React.Component {
     render(){
 
         let collections = []
-        Object.keys(Param.APP).map(function(key, index) {
-            collections.push(<TestCollection name={key}/>)
+        Object.keys(Param.APP).map(function(key) {
+            collections.push(<TestCollection key={key} name={key}/>)
         })
     
         return <div>
+                    <Button onClick={this.testAll.bind(this)} color="blue">Read Samples</Button>
                     <Button onClick={this.testAll.bind(this)} color="green">Test Everything</Button>
                     {collections} 
                </div>
@@ -58,7 +59,7 @@ class TestCollection extends React.Component{
 
     render(){
         const config = Param.APP[this.props.name]
-        const columns = config.column.map(col => <TestColumn {...col} /> )
+        const columns = config.column.map(col => <TestColumn key={col.text} {...col} /> )
         let id = this.state.id
 
         return <Form>
@@ -69,12 +70,11 @@ class TestCollection extends React.Component{
                 <Button color="red" onClick={this.testCreate.bind(this)}>Delete</Button>
                 <Form.Group inline  widths='equal'>
                 <Form.Field>
-                    <label width={2}>ID</label>
+                    <label>ID</label>
                     <Input placeholder='' />
                 </Form.Field>
                 {columns}
                 </Form.Group>
-                <hr/>
                </Form>
     }
 }

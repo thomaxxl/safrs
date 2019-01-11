@@ -121,7 +121,9 @@ class Attributes extends React.Component {
         return true
       },this)
       attr = this.props.json[KEY]['attributes']
-
+      if(!attr){
+        return <div> No attributes</div>
+      }
       const val = this.props.json[KEY]['attributes'][this.state.selected]
       formdata = this.props.json[KEY]['attributes'][val]
       Object.keys(formdata).map(function(key, index) {
