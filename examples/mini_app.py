@@ -11,10 +11,10 @@ class User(SAFRSBase, db.Model):
     '''
         description: User description
     '''
-    __tablename__ = 'users'
-    id = db.Column(db.String, primary_key=True)
-    name = db.Column(db.String, default = '')
-    email = db.Column(db.String, default = '')
+    __tablename__ = 'Users'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    email = db.Column(db.String)
 
 
 def create_api(app, HOST='localhost', PORT=5000, API_PREFIX=''):
@@ -26,7 +26,7 @@ def create_api(app, HOST='localhost', PORT=5000, API_PREFIX=''):
 
 def create_app(config_filename = None):
     app = Flask('demo_app')
-    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://', DEBUG=True )
+    app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://' )
     db.init_app(app)
     with app.app_context():
         db.create_all()
