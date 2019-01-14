@@ -12,12 +12,12 @@
 - [Overview](#overview)
 - [Installation](#installation)
 - [JSON:API Interface](#http-methods)
-- [Initialization](#initialization)
 - [Resource Objects](#resource-objects)
 - [Relationships](#relationships)
 - [Methods](#methods)
     - [Custom Methods](#custom-methods)
     - [Class Methods](#class-methods)
+- [Initialization](#initialization)
 - [HTTP Status Codes](#http-status-codes)
 - [Security](security)
 - [Endpoint Naming](#endpoint-naming)
@@ -73,19 +73,6 @@ Exposed resource objects can be queried using the [JSON:API format](http://jsona
 
 Please check the [JSON:API spec](http://jsonapi.org/format/) for more implementation details. 
 You can also check the interface in the [live demo](http://thomaxxl.pythonanywhere.com/api).
-
-<a class="mk-toclify" id="initialization"></a>
-## Application Initialization
-The API can be initialized like this:
-```python
-api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
-```
-Then you can expose objects with
-```python
-api.expose_object(User)    
-```
-
-An example that uses the flask app factory pattern is implement in [examples/mini_app.py](examples/mini_app.py)
 
 <a class="mk-toclify" id="resource-objects"></a>
 ## Resource Objects
@@ -222,6 +209,19 @@ Two class-level methods have been defined to facilitate object retrieval:
 ```
 
 * **get_list** : retrieve a list of the items with the specified ID's
+
+<a class="mk-toclify" id="initialization"></a>
+## Application Initialization
+The API can be initialized like this:
+```python
+api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+```
+Then you can expose objects with
+```python
+api.expose_object(User)    
+```
+
+An example that uses the flask app factory pattern is implement in [examples/mini_app.py](examples/mini_app.py)
 
 <a class="mk-toclify" id="http-status-codes"></a>
 ## HTTP Status Codes
