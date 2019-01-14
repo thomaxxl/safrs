@@ -85,7 +85,7 @@ Then you can expose objects with
 api.expose_object(User)    
 ```
 
-An example that uses the flask app factory pattern is implement in [examples/minit_app.py](examples/minit_app.py)
+An example that uses the flask app factory pattern is implement in [examples/mini_app.py](examples/mini_app.py)
 
 <a class="mk-toclify" id="resource-objects"></a>
 ## Resource Objects
