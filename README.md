@@ -76,9 +76,16 @@ You can also check the interface in the [live demo](http://thomaxxl.pythonanywhe
 
 <a class="mk-toclify" id="initialization"></a>
 ## Application Initialization
+The API can be initialized like this:
 ```python
-
+api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
 ```
+Then you can expose objects with
+```python
+api.expose_object(User)    
+```
+
+An example that uses the flask app factory pattern is implement in [examples/minit_app.py](examples/minit_app.py)
 
 <a class="mk-toclify" id="resource-objects"></a>
 ## Resource Objects
