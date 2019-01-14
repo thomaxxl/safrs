@@ -19,8 +19,8 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from safrs import SAFRSBase, jsonapi_rpc
-from safrs import SAFRSJSONEncoder, Api
+from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+
 db = SQLAlchemy()
 
 # Example sqla database object
@@ -75,14 +75,10 @@ if __name__ == '__main__':
         user = User(name='thomas', email='em@il')
         book = Book(name='test_book')
         user.books.append(book)
-        api = Api(app, api_spec_url=API_PREFIX + '/swagger', host='{}:{}'.format(HOST, PORT))
+        api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
-        # Set the JSON encoder used for object to json marshalling
-        app.json_encoder = SAFRSJSONEncoder
         # Register the API at /api/docs
-        swaggerui_blueprint = get_swaggerui_blueprint(API_PREFIX, API_PREFIX + '/swagger.json')
-        app.register_blueprint(swaggerui_blueprint, url_prefix=API_PREFIX)
         print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
         app.run(host=HOST, port=PORT)
