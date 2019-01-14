@@ -319,10 +319,10 @@ This code was developed for a specific use-case and may not be flexible enough f
 
 - Relationships with composite keys might not work well
 - Includes are disabled by default for performance reasons and recursive relations don't work well.
-- I am not a big fan of the multiple inheritance needed to declare SAFRSBase instances but I couldn't subclass sqla's db.Model and I think inheritance is more clear than class decorators.
+- I am not a big fan of the multiple inheritance/Mixin needed to declare SAFRSBase instances but I couldn't subclass sqla's db.Model and I think inheritance is more clear than class decorators.
 - I tried to keep this readme short for the sake of brevity. More details can be found in the README's of the subdirectories. Feel free to drop [me](mailto:thomas.pollet@+no+spam+@gmail.com) an email if something isn't clear!
 - By default, SAFRSBase objects are commited to the database in `__init__`, as specified by the SAFRSBase.db_commit boolean. When using SAFRSBase in combination with other frameworks (eg. flask-admin), care should be taken of how and when objects are added to the session and commited. An example of flask-admin integration can be found in the [examples directory](examples/demo_flask_admin.py). 
-- SAFRS needs more unit tests, ideally, we should be able to generate a test sutie using swager-cli-codegen but I didn't find the time to implement tests.
+- SAFRS needs more unit tests. I implement tests in the jsonapi-admin frontend but this is a bit experimental atm.
 
 <a class="mk-toclify" id="references"></a>
 ## References
