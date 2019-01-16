@@ -45,25 +45,27 @@ class User(SAFRSBase, db.Model):
         return { 'result' : 'sent {}'.format(content)}
 
 if __name__ == '__main__':
+    # Server configuration variables:
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
     PORT = 5000
     API_PREFIX = ''
 
+    # App initialization
     app = Flask('SAFRS Demo Application')
     app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://', DEBUG=True)
     db.init_app(app)
-    db.app = app
     # Create the database
-    db.create_all()
     
     with app.app_context():
-        # Create a user and a book and add the book to the user.books relationship
-        user = User(name='thomas', email='em@il')
+        db.create_all()
+        # Create a user
         api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         # Register the API at /api/docs
-        print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
-        app.run(host=HOST, port=PORT)
+        user = User(name='thomas', email='em@il')
+    
+    print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
+    app.run(host=HOST, port=PORT)
 
 
