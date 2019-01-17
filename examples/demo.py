@@ -21,7 +21,7 @@ db  = SQLAlchemy()
 # Example sqla database object
 class User(SAFRSBase, db.Model):
     '''
-        description: User description
+        description: My User description
     '''
     __tablename__ = 'users'
     id = db.Column(db.String, primary_key=True)
@@ -44,26 +44,25 @@ class User(SAFRSBase, db.Model):
             mailfile.write(content)
         return { 'result' : 'sent {}'.format(content)}
 
+
 if __name__ == '__main__':
     # Server configuration variables:
     HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
     PORT = 5000
     API_PREFIX = ''
-
     # App initialization
     app = Flask('SAFRS Demo Application')
     app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://', DEBUG=True)
     db.init_app(app)
-    # Create the database
     
     with app.app_context():
+        # Create the database
         db.create_all()
-        # Create a user
+        # Create a user, data from this user will be used to fill the swagger example
+        user = User(name='thomas', email='em@il')
         api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
-        # Register the API at /api/docs
-        user = User(name='thomas', email='em@il')
     
     print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
     app.run(host=HOST, port=PORT)
