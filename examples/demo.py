@@ -12,7 +12,7 @@
 # - swagger2 documentation is generated
 #
 import sys
-from flask import Flask, redirect
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
 
