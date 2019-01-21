@@ -80,6 +80,7 @@ class SAFRSBase(Model):
     # with another framework, eg flask-admin
     # The caller will have to add and commit the object by itself then...
     db_commit = True
+    http_methods = {} # http methods, used in case of override
     def __new__(cls, **kwargs):
         '''
             If an object with given arguments already exists, this object is instantiated
@@ -406,7 +407,6 @@ class SAFRSBase(Model):
             Create a swagger api model based on the sqlalchemy schema
             if an instance exists in the DB, the first entry is used as example
         '''
-
         body = {}
         responses = {}
         object_name = cls.__name__

@@ -8,7 +8,6 @@ import logging
 #import hashlib
 import datetime
 import yaml
-import pprint
 import decimal
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
@@ -364,12 +363,12 @@ def swagger_doc(cls, tags=None):
                }
 
         responses = {}
-
         # adhere to open api
         model_name = '{}_{}'.format(class_name, http_method)
         if http_method == 'get':
             doc['summary'] = 'Retrieve a {} object'.format(class_name)
             _, responses = cls.get_swagger_doc(http_method)
+
         elif http_method == 'post':
             _, responses = cls.get_swagger_doc(http_method)
             doc['summary'] = 'Create a {} object'.format(class_name)
@@ -436,8 +435,6 @@ def swagger_doc(cls, tags=None):
             # one of 'options', 'head', 'patch'
             LOGGER.debug('no documentation for "%s" ', http_method)
 
-        method_doc = parse_object_doc(func)
-        responses.update(method_doc.get('responses',{}))
         responses_str = {}
         for k, v in responses.items():
             # convert int response code to string
@@ -446,9 +443,30 @@ def swagger_doc(cls, tags=None):
         doc['parameters'] = parameters
         doc['responses'] = responses_str
         doc['produces'] = ["application/json"]
+        
+        method_doc = parse_object_doc(func)
+        dict_merge(doc, method_doc)
+        
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
+
+
+def dict_merge(dct, merge_dct):
+    """ Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
+    updating only top-level keys, dict_merge recurses down into dicts nested
+    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into
+    ``dct``.
+    :param dct: dict onto which the merge is executed
+    :param merge_dct: dct merged into dct
+    :return: None
+    """
+    for k, v in merge_dct.items():
+        if k in dct and isinstance(dct[k], dict):
+            dict_merge(dct[k], merge_dct[k])
+        else:
+            # convert to string, for ex. http return codes
+            dct[str(k)] = merge_dct[k]
 
 
 def get_sample_dict(sample):
@@ -475,6 +493,7 @@ def swagger_relationship_doc(cls, tags=None):
             Decorator used to document relationship methods exposed in the API
         '''
 
+        
         parent_class = cls.relationship.parent.class_
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
@@ -525,7 +544,6 @@ def swagger_relationship_doc(cls, tags=None):
                }
 
         responses = {}
-
         if http_method == 'get':
             doc['summary'] = 'Retrieve a {} object'.format(class_name)
             _, responses = cls.get_swagger_doc(http_method)
@@ -567,7 +585,7 @@ def swagger_relationship_doc(cls, tags=None):
 
         else:
             # one of 'options', 'head', 'patch'
-            LOGGER.debug('no documentation for "%s" ', http_method)
+            LOGGER.info('no documentation for "%s" ', http_method)
 
         if http_method in ('patch',):
             #put_model, responses = child_class.get_swagger_doc(http_method)
@@ -576,7 +594,7 @@ def swagger_relationship_doc(cls, tags=None):
         
         doc['parameters'] = parameters
         doc['responses'] = responses
-
+        
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen

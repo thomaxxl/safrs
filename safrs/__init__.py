@@ -2,21 +2,34 @@
 __init__.py
 '''
 import logging
-import os, builtins, sys
+import os
+import builtins
+import sys
 import copy
+import pprint
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, current_app
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful_swagger_2 import Resource, Api as FRSApiBase
+from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
+from flask_restful_swagger_2 import validate_path_item_object
+from flask_restful_swagger_2 import extract_swagger_path, Extractor
 
 db = SQLAlchemy()
+
+HTTP_METHODS = ['GET', 'PUT', 'POST', 'DELETE', 'PATCH']
 
 def SAFRSAPI(app, host = 'localhost', port = 5000, prefix = '', description= 'SAFRSAPI', **kwargs):
     '''
         APi factory method:
         - configure SAFRS
         - create API
+        :param app: flask app
+        :param host: the host used in the swagger doc
+        :param port: the port used in the swagger doc
+        :param prefix: the API url prefix
+        :param description: the swagger description
     '''
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port), description = description)
@@ -37,8 +50,17 @@ class SAFRS(object):
     ENABLE_RELATIONSHIPS = None
     LOGLEVEL = logging.WARNING
     OBJECT_ID_SUFFIX = None
-    DEFAULT_INCLUDED = '' # change to +all to include eeverything (slower because relationships will be fetched)
+    DEFAULT_INCLUDED = '' # change to +all to include everything (slower because relationships will be fetched)
+    INSTANCE_ENDPOINT_FMT = None
+    INSTANCE_URL_FMT = None
+    RESOURCE_URL_FMT = None
+    INSTANCEMETHOD_URL_FMT = None
+    CLASSMETHOD_URL_FMT = None
+    RELATIONSHIP_URL_FMT = None
+    ENDPOINT_FMT = None
+    #
     config = {}
+
 
     def __new__(cls, app, app_db = db, prefix = '', **kwargs):
         if not isinstance(app, Flask):
@@ -90,15 +112,13 @@ class SAFRS(object):
             log.addHandler(handler)
         return log
 
+# Import here in order to avoid circular dependencies, (todo: fix)
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError
-from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
-from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT
-from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
+from .config import get_config
 from .jsonapi import api_decorator, SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRelationshipObject, SAFRSRestRelationshipAPI
 
-SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 
 class Api(FRSApiBase):
     '''
@@ -143,7 +163,10 @@ class Api(FRSApiBase):
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_type]
+        # Expose the methods first
+        self.expose_methods(url_prefix, tags=tags)
 
+        RESOURCE_URL_FMT = get_config('RESOURCE_URL_FMT')
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_type)
 
         endpoint = safrs_object.get_endpoint(url_prefix)
@@ -164,7 +187,9 @@ class Api(FRSApiBase):
                           endpoint=endpoint,
                           methods=['GET', 'POST'])
 
+        INSTANCE_URL_FMT = get_config('INSTANCE_URL_FMT')
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__)
+        INSTANCE_ENDPOINT_FMT = get_config('INSTANCE_ENDPOINT_FMT')
         endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, safrs_object._s_type)
         # Expose the instances
         self.add_resource(api_class,
@@ -181,9 +206,6 @@ class Api(FRSApiBase):
         for relationship in relationships:
             self.expose_relationship(relationship, url, tags=tags)
 
-        self.expose_methods(url_prefix, tags=tags)
-
-
     def expose_methods(self, url_prefix, tags):
         '''
             Expose the safrs "documented_api_method" decorated methods
@@ -196,15 +218,18 @@ class Api(FRSApiBase):
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
             if getattr(api_method, '__self__', None) is safrs_object:
                 # method is a classmethod, make it available at the class level
+                CLASSMETHOD_URL_FMT = get_config('CLASSMETHOD_URL_FMT')
                 url = CLASSMETHOD_URL_FMT.format(url_prefix,
                                                  safrs_object.__tablename__,
                                                  method_name)
             else:
+                INSTANCEMETHOD_URL_FMT = get_config('INSTANCEMETHOD_URL_FMT')
                 url = INSTANCEMETHOD_URL_FMT.format(url_prefix,
                                                     safrs_object.__tablename__,
                                                     safrs_object.object_id,
                                                     method_name)
 
+            ENDPOINT_FMT = get_config('ENDPOINT_FMT')
             endpoint = ENDPOINT_FMT.format(url_prefix, \
                                            safrs_object.__tablename__ + '.' + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
@@ -247,8 +272,11 @@ class Api(FRSApiBase):
         parent_name = parent_class.__name__
 
         # Name of the endpoint class
+        RELATIONSHIP_URL_FMT = get_config('RELATIONSHIP_URL_FMT')
         api_class_name = API_CLASSNAME_FMT.format(parent_name, rel_name)
         url = RELATIONSHIP_URL_FMT.format(url_prefix, rel_name)
+
+        ENDPOINT_FMT = get_config('ENDPOINT_FMT')
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
@@ -311,12 +339,12 @@ class Api(FRSApiBase):
             there's no {id} in the path. We filter out the unwanted parameters
 
         '''
-        from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
-        from flask_restful_swagger_2 import validate_path_item_object
-        from flask_restful_swagger_2 import extract_swagger_path, Extractor
+        
+        SAFRS_INSTANCE_SUFFIX = get_config('OBJECT_ID_SUFFIX') + '}'
+
         path_item = {}
         definitions = {}
-        resource_methods = kwargs.get('methods', ['GET', 'PUT', 'POST', 'DELETE', 'PATCH'])
+        resource_methods = kwargs.get('methods', HTTP_METHODS)
         safrs_object = kwargs.get('safrs_object', None)
         if safrs_object:
             del kwargs['safrs_object']
@@ -412,7 +440,7 @@ class Api(FRSApiBase):
                             filtered_parameters.append(parameter)
 
                     method_doc['parameters'] = filtered_parameters
-                    method_doc['operationId'] = self.get_operation_id(path_item.get(method).get('summary'))
+                    method_doc['operationId'] = self.get_operation_id(path_item.get(method).get('summary',''))
                     path_item[method] = method_doc
 
                     if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
@@ -461,5 +489,3 @@ from .jsonapi import SAFRSJSONEncoder, paginate
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse
 from .errors import ValidationError, GenericError
 from .api_methods import search, startswith
-
-

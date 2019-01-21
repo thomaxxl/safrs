@@ -1,9 +1,28 @@
 '''
-config.py
+Configuration settings should be set in app.config
+Most of rhe configuration in this file is deprecated, it is kept for backwards compatibility
+The get_config function handles the current config while remaining backwards compatible
+
 '''
 # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
 import os, logging, builtins, sys
+from flask import current_app
 from . import SAFRS
+
+def get_config(option):
+
+    try:
+        result = current_app.config[option]
+    except KeyError:
+        result = getattr(SAFRS, option, None)
+        if result is None:
+            result = globals().get(option)    
+    except Exception as exc:
+        log.exception(exc)
+        raise
+
+    return result
+
 
 OBJECT_ID_SUFFIX = os.environ.get('OBJECT_ID_SUFFIX', SAFRS.OBJECT_ID_SUFFIX)
 if not OBJECT_ID_SUFFIX:

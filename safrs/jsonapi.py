@@ -6,15 +6,9 @@
 # - endpoint
 #
 # todo:
-# - validation
-# - hardcoded strings > config (SAFRS_INSTANCE_SUFFIX, URL_FMT)
 # - expose canonical endpoints
 # - move all swagger related stuffto swagger_doc
 # - fieldsets
-# - safrs subclassing
-# - encoding
-# - __ underscores
-# - tests
 #
 '''
 http://jsonapi.org/format/#content-negotiation-servers
@@ -26,8 +20,8 @@ Servers MUST send all JSON API data in response documents with the header
 Servers MUST respond with a 415 Unsupported Media Type status code if a request specifies the header
 "Content-Type: application/vnd.api+json" with any media type parameters.
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
-
 '''
+
 import copy
 import traceback
 import datetime
@@ -37,30 +31,24 @@ import json
 import decimal
 import werkzeug
 import safrs
+import sqlalchemy
+import sqlalchemy.orm.dynamic
+import sqlalchemy.orm.collections
 
 from functools import wraps
 from flask import make_response, url_for
 from flask import jsonify, request
-from flask.json import JSONEncoder
 from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 from flask_restful import abort
-import sqlalchemy
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
-import sqlalchemy.orm.dynamic
-import sqlalchemy.orm.collections
-from sqlalchemy.ext.declarative import DeclarativeMeta
 from .db import SAFRSBase, db
-from .swagger_doc import swagger_doc, swagger_method_doc, is_public, default_paging_parameters, DOC_DELIMITER
+from .swagger_doc import is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
-from .config import OBJECT_ID_SUFFIX, INSTANCE_URL_FMT, CLASSMETHOD_URL_FMT
-from .config import RELATIONSHIP_URL_FMT, INSTANCEMETHOD_URL_FMT
-from .config import UNLIMITED, BIG_QUERY_THRESHOLD, MAX_QUERY_THRESHOLD
-from .config import ENDPOINT_FMT, INSTANCE_ENDPOINT_FMT, RESOURCE_URL_FMT
-from .config import ENABLE_RELATIONSHIPS
+from .config import get_config
+from .json_encoder import SAFRSJSONEncoder
 
-SAFRS_INSTANCE_SUFFIX = OBJECT_ID_SUFFIX + '}'
 INCLUDE_ALL = '+all'
 
 def http_method_decorator(fun):
@@ -116,25 +104,35 @@ def api_decorator(cls, swagger_decorator):
     '''
 
     cors_domain = globals().get('cors_domain', None)
+    cls.http_methods = {} # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
     for method_name in ['get', 'post', 'delete', 'patch', 'put', 'options']: # HTTP methods
         method = getattr(cls, method_name, None)
         if not method:
             continue
 
+        decorated_method = method
+
+        # if the SAFRSObject has a custom http method decorator, use it
+        # e.g. SAFRSObject.get
+        custom_method = getattr(cls.SAFRSObject, method_name, None)
+        if custom_method:
+            decorated_method = custom_method
+            # keep the default method as parent_<method_name>, e.g. parent_get
+            parent_method = getattr(cls, method_name)
+            cls.http_methods[method_name] = lambda *args, **kwargs: parent_method(*args, **kwargs)
+
         # Apply custom decorators, specified as class variable list
         try:
             # Add swagger documentation
-            decorated_method = swagger_decorator(method)
+            decorated_method = swagger_decorator(decorated_method)
         except RecursionError:
             # Got this error when exposing WP DB, TODO: investigate where it comes from
-            safrs.LOGGER.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, method))
-            decorated_method = method
-
+            safrs.LOGGER.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, decorated_method))
         except Exception as exc:
             safrs.LOGGER.error(exc)
             traceback.print_exc()
-            safrs.LOGGER.error('Failed to generate documentation for {}'.format(method))
-            decorated_method = method
+            safrs.LOGGER.error('Failed to generate documentation for {}'.format(decorated_method))
+
         # Add cors
         if cors_domain is not None:
             decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
@@ -145,6 +143,7 @@ def api_decorator(cls, swagger_decorator):
         for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators' , []):
             decorated_method = custom_decorator(decorated_method)
 
+        
         setattr(cls, method_name, decorated_method)
 
     return cls
@@ -191,7 +190,7 @@ def paginate(object_query):
     except:
         page_offset = 0
 
-    limit = request.args.get('page[limit]', UNLIMITED)
+    limit = request.args.get('page[limit]', get_config('UNLIMITED'))
     try:
         del request_args['page[limit]']
         limit = int(limit)
@@ -345,7 +344,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     jsonapi_format_response
     '''
 
-    limit = request.args.get('page[limit]', UNLIMITED)
+    limit = request.args.get('page[limit]', get_config('UNLIMITED'))
     try:
         limit = int(limit)
     except Exception as exc:
@@ -460,8 +459,6 @@ class SAFRSRestAPI(Resource):
         errors = None
 
         links = None
-        #included = None
-        #jsonapi = dict(version='1.0')
 
         id = kwargs.get(self.object_id, None)
         #method_name = kwargs.get('method_name','')
@@ -556,8 +553,6 @@ class SAFRSRestAPI(Resource):
         json = request.get_json()
         if not isinstance(json, dict):
             raise ValidationError('Invalid Object Type')
-
-        # TODO: Validate jsonapi
 
         return json
 
@@ -736,12 +731,6 @@ class SAFRSRestAPI(Resource):
         if method_name:
             method(**args)
 
-        #columns   = self.SAFRSObject.__table__.columns
-        # or query to implement jq grid search functionality
-        #or_query  = [ col.ilike('%{}%'.format(search)) for col in columns ]
-        #instances = self.SAFRSObject.query.filter_by(**filter).\
-        # filter(or_(*or_query)).order_by(self.default_order)
-
         instances = self.SAFRSObject.query.filter_by(**filter).order_by(None)
 
         return instances
@@ -769,9 +758,10 @@ class SAFRSFormattedResponse:
         if not self.result is None:
             return {'meta' : {'result' : self.result}}
 
+
 class SAFRSRestMethodAPI(Resource, object):
     '''
-        Flask webservice wrapper for the underlying SAFRSBase documented_api_method
+        Route wrapper for the underlying SAFRSBase jsonapi_rpc
 
         Only HTTP POST is supported
     '''
@@ -837,9 +827,7 @@ class SAFRSRestMethodAPI(Resource, object):
         if isinstance(result, SAFRSFormattedResponse):
             response = result
         else:
-            response = {'meta' :\
-                        {'result' : result}\
-                    }
+            response = {'meta': {'result': result}}
 
         return jsonify(response) # 200 : default
 
@@ -881,9 +869,9 @@ class SAFRSRestMethodAPI(Resource, object):
 
         result = method(**args)
 
-        response = {'meta' :\
-                    {'result' : result}\
-                }
+        response = {'meta' :
+                    {'result' : result}
+                   }
 
         return jsonify(response) # 200 : default
 
@@ -1230,203 +1218,3 @@ class SAFRSRestRelationshipAPI(Resource, object):
         relation = getattr(parent, self.rel_name)
 
         return parent, relation
-
-
-class SAFRSJSONEncoder(JSONEncoder):
-    '''
-        Encodes safrs objects (SAFRSBase subclasses)
-    '''
-
-    def default(self, object):
-
-        if isinstance(object, SAFRSBase):
-            result = self.jsonapi_encode(object)
-            return result
-        if isinstance(object, datetime.datetime):
-            return object.isoformat(' ')
-        if isinstance(object, datetime.date):
-            return object.isoformat()
-        # We shouldn't get here in a normal setup
-        # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        if isinstance(object, set):
-            return list(object)
-        if isinstance(object, DeclarativeMeta):
-            return self.sqla_encode(object)
-        if isinstance(object, SAFRSFormattedResponse):
-            return object.to_dict()
-        if isinstance(object, SAFRSFormattedResponse):
-            return object.to_dict()
-        if isinstance(object, decimal.Decimal):
-            return str(object)
-        if isinstance(object, bytes):
-            safrs.LOGGER.warning('bytes object, TODO')
-
-        else:
-            safrs.LOGGER.warning('Unknown object type "{}" for {}'.format(type(object), object))
-        return self.ghetto_encode(object)
-
-    def ghetto_encode(self, object):
-        '''
-        ghetto_encode
-        '''
-        try:
-            result = {}
-            for k, v in vars(object).items():
-                if not k.startswith('_'):
-                    if isinstance(v, (int, float, )) or v is None:
-                        result[k] = v
-                    else:
-                        result[k] = str(v)
-        except TypeError:
-            result = str(object)
-        return result
-
-    def sqla_encode(self, obj):
-        '''
-        sqla_encode
-        '''
-        fields = {}
-        for field in [x for x in dir(obj) if not x.startswith('_') and x != 'metadata']:
-            data = obj.__getattribute__(field)
-            try:
-                json.dumps(data)
-                fields[field] = 'data'
-            except TypeError:
-                fields[field] = None
-        # a json-encodable dict
-        return fields
-
-
-    def jsonapi_encode(self, object):
-        '''
-            Encode object according to the jsonapi specification
-        '''
-
-        relationships = dict()
-        excluded_csv = request.args.get('exclude', '')
-        excluded_list = excluded_csv.split(',')
-        included_csv = request.args.get('include', '')
-        included_list = included_csv.split(',')
-
-        # In order to request resources related to other resources,
-        # a dot-separated path for each relationship name can be specified
-        nested_included_list = []
-        for inc in included_list:
-            if '.' in inc:
-                nested_included_list += inc.split('.')
-        included_list += nested_included_list
-
-        for relationship in object.__mapper__.relationships:
-            '''
-                http://jsonapi.org/format/#document-resource-object-relationships:
-
-                The value of the relationships key MUST be an object (a “relationships object”).
-                Members of the relationships object (“relationships”) represent
-                references from the resource object in which it’s defined to other resource objects.
-
-                Relationships may be to-one or to-many.
-
-                A “relationship object” MUST contain at least one of the following:
-
-                - links: a links object containing at least one of the following:
-                    - self: a link for the relationship itself (a “relationship link”).
-                    This link allows the client to directly manipulate the relationship.
-                    - related: a related resource link
-                - data: resource linkage
-                - meta: a meta object that contains non-standard meta-information
-                        about the relationship.
-                A relationship object that represents a to-many relationship
-                MAY also contain pagination links under the links member, as described below.
-                SAFRS currently implements links with self
-            '''
-
-            try:
-                #params = { self.object_id : self.id }
-                #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
-                obj_url = url_for(object.get_endpoint())
-                if not obj_url.endswith('/'):
-                    obj_url += '/'
-            except:
-                # app not initialized
-                obj_url = ''
-
-            meta = {}
-            rel_name = relationship.key
-            if rel_name in excluded_list:
-                # TODO: document this
-                #continue
-                pass
-            data = None
-            if rel_name in included_list:
-                if relationship.direction == MANYTOONE:
-                    meta['direction'] = 'MANYTOONE'
-                    rel_item = getattr(object, rel_name)
-                    if rel_item:
-                        data = {'id' : rel_item.jsonapi_id, 'type' : rel_item.__tablename__}
-
-                elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    if safrs.LOGGER.getEffectiveLevel() < logging.WARNING:
-                        if relationship.direction == ONETOMANY:
-                            meta['direction'] = 'ONETOMANY'
-                        else:
-                            meta['direction'] = 'MANYTOMANY'
-                    # Data is optional, it's also really slow for large sets!!!!!
-                    rel_query = getattr(object, rel_name)
-                    limit = request.args.get('page[limit]', MAX_QUERY_THRESHOLD)
-                    if not ENABLE_RELATIONSHIPS:
-                        meta['warning'] = 'ENABLE_RELATIONSHIPS set to false in config.py'
-                    elif rel_query:
-                        # todo: chekc if lazy=dynamic
-                        # In order to work with the relationship as with Query,\
-                        # you need to configure it with lazy='dynamic'
-                        # "limit" may not be possible !
-                        if getattr(rel_query, 'limit', False):
-                            count = rel_query.count()
-                            rel_query = rel_query.limit(limit)
-                            if rel_query.count() >= BIG_QUERY_THRESHOLD:
-                                warning = 'Truncated result for relationship "{}",\
-                                 consider paginating this request'.format(rel_name)
-                                safrs.LOGGER.warning(warning)
-                                meta['warning'] = warning
-                            items = rel_query.all()
-                        else:
-                            items = list(rel_query)
-                            count = len(items)
-                        meta['count'] = count
-                        meta['limit'] = limit
-                        data = [{'id' : i.jsonapi_id,\
-                                  'type' : i.__tablename__} for i in items]
-                else: # shouldn't happen!!
-                    raise GenericError('\
-                    Unknown relationship direction for relationship {}: {}'.\
-                    format(rel_name, relationship.direction))
-
-            self_link = '{}{}/{}'.format(obj_url,\
-                                         object.jsonapi_id,\
-                                         rel_name)
-            links = dict(self=self_link)
-            rel_data = dict(links=links)
-
-            if data:
-                rel_data['data'] = data
-            if meta:
-                rel_data['meta'] = meta
-            relationships[rel_name] = rel_data
-
-        attributes = object._s_to_dict()
-        # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
-        fields = request.args.get('fields[{}]'.format(object._s_type), None)
-        if fields:
-            fields = fields.split(',')
-            try:
-                attributes = {field: getattr(object, field) for field in fields}
-            except AttributeError as exc:
-                raise ValidationError('Invalid Field {}'.format(exc))
-
-        data = dict(attributes=attributes,\
-                    id=object.jsonapi_id,\
-                    type=object._s_type,\
-                    relationships=relationships
-                    )
-
-        return data
