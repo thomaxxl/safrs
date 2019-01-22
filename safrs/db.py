@@ -136,7 +136,7 @@ class SAFRSBase(Model):
         try:
             db.Model.__init__(self, **db_args)
         except Exception as exc:
-            # OOPS .. things are going bad , this might happen using sqla automap
+            # OOPS .. things are going bad, this might happen using sqla automap
             safrs.LOGGER.error('Failed to instantiate object')
             db.Model.__init__(self)
 
@@ -177,7 +177,7 @@ class SAFRSBase(Model):
     @hybrid_property
     def id_type(obj):
         '''
-            
+
         '''
         id_type = get_id_type(obj)
         # monkey patch so we don't have to look it up next time
@@ -214,7 +214,7 @@ class SAFRSBase(Model):
                 result.append(attr)
 
         return result
-    
+
     #pylint: disable=
     @classproperty
     def _s_class_name(cls):
@@ -237,8 +237,8 @@ class SAFRSBase(Model):
         if not self.Type == value:
             self.Type = value
         self.type = value
-    
-    
+
+
 
     @property
     def _s_relationships(self):
@@ -281,7 +281,7 @@ class SAFRSBase(Model):
                 instance = cls.query.filter_by(**primary_keys).first()
             except Exception as exc:
                 safrs.LOGGER.error('get_instance : %s', str(exc))
-            
+
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
                 # or let the client handle it?
@@ -357,7 +357,7 @@ class SAFRSBase(Model):
         else:
             id = ""
         return id
-  
+
     #pylint: disable=
     @classmethod
     def _s_sample(cls):
@@ -377,7 +377,7 @@ class SAFRSBase(Model):
         sample = cls._s_sample()
         if sample:
             return sample._s_to_dict()
-        
+
         sample = {}
         for column in cls._s_columns:
             if column.name in ('id','type'):

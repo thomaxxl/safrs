@@ -16,7 +16,7 @@ def get_config(option):
     except KeyError:
         result = getattr(SAFRS, option, None)
         if result is None:
-            result = globals().get(option)    
+            result = globals().get(option)
     except Exception as exc:
         log.exception(exc)
         raise

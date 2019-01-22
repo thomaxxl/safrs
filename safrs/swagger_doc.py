@@ -54,7 +54,7 @@ def documented_api_method(method):
         When a method is decorated with documented_api_method, this means
         it becomes available for use through HTTP POST (i.e. public)
     '''
-    
+
     if USE_API_METHODS:
         try:
             api_doc = parse_object_doc(method)
@@ -269,7 +269,7 @@ def swagger_method_doc(cls, method_name, tags=None):
 
         class_name = cls.__name__
         if tags is None:
-            doc_tags = [table_name]
+            doc_tags = [class_name]
         else:
             doc_tags = tags
 
@@ -292,7 +292,6 @@ def swagger_method_doc(cls, method_name, tags=None):
         else:
             # typically POST
             parameters, fields, description, method = get_swagger_doc_post_arguments(cls, method_name)
-
             '''if inspect.ismethod(method) and method.__self__ is cls:
                 # Mark classmethods: only these can be called when no {id} is given as parameter
                 # in the swagger ui
@@ -379,7 +378,7 @@ def swagger_doc(cls, tags=None):
             sample_dict = cls._s_sample_dict()
             sample_data = schema_from_object(model_name,
                                              {
-                                              'data' : 
+                                              'data' :
                                               {
                                                'attributes' : sample_dict,
                                                'type' : table_name
@@ -443,10 +442,10 @@ def swagger_doc(cls, tags=None):
         doc['parameters'] = parameters
         doc['responses'] = responses_str
         doc['produces'] = ["application/json"]
-        
+
         method_doc = parse_object_doc(func)
         dict_merge(doc, method_doc)
-        
+
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
@@ -493,7 +492,7 @@ def swagger_relationship_doc(cls, tags=None):
             Decorator used to document relationship methods exposed in the API
         '''
 
-        
+
         parent_class = cls.relationship.parent.class_
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
@@ -591,10 +590,10 @@ def swagger_relationship_doc(cls, tags=None):
             #put_model, responses = child_class.get_swagger_doc(http_method)
             doc['summary'] = 'Update a {} object'.format(class_name)
             responses = {'201' : {'description' : 'Object Updated'}}
-        
+
         doc['parameters'] = parameters
         doc['responses'] = responses
-        
+
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen

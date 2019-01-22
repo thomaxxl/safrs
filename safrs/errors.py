@@ -25,7 +25,7 @@ class NotFoundError(Exception, DontWrapMixin):
             safrs.LOGGER.error('Not found: %s', message)
         else:
             self.message += '(debug logging disabled)'
-        
+
 
 class ValidationError(Exception, DontWrapMixin):
     '''
@@ -40,7 +40,7 @@ class ValidationError(Exception, DontWrapMixin):
             safrs.LOGGER.error('ValidationError: %s', message)
         else:
             self.message += '(debug logging disabled)'
-        
+
 class GenericError(Exception, DontWrapMixin):
     '''
     This exception is raised when an error has been detected
@@ -54,6 +54,6 @@ class GenericError(Exception, DontWrapMixin):
             self.message += message
         else:
             self.message += '(debug logging disabled)'
-        
+
         safrs.LOGGER.debug(traceback.format_exc())
         safrs.LOGGER.error('Generic Error: %s', message)

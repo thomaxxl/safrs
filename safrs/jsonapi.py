@@ -140,10 +140,10 @@ def api_decorator(cls, swagger_decorator):
         decorated_method = http_method_decorator(decorated_method)
 
         setattr(decorated_method, 'SAFRSObject', cls.SAFRSObject)
-        for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators' , []):
+        for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators', []):
             decorated_method = custom_decorator(decorated_method)
 
-        
+
         setattr(cls, method_name, decorated_method)
 
     return cls
@@ -326,8 +326,8 @@ def get_included(data, limit, include=''):
                 result = result.union(included)
             except:
                 safrs.LOGGER.critical('Failed to add included for {} (included: {} - {})'.format(relationship, type(included), included))
-                result.add(included)                
-                
+                result.add(included)
+
         if INCLUDE_ALL in includes:
             for nested_included in [get_included(result, limit) for obj in result]: # Removed recursion with get_included(result, limit, INCLUDE_ALL)
                 result = result.union(nested_included)
@@ -429,8 +429,8 @@ class SAFRSRestAPI(Resource):
 
     def get(self, **kwargs):
         '''
-            responses : 
-                404 : 
+            responses :
+                404 :
                     description : Not Found
             ---
             HTTP GET: return instances
@@ -471,9 +471,14 @@ class SAFRSRestAPI(Resource):
                 pass
 
             data = instance
-            links = {\
-                     'self' : url_for(instance.get_endpoint())\
-                    }
+            try:
+                self_url = url_for(instance.get_endpoint())
+            except:
+                # this may happen if the endpoint has been renamed, e.g when using flask-restful api decorators
+                safrs.LOGGER.warning('Failed to build endpoint url for {}'.format(instance))
+                self_url = '#url-error'
+
+            links = {'self' : self_url }
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
@@ -491,11 +496,10 @@ class SAFRSRestAPI(Resource):
 
     def patch(self, **kwargs):
         '''
-
             responses:
-                200 : 
+                200 :
                     description : Accepted
-                201 : 
+                201 :
                     description: Created
                 204 :
                     description : No Content
@@ -560,15 +564,15 @@ class SAFRSRestAPI(Resource):
     def post(self, **kwargs):
         '''
             responses :
-                403: 
+                403:
                     description : This implementation does not accept client-generated IDs
-                201: 
+                201:
                     description: Created
-                202: 
-                    description : Accepted 
-                404: 
+                202:
+                    description : Accepted
+                404:
                     description : Not Found
-                409: 
+                409:
                     description : Conflict
             ---
             http://jsonapi.org/format/#crud-creating
@@ -585,7 +589,7 @@ class SAFRSRestAPI(Resource):
             Response:
             403: This implementation does not accept client-generated IDs
             201: Created
-            202: Accepted 
+            202: Accepted
             404: Not Found
             409: Conflict
 
@@ -661,12 +665,12 @@ class SAFRSRestAPI(Resource):
     def delete(self, **kwargs):
         '''
 
-            responses: 
-                202 : 
+            responses:
+                202 :
                     description: Accepted
-                204 : 
+                204 :
                     description: No Content
-                200 : 
+                200 :
                     description: Success
                 403 :
                     description: Forbidden
@@ -760,15 +764,15 @@ class SAFRSRestMethodAPI(Resource, object):
     def post(self, **kwargs):
         '''
             responses :
-                403: 
+                403:
                     description : This implementation does not accept client-generated IDs
-                201: 
+                201:
                     description: Created
-                202: 
-                    description : Accepted 
-                404: 
+                202:
+                    description : Accepted
+                404:
                     description : Not Found
-                409: 
+                409:
                     description : Conflict
             ---
             HTTP POST: apply actions, return 200 regardless
@@ -813,8 +817,8 @@ class SAFRSRestMethodAPI(Resource, object):
 
     def get(self, **kwargs):
         '''
-            responses : 
-                404 : 
+            responses :
+                404 :
                     description : Not Found
                 403 :
                     description : Forbidden
@@ -910,7 +914,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         Following attributes are set on this class:
             - SAFRSObject: the sqla object which has been set with the type
              constructor in expose_relationship
-            - parent_class: class of the parent ( e.g. Parent , __tablename__ : Parents )
+            - parent_class: class of the parent ( e.g. Parent, __tablename__ : Parents )
             - child_class : class of the child
             - rel_name : name of the relationship ( e.g. children )
             - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
@@ -994,9 +998,9 @@ class SAFRSRestRelationshipAPI(Resource, object):
     def patch(self, **kwargs):
         '''
             responses:
-                200 : 
+                200 :
                     description : Accepted
-                201 : 
+                201 :
                     description: Created
                 204 :
                     description : No Content
@@ -1102,15 +1106,15 @@ class SAFRSRestRelationshipAPI(Resource, object):
     def post(self, **kwargs):
         '''
             responses :
-                403: 
+                403:
                     description : This implementation does not accept client-generated IDs
-                201: 
+                201:
                     description: Created
-                202: 
+                202:
                     description : Accepted
-                404: 
+                404:
                     description : Not Found
-                409: 
+                409:
                     description : Conflict
             ---
             Add a child to a relationship
@@ -1164,12 +1168,12 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     def delete(self, **kwargs):
         '''
-            responses: 
-                202 : 
+            responses:
+                202 :
                     description: Accepted
-                204 : 
+                204 :
                     description: No Content
-                200 : 
+                200 :
                     description: Success
                 403 :
                     description: Forbidden

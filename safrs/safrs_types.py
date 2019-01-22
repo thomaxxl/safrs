@@ -7,8 +7,6 @@ import datetime
 import hashlib
 import re
 import json
-import safrs
-from uuid import UUID
 from sqlalchemy.types import PickleType, String
 from sqlalchemy.types import TypeDecorator, BLOB
 from safrs.errors import ValidationError
@@ -102,14 +100,14 @@ class UUIDType(TypeDecorator):
     def process_bind_param(self, value, dialect):
 
         try:
-            UUID(value, version=4)
+            uuid.UUID(value, version=4)
         except:
             raise ValidationError('UUID Validation Error {}'.format(value))
 
         return value
 
 
-class SAFRSID(object):
+class SAFRSID:
     '''
         This class creates a jsonapi "id" from the classes PKs
         In case of a composite PK, the pks are joined with the delimiter
@@ -120,7 +118,7 @@ class SAFRSID(object):
     '''
     primary_keys = None
     columns = None
-    delimiter = '_' 
+    delimiter = '_'
 
     def __new__(cls, id=None):
 
@@ -147,14 +145,15 @@ class SAFRSID(object):
         '''
             Validate a given id (eg. check if it's a valid uuid, email etc.)
         '''
-        return
+        log.debug('Validation not implemented')
+        '''return
         for pk in id.split(cls.delimiter):
             try:
                 cls.column.type(pk)
                 uuid.UUID(pk, version=4)
                 #return pk
             except:
-                raise ValidationError('Invalid ID')
+                raise ValidationError('Invalid ID')'''
 
     @property
     def name(self):
@@ -219,7 +218,7 @@ class SAFRSSHA256HashID(SAFRSID):
     SAFRSSHA256HashID
     '''
     @classmethod
-    def gen_id(self):
+    def gen_id(cls):
         '''
             Create a hash based on the current time
             This is just an example
@@ -229,7 +228,7 @@ class SAFRSSHA256HashID(SAFRSID):
         return hashlib.sha256(now).hexdigest()
 
     @classmethod
-    def validate_id(self, id):
+    def validate_id(cls, _id):
         '''
         validate_id
         '''
