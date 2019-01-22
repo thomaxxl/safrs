@@ -33,6 +33,7 @@ def SAFRSAPI(app, host = 'localhost', port = 5000, prefix = '', description= 'SA
     '''
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port), description = description)
+    api.init_app(app)
     return api
 
 
@@ -42,7 +43,6 @@ class SAFRS(object):
     :param app: a Flask application.
     :param prefix: URL prefix where the swagger should be hosted. Default is '/api'
     :param LOGLEVEL: loglevel configuration variable, values from logging module (0: trace, .. 50: critical)
-
     '''
 
     # Config settings
