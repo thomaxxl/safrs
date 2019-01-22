@@ -47,7 +47,7 @@ from .swagger_doc import is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
-from .json_encoder import SAFRSJSONEncoder
+from .json_encoder import SAFRSJSONEncoder, SAFRSFormattedResponse
 
 INCLUDE_ALL = '+all'
 
@@ -668,6 +668,8 @@ class SAFRSRestAPI(Resource):
                     description: No Content
                 200 : 
                     description: Success
+                403 :
+                    description: Forbidden
                 404 :
                     description: Not Found
 
@@ -734,29 +736,6 @@ class SAFRSRestAPI(Resource):
         instances = self.SAFRSObject.query.filter_by(**filter).order_by(None)
 
         return instances
-
-
-class SAFRSFormattedResponse:
-    '''
-        Custom response object
-    '''
-
-    data = None
-    meta = None
-    errors = None
-    result = None
-    response = None
-
-    def to_dict(self):
-
-        if not self.response is None:
-            return self.response
-
-        if not self.meta is None:
-            return self.meta
-
-        if not self.result is None:
-            return {'meta' : {'result' : self.result}}
 
 
 class SAFRSRestMethodAPI(Resource, object):
@@ -1185,6 +1164,18 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     def delete(self, **kwargs):
         '''
+            responses: 
+                202 : 
+                    description: Accepted
+                204 : 
+                    description: No Content
+                200 : 
+                    description: Success
+                403 :
+                    description: Forbidden
+                404 :
+                    description: Not Found
+            ----
             Remove an item from a relationship
         '''
 

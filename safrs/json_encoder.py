@@ -9,6 +9,31 @@ import safrs
 import datetime
 import logging
 
+
+class SAFRSFormattedResponse:
+    '''
+        Custom response object
+    '''
+
+    data = None
+    meta = None
+    errors = None
+    result = None
+    response = None
+
+    def to_dict(self):
+
+        if not self.response is None:
+            return self.response
+
+        if not self.meta is None:
+            return self.meta
+
+        if not self.result is None:
+            return {'meta' : {'result' : self.result}}
+
+
+
 class SAFRSJSONEncoder(JSONEncoder):
     '''
         Encodes safrs objects (SAFRSBase subclasses)
