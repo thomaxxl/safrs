@@ -20,8 +20,6 @@ from .util import classproperty
 from .config import OBJECT_ID_SUFFIX
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
-db = safrs.db
-
 #
 # Map SQLA types to swagger2 json types
 # json supports only a couple of basic data types, which makes our job pretty easy :)
@@ -134,11 +132,11 @@ class SAFRSBase(Model):
         # All subclasses should have the DB.Model as superclass.
         # ( SQLAlchemy doesn't work when using DB.Model as SAFRSBase superclass )
         try:
-            db.Model.__init__(self, **db_args)
+            safrs.DB.Model.__init__(self, **db_args)
         except Exception as exc:
             # OOPS .. things are going bad, this might happen using sqla automap
             safrs.LOGGER.error('Failed to instantiate object')
-            db.Model.__init__(self)
+            safrs.DB.Model.__init__(self)
 
         # Parse all provided relationships: empty the existing relationship and
         # create new instances for the relationship objects
@@ -155,9 +153,9 @@ class SAFRSBase(Model):
 
         if self.db_commit:
             # Add the object to the database if specified by the class parameters
-            db.session.add(self)
+            safrs.DB.session.add(self)
             try:
-                db.session.commit()
+                safrs.DB.session.commit()
             except sqlalchemy.exc.SQLAlchemyError as exc:
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(str(exc))
@@ -188,8 +186,8 @@ class SAFRSBase(Model):
     def _s_query(cls):
         _table = getattr(cls, '_table', None)
         if _table:
-            return db.session.query(_table)
-        return db.session.query(cls)
+            return safrs.DB.session.query(_table)
+        return safrs.DB.session.query(cls)
 
     query = _s_query
 
@@ -299,7 +297,7 @@ class SAFRSBase(Model):
             value = kwargs.get(parameter, None)
             if value is not None:
                 setattr(self, parameter, value)
-        db.session.add(self)
+        safrs.DB.session.add(self)
 
     @orm.reconstructor
     def init_object_schema(self):

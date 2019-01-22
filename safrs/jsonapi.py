@@ -42,7 +42,7 @@ from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource, Api as FRSApiBase
 from flask_restful import abort
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
-from .db import SAFRSBase, db
+from .db import SAFRSBase
 from .swagger_doc import is_public, default_paging_parameters, DOC_DELIMITER
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
@@ -65,7 +65,7 @@ def http_method_decorator(fun):
     def method_wrapper(*args, **kwargs):
         try:
             result = fun(*args, **kwargs)
-            db.session.commit()
+            safrs.DB.session.commit()
             return result
 
         except (ValidationError, GenericError, NotFoundError) as exc:
@@ -85,7 +85,7 @@ def http_method_decorator(fun):
             else:
                 message = str(exc)
 
-        db.session.rollback()
+        safrs.DB.session.rollback()
         errors = dict(detail=message)
         abort(status_code, errors=[errors])
 
@@ -412,7 +412,7 @@ class SAFRSRestAPI(Resource):
         A resource object’s attributes and its relationships are collectively called its “fields”.
     '''
 
-    SAFRSObject = None # Flask views will need to set this to the SQLAlchemy db.Model class
+    SAFRSObject = None # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     default_order = None # used by sqla order_by
     object_id = None
 
@@ -478,7 +478,7 @@ class SAFRSRestAPI(Resource):
                 safrs.LOGGER.warning('Failed to build endpoint url for {}'.format(instance))
                 self_url = '#url-error'
 
-            links = {'self' : self_url }
+            links = {'self' : self_url}
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
@@ -642,9 +642,9 @@ class SAFRSRestAPI(Resource):
                 # The item has not yet been added/commited by the SAFRSBase,
                 # in that case we have to do it ourselves
                 #
-                db.session.add(instance)
+                safrs.DB.session.add(instance)
                 try:
-                    db.session.commit()
+                    safrs.DB.session.commit()
                 except sqlalchemy.exc.SQLAlchemyError as exc:
                     # Exception may arise when a db constrained has been violated
                     # (e.g. duplicate key)
@@ -704,7 +704,7 @@ class SAFRSRestAPI(Resource):
 
         if id:
             instance = self.SAFRSObject.get_instance(id)
-            db.session.delete(instance)
+            safrs.DB.session.delete(instance)
         else:
             raise NotFoundError(id, status_code=404)
 
@@ -718,7 +718,7 @@ class SAFRSRestAPI(Resource):
         method = getattr(instance, method_name, False)
 
         if not method:
-            # Only call methods for Campaign and not for superclasses (e.g. db.Model)
+            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
             raise ValidationError('Invalid method "{}"'.format(method_name))
         if not is_public(method):
             raise ValidationError('Method is not public')
@@ -749,7 +749,7 @@ class SAFRSRestMethodAPI(Resource, object):
         Only HTTP POST is supported
     '''
 
-    SAFRSObject = None # Flask views will need to set this to the SQLAlchemy db.Model class
+    SAFRSObject = None # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     method_name = None
 
     def __init__(self, *args, **kwargs):
@@ -793,7 +793,7 @@ class SAFRSRestMethodAPI(Resource, object):
         method = getattr(instance, self.method_name, None)
 
         if not method:
-            # Only call methods for Campaign and not for superclasses (e.g. db.Model)
+            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
             raise ValidationError('Invalid method "{}"'.format(method_name))
         if not is_public(method):
             raise ValidationError('Method is not public')
@@ -842,7 +842,7 @@ class SAFRSRestMethodAPI(Resource, object):
         method = getattr(instance, self.method_name, None)
 
         if not method:
-            # Only call methods for Campaign and not for superclasses (e.g. db.Model)
+            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
             raise ValidationError('Invalid method "{}"'.format(method_name))
         if not is_public(method):
             raise ValidationError('Method is not public')
@@ -852,9 +852,7 @@ class SAFRSRestMethodAPI(Resource, object):
 
         result = method(**args)
 
-        response = {'meta' :
-                    {'result' : result}
-                   }
+        response = {'meta': {'result' : result}}
 
         return jsonify(response) # 200 : default
 

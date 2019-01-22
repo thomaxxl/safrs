@@ -11,7 +11,7 @@ from flask import Flask, redirect, url_for, current_app
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+DB = SQLAlchemy()
 
 def test_decorator(func):
     '''
@@ -22,10 +22,10 @@ def test_decorator(func):
         return func(*args, **kwargs)
 
     result = api_wrapper
-    result.__name__ = func.__name__ # make sure to to reset the __name__  !!
+    result.__name__ = func.__name__ # make sure to to reset the __name__ !
     return result
 
-def SAFRSAPI(app, host = 'localhost', port = 5000, prefix = '', description= 'SAFRSAPI', **kwargs):
+def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI', **kwargs):
     '''
         APi factory method:
         - configure SAFRS
@@ -33,16 +33,18 @@ def SAFRSAPI(app, host = 'localhost', port = 5000, prefix = '', description= 'SA
         :param app: flask app
         :param host: the host used in the swagger doc
         :param port: the port used in the swagger doc
-        :param prefix: the API url prefix
+        :param prefix: the Swagger url prefix (not the api prefix)
         :param description: the swagger description
     '''
+    decorators = kwargs.get('decorators', [])
     SAFRS(app, host=host, port=port, prefix=prefix)
-    api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port), description = description, decorators = [])
+    api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port),
+              description=description, decorators=decorators, prefix='')
     api.init_app(app)
     return api
 
 
-class SAFRS(object):
+class SAFRS:
     '''This class configures the Flask application to serve SAFRSBase instances
 
     :param app: a Flask application.
@@ -67,12 +69,12 @@ class SAFRS(object):
     config = {}
 
 
-    def __new__(cls, app, app_db = db, prefix = '', **kwargs):
+    def __new__(cls, app, app_db=DB, prefix='', **kwargs):
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
         cls.app = app
-        db = cls.db = app_db
+        cls.db = app_db
 
         if app.config.get('DEBUG', False):
             LOGGER.setLevel(logging.DEBUG)
@@ -84,7 +86,7 @@ class SAFRS(object):
         swaggerui_blueprint = kwargs.get('swaggerui_blueprint', None)
         if swaggerui_blueprint is None:
             swaggerui_blueprint = get_swaggerui_blueprint(prefix, '/swagger.json')
-            app.register_blueprint(swaggerui_blueprint, url_prefix = prefix)
+            app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
 
         @app.teardown_appcontext
@@ -92,18 +94,18 @@ class SAFRS(object):
             '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
             cls.db.session.remove()
 
-        for k, v in kwargs.items():
-            setattr(cls, k, v)
+        for conf_name, conf_val in kwargs.items():
+            setattr(cls, conf_name, conf_val)
 
-        for k, v in app.config.items():
-            setattr(cls, k, v)
+        for conf_name, conf_val in app.config.items():
+            setattr(cls, conf_name, conf_val)
 
         cls.config.update(app.config)
 
         return object.__new__(object)
 
     @classmethod
-    def init_logging(cls, loglevel = logging.WARNING):
+    def init_logging(cls, loglevel=logging.WARNING):
         '''
             Specify the log format used in the webserver logs
             The webserver will catch stdout so we redirect eveything to sys.stdout
@@ -118,23 +120,23 @@ class SAFRS(object):
         return log
 
 
-from ._api import Api
-
-loglevel = logging.WARNING
+LOGLEVEL = logging.WARNING
 try:
-    debug = os.getenv('DEBUG', logging.WARNING)
-    loglevel=int(debug)
-except:
-    print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(debug))
-    loglevel = logging.WARNING
+    DEBUG = os.getenv('DEBUG', logging.WARNING)
+    LOGLEVEL = int(DEBUG)
+except ValueError:
+    print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
+    LOGLEVEL = logging.WARNING
 
-LOGGER = SAFRS.init_logging(loglevel)
+LOGGER = SAFRS.init_logging(LOGLEVEL)
 
 #
 # Following objects will be exported by safrs
 #
-# We put them at the bottom to avoid cicular dependencies
+# We put them at the bottom to avoid circular dependencies
+# introduced by .config, though we keep it for backwards compatibility
 #
+from ._api import Api
 from .db import SAFRSBase, jsonapi_rpc
 from .jsonapi import SAFRSJSONEncoder, paginate
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse
