@@ -8,17 +8,20 @@ import datetime
 import logging
 import sqlalchemy
 import safrs
+from flask import request
 from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from flask_sqlalchemy import SQLAlchemy, Model
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+from sqlalchemy.ext.declarative import DeclarativeMeta
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 # safrs_rest dependencies:
 from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jsonapi_rpc
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
-from .config import OBJECT_ID_SUFFIX
-from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+from .config import OBJECT_ID_SUFFIX, get_config
 
 #
 # Map SQLA types to swagger2 json types
@@ -58,6 +61,28 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 
 
+def _parse_value(kwargs, column):
+    '''
+        Try to fetch and parse the value for a db column from the kwargs
+        :param kwargs: 
+        :param column: database column
+        :return
+    '''
+    arg_value = kwargs.get(column.name, None)
+    if arg_value is None and column.default:
+        arg_value = column.default.arg
+    
+    # Parse datetime and date values
+    try:
+        if column.type.python_type == datetime.datetime:
+            arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d %H:%M:%S.%f')
+        elif column.type.python_type == datetime.date:
+            arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
+    except (NotImplementedError, ValueError) as exc:
+        safrs.LOGGER.warning('datetime {} for value "{}"'.format(exc, arg_value))
+    
+    return arg_value
+
 #
 # SAFRSBase superclass
 #
@@ -93,7 +118,6 @@ class SAFRSBase(Model):
             instance = object.__new__(cls)
         else:
             safrs.LOGGER.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
-
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -116,16 +140,7 @@ class SAFRSBase(Model):
         columns = self.__table__.columns
         relationships = self._s_relationships
         for column in columns:
-            arg_value = kwargs.get(column.name, None)
-            if arg_value is None and column.default:
-                arg_value = column.default.arg
-
-            # Parse datetime and date values
-            if column.type.python_type == datetime.datetime:
-                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d %H:%M:%S.%f')
-            elif column.type.python_type == datetime.date:
-                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
-
+            arg_value = _parse_value(kwargs, column)
             db_args[column.name] = arg_value
 
         # db_args now contains the class attributes. Initialize the DB model with them
@@ -306,7 +321,7 @@ class SAFRSBase(Model):
         '''
         pass
 
-    def _s_to_dict(self):
+    def _s_to_dict(self, fields=None):
         '''
             Serialization
             Create a dictionary with all the object parameters
@@ -314,7 +329,12 @@ class SAFRSBase(Model):
         '''
         result = {}
         # filter the relationships, id & type from the data
+        if fields is None:
+            fields = self._s_jsonapi_attrs
+
         for attr in self._s_jsonapi_attrs:
+            if not attr in fields:
+                continue
             try:
                 result[attr] = getattr(self, attr)
             except:
@@ -322,6 +342,142 @@ class SAFRSBase(Model):
         return result
 
     to_dict = _s_to_dict
+
+    @classmethod
+    def _s_count(cls):
+        return None
+        
+    def _s_jsonapi_encode(self):
+        '''
+            Encode object according to the jsonapi specification
+        '''
+        relationships = dict()
+        excluded_csv = request.args.get('exclude', '')
+        excluded_list = excluded_csv.split(',')
+        included_csv = request.args.get('include', '')
+        included_list = included_csv.split(',')
+
+        # In order to request resources related to other resources,
+        # a dot-separated path for each relationship name can be specified
+        nested_included_list = []
+        for inc in included_list:
+            if '.' in inc:
+                nested_included_list += inc.split('.')
+        included_list += nested_included_list
+
+        for relationship in self.__mapper__.relationships:
+            '''
+                http://jsonapi.org/format/#document-resource-object-relationships:
+
+                The value of the relationships key MUST be an object (a “relationships object”).
+                Members of the relationships object (“relationships”) represent
+                references from the resource object in which it’s defined to other resource objects.
+
+                Relationships may be to-one or to-many.
+
+                A “relationship object” MUST contain at least one of the following:
+
+                - links: a links object containing at least one of the following:
+                    - self: a link for the relationship itself (a “relationship link”).
+                    This link allows the client to directly manipulate the relationship.
+                    - related: a related resource link
+                - data: resource linkage
+                - meta: a meta object that contains non-standard meta-information
+                        about the relationship.
+                A relationship object that represents a to-many relationship
+                MAY also contain pagination links under the links member, as described below.
+                SAFRS currently implements links with self
+            '''
+
+            try:
+                #params = { self.object_id : self.id }
+                #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
+                obj_url = url_for(self.get_endpoint())
+                if not obj_url.endswith('/'):
+                    obj_url += '/'
+            except:
+                # app not initialized
+                obj_url = ''
+
+            meta = {}
+            rel_name = relationship.key
+            if rel_name in excluded_list:
+                # TODO: document this
+                #continue
+                pass
+            data = None
+            if rel_name in included_list:
+                if relationship.direction == MANYTOONE:
+                    meta['direction'] = 'MANYTOONE'
+                    rel_item = getattr(self, rel_name)
+                    if rel_item:
+                        data = {'id' : rel_item.jsonapi_id, 'type' : rel_item.__tablename__}
+
+                elif relationship.direction in (ONETOMANY, MANYTOMANY):
+                    if safrs.LOGGER.getEffectiveLevel() < logging.INFO:
+                        if relationship.direction == ONETOMANY:
+                            meta['direction'] = 'ONETOMANY'
+                        else:
+                            meta['direction'] = 'MANYTOMANY'
+                    # Data is optional, it's also really slow for large sets!!!!!
+                    rel_query = getattr(self, rel_name)
+                    limit = request.args.get('page[limit]', get_config('MAX_QUERY_THRESHOLD'))
+                    if not get_config('ENABLE_RELATIONSHIPS'):
+                        meta['warning'] = 'ENABLE_RELATIONSHIPS set to false in config.py'
+                    elif rel_query:
+                        # todo: chekc if lazy=dynamic
+                        # In order to work with the relationship as with Query,\
+                        # you need to configure it with lazy='dynamic'
+                        # "limit" may not be possible !
+                        if getattr(rel_query, 'limit', False):
+                            count = rel_query.count()
+                            rel_query = rel_query.limit(limit)
+                            if rel_query.count() >= get_config('BIG_QUERY_THRESHOLD'):
+                                warning = 'Truncated result for relationship "{}",\
+                                 consider paginating this request'.format(rel_name)
+                                safrs.LOGGER.warning(warning)
+                                meta['warning'] = warning
+                            items = rel_query.all()
+                        else:
+                            items = list(rel_query)
+                            count = len(items)
+                        meta['count'] = count
+                        meta['limit'] = limit
+                        data = [{'id' : i.jsonapi_id,\
+                                  'type' : i.__tablename__} for i in items]
+                else: # shouldn't happen!!
+                    raise GenericError('\
+                    Unknown relationship direction for relationship {}: {}'.\
+                    format(rel_name, relationship.direction))
+
+            self_link = '{}{}/{}'.format(obj_url,\
+                                         self.jsonapi_id,\
+                                         rel_name)
+            links = dict(self=self_link)
+            rel_data = dict(links=links)
+
+            if data:
+                rel_data['data'] = data
+            if meta:
+                rel_data['meta'] = meta
+            relationships[rel_name] = rel_data
+
+        attributes = self._s_to_dict()
+        # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
+        fields = request.args.get('fields[{}]'.format(self._s_type), None)
+        if fields:
+            fields = fields.split(',')
+            try:
+                attributes = {field: getattr(self, field) for field in fields}
+            except AttributeError as exc:
+                raise ValidationError('Invalid Field {}'.format(exc))
+
+        data = dict(attributes=attributes,\
+                    id=self.jsonapi_id,\
+                    type=self._s_type,\
+                    relationships=relationships)
+
+        return data
 
     def __iter__(self):
         return iter(self._s_to_dict())

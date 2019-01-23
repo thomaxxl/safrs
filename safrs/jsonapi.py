@@ -60,7 +60,6 @@ def http_method_decorator(fun):
         This method will be called for all requests
     '''
 
-
     @wraps(fun)
     def method_wrapper(*args, **kwargs):
         try:
@@ -148,7 +147,7 @@ def api_decorator(cls, swagger_decorator):
 
     return cls
 
-def paginate(object_query):
+def paginate(object_query, SAFRSObject=None):
     '''
         - returns
             links, instances, count
@@ -180,8 +179,8 @@ def paginate(object_query):
         result += '?' + '&'.join(['{}={}'.format(k, v[0]) for k, v in request_args.items()] +
                                  ['page[offset]={}&page[limit]={}'.format(count, limit)])
         return result
-    request_args = dict(request.args)
 
+    request_args = dict(request.args)
     page_offset = request.args.get('page[offset]', 0)
 
     try:
@@ -198,7 +197,15 @@ def paginate(object_query):
         safrs.LOGGER.debug('Invalid page[limit]')
 
     page_base = int(page_offset / limit) * limit
-    count = object_query.count()
+    
+    # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
+    # Make it configurable
+    # With mysql innodb we can use following to retrieve the count:
+    # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
+    #
+    count = SAFRSObject._s_count()
+    if count is None:
+        count = object_query.count()
 
     first_args = (0, limit)
     last_args = (int(int(count / limit) * limit), limit) # round down
@@ -207,11 +214,10 @@ def paginate(object_query):
     prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
 
     links = {'first' : get_link(*first_args),\
-              'self'  : get_link(page_offset, limit),\
-              'last'  : get_link(*last_args),\
-              'prev'  : get_link(*prev_args),\
-              'next'  : get_link(*next_args),\
-            }
+             'self'  : get_link(page_offset, limit), # cfr. request.url
+             'last'  : get_link(*last_args),\
+             'prev'  : get_link(*prev_args),\
+             'next'  : get_link(*next_args) }
 
     if last_args == self_args:
         del links['last']
@@ -222,7 +228,8 @@ def paginate(object_query):
     if prev_args == first_args:
         del links['prev']
 
-    instances = object_query.offset(page_offset).limit(limit).all()
+    res_query = object_query.offset(page_offset).limit(limit)
+    instances = res_query.all()
     return links, instances, count
 
 
@@ -464,34 +471,21 @@ class SAFRSRestAPI(Resource):
         #method_name = kwargs.get('method_name','')
 
         if id:
+            # Retrieve a single instance
             instance = self.SAFRSObject.get_instance(id)
-
-            for rel in instance.__mapper__.relationships:
-                #safrs.LOGGER.debug('relationship : {}, {}'.format(rel, rel.key))
-                pass
-
             data = instance
-            try:
-                self_url = url_for(instance.get_endpoint())
-            except:
-                # this may happen if the endpoint has been renamed, e.g when using flask-restful api decorators
-                safrs.LOGGER.warning('Failed to build endpoint url for {}'.format(instance))
-                self_url = '#url-error'
-
-            links = {'self' : self_url}
+            links = {'self' : request.url } 
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
         else:
             # retrieve a collection
             instances = jsonapi_filter(self.SAFRSObject)
-            count = instances.count()
             instances = jsonapi_sort(instances, self.SAFRSObject)
-            links, instances, count = paginate(instances)
-            data = [item for item in instances]
+            links, instances, count = paginate(instances, self.SAFRSObject)
+            data = instances
 
         result = jsonapi_format_response(data, meta, links, errors, count)
-
         return jsonify(result)
 
     def patch(self, **kwargs):
