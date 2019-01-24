@@ -1,6 +1,7 @@
-'''
-__init__.py
-'''
+# safrs __init__.py
+#
+# pylint: disable=line-too-long
+# use max-line-length=120 in .pylintrc
 import logging
 import os
 import builtins
@@ -25,6 +26,9 @@ def test_decorator(func):
     result.__name__ = func.__name__ # make sure to to reset the __name__ !
     return result
 
+
+# pylint: disable=invalid-name
+# We're returning the API class here, eventually this might become a class by itself
 def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI', **kwargs):
     '''
         APi factory method:
@@ -37,11 +41,13 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
         :param description: the swagger description
     '''
     decorators = kwargs.get('decorators', [])
+    app.json_encoder = SAFRSJSONEncoder
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port),
               description=description, decorators=decorators, prefix='')
     api.init_app(app)
     return api
+# pylint: enable=invalid-name
 
 
 class SAFRS:
@@ -80,7 +86,6 @@ class SAFRS:
             LOGGER.setLevel(logging.DEBUG)
 
         app.url_map.strict_slashes = False
-        app.json_encoder = SAFRSJSONEncoder
 
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get('swaggerui_blueprint', None)
@@ -89,11 +94,6 @@ class SAFRS:
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
 
-        @app.teardown_appcontext
-        def shutdown_session(exception=None):
-            '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
-            cls.db.session.remove()
-
         for conf_name, conf_val in kwargs.items():
             setattr(cls, conf_name, conf_val)
 
@@ -101,6 +101,12 @@ class SAFRS:
             setattr(cls, conf_name, conf_val)
 
         cls.config.update(app.config)
+
+        #pylint: disable=unused-argument,unused-variable
+        @app.teardown_appcontext
+        def shutdown_session(exception=None):
+            '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
+            cls.db.session.remove()
 
         return object.__new__(object)
 
@@ -112,7 +118,7 @@ class SAFRS:
         '''
         log = logging.getLogger(__name__)
         if log.level == logging.NOTSET:
-            handler = logging.StreamHandler(sys.stdout)
+            handler = logging.StreamHandler(sys.stderr)
             formatter = logging.Formatter('[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s')
             handler.setFormatter(formatter)
             log.setLevel(loglevel)
@@ -122,7 +128,7 @@ class SAFRS:
 
 LOGLEVEL = logging.WARNING
 try:
-    DEBUG = os.getenv('DEBUG', logging.WARNING)
+    DEBUG = os.getenv('DEBUG', str(logging.WARNING))
     LOGLEVEL = int(DEBUG)
 except ValueError:
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
@@ -135,7 +141,7 @@ LOGGER = SAFRS.init_logging(LOGLEVEL)
 #
 # We put them at the bottom to avoid circular dependencies
 # introduced by .config, though we keep it for backwards compatibility
-#
+# pylint: disable=wrong-import-position
 from ._api import Api
 from .db import SAFRSBase, jsonapi_rpc
 from .jsonapi import SAFRSJSONEncoder, paginate

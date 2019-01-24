@@ -11,7 +11,7 @@ import yaml
 import decimal
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
-from safrs.config import USE_API_METHODS
+from safrs.config import get_config
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY #, MANYTOONE
 import safrs
 
@@ -55,7 +55,7 @@ def documented_api_method(method):
         When a method is decorated with documented_api_method, this means
         it becomes available for use through HTTP POST (i.e. public)
     '''
-
+    USE_API_METHODS = get_config('USE_API_METHODS')
     if USE_API_METHODS:
         try:
             api_doc = parse_object_doc(method)
@@ -75,6 +75,7 @@ def jsonapi_rpc(http_methods):
             When a method is decorated with documented_api_method, this means
             it becomes available for use through HTTP POST (i.e. public)
         '''
+        USE_API_METHODS = get_config('USE_API_METHODS')
         if USE_API_METHODS:
             try:
                 api_doc = parse_object_doc(method)

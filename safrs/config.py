@@ -10,10 +10,15 @@ from flask import current_app
 import safrs
 
 def get_config(option):
-
+    '''
+        Retrieve a configuration parameter from the app
+        :param option: configuration parameter
+        :return: configuration value
+    '''
     try:
         result = current_app.config[option]
-    except KeyError:
+    except (KeyError, RuntimeError):
+        #
         result = getattr(safrs.SAFRS, option, None)
         if result is None:
             result = globals().get(option)
@@ -24,6 +29,9 @@ def get_config(option):
     return result
 
 
+#
+# Legacy configuration, this will be removed in the future
+#
 OBJECT_ID_SUFFIX = os.environ.get('OBJECT_ID_SUFFIX', safrs.SAFRS.OBJECT_ID_SUFFIX)
 if not OBJECT_ID_SUFFIX:
     OBJECT_ID_SUFFIX = 'Id'

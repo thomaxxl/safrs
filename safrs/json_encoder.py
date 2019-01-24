@@ -2,6 +2,7 @@
 safrs to json encoding
 '''
 from flask.json import JSONEncoder
+from sqlalchemy.ext.declarative import DeclarativeMeta
 from .db import SAFRSBase
 import safrs
 import datetime
@@ -12,7 +13,6 @@ class SAFRSFormattedResponse:
     '''
         Custom response object
     '''
-
     data = None
     meta = None
     errors = None
@@ -20,7 +20,9 @@ class SAFRSFormattedResponse:
     response = None
 
     def to_dict(self):
-
+        '''
+            create a dictionary
+        '''
         if not self.response is None:
             return self.response
 
@@ -31,59 +33,67 @@ class SAFRSFormattedResponse:
             return {'meta' : {'result' : self.result}}
 
 
-
 class SAFRSJSONEncoder(JSONEncoder):
     '''
-        Encodes safrs objects (SAFRSBase subclasses)
+        Encodes safrs objs (SAFRSBase subclasses)
     '''
 
-    def default(self, object):
-        if isinstance(object, SAFRSBase):
-            result = object._s_jsonapi_encode()
+    def default(self, obj):
+        '''
+            called by default
+            :param obj: object to be encoded
+            :return: encoded/serizlaized object
+        '''
+        if isinstance(obj, SAFRSBase):
+            result = obj._s_jsonapi_encode()
             return result
-        if isinstance(object, datetime.datetime):
-            return object.isoformat(' ')
-        if isinstance(object, datetime.date):
-            return object.isoformat()
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat(' ')
+        if isinstance(obj, datetime.date):
+            return obj.isoformat()
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        if isinstance(object, set):
-            return list(object)
-        if isinstance(object, DeclarativeMeta):
-            return self.sqla_encode(object)
-        if isinstance(object, SAFRSFormattedResponse):
-            return object.to_dict()
-        if isinstance(object, SAFRSFormattedResponse):
-            return object.to_dict()
-        if isinstance(object, decimal.Decimal):
-            return str(object)
-        if isinstance(object, bytes):
-            safrs.LOGGER.warning('bytes object, TODO')
+        if isinstance(obj, set):
+            return list(obj)
+        if isinstance(obj, DeclarativeMeta):
+            return self.sqla_encode(obj)
+        if isinstance(obj, SAFRSFormattedResponse):
+            return obj.to_dict()
+        if isinstance(obj, SAFRSFormattedResponse):
+            return obj.to_dict()
+        if isinstance(obj, decimal.Decimal):
+            return str(obj)
+        if isinstance(obj, bytes):
+            safrs.LOGGER.warning('bytes obj, TODO')
 
         else:
-            safrs.LOGGER.warning('Unknown object type "{}" for {}'.format(type(object), object))
-        return self.ghetto_encode(object)
+            safrs.LOGGER.warning('Unknown obj type "{}" for {}'.format(type(obj), obj))
+        return self.ghetto_encode(obj)
 
-    def ghetto_encode(self, object):
+    def ghetto_encode(self, obj):
         '''
-            ghetto_encode : if everything else failed, try to encode the public object attributes
+            if everything else failed, try to encode the public obj attributes
             i.e. those attributes without a _ prefix
+            :param obj: object to be encoded
+            :return: encoded/serizlaized object
         '''
         try:
             result = {}
-            for k, v in vars(object).items():
+            for k, v in vars(obj).items():
                 if not k.startswith('_'):
                     if isinstance(v, (int, float, )) or v is None:
                         result[k] = v
                     else:
                         result[k] = str(v)
         except TypeError:
-            result = str(object)
+            result = str(obj)
         return result
 
     def sqla_encode(self, obj):
         '''
-        sqla_encode
+        encode an SQLAlchemy object
+        :param obj: sqlalchemy object to be encoded
+        :return: encoded object
         '''
         fields = {}
         for field in [x for x in dir(obj) if not x.startswith('_') and x != 'metadata']:
@@ -96,6 +106,3 @@ class SAFRSJSONEncoder(JSONEncoder):
 
         # a json-encodable dict
         return fields
-
-
-    

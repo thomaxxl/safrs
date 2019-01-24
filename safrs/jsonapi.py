@@ -203,7 +203,10 @@ def paginate(object_query, SAFRSObject=None):
     # With mysql innodb we can use following to retrieve the count:
     # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
     #
-    count = SAFRSObject._s_count()
+    if SAFRSObject is None: # for backwards compatibility, ie. when not passed as an arg to paginate()
+        count = object_query.count()
+    else:
+        count = SAFRSObject._s_count()
     if count is None:
         count = object_query.count()
 
@@ -348,7 +351,9 @@ def get_included(data, limit, include=''):
 
 def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None):
     '''
-    jsonapi_format_response
+    Create a response dict according to the json:api schema spec
+    :param data : the objects that will be serialized
+    :return: jsonapi formatted dictionary
     '''
 
     limit = request.args.get('page[limit]', get_config('UNLIMITED'))
@@ -482,8 +487,7 @@ class SAFRSRestAPI(Resource):
             # retrieve a collection
             instances = jsonapi_filter(self.SAFRSObject)
             instances = jsonapi_sort(instances, self.SAFRSObject)
-            links, instances, count = paginate(instances, self.SAFRSObject)
-            data = instances
+            links, data, count = paginate(instances, self.SAFRSObject)
 
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)

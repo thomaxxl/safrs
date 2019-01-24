@@ -21,7 +21,7 @@ from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jso
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
-from .config import OBJECT_ID_SUFFIX, get_config
+from .config import get_config
 
 #
 # Map SQLA types to swagger2 json types
@@ -553,7 +553,7 @@ class SAFRSBase(Model):
         '''
             Returns the Flask url parameter name of the object, e.g. UserId
         '''
-        return cls.__name__ + OBJECT_ID_SUFFIX
+        return cls.__name__ + get_config('OBJECT_ID_SUFFIX')
     #pylint: disable=
     @classmethod
     def get_swagger_doc(cls, http_method):
