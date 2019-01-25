@@ -1,7 +1,14 @@
-# safrs __init__.py
+'''
+safrs __init__.py
+'''
+# -*- coding: utf-8 -*-
 #
 # pylint: disable=line-too-long
 # use max-line-length=120 in .pylintrc
+#
+# The code implements some seemingly awkward constructs and redundant functionality
+# This is however required for backwards compatibility, we'll get rid of it eventually
+#
 import logging
 import os
 import builtins
@@ -11,12 +18,12 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Flask, redirect, url_for, current_app
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
+from .__about__ import __version__, __description__
 
 DB = SQLAlchemy()
 
 def test_decorator(func):
-    '''
-        Example flask-restful decorator that can be used in the "decorators" Api argument
+    ''' Example flask-restful decorator that can be used in the "decorators" Api argument
         cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     '''
     def api_wrapper(*args, **kwargs):
@@ -28,10 +35,9 @@ def test_decorator(func):
 
 
 # pylint: disable=invalid-name
-# We're returning the API class here, eventually this might become a class by itself
+# Uppercase bc we're returning the API class here, eventually this might become a class by itself
 def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI', **kwargs):
-    '''
-        APi factory method:
+    ''' API factory method:
         - configure SAFRS
         - create API
         :param app: flask app
@@ -40,7 +46,7 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
         :param prefix: the Swagger url prefix (not the api prefix)
         :param description: the swagger description
     '''
-    decorators = kwargs.get('decorators', [])
+    decorators = kwargs.get('decorators', []) # eg. test_decorator
     app.json_encoder = SAFRSJSONEncoder
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port),
@@ -52,12 +58,10 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
 
 class SAFRS:
     '''This class configures the Flask application to serve SAFRSBase instances
-
     :param app: a Flask application.
     :param prefix: URL prefix where the swagger should be hosted. Default is '/api'
     :param LOGLEVEL: loglevel configuration variable, values from logging module (0: trace, .. 50: critical)
     '''
-
     # Config settings
     SAFRS_UNLIMITED = 250
     ENABLE_RELATIONSHIPS = None
@@ -73,7 +77,6 @@ class SAFRS:
     ENDPOINT_FMT = None
     #
     config = {}
-
 
     def __new__(cls, app, app_db=DB, prefix='', **kwargs):
         if not isinstance(app, Flask):
@@ -126,7 +129,6 @@ class SAFRS:
         return log
 
 
-LOGLEVEL = logging.WARNING
 try:
     DEBUG = os.getenv('DEBUG', str(logging.WARNING))
     LOGLEVEL = int(DEBUG)
@@ -144,7 +146,24 @@ LOGGER = SAFRS.init_logging(LOGLEVEL)
 # pylint: disable=wrong-import-position
 from ._api import Api
 from .db import SAFRSBase, jsonapi_rpc
-from .jsonapi import SAFRSJSONEncoder, paginate
-from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse
+from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
+from .json_encoder import SAFRSJSONEncoder
 from .errors import ValidationError, GenericError
 from .api_methods import search, startswith
+
+
+__all__ = (
+    '__version__',
+    '__description__',
+    #
+    'SAFRSAPI',
+    # db:
+    'SAFRSBase', 'jsonapi_rpc',
+    # jsonapi:
+    'SAFRSJSONEncoder', 'paginate',
+    'jsonapi_format_response', 'SAFRSFormattedResponse',
+    # api_methods:
+    'search', 'startswith',
+    # Errors:
+    'ValidationError', 'GenericError'
+)

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access
 #
 # This code implements REST HTTP methods and sqlalchemy to json serialization
 #
@@ -22,32 +23,29 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 '''
 
-import copy
 import traceback
-import datetime
 import logging
 import re
 import json
-import decimal
 import werkzeug
-import safrs
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
-
+from sqlalchemy.orm.interfaces import MANYTOONE
 from functools import wraps
 from flask import make_response, url_for
 from flask import jsonify, request
 from flask_restful.utils import cors
-from flask_restful_swagger_2 import Resource, Api as FRSApiBase
+from flask_restful_swagger_2 import Resource
 from flask_restful import abort
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
+
+import safrs
 from .db import SAFRSBase
-from .swagger_doc import is_public, default_paging_parameters, DOC_DELIMITER
-from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
+from .swagger_doc import is_public, default_paging_parameters
+from .swagger_doc import parse_object_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
-from .json_encoder import SAFRSJSONEncoder, SAFRSFormattedResponse
+from .json_encoder import SAFRSFormattedResponse
 
 INCLUDE_ALL = '+all'
 
@@ -102,7 +100,7 @@ def api_decorator(cls, swagger_decorator):
         references the cls.SAFRSObject which isn't known
     '''
 
-    cors_domain = globals().get('cors_domain', None)
+    cors_domain = get_config('cors_domain')
     cls.http_methods = {} # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
     for method_name in ['get', 'post', 'delete', 'patch', 'put', 'options']: # HTTP methods
         method = getattr(cls, method_name, None)
@@ -220,7 +218,7 @@ def paginate(object_query, SAFRSObject=None):
              'self'  : get_link(page_offset, limit), # cfr. request.url
              'last'  : get_link(*last_args),\
              'prev'  : get_link(*prev_args),\
-             'next'  : get_link(*next_args) }
+             'next'  : get_link(*next_args)}
 
     if last_args == self_args:
         del links['last']
@@ -365,7 +363,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     meta['count'] = count
 
     jsonapi = dict(version='1.0')
-    included = list(get_included(data, limit, include=request.args.get('include', safrs.SAFRS.DEFAULT_INCLUDED )))
+    included = list(get_included(data, limit, include=request.args.get('include', safrs.SAFRS.DEFAULT_INCLUDED)))
     '''if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)'''
     result = dict(data=data)
@@ -479,7 +477,7 @@ class SAFRSRestAPI(Resource):
             # Retrieve a single instance
             instance = self.SAFRSObject.get_instance(id)
             data = instance
-            links = {'self' : request.url } 
+            links = {'self' : request.url} 
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
@@ -514,11 +512,11 @@ class SAFRSRestAPI(Resource):
         if not id:
             raise ValidationError('Invalid ID')
 
-        json = request.get_json()
-        if not isinstance(json, dict):
+        req_json = request.get_json()
+        if not isinstance(req_json, dict):
             raise ValidationError('Invalid Object Type')
 
-        data = json.get('data')
+        data = req_json.get('data')
 
         if not data or not isinstance(data, dict):
             raise ValidationError('Invalid Data Object')
@@ -552,11 +550,11 @@ class SAFRSRestAPI(Resource):
             Extract and validate json request payload
         '''
 
-        json = request.get_json()
-        if not isinstance(json, dict):
+        req_json = request.get_json()
+        if not isinstance(req_json, dict):
             raise ValidationError('Invalid Object Type')
 
-        return json
+        return req_json
 
 
     def post(self, **kwargs):
@@ -721,7 +719,8 @@ class SAFRSRestAPI(Resource):
         if not is_public(method):
             raise ValidationError('Method is not public')
 
-        if not args: args = {}
+        if not args: 
+            args = {}
 
         result = method(**args)
         return result
@@ -854,7 +853,7 @@ class SAFRSRestMethodAPI(Resource, object):
 
         return jsonify(response) # 200 : default
 
-class SAFRSRelationshipObject(object):
+class SAFRSRelationshipObject:
     '''
         Relationship object
     '''
@@ -895,7 +894,7 @@ class SAFRSRelationshipObject(object):
         return body, responses
 
 
-class SAFRSRestRelationshipAPI(Resource, object):
+class SAFRSRestRelationshipAPI(Resource):
     '''
         Flask webservice wrapper for the underlying sqla relationships db model
 
@@ -934,6 +933,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
 
     SAFRSObject = None
 
+    #pylint: disable=unused-argument
     def __init__(self, *args, **kwargs):
 
         self.parent_class = self.SAFRSObject.relationship.parent.class_
@@ -1180,6 +1180,7 @@ class SAFRSRestRelationshipAPI(Resource, object):
         '''
 
         kwargs['require_child'] = True
+
         parent, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id, None)
         child = self.child_class.get_instance(child_id)
