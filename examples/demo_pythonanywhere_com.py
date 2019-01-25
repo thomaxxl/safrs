@@ -57,7 +57,7 @@ class Person(SAFRSBase, db.Model):
     email = db.Column(db.String, default = '')
     comment = db.Column(db.Text, default = '')
     dob = db.Column(db.Date, default='1970-01-01')
-    books_read = db.relationship('Book', backref = "reader", foreign_keys = [Book.reader_id], cascade="save-update, merge, delete, delete-orphan")
+    books_read = db.relationship('Book', backref = "reader", foreign_keys = [Book.reader_id])
     books_written = db.relationship('Book', backref = "author", foreign_keys = [Book.author_id])
     reviews = db.relationship('Review', backref = "reader")
     # Following method is exposed through the REST API
@@ -126,7 +126,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = None):
             swagger_host += ':{}'.format(PORT)
         
         #api  = Api(app, api_spec_url = '/api/swagger', host = swagger_host, schemes = [ "http", "https" ], description = description )
-        api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX, api_spec_url = '/api/swagger', schemes = [ "http", "https" ], description = description )
+        api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX, api_spec_url = '/api/swagger', schemes = [ "http", "https" ], description = description)
 
         # Flask-Admin Config
         admin = Admin(app, url='/admin')
