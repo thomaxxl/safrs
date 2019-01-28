@@ -7,7 +7,7 @@ jsonschema==2.6.0
 Werkzeug==0.14.1
 Flask_SQLAlchemy==2.3.2
 pyyaml==4.2b1
-Flask-Cors==3.0.3
+Flask-Cors==3.0.7
 pymysql==0.8.1
 inflect==0.3.1
 validate_email==1.3
