@@ -317,7 +317,7 @@ Some additional API RPC methods are implemented in [api_methods.py](safrs/api_me
 
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. A lot of the functionality is available but not documented for the sake of brevity.
 Performance is reasonable for regular databases, but once you start exposing really big tables you may run into problems, for example: the `count()` for mysql innodb is slow on large(1M rows) tables, a workaround can be implemented by querying the `sys` tables or using werkzeug caching. 
-Feel free to drop [me](mailto:thomas.pollet+no+spam+@gmail.com) an email if you run into problems or something isn't clear!
+Feel free to open an issue or drop [me](mailto:thomas.pollet+no+spam+@gmail.com) an email if you run into problems or something isn't clear!
 
 <a class="mk-toclify" id="references"></a>
 ## References
