@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access
 #
 # This code implements REST HTTP methods and sqlalchemy to json serialization
+#
+# Some linting errors to ignore
+# pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
+# pylint: disable=fixme, logging-format-interpolation
 #
 # Configuration parameters:
 # - endpoint
@@ -11,6 +14,7 @@
 # - move all swagger related stuffto swagger_doc
 # - fieldsets
 #
+
 '''
 http://jsonapi.org/format/#content-negotiation-servers
 
@@ -22,27 +26,23 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 "Content-Type: application/vnd.api+json" with any media type parameters.
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 '''
-
 import traceback
 import logging
 import re
-import json
-import werkzeug
+from functools import wraps
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 from sqlalchemy.orm.interfaces import MANYTOONE
-from functools import wraps
 from flask import make_response, url_for
 from flask import jsonify, request
 from flask_restful.utils import cors
-from flask_restful_swagger_2 import Resource
 from flask_restful import abort
-
+from flask_restful_swagger_2 import Resource
+import werkzeug
 import safrs
 from .db import SAFRSBase
-from .swagger_doc import is_public, default_paging_parameters
-from .swagger_doc import parse_object_doc, get_http_methods
+from .swagger_doc import is_public #,default_paging_parameters, parse_object_doc
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
 from .json_encoder import SAFRSFormattedResponse
@@ -125,6 +125,7 @@ def api_decorator(cls, swagger_decorator):
         except RecursionError:
             # Got this error when exposing WP DB, TODO: investigate where it comes from
             safrs.LOGGER.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, decorated_method))
+        #pylint: disable=broad-except
         except Exception as exc:
             safrs.LOGGER.error(exc)
             traceback.print_exc()
@@ -171,7 +172,7 @@ def paginate(object_query, SAFRSObject=None):
         We use page[offset] and page[limit], where
         offset is the number of records to offset by prior to returning resources
     '''
-
+    #pylint: disable=too-many-locals
     def get_link(count, limit):
         result = request.scheme + '://' + request.host + request.path
         result += '?' + '&'.join(['{}={}'.format(k, v[0]) for k, v in request_args.items()] +
@@ -184,18 +185,18 @@ def paginate(object_query, SAFRSObject=None):
     try:
         del request_args['page[offset]']
         page_offset = int(page_offset)
-    except:
+    except (ValueError, KeyError):
         page_offset = 0
 
     limit = request.args.get('page[limit]', get_config('UNLIMITED'))
     try:
         del request_args['page[limit]']
         limit = int(limit)
-    except:
+    except ValueError:
         safrs.LOGGER.debug('Invalid page[limit]')
 
     page_base = int(page_offset / limit) * limit
-    
+
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
     # Make it configurable
     # With mysql innodb we can use following to retrieve the count:
@@ -242,11 +243,13 @@ def jsonapi_filter(safrs_object):
 
     filtered = []
     for arg, val in request.args.items():
-        filter_attr = re.search('filter\[(\w+)\]', arg)
+        filter_attr = re.search(r'filter[(\w+)]', arg)
         if filter_attr:
             col_name = filter_attr.group(1)
-            column = getattr(safrs_object, col_name)
-            filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
+            print(col_name)
+            if not col_name.startswith('_'):
+                column = getattr(safrs_object, col_name)
+                filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
 
     if filtered:
         result = filtered[0].union_all(*filtered)
@@ -332,7 +335,7 @@ def get_included(data, limit, include=''):
                 # This works on sqlalchemy.orm.dynamic.AppenderBaseQuery
                 included = included[:limit]
                 result = result.union(included)
-            except:
+            except Exception as exc:
                 safrs.LOGGER.critical('Failed to add included for {} (included: {} - {})'.format(relationship, type(included), included))
                 result.add(included)
 
@@ -357,7 +360,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     limit = request.args.get('page[limit]', get_config('UNLIMITED'))
     try:
         limit = int(limit)
-    except Exception as exc:
+    except ValueError:
         raise ValidationError('page[limit] error')
     meta['limit'] = limit
     meta['count'] = count
@@ -477,7 +480,7 @@ class SAFRSRestAPI(Resource):
             # Retrieve a single instance
             instance = self.SAFRSObject.get_instance(id)
             data = instance
-            links = {'self' : request.url} 
+            links = {'self' : request.url}
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
@@ -631,6 +634,7 @@ class SAFRSRestAPI(Resource):
             attributes = data.get('attributes', {})
             # Create the object instance with the specified id and json data
             # If the instance (id) already exists, it will be updated with the data
+            #pylint: disable=not-callable
             instance = self.SAFRSObject(**attributes)
 
             if not instance.db_commit:
@@ -719,7 +723,7 @@ class SAFRSRestAPI(Resource):
         if not is_public(method):
             raise ValidationError('Method is not public')
 
-        if not args: 
+        if not args:
             args = {}
 
         result = method(**args)
@@ -739,7 +743,7 @@ class SAFRSRestAPI(Resource):
         return instances
 
 
-class SAFRSRestMethodAPI(Resource, object):
+class SAFRSRestMethodAPI(Resource):
     '''
         Route wrapper for the underlying SAFRSBase jsonapi_rpc
 
@@ -776,7 +780,7 @@ class SAFRSRestMethodAPI(Resource, object):
         '''
         id = kwargs.get(self.object_id, None)
 
-        if id != None:
+        if id is not None:
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
                 # If no instance was found this means the user supplied
@@ -791,7 +795,7 @@ class SAFRSRestMethodAPI(Resource, object):
 
         if not method:
             # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(method_name))
+            raise ValidationError('Invalid method "{}"'.format(self.method_name))
         if not is_public(method):
             raise ValidationError('Method is not public')
 
@@ -825,7 +829,7 @@ class SAFRSRestMethodAPI(Resource, object):
 
         id = kwargs.get(self.object_id, None)
 
-        if id != None:
+        if id is not None:
             instance = self.SAFRSObject.get_instance(id)
             if not instance:
                 # If no instance was found this means the user supplied
@@ -840,7 +844,7 @@ class SAFRSRestMethodAPI(Resource, object):
 
         if not method:
             # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(method_name))
+            raise ValidationError('Invalid method "{}"'.format(self.method_name))
         if not is_public(method):
             raise ValidationError('Method is not public')
 
@@ -1038,6 +1042,8 @@ class SAFRSRestRelationshipAPI(Resource):
             child = self.child_class.get_instance(data.get('id', None))
             setattr(parent, self.rel_name, child)
             obj_args[self.child_object_id] = child.jsonapi_id
+
+        elif isinstance(data, list):
             '''
                 http://jsonapi.org/format/#crud-updating-to-many-relationships
 
@@ -1047,7 +1053,6 @@ class SAFRSRestRelationshipAPI(Resource):
                 or accessed, or return a 403 Forbidden response if complete
                 replacement is not allowed by the server.
             '''
-        elif isinstance(data, list):
             if self.SAFRSObject.relationship.direction == MANYTOONE:
                 raise GenericError('To PATCH a MANYTOONE relationship you \
                 should provide a dictionary instead of a list')
@@ -1125,6 +1130,7 @@ class SAFRSRestRelationshipAPI(Resource):
         data = json_response.get('data')
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
+            #pylint: disable=len-as-condition
             if len(data) == 0:
                 setattr(parent, self.SAFRSObject.relationship.key, None)
             if len(data) > 1:
@@ -1180,7 +1186,8 @@ class SAFRSRestRelationshipAPI(Resource):
         '''
 
         kwargs['require_child'] = True
-
+        # pylint: disable=unused-variable
+        # (parent is unused)
         parent, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id, None)
         child = self.child_class.get_instance(child_id)

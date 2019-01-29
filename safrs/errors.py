@@ -18,8 +18,9 @@ class NotFoundError(Exception, DontWrapMixin):
     status_code = 404
     message = 'NotFoundError: '
 
-    def __init__(self, message=''):
+    def __init__(self, message='', status_code=404):
         Exception.__init__(self)
+        self.status_code = status_code
         if safrs.LOGGER.getEffectiveLevel() <= logging.DEBUG:
             self.message += message
             safrs.LOGGER.error('Not found: %s', message)
@@ -33,8 +34,9 @@ class ValidationError(Exception, DontWrapMixin):
     '''
     status_code = 400
     message = 'Validation Error: '
-    def __init__(self, message=''):
+    def __init__(self, message='', status_code=400):
         Exception.__init__(self)
+        self.status_code = status_code
         if safrs.LOGGER.getEffectiveLevel() <= logging.DEBUG:
             self.message += message
             safrs.LOGGER.error('ValidationError: %s', message)
