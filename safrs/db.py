@@ -7,8 +7,7 @@ import inspect
 import datetime
 import logging
 import sqlalchemy
-import safrs
-from flask import request
+from flask import request, url_for
 from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
@@ -22,6 +21,7 @@ from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import SAFRSID, get_id_type
 from .util import classproperty
 from .config import get_config
+import safrs
 
 #
 # Map SQLA types to swagger2 json types
@@ -389,16 +389,12 @@ class SAFRSBase(Model):
                 SAFRS currently implements links with self
             '''
 
-            try:
-                #params = { self.object_id : self.id }
-                #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
-                obj_url = url_for(self.get_endpoint())
-                if not obj_url.endswith('/'):
-                    obj_url += '/'
-            except:
-                # app not initialized
-                obj_url = ''
-
+            #params = { self.object_id : self.id }
+            #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
+            obj_url = url_for(self.get_endpoint())
+            if not obj_url.endswith('/'):
+                obj_url += '/'
+        
             meta = {}
             rel_name = relationship.key
             if rel_name in excluded_list:
