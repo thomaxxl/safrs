@@ -1,4 +1,7 @@
 from flask import Response
 
 class SAFRSResponse(Response):
-    pass
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        

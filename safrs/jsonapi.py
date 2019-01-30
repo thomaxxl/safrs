@@ -146,6 +146,7 @@ def api_decorator(cls, swagger_decorator):
 
     return cls
 
+
 def paginate(object_query, SAFRSObject=None):
     '''
         - returns
@@ -172,29 +173,14 @@ def paginate(object_query, SAFRSObject=None):
         We use page[offset] and page[limit], where
         offset is the number of records to offset by prior to returning resources
     '''
-    #pylint: disable=too-many-locals
+    
     def get_link(count, limit):
-        result = request.scheme + '://' + request.host + request.path
-        result += '?' + '&'.join(['{}={}'.format(k, v[0]) for k, v in request_args.items()] +
+        result = '/?' + '&'.join(['{}={}'.format(k, v) for k, v in request.args.items()] +
                                  ['page[offset]={}&page[limit]={}'.format(count, limit)])
         return result
 
-    request_args = dict(request.args)
-    page_offset = request.args.get('page[offset]', 0)
-
-    try:
-        del request_args['page[offset]']
-        page_offset = int(page_offset)
-    except (ValueError, KeyError):
-        page_offset = 0
-
-    limit = request.args.get('page[limit]', get_config('UNLIMITED'))
-    try:
-        del request_args['page[limit]']
-        limit = int(limit)
-    except ValueError:
-        safrs.LOGGER.debug('Invalid page[limit]')
-
+    page_offset = request.page_offset
+    limit = request.page_limit
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
@@ -242,14 +228,9 @@ def jsonapi_filter(safrs_object):
     '''
 
     filtered = []
-    for arg, val in request.args.items():
-        filter_attr = re.search(r'filter[(\w+)]', arg)
-        if filter_attr:
-            col_name = filter_attr.group(1)
-            print(col_name)
-            if not col_name.startswith('_'):
-                column = getattr(safrs_object, col_name)
-                filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
+    for col_name, val in request.filters.items():
+        column = getattr(safrs_object, col_name)
+        filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
 
     if filtered:
         result = filtered[0].union_all(*filtered)
@@ -357,7 +338,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     :return: jsonapi formatted dictionary
     '''
 
-    limit = request.args.get('page[limit]', get_config('UNLIMITED'))
+    limit = request.page_limit
     try:
         limit = int(limit)
     except ValueError:
@@ -856,46 +837,6 @@ class SAFRSRestMethodAPI(Resource):
         response = {'meta': {'result' : result}}
 
         return jsonify(response) # 200 : default
-
-class SAFRSRelationshipObject:
-    '''
-        Relationship object
-    '''
-
-    __tablename__ = 'tabname'
-    __name__ = 'name'
-
-    @classmethod
-    def get_swagger_doc(cls, http_method):
-        '''
-            Create a swagger api model based on the sqlalchemy schema
-            if an instance exists in the DB, the first entry is used as example
-        '''
-        body = {}
-        responses = {}
-        object_name = cls.__name__
-
-        object_model = {}
-        responses = {'200': {\
-                             'description' : '{} object'.format(object_name),\
-                             'schema': object_model\
-                            }\
-                    }
-
-        if http_method == 'post':
-            responses = {'200' : {\
-                                  'description' : 'Success',\
-                                 }\
-                        }
-
-        if http_method == 'get':
-            responses = {'200' : {\
-                                  'description' : 'Success',\
-                                 }\
-                        }
-            #responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
-
-        return body, responses
 
 
 class SAFRSRestRelationshipAPI(Resource):

@@ -15,10 +15,12 @@ import builtins
 import sys
 import pprint
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, redirect, url_for, current_app
+from flask import Flask, redirect, url_for, current_app, Request
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .__about__ import __version__, __description__
+from .request import SAFRSRequest
+from .response import SAFRSResponse
 
 DB = SQLAlchemy()
 
@@ -48,6 +50,8 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
     '''
     decorators = kwargs.get('decorators', []) # eg. test_decorator
     app.json_encoder = SAFRSJSONEncoder
+    app.request_class = SAFRSRequest
+    app.response_class = SAFRSResponse
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port),
               description=description, decorators=decorators, prefix='')
@@ -63,7 +67,7 @@ class SAFRS:
     :param LOGLEVEL: loglevel configuration variable, values from logging module (0: trace, .. 50: critical)
     '''
     # Config settings
-    SAFRS_UNLIMITED = 250
+    MAX_PAGE_LIMIT = SAFRS_UNLIMITED = 250 # SAFRS_UNLIMITED is deprecated
     ENABLE_RELATIONSHIPS = None
     LOGLEVEL = logging.WARNING
     OBJECT_ID_SUFFIX = None
@@ -145,11 +149,12 @@ LOGGER = SAFRS.init_logging(LOGLEVEL)
 # introduced by .config, though we keep it for backwards compatibility
 # pylint: disable=wrong-import-position
 from ._api import Api
-from .db import SAFRSBase, jsonapi_rpc
+from .db import SAFRSBase
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
 from .json_encoder import SAFRSJSONEncoder
 from .errors import ValidationError, GenericError
 from .api_methods import search, startswith
+from .swagger_doc import jsonapi_rpc
 
 
 __all__ = (

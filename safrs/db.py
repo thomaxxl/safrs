@@ -1,27 +1,28 @@
+'''
+    db.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
+'''
 # -*- coding: utf-8 -*-
 #
 # SQLAlchemy database schemas
-#
-import sys
+# pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
 import inspect
 import datetime
 import logging
-import sqlalchemy
 from flask import request, url_for
+from flask_sqlalchemy import Model
+import sqlalchemy
 from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
-from flask_sqlalchemy import SQLAlchemy, Model
-from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
-from sqlalchemy.ext.declarative import DeclarativeMeta
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 # safrs_rest dependencies:
-from .swagger_doc import SchemaClassFactory, documented_api_method, get_doc, jsonapi_rpc
+import safrs
+from .swagger_doc import SchemaClassFactory, get_doc
 from .errors import GenericError, NotFoundError, ValidationError
-from .safrs_types import SAFRSID, get_id_type
+from .safrs_types import get_id_type
 from .util import classproperty
 from .config import get_config
-import safrs
 
 #
 # Map SQLA types to swagger2 json types
@@ -64,14 +65,14 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 def _parse_value(kwargs, column):
     '''
         Try to fetch and parse the value for a db column from the kwargs
-        :param kwargs: 
+        :param kwargs:
         :param column: database column
         :return
     '''
     arg_value = kwargs.get(column.name, None)
     if arg_value is None and column.default:
         arg_value = column.default.arg
-    
+
     # Parse datetime and date values
     try:
         if column.type.python_type == datetime.datetime:
@@ -80,7 +81,7 @@ def _parse_value(kwargs, column):
             arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
     except (NotImplementedError, ValueError) as exc:
         safrs.LOGGER.warning('datetime {} for value "{}"'.format(exc, arg_value))
-    
+
     return arg_value
 
 #
@@ -190,7 +191,7 @@ class SAFRSBase(Model):
     @hybrid_property
     def id_type(obj):
         '''
-
+            return the object's id type
         '''
         id_type = get_id_type(obj)
         # monkey patch so we don't have to look it up next time
@@ -242,11 +243,12 @@ class SAFRSBase(Model):
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
     @property
     def Type(self):
-        log.warning('attribute "type" is not supported ({}), renamed to "Type"'.format(self))
+        safrs.LOGGER.warning('attribute "type" is not supported ({}), renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
     def Type(self, value):
+        # pylint: disable=attribute-defined-outside-init
         if not self.Type == value:
             self.Type = value
         self.type = value
@@ -273,6 +275,8 @@ class SAFRSBase(Model):
             Returns:
                 Instance or None. An error is raised if an invalid id is used
         '''
+        instance = None
+        #pylint: disable=invalid-name,redefined-builtin
         if isinstance(item, dict):
             id = item.get('id', None)
             if item.get('type') != cls._s_type:
@@ -286,9 +290,8 @@ class SAFRSBase(Model):
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
             safrs.LOGGER.info('AttributeError for class "{}"'.format(cls.__name__))
-            return
+            return instance # instance is None!
 
-        instance = None
         if not id is None or not failsafe:
             try:
                 instance = cls.query.filter_by(**primary_keys).first()
@@ -307,6 +310,7 @@ class SAFRSBase(Model):
         '''
 
         make_transient(self)
+        # pylint: disable=attribute-defined-outside-init
         self.id = self.id_type()
         for parameter in self._s_column_names:
             value = kwargs.get(parameter, None)
@@ -346,7 +350,7 @@ class SAFRSBase(Model):
     @classmethod
     def _s_count(cls):
         return None
-        
+
     def _s_jsonapi_encode(self):
         '''
             Encode object according to the jsonapi specification
@@ -394,7 +398,7 @@ class SAFRSBase(Model):
             obj_url = url_for(self.get_endpoint())
             if not obj_url.endswith('/'):
                 obj_url += '/'
-        
+
             meta = {}
             rel_name = relationship.key
             if rel_name in excluded_list:
@@ -417,20 +421,19 @@ class SAFRSBase(Model):
                             meta['direction'] = 'MANYTOMANY'
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(self, rel_name)
-                    limit = request.args.get('page[limit]', get_config('MAX_QUERY_THRESHOLD'))
+                    limit = request.page_limit
                     if not get_config('ENABLE_RELATIONSHIPS'):
                         meta['warning'] = 'ENABLE_RELATIONSHIPS set to false in config.py'
                     elif rel_query:
                         # todo: chekc if lazy=dynamic
-                        # In order to work with the relationship as with Query,\
+                        # In order to work with the relationship as with Query,
                         # you need to configure it with lazy='dynamic'
                         # "limit" may not be possible !
                         if getattr(rel_query, 'limit', False):
                             count = rel_query.count()
                             rel_query = rel_query.limit(limit)
                             if rel_query.count() >= get_config('BIG_QUERY_THRESHOLD'):
-                                warning = 'Truncated result for relationship "{}",\
-                                 consider paginating this request'.format(rel_name)
+                                warning = 'Truncated result for relationship "{}",consider paginating this request'.format(rel_name)
                                 safrs.LOGGER.warning(warning)
                                 meta['warning'] = warning
                             items = rel_query.all()
@@ -439,15 +442,13 @@ class SAFRSBase(Model):
                             count = len(items)
                         meta['count'] = count
                         meta['limit'] = limit
-                        data = [{'id' : i.jsonapi_id,\
-                                  'type' : i.__tablename__} for i in items]
+                        data = [{'id' : i.jsonapi_id,
+                                 'type' : i.__tablename__} for i in items]
                 else: # shouldn't happen!!
-                    raise GenericError('\
-                    Unknown relationship direction for relationship {}: {}'.\
-                    format(rel_name, relationship.direction))
+                    raise GenericError('Unknown relationship direction for relationship {}: {}'.format(rel_name, relationship.direction))
 
-            self_link = '{}{}/{}'.format(obj_url,\
-                                         self.jsonapi_id,\
+            self_link = '{}{}/{}'.format(obj_url,
+                                         self.jsonapi_id,
                                          rel_name)
             links = dict(self=self_link)
             rel_data = dict(links=links)
@@ -468,9 +469,9 @@ class SAFRSBase(Model):
             except AttributeError as exc:
                 raise ValidationError('Invalid Field {}'.format(exc))
 
-        data = dict(attributes=attributes,\
-                    id=self.jsonapi_id,\
-                    type=self._s_type,\
+        data = dict(attributes=attributes,
+                    id=self.jsonapi_id,
+                    type=self._s_type,
                     relationships=relationships)
 
         return data
@@ -503,10 +504,10 @@ class SAFRSBase(Model):
         '''
         sample = cls._s_sample()
         if sample:
-            id = sample.jsonapi_id
+            j_id = sample.jsonapi_id
         else:
-            id = ""
-        return id
+            j_id = ""
+        return j_id
 
     #pylint: disable=
     @classmethod
@@ -530,7 +531,7 @@ class SAFRSBase(Model):
 
         sample = {}
         for column in cls._s_columns:
-            if column.name in ('id','type'):
+            if column.name in ('id', 'type'):
                 continue
             arg = ''
             try:
@@ -543,12 +544,12 @@ class SAFRSBase(Model):
             sample[column.name] = arg
         return sample
 
-    #pylint: disable=
     @classproperty
     def object_id(cls):
         '''
             Returns the Flask url parameter name of the object, e.g. UserId
         '''
+        #pylint: disable=no-member
         return cls.__name__ + get_config('OBJECT_ID_SUFFIX')
     #pylint: disable=
     @classmethod
@@ -562,34 +563,20 @@ class SAFRSBase(Model):
         object_name = cls.__name__
 
         object_model = cls.get_swagger_doc_object_model()
-        responses = {'200': {
-                             'description' : '{} object'.format(object_name),
-                             'schema': object_model
-                            }
-                    }
+        responses = {'200': {'description' : '{} object'.format(object_name),
+                             'schema': object_model}}
 
         if http_method == 'patch':
             body = object_model
-            responses = {'200' : {
-                                  'description' : 'Object successfully updated',
-                                }
-                        }
+            responses = {'200' : {'description' : 'Object successfully updated'}}
 
         if http_method == 'post':
             #body = cls.get_swagger_doc_post_parameters()
-            responses = {'201' : {
-                                  'description' : 'Object successfully created',
-                                },
-                         '403' : {
-                                  'description' : 'Invalid data',
-                                },
-                        }
+            responses = {'201' : {'description' : 'Object successfully created'},
+                         '403' : {'description' : 'Invalid data'}}
 
         if http_method == 'get':
-            responses = {'200' : {
-                                  'description' : 'Success',
-                                }
-                        }
+            responses = {'200' : {'description' : 'Success'}}
             #responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
 
         return body, responses
@@ -601,6 +588,7 @@ class SAFRSBase(Model):
         get_documented_api_methods
         '''
         result = []
+        #pylint: disable=unused-variable
         for name, method in inspect.getmembers(cls):
             rest_doc = get_doc(method)
             if rest_doc is not None:
@@ -625,7 +613,7 @@ class SAFRSBase(Model):
             # Take care of extended column type declarations, eg. TEXT COLLATE "utf8mb4_unicode_ci" > TEXT
             column_type = column_type.split('(')[0]
             column_type = column_type.split(' ')[0]
-            swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type,None)
+            swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type, None)
             if swagger_type is None:
                 safrs.LOGGER.warning('Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name))
                 swagger_type = 'string'
@@ -635,7 +623,7 @@ class SAFRSBase(Model):
                 continue
 
             field = {'type' : swagger_type,
-                     'example' : str(default) } # added unicode str() for datetime encoding
+                     'example' : str(default)} # added unicode str() for datetime encoding
             fields[column.name] = field
 
         model_name = '{}_{}'.format(cls.__name__, 'patch')
@@ -657,4 +645,3 @@ class SAFRSBase(Model):
             may be implemented by the app
         '''
         return {}
-

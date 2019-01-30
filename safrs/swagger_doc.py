@@ -2,10 +2,7 @@
 Functions for api documentation: these decorators generate the swagger schemas
 '''
 import inspect
-#import uuid
 import logging
-#import urllib
-#import hashlib
 import datetime
 import yaml
 import decimal
@@ -23,7 +20,7 @@ DOC_DELIMITER = '---'  # used as delimiter between the rest_doc swagger yaml spe
 PAGEABLE = 'pageable' # denotes whether an api method is pageable
 FILTERABLE = 'filterable'
 
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin,line-too-long
 def parse_object_doc(object):
     '''
         Parse the yaml description from the documented methods
@@ -90,13 +87,15 @@ def jsonapi_rpc(http_methods):
 
 def is_public(method):
     '''
-    is_public
+        :param method:
+        :return: True or False, whether the method is to be exposed
     '''
     return hasattr(method, REST_DOC)
 
 def get_doc(method):
     '''
-    get_doc
+        :param  method:
+        :return: OAS documentation
     '''
 
     return getattr(method, REST_DOC, None)
@@ -112,7 +111,6 @@ def SchemaClassFactory(name, properties):
     '''
         Generate a Schema class, used to describe swagger schemas
     '''
-
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             # here, the properties variable is the one passed to the
@@ -159,7 +157,7 @@ def encode_schema(obj):
 # pylint: disable=redefined-builtin
 def schema_from_object(name, object):
     '''
-    schema_from_object
+        schema_from_object
     '''
     properties = {}
 
