@@ -406,29 +406,11 @@ def swagger_doc(cls, tags=None):
         doc['produces'] = ["application/json"]
 
         method_doc = parse_object_doc(func)
-        dict_merge(doc, method_doc)
+        safrs.dict_merge(doc, method_doc)
 
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
-
-
-def dict_merge(dct, merge_dct):
-    """ Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
-    updating only top-level keys, dict_merge recurses down into dicts nested
-    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into
-    ``dct``.
-    :param dct: dict onto which the merge is executed
-    :param merge_dct: dct merged into dct
-    :return: None
-    """
-    #for k, v in merge_dct.items():
-    for k in merge_dct:
-        if k in dct and isinstance(dct[k], dict):
-            dict_merge(dct[k], merge_dct[k])
-        else:
-            # convert to string, for ex. http return codes
-            dct[str(k)] = merge_dct[k]
 
 
 def get_sample_dict(sample):

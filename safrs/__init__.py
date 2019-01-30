@@ -53,7 +53,7 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
     app.request_class = SAFRSRequest
     app.response_class = SAFRSResponse
     SAFRS(app, host=host, port=port, prefix=prefix)
-    api = Api(app, api_spec_url='/swagger', host='{}:{}'.format(host, port),
+    api = Api(app, api_spec_url='/swagger', host=host,
               description=description, decorators=decorators, prefix='')
     api.init_app(app)
     return api
@@ -131,6 +131,24 @@ class SAFRS:
             log.setLevel(loglevel)
             log.addHandler(handler)
         return log
+
+
+def dict_merge(dct, merge_dct):
+    """ Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
+    updating only top-level keys, dict_merge recurses down into dicts nested
+    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into
+    ``dct``.
+    :param dct: dict onto which the merge is executed
+    :param merge_dct: dct merged into dct
+    :return: None
+    """
+    #for k, v in merge_dct.items():
+    for k in merge_dct:
+        if k in dct and isinstance(dct[k], dict):
+            dict_merge(dct[k], merge_dct[k])
+        else:
+            # convert to string, for ex. http return codes
+            dct[str(k)] = merge_dct[k]
 
 
 try:

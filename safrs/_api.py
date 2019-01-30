@@ -4,6 +4,7 @@ flask_restful_swagger2 API subclass
 
 import copy
 from flask_restful_swagger_2 import Api as FRSApiBase
+from flask_restful_swagger_2.swagger import create_swagger_endpoint, add_parameters
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
 from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor
@@ -25,6 +26,60 @@ class Api(FRSApiBase):
         documentation
     '''
     _operation_ids = {}
+
+    def __init__2(self, *args, **kwargs):
+        '''
+            constructor
+        '''
+        api_spec_base = kwargs.pop('api_spec_base', None)
+
+        self._swagger_object = {
+            'swagger': '2.0',
+            'info': {
+                'title': '',
+                'description': '',
+                'termsOfService': '',
+                'version': '0.0'
+            },
+            'host': '',
+            'basePath': '',
+            'schemes': [],
+            'consumes': [],
+            'produces': [],
+            'paths': {},
+            'definitions': {},
+            'parameters': {},
+            'responses': {},
+            'securityDefinitions': {},
+            'security': [],
+            'tags': [],
+            'externalDocs': {}
+        }
+
+        if api_spec_base is not None:
+            self._swagger_object = copy.deepcopy(api_spec_base)
+
+        add_parameters(self._swagger_object, kwargs)
+
+        api_spec_url = kwargs.pop('api_spec_url', '/api/swagger')
+        add_api_spec_resource = kwargs.pop('add_api_spec_resource', True)
+
+        super(Api, self).__init__(*args, **kwargs)
+
+        if self.app and not self._swagger_object['info']['title']:
+            self._swagger_object['info']['title'] = self.app.name
+
+        # Unless told otherwise, create and register the swagger endpoint
+        if add_api_spec_resource:
+            api_spec_urls = [
+                '{0}.json'.format(api_spec_url),
+                '{0}.html'.format(api_spec_url),
+            ]
+            swagger_doc = self.get_swagger_doc()
+            custom_swagger = kwargs.pop('custom_swagger', {})
+            #safrs.dict_merge(swagger_doc, custom_swagger)
+            self.add_resource(create_swagger_endpoint(swagger_doc),*api_spec_urls, endpoint='swagger_api')
+
 
     def expose_object(self, safrs_object, url_prefix='', **properties):
         '''
@@ -136,7 +191,8 @@ class Api(FRSApiBase):
                                            (SAFRSRestMethodAPI,),
                                            properties),
                                       swagger_decorator)
-            safrs.LOGGER.info('Exposing method {} on {}, endpoint: {}'.format(safrs_object.__tablename__ + '.' + api_method.__name__, url, endpoint))
+            meth_name = safrs_object.__tablename__ + '.' + api_method.__name__
+            safrs.LOGGER.info('Exposing method {} on {}, endpoint: {}'.format(meth_name, url, endpoint))
             self.add_resource(api_class,
                               url,
                               endpoint=endpoint,
@@ -154,7 +210,6 @@ class Api(FRSApiBase):
                 SAFRSObject = safrs_object
 
             add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
-
         '''
 
         API_CLASSNAME_FMT = '{}_X_{}_API'
@@ -175,11 +230,12 @@ class Api(FRSApiBase):
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
+        decorators = getattr(parent_class, 'custom_decorators', []) + getattr(parent_class, 'decorators', [])
         rel_object = type(rel_name, (SAFRSRelationshipObject,), {'relationship' : relationship,
                                                                  # Merge the relationship decorators from the classes
                                                                  # This makes things really complicated!!!
                                                                  # TODO: simplify this by creating a proper superclass
-                                                                 'custom_decorators' : getattr(parent_class, 'custom_decorators', []) + getattr(parent_class, 'custom_decorators', [])})
+                                                                 'custom_decorators' : decorators})
 
         properties['SAFRSObject'] = rel_object
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
@@ -231,16 +287,13 @@ class Api(FRSApiBase):
 
             I changed it because we don't need path id examples when
             there's no {id} in the path. We filter out the unwanted parameters
-
         '''
         SAFRS_INSTANCE_SUFFIX = get_config('OBJECT_ID_SUFFIX') + '}'
 
         path_item = {}
         definitions = {}
         resource_methods = kwargs.get('methods', HTTP_METHODS)
-        safrs_object = kwargs.get('safrs_object', None)
-        if safrs_object:
-            del kwargs['safrs_object']
+        safrs_object = kwargs.pop('safrs_object', None)
         for method in [m.lower() for m in resource.methods]:
             if not method.upper() in resource_methods:
                 continue

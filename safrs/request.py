@@ -32,6 +32,7 @@ class SAFRSRequest(Request):
             - fields[]
         '''
         self.page_limit = self.args.get('page[limit]', get_config('MAX_PAGE_LIMIT'), type=int)
+        # .pop() doesn't work for TypeConversionDict, del manually
         if 'page[limit]' in self.args:
             del self.args['page[limit]']
 
