@@ -28,6 +28,7 @@
     - [Custom Serialization](#custom-serialization)
     - [Custom Decorators](#custom-decorators)
     - [API Methods](#api-methods)
+    - [Custom Swagger](#custom swagger)
 - [Limitations & TODOs](#limitations--todos)
 - [References](#references)
 - [Thanks](#thanks)
@@ -311,6 +312,15 @@ in the [authentication examples](examples/authentication).
 <a class="mk-toclify" id="api-methods"></a>
 ### API Methods
 Some additional API RPC methods are implemented in [api_methods.py](safrs/api_methods.py), e.g. mysql regex search. 
+
+<a class="mk-toclify" id="custom-swagger"></a>
+### Custom swagger
+The swagger schema can be merged with a modified schema dictionary by supplying the to-be-merged dictionary as the `custom_swagger` argument, e.g.
+```python
+custom_swagger = {"info": {"title" : "New Title" }} # Customized swagger title will be merged
+api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger',
+               custom_swagger=custom_swagger, schemes=['http', 'https'], description=description)
+```
 
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs
