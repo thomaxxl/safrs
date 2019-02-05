@@ -315,7 +315,7 @@ Some additional API RPC methods are implemented in [api_methods.py](safrs/api_me
 
 <a class="mk-toclify" id="custom-swagger"></a>
 ### Custom swagger
-The swagger schema can be merged with a modified schema dictionary by supplying the to-be-merged dictionary as the `custom_swagger` argument, e.g.
+The swagger schema can be merged with a modified schema dictionary by supplying the to-be-merged dictionary as the `custom_swagger` argument to `SAFRSAPI`, e.g.
 ```python
 custom_swagger = {"info": {"title" : "New Title" }} # Customized swagger title will be merged
 api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger',
