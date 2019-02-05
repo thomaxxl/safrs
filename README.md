@@ -28,7 +28,7 @@
     - [Custom Serialization](#custom-serialization)
     - [Custom Decorators](#custom-decorators)
     - [API Methods](#api-methods)
-    - [Custom Swagger](#custom swagger)
+    - [Custom Swagger](#custom-swagger)
 - [Limitations & TODOs](#limitations--todos)
 - [References](#references)
 - [Thanks](#thanks)
