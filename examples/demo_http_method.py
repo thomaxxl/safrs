@@ -71,14 +71,11 @@ with app.app_context():
     # Expose the database objects as REST API endpoints
     api.expose_object(User)
     
-print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
-
 with open('examples/jsonapi-schema.json') as sf:
     schema = json.load(sf)
 
 @app.after_request
 def per_request_callbacks(response):
-    return response
     if response.headers['Content-Type'] != 'application/json':
         return response
     try:
@@ -95,4 +92,5 @@ def per_request_callbacks(response):
         response = func(response)
     return response
 
+print('Starting API: http://{}:{}{}'.format(HOST, PORT, API_PREFIX))
 app.run(host=HOST, port=PORT)

@@ -238,6 +238,7 @@ class MyAdminIndexView(AdminIndexView):
     @expose('/')
     def index(self):
         if not login.current_user.is_authenticated:
+            print('Not authenticated')
             return redirect(url_for('.login_view'))
         return super(MyAdminIndexView, self).index()
 
@@ -321,7 +322,7 @@ def start_api(HOST = '0.0.0.0' ,PORT = 80):
         api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = description )
 
         # Flask-Admin Config
-        admin = Admin(app, url='/admin', index_view=MyAdminIndexView())
+        admin = Admin(app, url='/admin', index_view=MyAdminIndexView(), base_template='my_master.html')
         
         for model in [ Person, Book, Review, Publisher, User] :
             # add the flask-admin view
