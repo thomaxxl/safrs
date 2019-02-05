@@ -130,7 +130,7 @@ def start_api(HOST='0.0.0.0', PORT=None):
         if PORT and PORT != 80:
             swagger_host += ':{}'.format(PORT)
 
-        custom_swagger = {"swagger": "2.0"}
+        custom_swagger = {"info": {"title" : "New Title" }} # Customized swagger will be merged
 
         api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger', 
                        custom_swagger=custom_swagger, schemes=['http', 'https'], description=description)
