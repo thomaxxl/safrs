@@ -27,60 +27,15 @@ class Api(FRSApiBase):
     '''
     _operation_ids = {}
 
-    def __init__2(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         '''
             constructor
         '''
-        api_spec_base = kwargs.pop('api_spec_base', None)
-
-        self._swagger_object = {
-            'swagger': '2.0',
-            'info': {
-                'title': '',
-                'description': '',
-                'termsOfService': '',
-                'version': '0.0'
-            },
-            'host': '',
-            'basePath': '',
-            'schemes': [],
-            'consumes': [],
-            'produces': [],
-            'paths': {},
-            'definitions': {},
-            'parameters': {},
-            'responses': {},
-            'securityDefinitions': {},
-            'security': [],
-            'tags': [],
-            'externalDocs': {}
-        }
-
-        if api_spec_base is not None:
-            self._swagger_object = copy.deepcopy(api_spec_base)
-
-        add_parameters(self._swagger_object, kwargs)
-
-        api_spec_url = kwargs.pop('api_spec_url', '/api/swagger')
-        add_api_spec_resource = kwargs.pop('add_api_spec_resource', True)
-
+        custom_swagger = kwargs.pop('custom_swagger', {})
         super(Api, self).__init__(*args, **kwargs)
-
-        if self.app and not self._swagger_object['info']['title']:
-            self._swagger_object['info']['title'] = self.app.name
-
-        # Unless told otherwise, create and register the swagger endpoint
-        if add_api_spec_resource:
-            api_spec_urls = [
-                '{0}.json'.format(api_spec_url),
-                '{0}.html'.format(api_spec_url),
-            ]
-            swagger_doc = self.get_swagger_doc()
-            custom_swagger = kwargs.pop('custom_swagger', {})
-            #safrs.dict_merge(swagger_doc, custom_swagger)
-            self.add_resource(create_swagger_endpoint(swagger_doc),*api_spec_urls, endpoint='swagger_api')
-
-
+        swagger_doc = self.get_swagger_doc()
+        safrs.dict_merge(swagger_doc, custom_swagger)
+        
     def expose_object(self, safrs_object, url_prefix='', **properties):
         '''
             This methods creates the API url endpoints for the SAFRObjects
@@ -162,9 +117,8 @@ class Api(FRSApiBase):
         '''
             Expose the safrs "documented_api_method" decorated methods
         '''
-
         safrs_object = self.safrs_object
-        api_methods = safrs_object.get_documented_api_methods()
+        api_methods = safrs_object.get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
@@ -271,7 +225,7 @@ class Api(FRSApiBase):
         # child id
         url = (RELATIONSHIP_URL_FMT + '/<string:{}>').format(url_prefix,
                                                              rel_name, child_object_id)
-        endpoint = "{}api.{}Id".format(url_prefix, rel_name)
+        endpoint = '{}api.{}Id'.format(url_prefix, rel_name)
 
         safrs.LOGGER.info('Exposing {} relationship {} on {}, endpoint: {}'.format(parent_name, rel_name, url, endpoint))
 
@@ -348,7 +302,7 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            param = {'default': "",
+                            param = {'default': '',
                                      'type': 'string',
                                      'name': 'fields[{}]'.format(self.safrs_object._s_type),
                                      'in': 'query',
@@ -369,7 +323,7 @@ class Api(FRSApiBase):
                                 filtered_parameters.append(param)
 
                             for column_name in self.safrs_object._s_column_names:
-                                param = {'default': "",
+                                param = {'default': '',
                                          'type': 'string',
                                          'name': 'filter[{}]'.format(column_name),
                                          'in': 'query',

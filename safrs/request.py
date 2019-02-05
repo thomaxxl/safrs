@@ -5,23 +5,48 @@ import re
 from werkzeug.datastructures import TypeConversionDict
 from flask import Request
 from .config import get_config
+from .errors import ValidationError
+from .response import SAFRSResponse
+from ._api import HTTP_METHODS
+from flask import abort
+import safrs
 
 # pylint: disable=too-many-ancestors
 class SAFRSRequest(Request):
     '''
-        Parse jsonapi-related the request arguments
+        Parse jsonapi-related the request arguments:
+        - header: Content-Type should be "application/vnd.api+json"
+        - query args: page[limit], page[offset], fields
+        - body: valid json
     '''
+    jsonapi_content_types = ['application/json', 'application/vnd.api+json']
     page_offset = 0
-    page_limit = -1
+    page_limit = 100
+    is_jsonapi = False
     filters = {}
-    parameter_storage_class = TypeConversionDict
 
     def __init__(self, *args, **kwargs):
         '''
             constructor
         '''
         super().__init__(*args, **kwargs)
-        self.parse_jsonapi_args()
+        if self.content_type in self.jsonapi_content_types:
+            self.is_jsonapi = True
+            self.parameter_storage_class = TypeConversionDict
+            self.parse_jsonapi_args()
+
+    def get_jsonapi_payload(self):
+        if not self.is_jsonapi:
+            safrs.log.warning('Invalid Media Type! "{}"'.format(self.content_type))
+            #raise('Unsupported Media Type', 415)
+        if self.method == 'OPTIONS':
+            return
+        if self.method not in HTTP_METHODS:
+            abort(500)
+        result = self.get_json()
+        if not isinstance(result, dict):
+            raise ValidationError('Invalid JSON Payload : {}'.format(result))
+        return result
 
     def parse_jsonapi_args(self):
         '''

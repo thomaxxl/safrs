@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 #
-# This code implements REST HTTP methods and sqlalchemy to json serialization
+# This module defines jsonapi-related "Resource" objects:
+# - SAFRSRestAPI for exposed database objects
+# - SAFRSRestRelationshipAPI for exposed database relationships
+# - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
 #
 # Some linting errors to ignore
 # pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
@@ -12,7 +15,6 @@
 # todo:
 # - expose canonical endpoints
 # - move all swagger related stuffto swagger_doc
-# - fieldsets
 #
 
 '''
@@ -149,9 +151,6 @@ def api_decorator(cls, swagger_decorator):
 
 def paginate(object_query, SAFRSObject=None):
     '''
-        - returns
-            links, instances, count
-
         http://jsonapi.org/format/#fetching-pagination
 
         A server MAY choose to limit the number of resources returned
@@ -172,10 +171,15 @@ def paginate(object_query, SAFRSObject=None):
 
         We use page[offset] and page[limit], where
         offset is the number of records to offset by prior to returning resources
+
+        :parameter object_query: SQLAalchemy query object
+        :prameter SAFRSObject: optional
+        :return: links, instances, count
     '''
     
     def get_link(count, limit):
-        result = '/?' + '&'.join(['{}={}'.format(k, v) for k, v in request.args.items()] +
+        result = SAFRSObject._s_url if SAFRSObject else ''
+        result += '?' + '&'.join(['{}={}'.format(k, v) for k, v in request.args.items()] +
                                  ['page[offset]={}&page[limit]={}'.format(count, limit)])
         return result
 
@@ -201,10 +205,10 @@ def paginate(object_query, SAFRSObject=None):
     next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
     prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
 
-    links = {'first' : get_link(*first_args),\
+    links = {'first' : get_link(*first_args),
              'self'  : get_link(page_offset, limit), # cfr. request.url
-             'last'  : get_link(*last_args),\
-             'prev'  : get_link(*prev_args),\
+             'last'  : get_link(*last_args),
+             'prev'  : get_link(*prev_args),
              'next'  : get_link(*next_args)}
 
     if last_args == self_args:
@@ -224,7 +228,8 @@ def paginate(object_query, SAFRSObject=None):
 def jsonapi_filter(safrs_object):
     '''
         Apply the request.args filters to the object
-        returns a sqla query object
+        :parameter safrs_object:
+        :return: a sqla query object
     '''
 
     filtered = []
@@ -233,7 +238,7 @@ def jsonapi_filter(safrs_object):
         filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
 
     if filtered:
-        result = filtered[0].union_all(*filtered)
+        result = filtered[0].union_all(*filtered).distinct()
     else:
         result = safrs_object.query
     return result
@@ -496,7 +501,7 @@ class SAFRSRestAPI(Resource):
         if not id:
             raise ValidationError('Invalid ID')
 
-        req_json = request.get_json()
+        req_json = request.get_jsonapi_payload()
         if not isinstance(req_json, dict):
             raise ValidationError('Invalid Object Type')
 
@@ -528,18 +533,6 @@ class SAFRSRestAPI(Resource):
         # Set the Location header to the newly created object
         response.headers['Location'] = url_for(self.endpoint, **obj_args)
         return response
-
-    def get_json(self):
-        '''
-            Extract and validate json request payload
-        '''
-
-        req_json = request.get_json()
-        if not isinstance(req_json, dict):
-            raise ValidationError('Invalid Object Type')
-
-        return req_json
-
 
     def post(self, **kwargs):
         '''
@@ -586,7 +579,7 @@ class SAFRSRestAPI(Resource):
               A server SHOULD include error details and provide enough
               information to recognize the source of the conflict.
         '''
-        payload = self.get_json()
+        payload = request.get_jsonapi_payload()
         method_name = payload.get('meta', {}).get('method', None)
 
         id = kwargs.get(self.object_id, None)
@@ -645,7 +638,6 @@ class SAFRSRestAPI(Resource):
 
     def delete(self, **kwargs):
         '''
-
             responses:
                 202 :
                     description: Accepted
@@ -747,7 +739,7 @@ class SAFRSRestMethodAPI(Resource):
         '''
             responses :
                 403:
-                    description : This implementation does not accept client-generated IDs
+                    description : 
                 201:
                     description: Created
                 202:
@@ -781,7 +773,7 @@ class SAFRSRestMethodAPI(Resource):
             raise ValidationError('Method is not public')
 
         args = dict(request.args)
-        json_data = request.get_json({})
+        json_data = request.get_jsonapi_payload()
         if json_data:
             args = json_data.get('meta', {}).get('args', {})
 
@@ -925,7 +917,7 @@ class SAFRSRestRelationshipAPI(Resource):
         else:
             # No {ChildId} given:
             # return a list of all relationship items
-            result = [item for item in relation]
+            result = [item for item in relation if isinstance(item, SAFRSBase)]
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
             meta = {'direction' : 'TOONE'}
@@ -967,7 +959,7 @@ class SAFRSRestRelationshipAPI(Resource):
             null, to remove the relationship.
         '''
         parent, relation = self.parse_args(**kwargs)
-        json_reponse = request.get_json()
+        json_reponse = request.get_jsonapi_payload()
         if not isinstance(json_reponse, dict):
             raise ValidationError('Invalid Object Type')
 
@@ -1065,7 +1057,7 @@ class SAFRSRestRelationshipAPI(Resource):
         kwargs['require_child'] = True
         parent, relation = self.parse_args(**kwargs)
 
-        json_response = request.get_json()
+        json_response = request.get_jsonapi_payload()
         if not isinstance(json_response, dict):
             raise ValidationError('Invalid Object Type')
         data = json_response.get('data')
@@ -1146,8 +1138,7 @@ class SAFRSRestRelationshipAPI(Resource):
             An error is raised if the child doesn't exist and the
             "require_child" argument is set in kwargs,
 
-            Returns
-                parent, child, relation
+            :return: parent, child, relation
         '''
 
         parent_id = kwargs.get(self.parent_object_id, None)

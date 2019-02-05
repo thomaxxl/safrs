@@ -3,10 +3,11 @@ safrs to json encoding
 '''
 from flask.json import JSONEncoder
 from sqlalchemy.ext.declarative import DeclarativeMeta
-from .db import SAFRSBase
+from .db import SAFRSBase, SAFRSDummy
 import safrs
 import datetime
 import logging
+import decimal
 
 
 class SAFRSFormattedResponse:
@@ -51,6 +52,8 @@ class SAFRSJSONEncoder(JSONEncoder):
             return obj.isoformat(' ')
         if isinstance(obj, datetime.date):
             return obj.isoformat()
+        if isinstance(obj, SAFRSDummy):
+            return {}
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
         if isinstance(obj, set):

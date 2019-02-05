@@ -331,7 +331,14 @@ def swagger_doc(cls, tags=None):
                        'in': 'path',
                        'type': 'string',
                        'default': default_id,
-                       'required' : True}]
+                       'required' : True},
+                      {'name': 'Content-Type', # parameter id, e.g. UserId
+                       'in': 'header',
+                       'type': 'string',
+                       'default': 'application/vnd.api+json',
+                       'required' : True},
+
+                       ]
         if tags is None:
             doc_tags = [table_name]
         else:

@@ -84,6 +84,14 @@ def _parse_value(kwargs, column):
 
     return arg_value
 
+class SAFRSDummy:
+
+    def __getattr__(self, attr):
+        print('get', attr)
+
+    def __setattr(self,attr, val):
+        print('set', attr, val)
+
 #
 # SAFRSBase superclass
 #
@@ -119,6 +127,7 @@ class SAFRSBase(Model):
             instance = object.__new__(cls)
         else:
             safrs.LOGGER.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
+        #return SAFRSDummy()
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -243,7 +252,7 @@ class SAFRSBase(Model):
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
     @property
     def Type(self):
-        safrs.LOGGER.warning('attribute "type" is not supported ({}), renamed to "Type"'.format(self))
+        safrs.LOGGER.warning('({}): attribute "type" is not supported, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
@@ -267,13 +276,9 @@ class SAFRSBase(Model):
     @classmethod
     def get_instance(cls, item=None, failsafe=False):
         '''
-        Parameters:
-            item: instance id or dict { "id" : .. "type" : ..}
-            failsafe: indicates whether we want an exception to be raised
-                      in case the id is not found
-
-            Returns:
-                Instance or None. An error is raised if an invalid id is used
+            :param item: instance id or dict { "id" : .. "type" : ..}
+            :param failsafe: indicates whether we want an exception to be raised in case the id is not found
+            :return: Instance or None. An error is raised if an invalid id is used
         '''
         instance = None
         #pylint: disable=invalid-name,redefined-builtin
@@ -349,6 +354,10 @@ class SAFRSBase(Model):
 
     @classmethod
     def _s_count(cls):
+        '''
+            returning None will cause sqlalchemy to perform a count() on the result
+            this can be overridden with a cached value for performance on large tables (>1G)
+        '''
         return None
 
     def _s_jsonapi_encode(self):
@@ -595,6 +604,8 @@ class SAFRSBase(Model):
                 result.append(method)
         return result
 
+    get_jsonapi_rpc_methods = get_documented_api_methods
+
     @classmethod
     def get_swagger_doc_object_model(cls):
         '''
@@ -637,6 +648,24 @@ class SAFRSBase(Model):
         '''
         endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
         return endpoint
+
+    @hybrid_property
+    def _s_url(self, url_prefix=''):
+        try:
+            print(self)
+            return url_for(self.get_endpoint())
+        except RuntimeError:
+            # This happens when creating the swagger doc and there is no application registered
+            pass
+        
+    @_s_url.expression
+    def _s_url(cls, url_prefix=''):
+        try:
+            return url_for(cls.get_endpoint())
+        except RuntimeError:
+            # This happens when creating the swagger doc and there is no application registered
+            pass
+
 
     @classmethod
     def _s_meta(cls):

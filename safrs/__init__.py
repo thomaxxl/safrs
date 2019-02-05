@@ -15,12 +15,13 @@ import builtins
 import sys
 import pprint
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, redirect, url_for, current_app, Request
+from flask import Flask, redirect, url_for, current_app
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .__about__ import __version__, __description__
 from .request import SAFRSRequest
 from .response import SAFRSResponse
+from .errors import ValidationError, GenericError
 
 DB = SQLAlchemy()
 
@@ -48,13 +49,19 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
         :param prefix: the Swagger url prefix (not the api prefix)
         :param description: the swagger description
     '''
-    decorators = kwargs.get('decorators', []) # eg. test_decorator
+    decorators = kwargs.pop('decorators', []) # eg. test_decorator
+    custom_swagger = kwargs.pop('custom_swagger',{})
     app.json_encoder = SAFRSJSONEncoder
     app.request_class = SAFRSRequest
     app.response_class = SAFRSResponse
     SAFRS(app, host=host, port=port, prefix=prefix)
-    api = Api(app, api_spec_url='/swagger', host=host,
+    api = Api(app, api_spec_url='/swagger', host=host, custom_swagger=custom_swagger,
               description=description, decorators=decorators, prefix='')
+    @app.before_request
+    def handle_invalid_usage():
+        return
+
+    
     api.init_app(app)
     return api
 # pylint: enable=invalid-name
@@ -134,15 +141,15 @@ class SAFRS:
 
 
 def dict_merge(dct, merge_dct):
-    """ Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
-    updating only top-level keys, dict_merge recurses down into dicts nested
-    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into
-    ``dct``.
+    ''' 
+    Recursive dict merge used for creating the swagger spec.
+    Inspired by :meth:``dict.update()``, instead of updating only
+    top-level keys, dict_merge recurses down into dicts nested
+    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into ``dct``.
     :param dct: dict onto which the merge is executed
     :param merge_dct: dct merged into dct
     :return: None
-    """
-    #for k, v in merge_dct.items():
+    '''
     for k in merge_dct:
         if k in dct and isinstance(dct[k], dict):
             dict_merge(dct[k], merge_dct[k])
@@ -158,7 +165,7 @@ except ValueError:
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
     LOGLEVEL = logging.WARNING
 
-LOGGER = SAFRS.init_logging(LOGLEVEL)
+log = LOGGER = SAFRS.init_logging(LOGLEVEL)
 
 #
 # Following objects will be exported by safrs
@@ -170,7 +177,6 @@ from ._api import Api
 from .db import SAFRSBase
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
 from .json_encoder import SAFRSJSONEncoder
-from .errors import ValidationError, GenericError
 from .api_methods import search, startswith
 from .swagger_doc import jsonapi_rpc
 
@@ -188,5 +194,7 @@ __all__ = (
     # api_methods:
     'search', 'startswith',
     # Errors:
-    'ValidationError', 'GenericError'
+    'ValidationError', 'GenericError',
+    # request
+    'SAFRSRequest'
 )
