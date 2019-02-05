@@ -26,6 +26,15 @@ from safrs import SAFRSBase # db Mixin
 from safrs import jsonapi_rpc # rpc decorator
 from safrs import search, startswith # rpc methods
 
+description = '''
+<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
+- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
+- <a href="/ja/index.html">reactjs+redux frontend</a>
+- <a href="/admin/person">Flask-Admin frontend</a>
+- Auto-generated swagger spec: <a href=/swagger.json>swagger.json</a><br/> 
+- <a href=/swagger_editor/index.html?url=/swagger.json>Swagger2 Editor</a><br/>(updates can be added with the SAFRSAPI "custom_swagger" argument)
+'''
+
 db = SQLAlchemy()
 # Add search and startswith methods so we can perform lookups from the frontend
 SAFRSBase.search = search
@@ -121,7 +130,10 @@ def start_api(HOST='0.0.0.0', PORT=None):
         if PORT and PORT != 80:
             swagger_host += ':{}'.format(PORT)
 
-        api = SAFRSAPI(app, host=HOST, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger', schemes=['http', 'https'], description=description)
+        custom_swagger = {"swagger": "2.0"}
+
+        api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger', 
+                       custom_swagger=custom_swagger, schemes=['http', 'https'], description=description)
 
         # Flask-Admin Config
         admin = Admin(app, url='/admin')
@@ -142,24 +154,38 @@ CORS(app,
      supports_credentials=True)
 
 app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://',
-                  DEBUG=False) # DEBUG will also show safrs log messages + exception messages
+                  DEBUG=True) # DEBUG will also show safrs log messages + exception messages
 
 @app.route('/ja') # React jsonapi frontend
 @app.route('/ja/<path:path>', endpoint='jsonapi_admin')
 def send_ja(path='index.html'):
     return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'jsonapi-admin/build'), path)
 
+@app.route('/swagger_editor') # React jsonapi frontend
+@app.route('/swagger_editor/<path:path>', endpoint='swagger_editor')
+def send_swagger_editor(path='index.html'):
+    print(path)
+    return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'swagger-editor'), path)
+
 @app.route('/')
 def goto_api():
     return redirect(OAS_PREFIX)
 
-description = '''<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
-- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
-- <a href="/ja/index.html">reactjs+redux frontend</a>
-- <a href="/admin/person">Flask-Admin frontend</a>
-- Auto-generated swagger spec: <a href=/swagger.json>swagger.json</a><br/> 
-- Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
-'''
+from flask import url_for, jsonify
+@app.route("/site-map")
+def site_map():
+    def has_no_empty_params(rule):
+        defaults = rule.defaults if rule.defaults is not None else ()
+        arguments = rule.arguments if rule.arguments is not None else ()
+        return len(defaults) >= len(arguments)
+
+    links = []
+    for rule in app.url_map.iter_rules():
+        if "GET" in rule.methods and has_no_empty_params(rule):
+            url = url_for(rule.endpoint, **(rule.defaults or {}))
+            links.append((url, rule.endpoint))
+    return jsonify(links)
+
 
 if __name__ == '__main__':
     HOST = sys.argv[1] if len(sys.argv) > 1 else 'thomaxxl.pythonanywhere.com'
