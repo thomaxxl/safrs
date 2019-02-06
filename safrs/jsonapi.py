@@ -16,17 +16,6 @@
 # - expose canonical endpoints
 # - move all swagger related stuffto swagger_doc
 #
-'''
-http://jsonapi.org/format/#content-negotiation-servers
-
-Server Responsibilities
-Servers MUST send all JSON API data in response documents with the header
-"Content-Type: application/vnd.api+json" without any media type parameters.
-
-Servers MUST respond with a 415 Unsupported Media Type status code if a request specifies the header
-"Content-Type: application/vnd.api+json" with any media type parameters.
-This should be implemented by the app, for example using @app.before_request  and @app.after_request
-'''
 import traceback
 import logging
 import re
@@ -49,6 +38,7 @@ from .config import get_config
 from .json_encoder import SAFRSFormattedResponse
 
 INCLUDE_ALL = '+all'
+
 
 def http_method_decorator(fun):
     '''

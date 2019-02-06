@@ -85,7 +85,9 @@ def _parse_value(kwargs, column):
     return arg_value
 
 class SAFRSDummy:
-
+    '''
+        Debug class
+    '''
     def __getattr__(self, attr):
         print('get', attr)
 
@@ -360,7 +362,14 @@ class SAFRSBase(Model):
 
     def _s_jsonapi_encode(self):
         '''
-            Encode object according to the jsonapi specification
+            Encode object according to the jsonapi specification:
+            data = {
+                    "attributes": { ... },
+                    "id": "...",
+                    "links": { ... },
+                    "relationships": { ... },
+                    "type": "..."
+                    }
         '''
         relationships = dict()
         excluded_csv = request.args.get('exclude', '')

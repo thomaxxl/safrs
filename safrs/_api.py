@@ -15,8 +15,12 @@ from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_me
 from .errors import ValidationError
 from .config import get_config
 from .jsonapi import api_decorator, SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
+from flask_restful.representations.json import output_json
+from flask_restful.utils import OrderedDict
+
 
 HTTP_METHODS = ['GET', 'PUT', 'POST', 'DELETE', 'PATCH']
+DEFAULT_REPRESENTATIONS = [('application/vnd.api+json', output_json)]
 
 #pylint: disable=protected-access,invalid-name,line-too-long,logging-format-interpolation,fixme,too-many-branches
 class Api(FRSApiBase):
@@ -29,13 +33,25 @@ class Api(FRSApiBase):
 
     def __init__(self, *args, **kwargs):
         '''
-            constructor
+            http://jsonapi.org/format/#content-negotiation-servers
+            Servers MUST send all JSON:API data in response documents with 
+            the header Content-Type: application/vnd.api+json without any media type parameters.
+
+            Servers MUST respond with a 415 Unsupported Media Type status code if 
+            a request specifies the header Content-Type: application/vnd.api+json with any media type parameters.
+
+            Servers MUST respond with a 406 Not Acceptable status code if 
+            a request’s Accept header contains the JSON:API media type and 
+            all instances of that media type are modified with media type parameters.
         '''
+
         custom_swagger = kwargs.pop('custom_swagger', {})
+        kwargs['default_mediatype'] = 'application/vnd.api+json'
         super(Api, self).__init__(*args, **kwargs)
         swagger_doc = self.get_swagger_doc()
         safrs.dict_merge(swagger_doc, custom_swagger)
-        
+        self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
+
     def expose_object(self, safrs_object, url_prefix='', **properties):
         '''
             This methods creates the API url endpoints for the SAFRObjects
@@ -54,17 +70,6 @@ class Api(FRSApiBase):
             tablename: safrs_object.__tablename__, e.g. "Users"
             classname: safrs_object.__name__, e.g. "User"
 
-        '''
-
-        '''
-        if getattr(safrs_object,'create_test', None) and not safrs_object.query.first():
-          try:
-              # Used to
-              safrs.LOGGER.info('Instantiating test object for {}'.format(safrs_object))
-              tmp_obj = safrs_object()
-              del tmp_obj
-          except:
-              safrs.LOGGER.warning('Failed to create test object for {}'.format(safrs_object))
         '''
         self.safrs_object = safrs_object
         api_class_name = '{}_API'.format(safrs_object._s_type)
@@ -89,7 +94,7 @@ class Api(FRSApiBase):
                                   swagger_decorator)
 
         # Expose the collection
-        safrs.LOGGER.info('Exposing %s on %s, endpoint: %s', safrs_object._s_type, url, endpoint)
+        safrs.log.info('Exposing %s on %s, endpoint: %s', safrs_object._s_type, url, endpoint)
         resource = self.add_resource(api_class,
                                      url,
                                      endpoint=endpoint,
@@ -103,7 +108,7 @@ class Api(FRSApiBase):
         self.add_resource(api_class,
                           url,
                           endpoint=endpoint)
-        safrs.LOGGER.info('Exposing {} instances on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
+        safrs.log.info('Exposing {} instances on {}, endpoint: {}'.format(safrs_object._s_type, url, endpoint))
 
         object_doc = parse_object_doc(safrs_object)
         object_doc['name'] = safrs_object._s_type
@@ -146,7 +151,7 @@ class Api(FRSApiBase):
                                            properties),
                                       swagger_decorator)
             meth_name = safrs_object.__tablename__ + '.' + api_method.__name__
-            safrs.LOGGER.info('Exposing method {} on {}, endpoint: {}'.format(meth_name, url, endpoint))
+            safrs.log.info('Exposing method {} on {}, endpoint: {}'.format(meth_name, url, endpoint))
             self.add_resource(api_class,
                               url,
                               endpoint=endpoint,
@@ -201,7 +206,7 @@ class Api(FRSApiBase):
 
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
-        safrs.LOGGER.info('Exposing relationship {} on {}, endpoint: {}'.format(rel_name, url, endpoint))
+        safrs.log.info('Exposing relationship {} on {}, endpoint: {}'.format(rel_name, url, endpoint))
         self.add_resource(api_class,
                           url,
                           endpoint=endpoint,
@@ -211,7 +216,7 @@ class Api(FRSApiBase):
         try:
             child_object_id = safrs_object.object_id
         except Exception as exc:
-            safrs.LOGGER.error('No object id for {}'.format(safrs_object))
+            safrs.log.error('No object id for {}'.format(safrs_object))
             child_object_id = safrs_object.__name__
 
         if safrs_object == parent_class:
@@ -227,7 +232,7 @@ class Api(FRSApiBase):
                                                              rel_name, child_object_id)
         endpoint = '{}api.{}Id'.format(url_prefix, rel_name)
 
-        safrs.LOGGER.info('Exposing {} relationship {} on {}, endpoint: {}'.format(parent_name, rel_name, url, endpoint))
+        safrs.log.info('Exposing {} relationship {} on {}, endpoint: {}'.format(parent_name, rel_name, url, endpoint))
 
         self.add_resource(api_class,
                           url,
