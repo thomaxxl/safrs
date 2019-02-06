@@ -10,6 +10,7 @@ import logging
 import safrs
 from sqlalchemy.exc import DontWrapMixin
 
+HIDDEN_LOG = '(debug logging disabled)'
 
 class NotFoundError(Exception, DontWrapMixin):
     '''
@@ -21,11 +22,11 @@ class NotFoundError(Exception, DontWrapMixin):
     def __init__(self, message='', status_code=404):
         Exception.__init__(self)
         self.status_code = status_code
-        if safrs.LOGGER.getEffectiveLevel() <= logging.DEBUG:
+        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
             self.message += message
-            safrs.LOGGER.error('Not found: %s', message)
+            safrs.log.error('Not found: %s', message)
         else:
-            self.message += '(debug logging disabled)'
+            self.message += HIDDEN_LOG
 
 
 class ValidationError(Exception, DontWrapMixin):
@@ -37,25 +38,25 @@ class ValidationError(Exception, DontWrapMixin):
     def __init__(self, message='', status_code=400):
         Exception.__init__(self)
         self.status_code = status_code
-        if safrs.LOGGER.getEffectiveLevel() <= logging.DEBUG:
+        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
             self.message += message
-            safrs.LOGGER.error('ValidationError: %s', message)
+            safrs.log.error('ValidationError: %s', message)
         else:
-            self.message += '(debug logging disabled)'
+            self.message += HIDDEN_LOG
+
 
 class GenericError(Exception, DontWrapMixin):
     '''
     This exception is raised when an error has been detected
-    TODO: maybe hide error info from user
     '''
     status_code = 500
     message = 'Generic Error: '
     def __init__(self, message):
         Exception.__init__(self)
-        if safrs.LOGGER.getEffectiveLevel() <= logging.DEBUG:
-            self.message += message
+        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
+            self.message += str(message)
         else:
-            self.message += '(debug logging disabled)'
+            self.message += HIDDEN_LOG
 
-        safrs.LOGGER.debug(traceback.format_exc())
-        safrs.LOGGER.error('Generic Error: %s', message)
+        safrs.log.debug(traceback.format_exc())
+        safrs.log.error('Generic Error: %s', message)

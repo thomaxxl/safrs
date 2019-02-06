@@ -80,7 +80,7 @@ def _parse_value(kwargs, column):
         elif column.type.python_type == datetime.date:
             arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
     except (NotImplementedError, ValueError) as exc:
-        safrs.LOGGER.warning('datetime {} for value "{}"'.format(exc, arg_value))
+        safrs.log.warning('datetime {} for value "{}"'.format(exc, arg_value))
 
     return arg_value
 
@@ -117,8 +117,6 @@ class SAFRSBase(Model):
         '''
             If an object with given arguments already exists, this object is instantiated
         '''
-        '''if getattr(cls, 'id_type', None) is None:
-            cls.id_type = get_id_type(cls)'''
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs.get('id', ''))
         # Lookup the object with the PKs
@@ -126,7 +124,7 @@ class SAFRSBase(Model):
         if not instance:
             instance = object.__new__(cls)
         else:
-            safrs.LOGGER.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
+            safrs.log.debug('{} exists for {} '.format(cls.__name__, str(kwargs)))
         #return SAFRSDummy()
         return instance
 
@@ -160,7 +158,7 @@ class SAFRSBase(Model):
             safrs.DB.Model.__init__(self, **db_args)
         except Exception as exc:
             # OOPS .. things are going bad, this might happen using sqla automap
-            safrs.LOGGER.error('Failed to instantiate object')
+            safrs.log.error('Failed to instantiate object')
             safrs.DB.Model.__init__(self)
 
         # Parse all provided relationships: empty the existing relationship and
@@ -183,7 +181,7 @@ class SAFRSBase(Model):
                 safrs.DB.session.commit()
             except sqlalchemy.exc.SQLAlchemyError as exc:
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
-                raise GenericError(str(exc))
+                raise GenericError(exc)
 
     def _s_expunge(self):
         session = sqla_inspect(self).session
@@ -252,7 +250,7 @@ class SAFRSBase(Model):
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
     @property
     def Type(self):
-        safrs.LOGGER.warning('({}): attribute "type" is not supported, renamed to "Type"'.format(self))
+        safrs.log.warning('({}): attribute "type" is not supported, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
@@ -294,14 +292,14 @@ class SAFRSBase(Model):
         except AttributeError:
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
-            safrs.LOGGER.info('AttributeError for class "{}"'.format(cls.__name__))
+            safrs.log.info('AttributeError for class "{}"'.format(cls.__name__))
             return instance # instance is None!
 
         if not id is None or not failsafe:
             try:
                 instance = cls.query.filter_by(**primary_keys).first()
             except Exception as exc:
-                safrs.LOGGER.error('get_instance : %s', str(exc))
+                safrs.log.error('get_instance : %s', str(exc))
 
             if not instance and not failsafe:
                 # TODO: id gets reflected back to the user: should we filter it for XSS ?
@@ -378,6 +376,14 @@ class SAFRSBase(Model):
                 nested_included_list += inc.split('.')
         included_list += nested_included_list
 
+        #params = { self.object_id : self.id }
+        #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
+        obj_url = url_for(self.get_endpoint())
+        if obj_url.endswith('/'):
+            obj_url = obj_url[:-1]
+
+        self_link = '{}/{}'.format(obj_url,self.jsonapi_id)
+
         for relationship in self.__mapper__.relationships:
             '''
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -401,13 +407,6 @@ class SAFRSBase(Model):
                 MAY also contain pagination links under the links member, as described below.
                 SAFRS currently implements links with self
             '''
-
-            #params = { self.object_id : self.id }
-            #obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
-            obj_url = url_for(self.get_endpoint())
-            if not obj_url.endswith('/'):
-                obj_url += '/'
-
             meta = {}
             rel_name = relationship.key
             if rel_name in excluded_list:
@@ -417,17 +416,10 @@ class SAFRSBase(Model):
             data = None
             if rel_name in included_list:
                 if relationship.direction == MANYTOONE:
-                    meta['direction'] = 'MANYTOONE'
                     rel_item = getattr(self, rel_name)
                     if rel_item:
                         data = {'id' : rel_item.jsonapi_id, 'type' : rel_item.__tablename__}
-
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    if safrs.LOGGER.getEffectiveLevel() < logging.INFO:
-                        if relationship.direction == ONETOMANY:
-                            meta['direction'] = 'ONETOMANY'
-                        else:
-                            meta['direction'] = 'MANYTOMANY'
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(self, rel_name)
                     limit = request.page_limit
@@ -443,7 +435,7 @@ class SAFRSBase(Model):
                             rel_query = rel_query.limit(limit)
                             if rel_query.count() >= get_config('BIG_QUERY_THRESHOLD'):
                                 warning = 'Truncated result for relationship "{}",consider paginating this request'.format(rel_name)
-                                safrs.LOGGER.warning(warning)
+                                safrs.log.warning(warning)
                                 meta['warning'] = warning
                             items = rel_query.all()
                         else:
@@ -454,12 +446,14 @@ class SAFRSBase(Model):
                         data = [{'id' : i.jsonapi_id,
                                  'type' : i.__tablename__} for i in items]
                 else: # shouldn't happen!!
-                    raise GenericError('Unknown relationship direction for relationship {}: {}'.format(rel_name, relationship.direction))
+                    safrs.log.error('Unknown relationship direction for relationship {}: {}'.format(rel_name, relationship.direction))
+                # add the relationship direction, for debugging purposes.
+                if safrs.log.getEffectiveLevel() < logging.INFO:
+                    meta['direction'] = relationship.direction.name
+                
 
-            self_link = '{}{}/{}'.format(obj_url,
-                                         self.jsonapi_id,
-                                         rel_name)
-            links = dict(self=self_link)
+            rel_link = '{}/{}'.format(self_link, rel_name)
+            links = dict(self=rel_link)
             rel_data = dict(links=links)
 
             if data:
@@ -480,6 +474,7 @@ class SAFRSBase(Model):
 
         data = dict(attributes=attributes,
                     id=self.jsonapi_id,
+                    links={'self' : self_link},
                     type=self._s_type,
                     relationships=relationships)
 
@@ -529,7 +524,7 @@ class SAFRSBase(Model):
         try:
             first = cls._s_query.first()
         except Exception as exc:
-            safrs.LOGGER.warning('Failed to retrieve sample for {}({})'.format(cls, exc))
+            safrs.log.warning('Failed to retrieve sample for {}({})'.format(cls, exc))
         return first
 
     @classmethod
@@ -546,7 +541,7 @@ class SAFRSBase(Model):
             try:
                 arg = column.type.python_type()
             except:
-                safrs.LOGGER.debug('Failed to get python type for column {}'.format(column))
+                safrs.log.debug('Failed to get python type for column {}'.format(column))
             if column.default:
                 arg = column.default.arg
 
@@ -626,7 +621,7 @@ class SAFRSBase(Model):
             column_type = column_type.split(' ')[0]
             swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type, None)
             if swagger_type is None:
-                safrs.LOGGER.warning('Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name))
+                safrs.log.warning('Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name))
                 swagger_type = 'string'
             default = getattr(sample_instance, column.name, None)
             if default is None:

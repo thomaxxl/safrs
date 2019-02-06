@@ -16,7 +16,6 @@
 # - expose canonical endpoints
 # - move all swagger related stuffto swagger_doc
 #
-
 '''
 http://jsonapi.org/format/#content-negotiation-servers
 
