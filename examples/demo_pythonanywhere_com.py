@@ -28,7 +28,7 @@ from safrs import search, startswith # rpc methods
 
 description = '''
 <a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
-- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (only 150 lines!)<br/>
+- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (less than 200 lines!)<br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
 - Auto-generated swagger spec: <a href=/swagger.json>swagger.json</a><br/> 
@@ -161,7 +161,6 @@ app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://',
 def send_ja(path='index.html'):
     return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'jsonapi-admin/build'), path)
 
-@app.route('/swagger_editor') # React jsonapi frontend
 @app.route('/swagger_editor/<path:path>', endpoint='swagger_editor')
 def send_swagger_editor(path='index.html'):
     print(path)
