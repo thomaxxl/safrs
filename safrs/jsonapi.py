@@ -14,12 +14,10 @@
 #
 # todo:
 # - expose canonical endpoints
-# - move all swagger related stuffto swagger_doc
+# - move all swagger formatting to swagger_doc
 #
-import traceback
 import logging
 import re
-from functools import wraps
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
@@ -27,115 +25,52 @@ from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import make_response, url_for
 from flask import jsonify, request
 from flask_restful.utils import cors
-from flask_restful import abort
 from flask_restful_swagger_2 import Resource
-import werkzeug
 import safrs
 from .db import SAFRSBase
-from .swagger_doc import is_public #,default_paging_parameters, parse_object_doc
+from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
 from .json_encoder import SAFRSFormattedResponse
+from urllib.parse import urlparse
 
 INCLUDE_ALL = '+all'
 
-
-def http_method_decorator(fun):
+# results for GET requests will go through filter -> sort -> paginate
+def jsonapi_filter(safrs_object):
     '''
-        Decorator for the REST methods
-        - commit the database
-        - convert all exceptions to a JSON serializable GenericError
-
-        This method will be called for all requests
+        Apply the request.args filters to the object
+        :parameter safrs_object:
+        :return: a sqla query object
     '''
+    filtered = []
+    for col_name, val in request.filters.items():
+        column = getattr(safrs_object, col_name)
+        filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
 
-    @wraps(fun)
-    def method_wrapper(*args, **kwargs):
-        try:
-            result = fun(*args, **kwargs)
-            safrs.DB.session.commit()
-            return result
+    if filtered:
+        result = filtered[0].union_all(*filtered).distinct()
+    else:
+        result = safrs_object.query
+    return result
 
-        except (ValidationError, GenericError, NotFoundError) as exc:
-            traceback.print_exc()
-            status_code = getattr(exc, 'status_code')
-            message = exc.message
 
-        except werkzeug.exceptions.NotFound:
-            status_code = 404
-            message = 'Not Found'
-
-        except Exception as exc:
-            status_code = getattr(exc, 'status_code', 500)
-            traceback.print_exc()
-            if safrs.LOGGER.getEffectiveLevel() > logging.DEBUG:
-                message = 'Unknown Error'
+def jsonapi_sort(object_query, safrs_object):
+    '''
+        http://jsonapi.org/format/#fetching-sorting
+        sort by csv sort= values
+    '''
+    sort_columns = request.args.get('sort', None)
+    if not sort_columns is None:
+        for sort_column in sort_columns.split(','):
+            if sort_column.startswith('-'):
+                attr = getattr(safrs_object, sort_column[1:], None).desc()
+                object_query = object_query.order_by(attr)
             else:
-                message = str(exc)
+                attr = getattr(safrs_object, sort_column, None)
+                object_query = object_query.order_by(attr)
 
-        safrs.DB.session.rollback()
-        errors = dict(detail=message)
-        abort(status_code, errors=[errors])
-
-    return method_wrapper
-
-
-def api_decorator(cls, swagger_decorator):
-    '''
-        Decorator for the API views:
-            - add swagger documentation ( swagger_decorator )
-            - add cors
-            - add generic exception handling
-
-        We couldn't use inheritance because the rest method decorator
-        references the cls.SAFRSObject which isn't known
-    '''
-
-    cors_domain = get_config('cors_domain')
-    cls.http_methods = {} # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
-    for method_name in ['get', 'post', 'delete', 'patch', 'put', 'options']: # HTTP methods
-        method = getattr(cls, method_name, None)
-        if not method:
-            continue
-
-        decorated_method = method
-
-        # if the SAFRSObject has a custom http method decorator, use it
-        # e.g. SAFRSObject.get
-        custom_method = getattr(cls.SAFRSObject, method_name, None)
-        if custom_method:
-            decorated_method = custom_method
-            # keep the default method as parent_<method_name>, e.g. parent_get
-            parent_method = getattr(cls, method_name)
-            cls.http_methods[method_name] = lambda *args, **kwargs: parent_method(*args, **kwargs)
-
-        # Apply custom decorators, specified as class variable list
-        try:
-            # Add swagger documentation
-            decorated_method = swagger_decorator(decorated_method)
-        except RecursionError:
-            # Got this error when exposing WP DB, TODO: investigate where it comes from
-            safrs.LOGGER.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, decorated_method))
-        #pylint: disable=broad-except
-        except Exception as exc:
-            safrs.LOGGER.error(exc)
-            traceback.print_exc()
-            safrs.LOGGER.error('Failed to generate documentation for {}'.format(decorated_method))
-
-        # Add cors
-        if cors_domain is not None:
-            decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
-        # Add exception handling
-        decorated_method = http_method_decorator(decorated_method)
-
-        setattr(decorated_method, 'SAFRSObject', cls.SAFRSObject)
-        for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators', []):
-            decorated_method = custom_decorator(decorated_method)
-
-
-        setattr(cls, method_name, decorated_method)
-
-    return cls
+    return object_query
 
 
 def paginate(object_query, SAFRSObject=None):
@@ -143,13 +78,13 @@ def paginate(object_query, SAFRSObject=None):
         http://jsonapi.org/format/#fetching-pagination
 
         A server MAY choose to limit the number of resources returned
-         in a response to a subset (“page”) of the whole set available.
+        in a response to a subset (“page”) of the whole set available.
         A server MAY provide links to traverse a paginated data set (“pagination links”).
         Pagination links MUST appear in the links object that corresponds
-         to a collection. To paginate the primary data, supply pagination links
-         in the top-level links object. To paginate an included collection
-         returned in a compound document, supply pagination links in the
-         corresponding links object.
+        to a collection. To paginate the primary data, supply pagination links
+        in the top-level links object. To paginate an included collection
+        returned in a compound document, supply pagination links in the
+        corresponding links object.
 
         The following keys MUST be used for pagination links:
 
@@ -165,7 +100,6 @@ def paginate(object_query, SAFRSObject=None):
         :prameter SAFRSObject: optional
         :return: links, instances, count
     '''
-    
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ''
         result += '?' + '&'.join(['{}={}'.format(k, v) for k, v in request.args.items()] +
@@ -213,42 +147,6 @@ def paginate(object_query, SAFRSObject=None):
     instances = res_query.all()
     return links, instances, count
 
-
-def jsonapi_filter(safrs_object):
-    '''
-        Apply the request.args filters to the object
-        :parameter safrs_object:
-        :return: a sqla query object
-    '''
-
-    filtered = []
-    for col_name, val in request.filters.items():
-        column = getattr(safrs_object, col_name)
-        filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
-
-    if filtered:
-        result = filtered[0].union_all(*filtered).distinct()
-    else:
-        result = safrs_object.query
-    return result
-
-
-def jsonapi_sort(object_query, safrs_object):
-    '''
-        http://jsonapi.org/format/#fetching-sorting
-        sort by csv sort= values
-    '''
-    sort_columns = request.args.get('sort', None)
-    if not sort_columns is None:
-        for sort_column in sort_columns.split(','):
-            if sort_column.startswith('-'):
-                attr = getattr(safrs_object, sort_column[1:], None).desc()
-                object_query = object_query.order_by(attr)
-            else:
-                attr = getattr(safrs_object, sort_column, None)
-                object_query = object_query.order_by(attr)
-
-    return object_query
 
 def get_included(data, limit, include=''):
     '''
@@ -311,7 +209,7 @@ def get_included(data, limit, include=''):
                 included = included[:limit]
                 result = result.union(included)
             except Exception as exc:
-                safrs.LOGGER.critical('Failed to add included for {} (included: {} - {})'.format(relationship, type(included), included))
+                safrs.log.critical('Failed to add included for {} (included: {} - {})'.format(relationship, type(included), included))
                 result.add(included)
 
         if INCLUDE_ALL in includes:
@@ -445,7 +343,6 @@ class SAFRSRestAPI(Resource):
         data = None
         meta = {}
         errors = None
-
         links = None
 
         id = kwargs.get(self.object_id, None)
@@ -455,7 +352,9 @@ class SAFRSRestAPI(Resource):
             # Retrieve a single instance
             instance = self.SAFRSObject.get_instance(id)
             data = instance
-            links = {'self' : request.url}
+            links = {'self' : instance._s_url}
+            if request.url != instance._s_url:
+                links['related'] = request.url
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
@@ -611,7 +510,7 @@ class SAFRSRestAPI(Resource):
                 except sqlalchemy.exc.SQLAlchemyError as exc:
                     # Exception may arise when a db constrained has been violated
                     # (e.g. duplicate key)
-                    safrs.LOGGER.warning(str(exc))
+                    safrs.log.warning(str(exc))
                     raise GenericError(str(exc))
 
              # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
@@ -766,7 +665,7 @@ class SAFRSRestMethodAPI(Resource):
         if json_data:
             args = json_data.get('meta', {}).get('args', {})
 
-        safrs.LOGGER.debug('method {} args {}'.format(self.method_name, args))
+        safrs.log.debug('method {} args {}'.format(self.method_name, args))
 
         result = method(**args)
 
@@ -811,7 +710,7 @@ class SAFRSRestMethodAPI(Resource):
             raise ValidationError('Method is not public')
 
         args = dict(request.args)
-        safrs.LOGGER.debug('method {} args {}'.format(self.method_name, args))
+        safrs.log.debug('method {} args {}'.format(self.method_name, args))
 
         result = method(**args)
 
@@ -1076,13 +975,13 @@ class SAFRSRestRelationshipAPI(Resource):
                 child_id = item.get('id', None)
                 if child_id is None:
                     errors.append('no child id {}'.format(data))
-                    safrs.LOGGER.error(errors)
+                    safrs.log.error(errors)
                     continue
                 child = self.child_class.get_instance(child_id)
 
                 if not child:
                     errors.append('invalid child id {}'.format(child_id))
-                    safrs.LOGGER.error(errors)
+                    safrs.log.error(errors)
                     continue
                 if not child in relation:
                     relation.append(child)
@@ -1116,7 +1015,7 @@ class SAFRSRestRelationshipAPI(Resource):
         if child in relation:
             relation.remove(child)
         else:
-            safrs.LOGGER.warning('Child not in relation')
+            safrs.log.warning('Child not in relation')
 
         return jsonify({})
 

@@ -8,6 +8,7 @@
 import inspect
 import datetime
 import logging
+from urllib.parse import urljoin
 from flask import request, url_for
 from flask_sqlalchemy import Model
 import sqlalchemy
@@ -27,6 +28,8 @@ from .config import get_config
 #
 # Map SQLA types to swagger2 json types
 # json supports only a couple of basic data types, which makes our job pretty easy :)
+# If a type isn't found in the table, "string" will be used 
+# (because of this we could actually remove all the "string" types as well)
 #
 SQLALCHEMY_SWAGGER2_TYPE = {
     'INTEGER'   : 'integer',
@@ -115,6 +118,8 @@ class SAFRSBase(Model):
     # The caller will have to add and commit the object by itself then...
     db_commit = True
     http_methods = {} # http methods, used in case of override
+    url_prefix = ''
+
     def __new__(cls, **kwargs):
         '''
             If an object with given arguments already exists, this object is instantiated
@@ -391,7 +396,7 @@ class SAFRSBase(Model):
         if obj_url.endswith('/'):
             obj_url = obj_url[:-1]
 
-        self_link = '{}/{}'.format(obj_url,self.jsonapi_id)
+        self_link = self._s_url
 
         for relationship in self.__mapper__.relationships:
             '''
@@ -461,7 +466,7 @@ class SAFRSBase(Model):
                     meta['direction'] = relationship.direction.name
                 
 
-            rel_link = '{}/{}'.format(self_link, rel_name)
+            rel_link = urljoin(self_link, rel_name)
             links = dict(self=rel_link)
             rel_data = dict(links=links)
 
@@ -646,30 +651,39 @@ class SAFRSBase(Model):
         return model
 
     @classmethod
-    def get_endpoint(cls, url_prefix=''):
+    def get_endpoint(cls, url_prefix=None, type=None):
         '''
             Return the API endpoint
         '''
-        endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
+        if url_prefix is None:
+            url_prefix = cls.url_prefix
+        if type == 'instance':
+            INSTANCE_ENDPOINT_FMT = get_config('INSTANCE_ENDPOINT_FMT')
+            endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, cls._s_type)
+        else: # type = 'collection'
+            endpoint = '{}api.{}'.format(url_prefix, cls._s_type)
         return endpoint
 
     @hybrid_property
     def _s_url(self, url_prefix=''):
         try:
-            print(self)
-            return url_for(self.get_endpoint())
+            params = {self.object_id : self.jsonapi_id}
+            instance_url = url_for(self.get_endpoint(type='instance'), **params)
+            result = urljoin(request.url_root, instance_url)
         except RuntimeError:
             # This happens when creating the swagger doc and there is no application registered
-            pass
+            result = ''
+        return result
         
     @_s_url.expression
     def _s_url(cls, url_prefix=''):
         try:
-            return url_for(cls.get_endpoint())
+            collection_url = url_for(cls.get_endpoint())
+            result = urljoin(request.url_root, collection_url)
         except RuntimeError:
             # This happens when creating the swagger doc and there is no application registered
-            pass
-
+            result = ''
+        return result
 
     @classmethod
     def _s_meta(cls):

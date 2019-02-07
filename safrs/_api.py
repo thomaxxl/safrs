@@ -1,8 +1,11 @@
 '''
 flask_restful_swagger2 API subclass
 '''
-
+import traceback
 import copy
+import werkzeug
+import logging
+from flask_restful import abort
 from flask_restful_swagger_2 import Api as FRSApiBase
 from flask_restful_swagger_2.swagger import create_swagger_endpoint, add_parameters
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
@@ -12,11 +15,12 @@ import safrs
 # Import here in order to avoid circular dependencies, (todo: fix)
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
-from .errors import ValidationError
+from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
-from .jsonapi import api_decorator, SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
+from .jsonapi import SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
 from flask_restful.representations.json import output_json
 from flask_restful.utils import OrderedDict
+from functools import wraps
 
 
 HTTP_METHODS = ['GET', 'PUT', 'POST', 'DELETE', 'PATCH']
@@ -72,6 +76,7 @@ class Api(FRSApiBase):
 
         '''
         self.safrs_object = safrs_object
+        safrs_object.url_prefix = url_prefix
         api_class_name = '{}_API'.format(safrs_object._s_type)
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
@@ -82,7 +87,7 @@ class Api(FRSApiBase):
         RESOURCE_URL_FMT = get_config('RESOURCE_URL_FMT')
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_type)
 
-        endpoint = safrs_object.get_endpoint(url_prefix)
+        endpoint = safrs_object.get_endpoint()
 
         properties['SAFRSObject'] = safrs_object
         swagger_decorator = swagger_doc(safrs_object)
@@ -102,8 +107,7 @@ class Api(FRSApiBase):
 
         INSTANCE_URL_FMT = get_config('INSTANCE_URL_FMT')
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__)
-        INSTANCE_ENDPOINT_FMT = get_config('INSTANCE_ENDPOINT_FMT')
-        endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, safrs_object._s_type)
+        endpoint = safrs_object.get_endpoint(type = 'instance')
         # Expose the instances
         self.add_resource(api_class,
                           url,
@@ -370,6 +374,104 @@ class Api(FRSApiBase):
         else:
             cls._operation_ids[summary] += 1
         return '{}_{}'.format(summary, cls._operation_ids[summary])
+
+
+def api_decorator(cls, swagger_decorator):
+    '''
+        Decorator for the API views:
+            - add swagger documentation ( swagger_decorator )
+            - add cors
+            - add generic exception handling
+
+        We couldn't use inheritance because the rest method decorator
+        references the cls.SAFRSObject which isn't known
+    '''
+
+    cors_domain = get_config('cors_domain')
+    cls.http_methods = {} # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
+    for method_name in ['get', 'post', 'delete', 'patch', 'put', 'options']: # HTTP methods
+        method = getattr(cls, method_name, None)
+        if not method:
+            continue
+
+        decorated_method = method
+
+        # if the SAFRSObject has a custom http method decorator, use it
+        # e.g. SAFRSObject.get
+        custom_method = getattr(cls.SAFRSObject, method_name, None)
+        if custom_method:
+            decorated_method = custom_method
+            # keep the default method as parent_<method_name>, e.g. parent_get
+            parent_method = getattr(cls, method_name)
+            cls.http_methods[method_name] = lambda *args, **kwargs: parent_method(*args, **kwargs)
+
+        # Apply custom decorators, specified as class variable list
+        try:
+            # Add swagger documentation
+            decorated_method = swagger_decorator(decorated_method)
+        except RecursionError:
+            # Got this error when exposing WP DB, TODO: investigate where it comes from
+            safrs.log.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, decorated_method))
+        #pylint: disable=broad-except
+        except Exception as exc:
+            safrs.log.error(exc)
+            traceback.print_exc()
+            safrs.log.error('Failed to generate documentation for {}'.format(decorated_method))
+
+        # Add cors
+        if cors_domain is not None:
+            decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
+        # Add exception handling
+        decorated_method = http_method_decorator(decorated_method)
+
+        setattr(decorated_method, 'SAFRSObject', cls.SAFRSObject)
+        for custom_decorator in getattr(cls.SAFRSObject, 'custom_decorators', []):
+            decorated_method = custom_decorator(decorated_method)
+
+
+        setattr(cls, method_name, decorated_method)
+
+    return cls
+
+
+def http_method_decorator(fun):
+    '''
+        Decorator for the REST methods
+        - commit the database
+        - convert all exceptions to a JSON serializable GenericError
+
+        This method will be called for all requests
+    '''
+
+    @wraps(fun)
+    def method_wrapper(*args, **kwargs):
+        try:
+            result = fun(*args, **kwargs)
+            safrs.DB.session.commit()
+            return result
+
+        except (ValidationError, GenericError, NotFoundError) as exc:
+            traceback.print_exc()
+            status_code = getattr(exc, 'status_code')
+            message = exc.message
+
+        except werkzeug.exceptions.NotFound:
+            status_code = 404
+            message = 'Not Found'
+
+        except Exception as exc:
+            status_code = getattr(exc, 'status_code', 500)
+            traceback.print_exc()
+            if safrs.log.getEffectiveLevel() > logging.DEBUG:
+                message = 'Unknown Error'
+            else:
+                message = str(exc)
+
+        safrs.DB.session.rollback()
+        errors = dict(detail=message)
+        abort(status_code, errors=[errors])
+
+    return method_wrapper
 
 
 class SAFRSRelationshipObject:
