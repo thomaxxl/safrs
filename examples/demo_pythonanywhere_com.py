@@ -66,7 +66,7 @@ class Person(SAFRSBase, db.Model):
     email = db.Column(db.String, default='')
     comment = db.Column(db.Text, default='')
     dob = db.Column(db.Date, default='1970-01-01')
-    books_read = db.relationship('Book', backref='reader', foreign_keys=[Book.reader_id])
+    books_read = db.relationship('Book', backref='reader', foreign_keys=[Book.reader_id], cascade='save-update, merge')
     books_written = db.relationship('Book', backref='author', foreign_keys=[Book.author_id])
     reviews = db.relationship('Review', backref='reader')
     # Following method is exposed through the REST API
@@ -123,7 +123,8 @@ def start_api(HOST='0.0.0.0', PORT=None):
             publisher.books.append(book)
             reader.books_read.append(book)
             author.books_written.append(book)
-            db.session.bulk_save_objects([reader, author, book, publisher, review])
+            for obj in [reader, author, book, publisher, review]:
+                db.session.add(obj)
             db.session.commit()
 
         swagger_host = HOST
@@ -153,7 +154,7 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization', 'Access-Control-Allow-Credentials'],
      supports_credentials=True)
 
-app.config.update(SQLALCHEMY_DATABASE_URI='sqlite://',
+app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:////tmp/db.sqlite',
                   DEBUG=True) # DEBUG will also show safrs log messages + exception messages
 
 @app.route('/ja') # React jsonapi frontend
