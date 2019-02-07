@@ -470,8 +470,7 @@ class SAFRSBase(Model):
             links = dict(self=rel_link)
             rel_data = dict(links=links)
 
-            if data:
-                rel_data['data'] = data
+            rel_data['data'] = data
             if meta:
                 rel_data['meta'] = meta
             relationships[rel_name] = rel_data
