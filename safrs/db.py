@@ -691,3 +691,7 @@ class SAFRSBase(Model):
             may be implemented by the app
         '''
         return {}
+
+    def get_attr(self, attr):
+        if attr in self._s_column_names:
+            return getattr(self, attr)

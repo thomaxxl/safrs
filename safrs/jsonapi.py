@@ -36,6 +36,18 @@ from urllib.parse import urlparse
 
 INCLUDE_ALL = '+all'
 
+
+def get_legacy(param, default = 0):
+    '''
+    
+    '''
+    result = getattr(request,param,None)
+    if result is None:
+        safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
+        result = default
+    return result
+
+    
 # results for GET requests will go through filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
     '''
@@ -44,7 +56,11 @@ def jsonapi_filter(safrs_object):
         :return: a sqla query object
     '''
     filtered = []
-    for col_name, val in request.filters.items():
+    filters = get_legacy('filters', {})
+    for col_name, val in filters.items():
+        if not col_name in safrs_object._s_column_names:
+            safrs.log.warning('Invalid Column {}'.format(col_name))
+            continue
         column = getattr(safrs_object, col_name)
         filtered.append(safrs_object.query.filter(column.in_(val.split(','))))
 
@@ -106,8 +122,8 @@ def paginate(object_query, SAFRSObject=None):
                                  ['page[offset]={}&page[limit]={}'.format(count, limit)])
         return result
 
-    page_offset = request.page_offset
-    limit = request.page_limit
+    page_offset = get_legacy('page_offset')
+    limit = get_legacy('page_limit', get_config('MAX_PAGE_LIMIT'))
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
@@ -230,7 +246,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     :return: jsonapi formatted dictionary
     '''
 
-    limit = request.page_limit
+    limit = get_legacy('page_limit', get_config('MAX_PAGE_LIMIT'))
     try:
         limit = int(limit)
     except ValueError:

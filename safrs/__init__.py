@@ -51,9 +51,6 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
     '''
     decorators = kwargs.pop('decorators', []) # eg. test_decorator
     custom_swagger = kwargs.pop('custom_swagger',{})
-    app.json_encoder = SAFRSJSONEncoder
-    app.request_class = SAFRSRequest
-    app.response_class = SAFRSResponse
     SAFRS(app, host=host, port=port, prefix=prefix)
     api = Api(app, api_spec_url='/swagger', host=host, custom_swagger=custom_swagger,
               description=description, decorators=decorators, prefix='')
@@ -96,6 +93,10 @@ class SAFRS:
         cls.app = app
         cls.db = app_db
 
+        app.json_encoder = SAFRSJSONEncoder
+        app.request_class = SAFRSRequest
+        app.response_class = SAFRSResponse
+        
         if app.config.get('DEBUG', False):
             LOGGER.setLevel(logging.DEBUG)
 
