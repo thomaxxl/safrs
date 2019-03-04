@@ -77,13 +77,14 @@ def _parse_value(kwargs, column):
         arg_value = column.default.arg
 
     # Parse datetime and date values
-    try:
-        if column.type.python_type == datetime.datetime:
-            arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d %H:%M:%S.%f')
-        elif column.type.python_type == datetime.date:
-            arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
-    except (NotImplementedError, ValueError) as exc:
-        safrs.log.warning('datetime {} for value "{}"'.format(exc, arg_value))
+    if arg_value is not None:
+        try:
+            if column.type.python_type == datetime.datetime:
+                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d %H:%M:%S')
+            elif column.type.python_type == datetime.date:
+                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
+        except (NotImplementedError, ValueError) as exc:
+            safrs.log.warning('datetime {} for value "{}"'.format(exc, arg_value))
 
     return arg_value
 
