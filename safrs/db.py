@@ -17,7 +17,7 @@ from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
-# safrs_rest dependencies:
+# safrs dependencies:
 import safrs
 from .swagger_doc import SchemaClassFactory, get_doc
 from .errors import GenericError, NotFoundError, ValidationError
@@ -65,38 +65,50 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 
 
-def _parse_value(kwargs, column):
+def _parse_attr_value(kwargs, column):
     '''
-        Try to fetch and parse the value for a db column from the kwargs
+        Try to fetch and parse the (jsonapi attribute) value for a db column from the kwargs
         :param kwargs:
         :param column: database column
-        :return
+        :return parsed value:
     '''
-    arg_value = kwargs.get(column.name, None)
-    if arg_value is None and column.default:
-        arg_value = column.default.arg
+    attr_val = kwargs.get(column.name, None)
+    if attr_val is None and column.default:
+        attr_val = column.default.arg
+        return attr_val
+
+    if attr_val is None:
+        return attr_val
 
     # Parse datetime and date values
-    if arg_value is not None:
+    if column.type.python_type == datetime.datetime:
+        date_str = str(attr_val)
         try:
-            if column.type.python_type == datetime.datetime:
-                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d %H:%M:%S')
-            elif column.type.python_type == datetime.date:
-                arg_value = datetime.datetime.strptime(str(arg_value), '%Y-%m-%d')
+            if '.' in date_str:
+                attr_val = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S.%f')
+            else:
+                attr_val = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
         except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning('datetime {} for value "{}"'.format(exc, arg_value))
+            safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
 
-    return arg_value
-
-class SAFRSDummy:
+    elif column.type.python_type == datetime.date:
+        try:
+            attr_val = datetime.datetime.strptime(str(attr_val), '%Y-%m-%d')
+        except (NotImplementedError, ValueError) as exc:
+            safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
     '''
-        Debug class
+    TODO: should we do this?
+    
+    else:
+        # Check the attribute value type by casting it
+        try:
+            attr_val = column.type.python_type(attr_val)
+        except Exception as exc:
+            log.exception(exc)
+            raise ValidationError('Invalid attribute value "{}" for {} ({})'.format(attr_val, column.name, exc))
     '''
-    def __getattr__(self, attr):
-        print('get', attr)
-
-    def __setattr(self,attr, val):
-        print('set', attr, val)
+ 
+    return attr_val
 
 #
 # SAFRSBase superclass
@@ -156,8 +168,8 @@ class SAFRSBase(Model):
         columns = self.__table__.columns
         relationships = self._s_relationships
         for column in columns:
-            arg_value = _parse_value(kwargs, column)
-            db_args[column.name] = arg_value
+            attr_val = _parse_attr_value(kwargs, column)
+            db_args[column.name] = attr_val
 
         # db_args now contains the class attributes. Initialize the DB model with them
         # All subclasses should have the DB.Model as superclass.
@@ -268,15 +280,23 @@ class SAFRSBase(Model):
             self.Type = value
         self.type = value
 
+    def __setattr__(self,attr, val):
+        #log.debug('set {} {}'.format(attr, val))
+        db.Model.__setattr__(self,attr,val)
 
+    def __getattr__(self,attr):
+        #log.debug('set {}'.format(attr))
+        db.Model.__getattr__(self,attr)
 
     @property
     def _s_relationships(self):
         return self.__mapper__.relationships
 
     def _s_patch(self, **attributes):
+        columns = {col.name : col for col in self._s_columns}
         for attr, value in attributes.items():
-            if attr in self._s_column_names:
+            if attr in columns:
+                value = _parse_attr_value(attributes, columns[attr])
                 setattr(self, attr, value)
     #pylint: disable=
     @classmethod
@@ -290,7 +310,7 @@ class SAFRSBase(Model):
         #pylint: disable=invalid-name,redefined-builtin
         if isinstance(item, dict):
             id = item.get('id', None)
-            if item.get('type') != cls._s_type:
+            if item.get('type') != cls._s_type or id is None:
                 raise ValidationError('Invalid item type')
         else:
             id = item
@@ -300,7 +320,7 @@ class SAFRSBase(Model):
         except AttributeError:
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
-            safrs.log.info('AttributeError for class "{}"'.format(cls.__name__))
+            safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
             return instance # instance is None!
 
         if not id is None or not failsafe:
@@ -332,7 +352,7 @@ class SAFRSBase(Model):
     @orm.reconstructor
     def init_object_schema(self):
         '''
-        init_object_schema
+            init_object_schema
         '''
         pass
 
@@ -465,7 +485,6 @@ class SAFRSBase(Model):
                 # add the relationship direction, for debugging purposes.
                 if safrs.log.getEffectiveLevel() < logging.INFO:
                     meta['direction'] = relationship.direction.name
-                
 
             rel_link = urljoin(self_link, rel_name)
             links = dict(self=rel_link)
@@ -666,6 +685,10 @@ class SAFRSBase(Model):
 
     @hybrid_property
     def _s_url(self, url_prefix=''):
+        '''
+            :param url_prefix:
+            :return: endpoint url of this instance
+        '''
         try:
             params = {self.object_id : self.jsonapi_id}
             instance_url = url_for(self.get_endpoint(type='instance'), **params)
@@ -694,5 +717,20 @@ class SAFRSBase(Model):
         return {}
 
     def get_attr(self, attr):
+        '''
+            :param attr: jsonapi attribute name
+            :return: attribute value from the corresponding column of the sqla object
+        '''
         if attr in self._s_column_names:
             return getattr(self, attr)
+
+
+class SAFRSDummy:
+    '''
+        Debug class
+    '''
+    def __getattr__(self, attr):
+        print('get', attr)
+
+    def __setattr__(self,attr, val):
+        print('set', attr, val)

@@ -41,7 +41,8 @@ class SAFRSRequest(Request):
         if self.content_type in self.jsonapi_content_types:
             self.is_jsonapi = True
             self.parameter_storage_class = TypeConversionDict
-            self.parse_jsonapi_args()
+        
+        self.parse_jsonapi_args()
 
     def get_jsonapi_payload(self):
         if not self.is_jsonapi:
@@ -67,11 +68,13 @@ class SAFRSRequest(Request):
         self.page_limit = self.args.get('page[limit]', get_config('MAX_PAGE_LIMIT'), type=int)
         # .pop() doesn't work for TypeConversionDict, del manually
         if 'page[limit]' in self.args:
-            del self.args['page[limit]']
+            pass
+            #del self.args['page[limit]']
 
         self.page_offset = self.args.get('page[offset]', 0, type=int)
         if 'page[offset]' in self.args:
-            del self.args['page[offset]']
+            pass
+            #del self.args['page[offset]']
 
         self.filters = {}
         self.fields = {}
