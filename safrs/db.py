@@ -280,14 +280,6 @@ class SAFRSBase(Model):
             self.Type = value
         self.type = value
 
-    def __setattr__(self,attr, val):
-        #log.debug('set {} {}'.format(attr, val))
-        db.Model.__setattr__(self,attr,val)
-
-    def __getattr__(self,attr):
-        #log.debug('set {}'.format(attr))
-        db.Model.__getattr__(self,attr)
-
     @property
     def _s_relationships(self):
         return self.__mapper__.relationships
