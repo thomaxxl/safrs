@@ -41,7 +41,7 @@ class SAFRSRequest(Request):
         if self.content_type in self.jsonapi_content_types:
             self.is_jsonapi = True
             self.parameter_storage_class = TypeConversionDict
-        
+
         self.parse_jsonapi_args()
 
     def get_jsonapi_payload(self):
