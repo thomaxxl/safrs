@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import re
 import json
+import safrs
 from sqlalchemy.types import PickleType, String
 from sqlalchemy.types import TypeDecorator, BLOB
 from safrs.errors import ValidationError
@@ -145,7 +146,7 @@ class SAFRSID:
         '''
             Validate a given id (eg. check if it's a valid uuid, email etc.)
         '''
-        log.debug('Validation not implemented')
+        safrs.log.debug('Validation not implemented')
         '''return
         for pk in id.split(cls.delimiter):
             try:
