@@ -114,6 +114,14 @@ if [[ $ret != 0 ]]; then
 	exit 1
 fi
 
+
+curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' 'http://127.0.0.1:5000/People/?page[limit]=10&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=Author%200&fields[People]=name,dob' >/dev/null 2>&1
+ret=$?
+if [[ $ret != 0 ]]; then
+  echo FAIL
+  exit 1
+fi
+
 echo Send Mail
 curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' -d '{  
    "meta": {  
