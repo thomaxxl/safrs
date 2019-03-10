@@ -65,7 +65,7 @@ class Person(SAFRSBase, db.Model):
     name = db.Column(db.String, default='')
     email = db.Column(db.String, default='')
     comment = db.Column(db.Text, default='')
-    dob = db.Column(db.Date, default='1970-01-01')
+    dob = db.Column(db.Date)
     books_read = db.relationship('Book', backref='reader', foreign_keys=[Book.reader_id], cascade='save-update, merge')
     books_written = db.relationship('Book', backref='author', foreign_keys=[Book.author_id])
     reviews = db.relationship('Review', backref='reader')
