@@ -24,6 +24,7 @@ from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
 from .config import get_config
+from flask import jsonify, request
 
 #
 # Map SQLA types to swagger2 json types
@@ -355,10 +356,14 @@ class SAFRSBase(Model):
             this method will be called by SAFRSJSONEncoder to serialize objects
         '''
         result = {}
-        # filter the relationships, id & type from the data
         if fields is None:
-            fields = self._s_jsonapi_attrs
-
+            # Check if fields have been provided in the request
+            if request:
+                fields = request.fields.get(self._s_type,self._s_jsonapi_attrs)
+            else:
+                fields = []
+            
+        # filter the relationships, id & type from the data
         for attr in self._s_jsonapi_attrs:
             if not attr in fields:
                 continue

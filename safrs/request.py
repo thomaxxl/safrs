@@ -86,9 +86,10 @@ class SAFRSRequest(Request):
                 if not col_name.startswith('_'): # maybe validate col_name?
                     self.filters[col_name] = val
 
+            # https://jsonapi.org/format/#fetching-sparse-fieldsets
             fields_attr = re.search(r'fields\[(\w+)\]', arg)
             if fields_attr:
-                field_name = fields_attr.group(1)
-                if not field_name.startswith('_'):
-                    self.fields[field_name] = val
+                field_type = fields_attr.group(1)
+                if not val.startswith('_'):
+                    self.fields[field_type] = val.split(',')
         

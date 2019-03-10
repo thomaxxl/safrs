@@ -311,13 +311,13 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            param = {'default': '',
+                            param = {'default': ','.join(self.safrs_object._s_jsonapi_attrs),
                                      'type': 'string',
                                      'name': 'fields[{}]'.format(self.safrs_object._s_type),
                                      'in': 'query',
-                                     'format' : 'int64',
+                                     'format' : 'string',
                                      'required' : False,
-                                     'description' : 'Fields to be selected (csv)'}
+                                     'description' : 'Related relationships to include (csv)'}
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
