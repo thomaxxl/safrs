@@ -65,52 +65,6 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     'UUID'      : 'string'
 }
 
-
-def _parse_attr_value(kwargs, column):
-    '''
-        Try to fetch and parse the (jsonapi attribute) value for a db column from the kwargs
-        :param kwargs:
-        :param column: database column
-        :return parsed value:
-    '''
-    attr_val = kwargs.get(column.name, None)
-    if attr_val is None and column.default:
-        attr_val = column.default.arg
-        return attr_val
-
-    if attr_val is None:
-        return attr_val
-
-    # Parse datetime and date values
-    if column.type.python_type == datetime.datetime:
-        date_str = str(attr_val)
-        try:
-            if '.' in date_str:
-                attr_val = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S.%f')
-            else:
-                attr_val = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-        except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
-
-    elif column.type.python_type == datetime.date:
-        try:
-            attr_val = datetime.datetime.strptime(str(attr_val), '%Y-%m-%d')
-        except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
-    '''
-    TODO: should we do this?
-    
-    else:
-        # Check the attribute value type by casting it
-        try:
-            attr_val = column.type.python_type(attr_val)
-        except Exception as exc:
-            log.exception(exc)
-            raise ValidationError('Invalid attribute value "{}" for {} ({})'.format(attr_val, column.name, exc))
-    '''
- 
-    return attr_val
-
 #
 # SAFRSBase superclass
 #
@@ -169,7 +123,7 @@ class SAFRSBase(Model):
         columns = self.__table__.columns
         relationships = self._s_relationships
         for column in columns:
-            attr_val = _parse_attr_value(kwargs, column)
+            attr_val = self._s_parse_attr_value(kwargs, column)
             db_args[column.name] = attr_val
 
         # db_args now contains the class attributes. Initialize the DB model with them
@@ -203,6 +157,52 @@ class SAFRSBase(Model):
             except sqlalchemy.exc.SQLAlchemyError as exc:
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
+
+
+    def _s_parse_attr_value(self, kwargs, column):
+        '''
+            Try to fetch and parse the (jsonapi attribute) value for a db column from the kwargs
+            :param kwargs:
+            :param column: database column
+            :return parsed value:
+        '''
+        attr_val = kwargs.get(column.name, None)
+        if attr_val is None and column.default:
+            attr_val = column.default.arg
+            return attr_val
+
+        if attr_val is None:
+            return attr_val
+
+        # Parse datetime and date values
+        if column.type.python_type == datetime.datetime:
+            date_str = str(attr_val)
+            try:
+                if '.' in date_str:
+                    attr_val = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S.%f')
+                else:
+                    attr_val = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+            except (NotImplementedError, ValueError) as exc:
+                safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
+
+        elif column.type.python_type == datetime.date:
+            try:
+                attr_val = datetime.datetime.strptime(str(attr_val), '%Y-%m-%d')
+            except (NotImplementedError, ValueError) as exc:
+                safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
+        '''
+        TODO: should we do this?
+        
+        else:
+            # Check the attribute value type by casting it
+            try:
+                attr_val = column.type.python_type(attr_val)
+            except Exception as exc:
+                log.exception(exc)
+                raise ValidationError('Invalid attribute value "{}" for {} ({})'.format(attr_val, column.name, exc))
+        '''
+     
+        return attr_val
 
     def _s_expunge(self):
         session = sqla_inspect(self).session
@@ -289,7 +289,7 @@ class SAFRSBase(Model):
         columns = {col.name : col for col in self._s_columns}
         for attr, value in attributes.items():
             if attr in columns:
-                value = _parse_attr_value(attributes, columns[attr])
+                value = self._s_parse_attr_value(attributes, columns[attr])
                 setattr(self, attr, value)
     #pylint: disable=
     @classmethod
