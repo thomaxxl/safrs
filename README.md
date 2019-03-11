@@ -89,8 +89,8 @@ class User(SAFRSBase, db.Model):
     '''
     __tablename__ = 'Users'
     id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    email = Column(String, default = '')
+    name = Column(String, default='')
+    email = Column(String, default='')
 
 ```
 
@@ -120,9 +120,9 @@ class User(SAFRSBase, db.Model):
     '''
     __tablename__ = 'Users'
     id = db.Column(db.String, primary_key=True)
-    name = db.Column(db.String, default = '')
-    email = db.Column(db.String, default = '')
-    books = db.relationship('Book', back_populates = "user")
+    name = db.Column(db.String, default='')
+    email = db.Column(db.String, default='')
+    books = db.relationship('Book', back_populates="user")
 ...
 ``` 
 
@@ -136,7 +136,7 @@ class Book(SAFRSBase, db.Model):
     '''
     __tablename__ = 'Books'
     id = db.Column(db.String, primary_key=True)
-    name = db.Column(db.String, default = '')
+    name = db.Column(db.String, default='')
     user_id = db.Column(db.String, db.ForeignKey('Users.id'))
     user = db.relationship('User', back_populates='books')
 ```
@@ -166,12 +166,12 @@ class User(SAFRSBase, db.Model):
     '''
     __tablename__ = 'Users'
     id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    email = Column(String, default = '')
+    name = Column(String, default='')
+    email = Column(String, default='')
 
     # Following method is exposed through the REST API 
     # This means it can be invoked with a HTTP POST
-    @jsonapi_rpc(http_methods = ['POST','GET'])
+    @jsonapi_rpc(http_methods=['POST','GET'])
     def send_mail(self, email):
         '''
             description : Send an email
@@ -258,7 +258,7 @@ The default logging is configured to not show verbose error messages, so not to 
 In case you do want verbose logging, you can set the log level to DEBUG:
 
 ```python
-app.config.update( DEBUG = True )
+app.config.update(DEBUG=True)
 ```
 
 <a class="mk-toclify" id="endpoint-naming"></a>
