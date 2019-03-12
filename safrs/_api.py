@@ -127,17 +127,18 @@ class Api(FRSApiBase):
             Expose the safrs "documented_api_method" decorated methods
         '''
         safrs_object = self.safrs_object
-        api_methods = safrs_object.get_jsonapi_rpc_methods()
+        api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
-            if getattr(api_method, '__self__', None) is safrs_object:
-                # method is a classmethod, make it available at the class level
+            if isinstance(safrs_object.__dict__[method_name], (classmethod, staticmethod)):
+                # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config('CLASSMETHOD_URL_FMT')
                 url = CLASSMETHOD_URL_FMT.format(url_prefix,
                                                  safrs_object.__tablename__,
                                                  method_name)
             else:
+                # expose the method at the instance level
                 INSTANCEMETHOD_URL_FMT = get_config('INSTANCEMETHOD_URL_FMT')
                 url = INSTANCEMETHOD_URL_FMT.format(url_prefix,
                                                     safrs_object.__tablename__,

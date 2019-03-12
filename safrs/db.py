@@ -140,6 +140,7 @@ class SAFRSBase(Model):
         # create new instances for the relationship objects
         for rel in relationships:
             continue
+            '''
             # Create instance for relationships
             if kwargs.get(rel.key):
                 rel_attr = getattr(self, rel.key)
@@ -147,7 +148,7 @@ class SAFRSBase(Model):
                 rel_params = kwargs.get(rel.key)
                 for rel_param in rel_params:
                     rel_object = rel.mapper.class_(**rel_param)
-                    rel_attr.append(rel_object)
+                    rel_attr.append(rel_object)'''
 
         if self.db_commit:
             # Add the object to the database if specified by the class parameters
@@ -616,7 +617,7 @@ class SAFRSBase(Model):
         return body, responses
 
     @classmethod
-    def get_documented_api_methods(cls):
+    def _s_get_jsonapi_rpc_methods(cls):
         '''
         Retrieve the jsonapi_rpc methods (fka documented_api_method)
         get_documented_api_methods
@@ -629,7 +630,6 @@ class SAFRSBase(Model):
                 result.append(method)
         return result
 
-    get_jsonapi_rpc_methods = get_documented_api_methods
 
     @classmethod
     def get_swagger_doc_object_model(cls):
