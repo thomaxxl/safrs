@@ -488,14 +488,11 @@ class SAFRSRestAPI(Resource):
 
         id = kwargs.get(self.object_id, None)
         if id is not None:
-            # Treat this request like a patch
-            # this isn't really jsonapi-compliant:
+            # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
             # "A server MUST return 403 Forbidden in response to an
             # unsupported request to create a resource with a client-generated ID"
-            try:
-                response = self.patch(**kwargs)
-            except Exception as exc:
-                raise GenericError('POST failed')
+            response = {'meta' : {'error' : 'Unsupported JSONAPI Request'}}, 403
+            return response
 
         else:
             # Create a new instance of the SAFRSObject
@@ -510,6 +507,16 @@ class SAFRSRestAPI(Resource):
                 raise ValidationError('Invalid type member')
 
             attributes = data.get('attributes', {})
+            # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the 
+            # SAFRSObject allow_client_generated_ids attribute
+            for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
+                attributes.pop(col_name, None)
+            
+            if getattr(self.SAFRSObject, 'allow_client_generated_ids', False) is True:
+                # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
+                id = data.get('id')
+                self.SAFRSObject.id_type.get_pks(id)
+
             # Create the object instance with the specified id and json data
             # If the instance (id) already exists, it will be updated with the data
             #pylint: disable=not-callable

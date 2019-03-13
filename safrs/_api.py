@@ -286,6 +286,15 @@ class Api(FRSApiBase):
                     raise ValidationError('paths must start with a /')
                 swagger_url = extract_swagger_path(url)
                 for method in [m.lower() for m in resource.methods]:
+                    
+                    if method == 'post' and swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX):
+                        # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
+                        # "A server MUST return 403 Forbidden in response to an
+                        # unsupported request to create a resource with a client-generated ID"
+                        # the method has already been added before, remove it & continue
+                        path_item.pop(method,None)
+                        continue
+                    
                     method_doc = copy.deepcopy(path_item.get(method))
                     if not method_doc:
                         continue
