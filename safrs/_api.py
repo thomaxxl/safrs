@@ -131,7 +131,7 @@ class Api(FRSApiBase):
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
-            if isinstance(safrs_object.__dict__[method_name], (classmethod, staticmethod)):
+            if isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod)):
                 # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config('CLASSMETHOD_URL_FMT')
                 url = CLASSMETHOD_URL_FMT.format(url_prefix,
