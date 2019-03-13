@@ -6,8 +6,6 @@ safrs __init__.py
 # pylint: disable=line-too-long
 # use max-line-length=120 in .pylintrc
 #
-# The code implements some seemingly awkward constructs and redundant functionality
-# This is however required for backwards compatibility, we'll get rid of it eventually
 #
 import logging
 import os
@@ -39,6 +37,8 @@ def test_decorator(func):
 
 # pylint: disable=invalid-name
 # Uppercase bc we're returning the API class here, eventually this might become a class by itself
+# The code implements some seemingly awkward constructs and redundant functionality
+# This is however required for backwards compatibility, we'll get rid of it eventually
 def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI', **kwargs):
     ''' API factory method:
         - configure SAFRS

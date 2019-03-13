@@ -37,7 +37,7 @@ class User(SAFRSBase, db.Model):
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
     @classmethod
-    @jsonapi_rpc(http_methods = ['POST','GET'])
+    @jsonapi_rpc(http_methods = ['POST'])
     def send_mail(self, **args):
         '''
         description : Send an email
