@@ -175,7 +175,20 @@ class SAFRSBase(Model):
         if attr_val is None:
             return attr_val
 
-        # Parse datetime and date values
+        try:
+            column.type.python_type
+        except NotImplementedError:
+            '''
+                https://docs.python.org/2/library/exceptions.html#exceptions.NotImplementedError :
+                In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
+                => simply return the attr_val for user-defined classes
+            '''
+            return attr_val
+
+        ''' 
+            Parse datetime and date values for some common representations
+            If another format is uses, the user should create a custom column type or custom serialization
+        '''
         if column.type.python_type == datetime.datetime:
             date_str = str(attr_val)
             try:
