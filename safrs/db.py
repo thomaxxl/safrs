@@ -87,6 +87,7 @@ class SAFRSBase(Model):
     db_commit = True
     http_methods = {} # http methods, used in case of override
     url_prefix = ''
+    allow_client_generated_ids = False
 
     def __new__(cls, **kwargs):
         '''

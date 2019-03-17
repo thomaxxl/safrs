@@ -131,7 +131,7 @@ class Api(FRSApiBase):
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = 'method_{}_{}'.format(safrs_object.__tablename__, method_name)
-            if isinstance(safrs_object.__dict__[method_name], (classmethod, staticmethod)):
+            if isinstance(safrs_object.__dict__.get(method_name, None),(classmethod, staticmethod)) or getattr(api_method, '__self__', None) is safrs_object:
                 # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config('CLASSMETHOD_URL_FMT')
                 url = CLASSMETHOD_URL_FMT.format(url_prefix,
@@ -287,6 +287,15 @@ class Api(FRSApiBase):
                     raise ValidationError('paths must start with a /')
                 swagger_url = extract_swagger_path(url)
                 for method in [m.lower() for m in resource.methods]:
+                    
+                    if method == 'post' and swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX):
+                        # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
+                        # "A server MUST return 403 Forbidden in response to an
+                        # unsupported request to create a resource with a client-generated ID"
+                        # the method has already been added before, remove it & continue
+                        path_item.pop(method,None)
+                        continue
+                    
                     method_doc = copy.deepcopy(path_item.get(method))
                     if not method_doc:
                         continue
