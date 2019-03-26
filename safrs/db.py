@@ -588,7 +588,6 @@ class SAFRSBase(Model):
             except:
                 safrs.log.debug('Failed to get python type for column {}'.format(column))
             if column.default:
-                print(dir(column.default))
                 if callable(column.default.arg):
                     arg = column.default.arg()
                 else:
