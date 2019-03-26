@@ -574,9 +574,9 @@ class SAFRSBase(Model):
 
     @classmethod
     def _s_sample_dict(cls):
-        sample = cls._s_sample()
+        '''sample = cls._s_sample()
         if sample:
-            return sample._s_to_dict()
+            return sample._s_to_dict()'''
 
         sample = {}
         for column in cls._s_columns:
@@ -589,7 +589,8 @@ class SAFRSBase(Model):
                 safrs.log.debug('Failed to get python type for column {}'.format(column))
             if column.default:
                 if callable(column.default.arg):
-                    arg = column.default.arg()
+                    # todo: check how to display the default args
+                    continue
                 else:
                     arg = column.default.arg
 
