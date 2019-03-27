@@ -376,7 +376,7 @@ class SAFRSBase(Model):
             if request:
                 fields = request.fields.get(self._s_type,self._s_jsonapi_attrs)
             else:
-                fields = []
+                fields = self._s_jsonapi_attrs
             
         # filter the relationships, id & type from the data
         for attr in self._s_jsonapi_attrs:
