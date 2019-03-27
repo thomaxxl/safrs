@@ -574,6 +574,9 @@ class SAFRSBase(Model):
 
     @classmethod
     def _s_sample_dict(cls):
+        '''
+            Create a sample to be used in the swagger example
+        '''
         '''sample = cls._s_sample()
         if sample:
             return sample._s_to_dict()'''
@@ -582,19 +585,20 @@ class SAFRSBase(Model):
         for column in cls._s_columns:
             if column.name in ('id', 'type'):
                 continue
-            arg = ''
-            try:
-                arg = column.type.python_type()
-            except:
-                safrs.log.debug('Failed to get python type for column {}'.format(column))
+            arg = None
             if column.default:
                 if callable(column.default.arg):
                     # todo: check how to display the default args
                     continue
                 else:
                     arg = column.default.arg
-
+            if column.type.python_type not in (datetime.datetime, datetime.date):
+                try:
+                    arg = column.type.python_type()
+                except Exception as exc:
+                    safrs.log.debug('Failed to get python type for column {} ({})'.format(column, exc))
             sample[column.name] = arg
+
         return sample
 
     @classproperty
