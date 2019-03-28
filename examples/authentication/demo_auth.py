@@ -22,13 +22,13 @@ from flask import Flask, redirect, jsonify, make_response
 from flask import abort, request, g, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, SAFRSJSONEncoder, Api, jsonapi_rpc
+from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from passlib.apps import custom_app_context as pwd_context
 from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
-from flask.ext.login import LoginManager, UserMixin, \
+from flask_login import LoginManager, UserMixin, \
                                 login_required, login_user, logout_user 
 
 db  = SQLAlchemy()
@@ -83,7 +83,7 @@ class User(SAFRSBase, db.Model):
 
 def start_app(app):
 
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
+    api  = SAFRSAPI(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
     
     item = Item(name='test',email='em@il')
     user = User(username='admin')
@@ -91,13 +91,6 @@ def start_app(app):
 
     api.expose_object(Item)
     api.expose_object(User)
-
-
-    # Set the JSON encoder used for object to json marshalling
-    app.json_encoder = SAFRSJSONEncoder
-    # Register the API at /api/docs
-    swaggerui_blueprint = get_swaggerui_blueprint('/api', '/api/swagger.json')
-    app.register_blueprint(swaggerui_blueprint, url_prefix='/api')
 
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
     app.run(host=HOST, port = PORT)
