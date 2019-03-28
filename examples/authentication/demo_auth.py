@@ -83,7 +83,8 @@ class User(SAFRSBase, db.Model):
 
 def start_app(app):
 
-    api  = SAFRSAPI(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
+    OAS_PREFIX = '/api' # swagger location
+    api  = SAFRSAPI(app, host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger' )
     
     item = Item(name='test',email='em@il')
     user = User(username='admin')
@@ -94,7 +95,6 @@ def start_app(app):
 
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
     app.run(host=HOST, port = PORT)
-
 
 #
 # APP Initialization
@@ -115,6 +115,7 @@ db.init_app(app)
 #
 @auth.verify_password
 def verify_password(username_or_token, password):
+    print(username_or_token, password)
     user = User.verify_auth_token(username_or_token)
     if not user:
         # try to authenticate with username/password
