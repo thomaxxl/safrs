@@ -592,11 +592,14 @@ class SAFRSBase(Model):
                     continue
                 else:
                     arg = column.default.arg
-            if column.type.python_type not in (datetime.datetime, datetime.date):
-                try:
+            try:
+                if column.type.python_type not in (datetime.datetime, datetime.date):
                     arg = column.type.python_type()
-                except Exception as exc:
-                    safrs.log.debug('Failed to get python type for column {} ({})'.format(column, exc))
+            except NotImplementedError:
+                safrs.log.debug('Failed to get python type for column {} (NotImplementedError)'.format(column))
+                arg = None
+            except Exception as exc:
+                safrs.log.debug('Failed to get python type for column {} ({})'.format(column, exc))
             sample[column.name] = arg
 
         return sample
