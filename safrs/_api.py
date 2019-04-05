@@ -409,7 +409,7 @@ def api_decorator(cls, swagger_decorator):
         # if the SAFRSObject has a custom http method decorator, use it
         # e.g. SAFRSObject.get
         custom_method = getattr(cls.SAFRSObject, method_name, None)
-        if custom_method:
+        if custom_method and callable(custom_method):
             decorated_method = custom_method
             # keep the default method as parent_<method_name>, e.g. parent_get
             parent_method = getattr(cls, method_name)
