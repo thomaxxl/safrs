@@ -41,7 +41,7 @@ SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. Th
 Optionally, custom resource object methods can be exposed and invoked using JSON.
 Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
 
-The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](jsonapi.org) compliant API specification.
+The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](https://jsonapi.org) compliant API implementation.
 
 A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, implementing the [relationship example](examples/demo_relationship.py).
 
@@ -302,7 +302,7 @@ The [examples](examples) folder contains more example scripts:
 
 <a class="mk-toclify" id="custom-serialization"></a>
 ### Custom Serialization
-Serialization and deserialization are implemented by the SAFRSBase `to_dict` and `__init__` respectively: you can extend these methods as usual.
+Serialization and deserialization are implemented by the SAFRSBase `_s_to_dict` and `__init__` respectively: you can extend these methods as usual.
 
 <a class="mk-toclify" id="custom-decorators"></a>
 ### Custom Decorators
