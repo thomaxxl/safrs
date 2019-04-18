@@ -141,7 +141,9 @@ def encode_schema(obj):
         result = {}
         for key, val in obj.items():
             val = encode_schema(val)
-            if not val is None:
+            if val is None:
+                result[key] = ''
+            else:
                 result[key] = val
         return result
     if isinstance(obj, (list, set)):
@@ -169,6 +171,7 @@ def schema_from_object(name, object):
 
     elif isinstance(object, (datetime.datetime, datetime.date)):
         properties = {'example' : str(k), 'type' : 'string'}
+
     elif isinstance(object, dict):
         for k, v in object.items():
             if isinstance(v, str):
@@ -222,6 +225,7 @@ def get_swagger_doc_post_arguments(cls, method_name):
     for name, method in inspect.getmembers(cls):
         if name != method_name:
             continue
+
         fields = {}
         rest_doc = get_doc(method)
         description = rest_doc.get('description', '')
@@ -232,20 +236,29 @@ def get_swagger_doc_post_arguments(cls, method_name):
                 method_field = {'method' : method_name, 'args' : method_args}
                 fields['meta'] = schema_from_object(model_name, method_field)
 
-            elif method_args:
-                model_name = '{}_{}'.format(cls.__name__, method_name)
-                model = SchemaClassFactory(model_name, method_args)
-                arg_field = {'schema' : model, 'type'   : 'string'}
-                fields['meta'] = arg_field
             parameters = rest_doc.get('parameters', [])
             if rest_doc.get(PAGEABLE):
                 parameters += default_paging_parameters()
             if rest_doc.get(FILTERABLE):
                 pass
+        else:
+            safrs.LOGGER.warning('No documentation for method "{}"'.format(method_name))
+            # jsonapi_rpc method has no documentation, generate it w/ inspect
+            f_args = inspect.getargspec(method).args
+            f_defaults = inspect.getargspec(method).defaults or []
+            if f_args[0] in ('cls','self'):
+                f_args = f_args[1:]
+            args = dict(zip(f_args,f_defaults))
+            model_name = '{}_{}'.format(cls.__name__, method_name)
+            model = SchemaClassFactory(model_name, [])
+            arg_field = {'schema' : model, 'type'   : 'string'}
+            method_field = {'method' : method_name, 'args' : args}
+            fields['meta'] = schema_from_object(model_name, method_field)            
+            print(fields['meta'])
 
         return parameters, fields, description, method
 
-    safrs.LOGGER.critical('Shouldnt get here')
+    safrs.LOGGER.critical('Shouldnt get here ({})'.format(method_name))
 
 
 

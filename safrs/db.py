@@ -364,7 +364,7 @@ class SAFRSBase(Model):
         '''
         pass
 
-    def _s_to_dict(self, fields=None):
+    def to_dict(self, fields=None):
         '''
             Serialization
             Create a dictionary with all the object parameters
@@ -388,7 +388,7 @@ class SAFRSBase(Model):
                 result[attr] = getattr(self, attr.lower())
         return result
 
-    to_dict = _s_to_dict
+    _s_to_dict = to_dict
 
     @classmethod
     def _s_count(cls):
