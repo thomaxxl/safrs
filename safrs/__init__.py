@@ -57,7 +57,6 @@ def SAFRSAPI(app, host='localhost', port=5000, prefix='', description='SAFRSAPI'
     @app.before_request
     def handle_invalid_usage():
         return
-
     
     api.init_app(app)
     return api
@@ -96,11 +95,10 @@ class SAFRS:
         app.json_encoder = SAFRSJSONEncoder
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
+        app.url_map.strict_slashes = False
         
         if app.config.get('DEBUG', False):
             LOGGER.setLevel(logging.DEBUG)
-
-        app.url_map.strict_slashes = False
 
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get('swaggerui_blueprint', None)
