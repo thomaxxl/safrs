@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # This script is deployed on thomaxxl.pythonanywhere.com
 #
 # This is a demo application to demonstrate the functionality of the safrs_rest REST API

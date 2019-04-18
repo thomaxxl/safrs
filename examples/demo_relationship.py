@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
   This demo application demonstrates the functionality of the safrs documented REST API
   After installing safrs with pip, you can run this app standalone:

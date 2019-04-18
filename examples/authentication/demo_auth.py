@@ -10,7 +10,7 @@
 # This will run the example on http://Listener-Ip:5000
 # 
 # - A database is created and a item is added
-# - User is created and the User endpoint is protected by user:admin & pass: adminPASS
+# - User is created and the User endpoint is protected by user:admin & pass: password
 # - swagger2 documentation is generated
 #
 import sys
@@ -50,26 +50,25 @@ class User(SAFRSBase, db.Model):
         description: User description
     '''    
     __tablename__ = 'users'
-    id = db.Column(String, primary_key=True)
-    username = db.Column(db.String(32), index=True)
+    username = db.Column(db.String(32), primary_key=True)
     password_hash = db.Column(db.String(64))
     custom_decorators = [auth.login_required]
 
-    @jsonapi_rpc(http_methods = ['POST'])
+    @jsonapi_rpc(http_methods=['POST'])
     def hash_password(self, password):
         self.password_hash = pwd_context.encrypt(password)
 
-    @jsonapi_rpc(http_methods = ['POST'])
+    @jsonapi_rpc(http_methods=['POST'])
     def verify_password(self, password):
         return pwd_context.verify(password, self.password_hash)
 
-    @jsonapi_rpc(http_methods = ['POST'])
+    @jsonapi_rpc(http_methods=['POST'])
     def generate_auth_token(self, expiration=600):
         s = Serializer(app.config['SECRET_KEY'], expires_in=expiration)
-        return s.dumps({'id': self.id})
+        return s.dumps({'username': self.username})
 
     @staticmethod
-    @jsonapi_rpc(http_methods = ['POST'])
+    @jsonapi_rpc(http_methods=['POST'])
     def verify_auth_token(token):
         s = Serializer(app.config['SECRET_KEY'])
         try:
@@ -78,20 +77,20 @@ class User(SAFRSBase, db.Model):
             return None    # valid token, but expired
         except BadSignature:
             return None    # invalid token
-        user = User.query.get(data['id'])
+        user = User.query.get(data['username'])
         return user
 
 def start_app(app):
 
     OAS_PREFIX = '/api' # swagger location
-    api  = SAFRSAPI(app, host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger' )
-    
-    item = Item(name='test',email='em@il')
-    user = User(username='admin')
-    user.hash_password('adminPASS')
+    api  = SAFRSAPI(app, host='{}:{}'.format(HOST,PORT), schemes=["http"], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger' )
 
     api.expose_object(Item)
     api.expose_object(User)
+
+    item = Item(name='test',email='em@il')
+    #user = User(username='admin')
+    #user.hash_password('password')
 
     print('Starting API: http://{}:{}/api'.format(HOST,PORT))
     app.run(host=HOST, port = PORT)
@@ -101,7 +100,7 @@ def start_app(app):
 #
 
 app = Flask('demo_app')
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
+app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite:////tmp/demo.sqlite',
                    SQLALCHEMY_TRACK_MODIFICATIONS = False,   
                    SECRET_KEY = b'sdqfjqsdfqizroqnxwc',
                    DEBUG = True)
@@ -115,11 +114,18 @@ db.init_app(app)
 #
 @auth.verify_password
 def verify_password(username_or_token, password):
-    print(username_or_token, password)
+    
+    if username_or_token == 'user' and password == 'password':
+        return True
+    return False
+
     user = User.verify_auth_token(username_or_token)
+
+    print(user, username_or_token, password)
     if not user:
         # try to authenticate with username/password
         user = User.query.filter_by(username=username_or_token).first()
+        print(user)
         if not user or not user.verify_password(password):
             return False
     print('Authentication Successful for "{}"'.format(user.username))
