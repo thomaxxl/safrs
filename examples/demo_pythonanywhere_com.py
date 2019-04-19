@@ -26,6 +26,7 @@ from safrs import SAFRSAPI # api factory
 from safrs import SAFRSBase # db Mixin
 from safrs import jsonapi_rpc # rpc decorator
 from safrs import search, startswith # rpc methods
+from flask import url_for, jsonify
 
 description = '''
 <a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
@@ -155,7 +156,7 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization', 'Access-Control-Allow-Credentials'],
      supports_credentials=True)
 
-app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:////tmp/db.sqlite',
+app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:///',
                   DEBUG=True) # DEBUG will also show safrs log messages + exception messages
 
 @app.route('/ja') # React jsonapi frontend
@@ -165,14 +166,12 @@ def send_ja(path='index.html'):
 
 @app.route('/swagger_editor/<path:path>', endpoint='swagger_editor')
 def send_swagger_editor(path='index.html'):
-    print(path)
     return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'swagger-editor'), path)
 
 @app.route('/')
 def goto_api():
     return redirect(OAS_PREFIX)
 
-from flask import url_for, jsonify
 @app.route("/site-map")
 def site_map():
     def has_no_empty_params(rule):
