@@ -164,7 +164,7 @@ def paginate(object_query, SAFRSObject=None):
     return links, instances, count
 
 
-def get_included(data, limit, include=''):
+def get_included(data, limit, include='', level=0):
     '''
         return a set of included items
 
@@ -184,7 +184,7 @@ def get_included(data, limit, include=''):
         return result
 
     if isinstance(data, (list, set)):
-        for included in [get_included(obj, limit, include) for obj in data]:
+        for included in [get_included(obj, limit, include, level=level+1) for obj in data]:
             result = result.union(included)
         return result
 
@@ -203,22 +203,17 @@ def get_included(data, limit, include=''):
         relationship = include.split('.')[0]
         nested_rel = None
         if '.' in include:
-            nested_rel = '.'.join(include.split('.')[1:])
+            nested_rel = '.'.join(include.split('.')[level:])
         if relationship in [r.key for r in instance._s_relationships]:
             included = getattr(instance, relationship)
-            #if isinstance(included, sqlalchemy.orm.dynamic.AppenderBaseQuery):
-            #    included = included.all()
-
+            
             # relationship direction in (ONETOMANY, MANYTOMANY):
             if included and isinstance(included, SAFRSBase) and not included in result:
-                result.add(included)
-                continue
-            if isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
-                # included should be an InstrumentedList
-                included = included[:limit]
-                result = result.union(included)
-                continue
-            if not included or included in result:
+                # convert single instance to a list so we can generically add the includes
+                included = [included]
+            elif isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
+                pass
+            elif not included or included in result:
                 continue
             try:
                 # This works on sqlalchemy.orm.dynamic.AppenderBaseQuery
@@ -229,11 +224,11 @@ def get_included(data, limit, include=''):
                 result.add(included)
 
         if INCLUDE_ALL in includes:
-            for nested_included in [get_included(result, limit) for obj in result]: # Removed recursion with get_included(result, limit, INCLUDE_ALL)
+            for nested_included in [get_included(result, limit, level=level+1) for obj in result]: # Removed recursion with get_included(result, limit, INCLUDE_ALL)
                 result = result.union(nested_included)
 
         elif nested_rel:
-            for nested_included in [get_included(result, limit, nested_rel) for obj in result]:
+            for nested_included in [get_included(result, limit, nested_rel, level=level+1) for obj in result]:
                 result = result.union(nested_included)
 
     return result
@@ -375,11 +370,11 @@ class SAFRSRestAPI(Resource):
             meta.update(dict(instance_meta=instance._s_meta()))
 
         else:
-            # retrieve a collection
+            # retrieve a collection, filter and sort
             instances = jsonapi_filter(self.SAFRSObject)
             instances = jsonapi_sort(instances, self.SAFRSObject)
             links, data, count = paginate(instances, self.SAFRSObject)
-
+        # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
 
@@ -810,6 +805,7 @@ class SAFRSRestRelationshipAPI(Resource):
         '''
         parent, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
+        errors = {}
 
         if child_id:
             child = self.child_class.get_instance(child_id)
@@ -824,18 +820,24 @@ class SAFRSRestRelationshipAPI(Resource):
                 return 'Not Found', 404
         #elif type(relation) == self.child_class: # ==>
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
-            result = relation
+            data = instance = relation
+            meta = {'direction' : 'TOONE'}
+            links = {'self' : instance._s_url}
+            if request.url != instance._s_url:
+                links['related'] = request.url
+            count = 1
+            meta.update(dict(instance_meta=instance._s_meta()))
+
         else:
             # No {ChildId} given:
             # return a list of all relationship items
-            result = [item for item in relation if isinstance(item, SAFRSBase)]
-
-        if self.SAFRSObject.relationship.direction == MANYTOONE:
-            meta = {'direction' : 'TOONE'}
-        else:
+            data = [item for item in relation if isinstance(item, SAFRSBase)]
             meta = {'direction' : 'TOMANY'}
-
-        result = {'data' : result, 'links' : {'self' : request.url}, 'meta' : meta}
+            instances = jsonapi_filter(self.child_class)
+            instances = jsonapi_sort(instances, self.child_class)
+            links, data, count = paginate(instances, self.child_class)
+        
+        result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
 
     # Relationship patching
