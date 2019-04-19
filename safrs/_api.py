@@ -241,6 +241,7 @@ class Api(FRSApiBase):
 
         self.add_resource(api_class,
                           url,
+                          relationship=rel_object.relationship,
                           endpoint=endpoint,
                           methods=['GET', 'DELETE'])
 
@@ -252,6 +253,7 @@ class Api(FRSApiBase):
             I changed it because we don't need path id examples when
             there's no {id} in the path. We filter out the unwanted parameters
         '''
+        relationship = kwargs.pop('relationship', False) # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config('OBJECT_ID_SUFFIX') + '}'
 
         path_item = {}
@@ -275,7 +277,6 @@ class Api(FRSApiBase):
 
                 if summary:
                     operation['summary'] = summary.split('<br/>')[0]
-
 
         validate_definitions_object(definitions)
         self._swagger_object['definitions'].update(definitions)
@@ -304,14 +305,9 @@ class Api(FRSApiBase):
                     for parameter in method_doc.get('parameters', []):
                         object_id = '{%s}'%parameter.get('name')
 
-                        if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
-                            # limit parameter specifies the number of items to return
-
-                            for param in default_paging_parameters():
-                                if param not in filtered_parameters:
-                                    filtered_parameters.append(param)
-
-                            param = {'default': ','.join([rel.key for rel in self.safrs_object.__mapper__.relationships]),
+                        if method == 'get' and relationship:
+                            default_include = ','.join([rel.key for rel in relationship.mapper.class_.__mapper__.relationships])
+                            param = {'default': default_include,
                                      'type': 'string',
                                      'name': 'include',
                                      'in': 'query',
@@ -320,6 +316,23 @@ class Api(FRSApiBase):
                                      'description' : 'Related relationships to include (csv)'}
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
+
+                        if method == 'get' and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
+                            # limit parameter specifies the number of items to return
+
+                            for param in default_paging_parameters():
+                                if param not in filtered_parameters:
+                                    filtered_parameters.append(param)
+
+                            default_include = ','.join([rel.key for rel in self.safrs_object.__mapper__.relationships])
+
+                            param = {'default': default_include,
+                                     'type': 'string',
+                                     'name': 'include',
+                                     'in': 'query',
+                                     'format' : 'string',
+                                     'required' : False,
+                                     'description' : 'Related relationships to include (csv)'}
 
                             param = {'default': ','.join(self.safrs_object._s_jsonapi_attrs),
                                      'type': 'string',
@@ -424,8 +437,7 @@ def api_decorator(cls, swagger_decorator):
             safrs.log.error('Failed to generate documentation for {} {} (Recursion Error)'.format(cls, decorated_method))
         #pylint: disable=broad-except
         except Exception as exc:
-            safrs.log.error(exc)
-            traceback.print_exc()
+            safrs.log.exception(exc)
             safrs.log.error('Failed to generate documentation for {}'.format(decorated_method))
 
         # Add cors
@@ -461,7 +473,7 @@ def http_method_decorator(fun):
             return result
 
         except (ValidationError, GenericError, NotFoundError) as exc:
-            traceback.print_exc()
+            safrs.log.exception(exc)
             status_code = getattr(exc, 'status_code')
             message = exc.message
 
