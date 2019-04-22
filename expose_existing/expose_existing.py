@@ -81,7 +81,6 @@ def codegen(args):
     if db.session.bind.dialect.name == 'sqlite':
         # dirty hack for sqlite
         engine.execute('''PRAGMA journal_mode = OFF''')
-        
     
 
     # Write the generated model code to the specified file or standard output
@@ -106,7 +105,6 @@ app.config.update( SQLALCHEMY_DATABASE_URI = args.url,
                    DEBUG = True)
 SAFRSBase.db_commit = False
 builtins.db  = SQLAlchemy(app) # set db as a global variable to be used in employees.py
-
 models = codegen(args)
 
 #
@@ -149,7 +147,7 @@ def start_api(HOST = '0.0.0.0', PORT = 5000):
 
         @app.route('/')
         def goto_api():
-            return redirect('/api')
+            return redirect(OAS_PREFIX)
 
 if __name__ == '__main__':
     HOST = args.host
