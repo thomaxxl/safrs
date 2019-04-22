@@ -11,8 +11,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, redirect
 from flask_swagger_ui import get_swaggerui_blueprint
-from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder, Api
-from safrs import search, SAFRS
+from safrs import SAFRSBase, jsonapi_rpc, SAFRSJSONEncoder
+from safrs import search, SAFRSAPI
 from io import StringIO
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
@@ -104,8 +104,6 @@ CORS(app, origins= ["*"])
 
 app.config.update( SQLALCHEMY_DATABASE_URI = args.url,
                    DEBUG = True)
-SAFRS(app)
-app.url_map.strict_slashes = False
 SAFRSBase.db_commit = False
 builtins.db  = SQLAlchemy(app) # set db as a global variable to be used in employees.py
 
@@ -126,10 +124,13 @@ else:
 import models
 
 
-def start_api(HOST = '0.0.0.0', PORT = 80):
+def start_api(HOST = '0.0.0.0', PORT = 5000):
     
+    OAS_PREFIX = '/api' # swagger prefix
     with app.app_context():
-        api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ], description = '' )
+        api = SAFRSAPI(app, host=HOST, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger', 
+                       schemes=['http', 'https'], description='exposed app')
+
 
         for name, model in inspect.getmembers(models):
             bases = getattr(model, '__bases__', [] )
