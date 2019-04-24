@@ -388,8 +388,6 @@ class SAFRSBase(Model):
                 result[attr] = getattr(self, attr.lower())
         return result
 
-    _s_to_dict = to_dict
-
     @classmethod
     def _s_count(cls):
         '''
@@ -507,16 +505,16 @@ class SAFRSBase(Model):
                 rel_data['meta'] = meta
             relationships[rel_name] = rel_data
 
-        attributes = self._s_to_dict()
+        attributes = self.to_dict()
         # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
         fields = request.args.get('fields[{}]'.format(self._s_type), None)
         if fields:
+            # Remove all attributes not listed in the fields csv
             fields = fields.split(',')
-            try:
-                attributes = {field: getattr(self, field) for field in fields}
-            except AttributeError as exc:
-                raise ValidationError('Invalid Field {}'.format(exc))
-
+            unwanted = set(attributes.keys()) - set(fields)
+            for unwanted_key in unwanted:
+                attributes.pop(unwanted_key, None)
+            
         data = dict(attributes=attributes,
                     id=self.jsonapi_id,
                     links={'self' : self_link},
@@ -526,7 +524,7 @@ class SAFRSBase(Model):
         return data
 
     def __iter__(self):
-        return iter(self._s_to_dict())
+        return iter(self.to_dict())
 
     def _s_from_dict(self, data):
         '''
@@ -579,7 +577,7 @@ class SAFRSBase(Model):
         '''
         '''sample = cls._s_sample()
         if sample:
-            return sample._s_to_dict()'''
+            return sample.to_dict()'''
 
         sample = {}
         for column in cls._s_columns:

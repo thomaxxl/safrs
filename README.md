@@ -302,7 +302,34 @@ The [examples](examples) folder contains more example scripts:
 
 <a class="mk-toclify" id="custom-serialization"></a>
 ### Custom Serialization
-Serialization and deserialization are implemented by the SAFRSBase `_s_to_dict` and `__init__` respectively: you can extend these methods as usual.
+Serialization and deserialization are implemented by the SAFRSBase `to_dict` and `__init__` : you can extend these methods as usual.
+For example, if you would like to add some attributes to the json payload of the User object, you can override the to_dict method:
+
+```python
+class User(SAFRSBase, db.Model):
+    '''
+        description: User description
+    '''
+    __tablename__ = 'Users'
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, default='')
+    email = db.Column(db.String, default='')
+    books = db.relationship('Book', back_populates="user")
+
+    def to_dict(self):
+        result = SAFRSBase.to_dict(self)
+        result['custom_field'] = 'custom'
+        return result
+``` 
+
+This will add the `custom_field` attribute to the result attributes:
+```json
+"attributes": {
+    "custom_field": "custom",
+    "email": "reader_email0",
+    "name": "Reader 0"
+}
+```
 
 <a class="mk-toclify" id="custom-decorators"></a>
 ### Custom Decorators
