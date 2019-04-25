@@ -785,6 +785,16 @@ class SAFRSBase(Model):
         if attr in self._s_column_names:
             return getattr(self, attr)
 
+    @classmethod
+    def _s_filter(cls, filter_args):
+        """
+            Apply a filter to this model
+            :param filter_args: filter to apply, passed as a request URL parameter
+            :return: sqla query object
+        """
+        safrs.log.info('filter args: {} | override {}._s_filter to implement your filtering'.format(filter_args, cls.__name__))
+        return cls
+
 
 class SAFRSDummy:
     """

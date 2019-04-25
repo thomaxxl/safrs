@@ -386,6 +386,8 @@ class Api(FRSApiBase):
                                 "required": False,
                                 "description": "Related relationships to include (csv)",
                             }
+                            if param not in filtered_parameters:
+                                filtered_parameters.append(param)
 
                             param = {
                                 "default": ",".join(self.safrs_object._s_jsonapi_attrs),
@@ -425,6 +427,19 @@ class Api(FRSApiBase):
                                 }
                                 if param not in filtered_parameters:
                                     filtered_parameters.append(param)
+
+                            param = {
+                                "default": "",
+                                "type": "string",
+                                "name": "filter",
+                                "in": "query",
+                                "format": "string",
+                                "required": False,
+                                "description": "Custom filter",
+                            }
+                            if param not in filtered_parameters:
+                                filtered_parameters.append(param)
+
 
                         if not (
                             parameter.get("in") == "path"

@@ -80,10 +80,14 @@ class SAFRSRequest(Request):
             pass
             # del self.args['page[offset]']
 
+        self.filter = None
         self.filters = {}
         self.fields = {}
         # Parse the jsonapi filter[] and fields[] args
         for arg, val in self.args.items():
+            if arg == 'filter':
+                self.filter = val
+
             filter_attr = re.search(r"filter\[(\w+)\]", arg)
             if filter_attr:
                 col_name = filter_attr.group(1)

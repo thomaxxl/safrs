@@ -39,7 +39,11 @@ INCLUDE_ALL = "+all"
 
 def get_legacy(param, default=0):
     """
-    
+        retrieve request parameters
+        Used for backwards compatibility (with safrs < 2.x)
+        :param param: parameter to retrieve
+        :param default:
+        :return: prequest parameter or None
     """
     result = getattr(request, param, None)
     if result is None:
@@ -70,6 +74,10 @@ def jsonapi_filter(safrs_object):
         result = filtered[0].union_all(*filtered).distinct()
     else:
         result = safrs_object.query
+
+    filter_args = get_legacy('filter')
+    if filter_args:
+        safrs_object._s_filter(filter_args)
     return result
 
 
