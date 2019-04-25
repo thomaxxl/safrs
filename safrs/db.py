@@ -792,8 +792,9 @@ class SAFRSBase(Model):
             :param filter_args: filter to apply, passed as a request URL parameter
             :return: sqla query object
         """
-        safrs.log.info('filter args: {} | override {}._s_filter to implement your filtering'.format(filter_args, cls.__name__))
-        return cls
+        safrs.log.info('_s_filter args: {}'.format(filter_args))
+        safrs.log.info('override the {}._s_filter classmethod to implement your filtering'.format(cls.__name__))
+        return cls.query
 
 
 class SAFRSDummy:

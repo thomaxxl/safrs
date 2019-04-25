@@ -122,6 +122,14 @@ class Publisher(SAFRSBase, db.Model):
         result["custom_field"] = "some customization"
         return result
 
+    @classmethod
+    def _s_filter(cls, arg):
+        """
+            Sample custom filtering, override this method to implement custom filtering
+            using the sqlalchemy orm
+        """
+        return cls.query.filter_by(name=arg)
+
 
 class Review(SAFRSBase, db.Model):
     """

@@ -53,7 +53,6 @@ def get_legacy(param, default=0):
         result = default
     return result
 
-
 # results for GET requests will go through filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
     """
@@ -61,6 +60,13 @@ def jsonapi_filter(safrs_object):
         :parameter safrs_object:
         :return: a sqla query object
     """
+    
+    # First check if a filter= URL query parameter has been used
+    filter_args = get_legacy('filter')
+    if filter_args:
+        result = safrs_object._s_filter(filter_args)
+        return result
+    
     filtered = []
     filters = get_legacy("filters", {})
     for col_name, val in filters.items():
@@ -75,9 +81,6 @@ def jsonapi_filter(safrs_object):
     else:
         result = safrs_object.query
 
-    filter_args = get_legacy('filter')
-    if filter_args:
-        safrs_object._s_filter(filter_args)
     return result
 
 

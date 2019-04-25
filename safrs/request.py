@@ -31,6 +31,7 @@ class SAFRSRequest(Request):
     page_limit = 100
     is_jsonapi = False
     filters = {}
+    filter = '' # filter is the custom filter, used as an argument by _s_filter
 
     def __init__(self, *args, **kwargs):
         """
@@ -80,7 +81,6 @@ class SAFRSRequest(Request):
             pass
             # del self.args['page[offset]']
 
-        self.filter = None
         self.filters = {}
         self.fields = {}
         # Parse the jsonapi filter[] and fields[] args
