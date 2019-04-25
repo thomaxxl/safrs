@@ -14,7 +14,7 @@ install_requires=[str(ir.req) for ir in parse_requirements('requirements.txt', s
 setup(
   name = 'safrs',
   packages = ['safrs'],
-  version = '2.1.1',
+  version = '2.2.0',
   license = 'MIT',
   description = 'safrs : SqlAlchemy Flask-Restful Swagger2',
   long_description=open('README.rst').read(),
