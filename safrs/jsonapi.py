@@ -551,7 +551,7 @@ class SAFRSRestAPI(Resource):
                 attributes.pop(col_name, None)
 
             # remove attributes that have relationship names
-            attributes = {attr_name : attributes[attr_name] for attr_name in attributes 
+            attributes = {attr_name : attributes[attr_name] for attr_name in attributes
                           if attr_name not in self.SAFRSObject._s_relationship_names}
             
             if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:

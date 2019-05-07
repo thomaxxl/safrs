@@ -9,7 +9,7 @@ import inspect
 import datetime
 import logging
 from urllib.parse import urljoin
-from flask import request, url_for, jsonify
+from flask import request, url_for
 from flask_sqlalchemy import Model
 import sqlalchemy
 from sqlalchemy import orm
@@ -134,7 +134,7 @@ class SAFRSBase(Model):
                 # This shouldn't in the work in the web context
                 # because the relationships should already have been removed by SAFRSRestAPI.post
                 db_args[rel.key] = rel_attr
-        
+
         # db_args now contains the class attributes. Initialize the DB model with them
         # All subclasses should have the DB.Model as superclass.
         # (SQLAlchemy doesn't work when using DB.Model as SAFRSBase superclass)
