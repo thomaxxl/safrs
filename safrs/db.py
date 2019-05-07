@@ -9,7 +9,7 @@ import inspect
 import datetime
 import logging
 from urllib.parse import urljoin
-from flask import request, url_for
+from flask import request, url_for, jsonify
 from flask_sqlalchemy import Model
 import sqlalchemy
 from sqlalchemy import orm
@@ -25,7 +25,6 @@ from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
 from .config import get_config
-from flask import jsonify, request
 
 #
 # Map SQLA types to swagger2 json types
@@ -111,7 +110,7 @@ class SAFRSBase(Model):
             - set the named attributes and add the object to the database
             - create relationships
         """
-
+        
         # All SAFRSBase subclasses have an id,
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
@@ -128,29 +127,24 @@ class SAFRSBase(Model):
             attr_val = self._s_parse_attr_value(kwargs, column)
             db_args[column.name] = attr_val
 
+        # Add the related instances
+        for rel in relationships:
+            rel_attr = kwargs.get(rel.key,None)
+            if not request and rel_attr:
+                # This shouldn't in the work in the web context
+                # because the relationships should already have been removed by SAFRSRestAPI.post
+                db_args[rel.key] = rel_attr
+        
         # db_args now contains the class attributes. Initialize the DB model with them
         # All subclasses should have the DB.Model as superclass.
-        # ( SQLAlchemy doesn't work when using DB.Model as SAFRSBase superclass )
+        # (SQLAlchemy doesn't work when using DB.Model as SAFRSBase superclass)
         try:
             safrs.DB.Model.__init__(self, **db_args)
         except Exception as exc:
             # OOPS .. things are going bad, this might happen using sqla automap
             safrs.log.error("Failed to instantiate object")
+            safrs.log.exception(exc)
             safrs.DB.Model.__init__(self)
-
-        # Parse all provided relationships: empty the existing relationship and
-        # create new instances for the relationship objects
-        for rel in relationships:
-            continue
-            """
-            # Create instance for relationships
-            if kwargs.get(rel.key):
-                rel_attr = getattr(self, rel.key)
-                del rel_attr[:]
-                rel_params = kwargs.get(rel.key)
-                for rel_param in rel_params:
-                    rel_object = rel.mapper.class_(**rel_param)
-                    rel_attr.append(rel_object)"""
 
         if self.db_commit:
             # Add the object to the database if specified by the class parameters
@@ -307,6 +301,10 @@ class SAFRSBase(Model):
     @property
     def _s_relationships(self):
         return self.__mapper__.relationships
+
+    @classproperty
+    def _s_relationship_names(self):
+        return [rel.key for rel in self.__mapper__.relationships]
 
     def _s_patch(self, **attributes):
         columns = {col.name: col for col in self._s_columns}

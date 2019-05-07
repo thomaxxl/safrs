@@ -550,6 +550,10 @@ class SAFRSRestAPI(Resource):
             for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
                 attributes.pop(col_name, None)
 
+            # remove attributes that have relationship names
+            attributes = {attr_name : attributes[attr_name] for attr_name in attributes 
+                          if attr_name not in self.SAFRSObject._s_relationship_names}
+            
             if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
                 # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
                 id = data.get("id")
