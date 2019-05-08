@@ -31,7 +31,7 @@ class SAFRSRequest(Request):
     page_limit = 100
     is_jsonapi = False
     filters = {}
-    filter = '' # filter is the custom filter, used as an argument by _s_filter
+    filter = ""  # filter is the custom filter, used as an argument by _s_filter
 
     def __init__(self, *args, **kwargs):
         """
@@ -68,9 +68,7 @@ class SAFRSRequest(Request):
             - filter[]
             - fields[]
         """
-        self.page_limit = self.args.get(
-            "page[limit]", get_config("MAX_PAGE_LIMIT"), type=int
-        )
+        self.page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
         # .pop() doesn't work for TypeConversionDict, del manually
         if "page[limit]" in self.args:
             pass
@@ -85,7 +83,7 @@ class SAFRSRequest(Request):
         self.fields = {}
         # Parse the jsonapi filter[] and fields[] args
         for arg, val in self.args.items():
-            if arg == 'filter':
+            if arg == "filter":
                 self.filter = val
 
             filter_attr = re.search(r"filter\[(\w+)\]", arg)

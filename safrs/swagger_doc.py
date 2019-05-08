@@ -120,11 +120,7 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise ValidationError(
-                    "Argument {} not valid for {}".format(
-                        (key, self.__class__.__name__)
-                    )
-                )
+                raise ValidationError("Argument {} not valid for {}".format((key, self.__class__.__name__)))
             setattr(self, key, value)
 
     newclass = type(name, (Schema,), {"__init__": __init__, "properties": properties})
@@ -304,9 +300,7 @@ def swagger_method_doc(cls, method_name, tags=None):
             ]
         else:
             # typically POST
-            parameters, fields, description, method = get_swagger_doc_post_arguments(
-                cls, method_name
-            )
+            parameters, fields, description, method = get_swagger_doc_post_arguments(cls, method_name)
             """if inspect.ismethod(method) and method.__self__ is cls:
                 # Mark classmethods: only these can be called when no {id} is given as parameter
                 # in the swagger ui
@@ -318,13 +312,7 @@ def swagger_method_doc(cls, method_name, tags=None):
             model_name = "{}_{}_{}".format(func.__name__, cls.__name__, method_name)
             param_model = SchemaClassFactory(model_name, fields)
             parameters.append(
-                {
-                    "name": model_name,
-                    "in": "body",
-                    "description": description,
-                    "schema": param_model,
-                    "required": True,
-                }
+                {"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True}
             )
 
         # URL Path Parameter
@@ -402,9 +390,7 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             #
             sample_dict = cls._s_sample_dict()
-            sample_data = schema_from_object(
-                model_name, {"data": {"attributes": sample_dict, "type": table_name}}
-            )
+            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": table_name}})
             parameters.append(
                 {
                     "name": "POST body",
@@ -416,13 +402,8 @@ def swagger_doc(cls, tags=None):
             )
 
         elif http_method == "delete":
-            doc["summary"] = doc["description"] = "Delete a {} object".format(
-                class_name
-            )
-            responses = {
-                "204": {"description": "Object Deleted"},
-                "404": {"description": "Object Not Found"},
-            }
+            doc["summary"] = doc["description"] = "Delete a {} object".format(class_name)
+            responses = {"204": {"description": "Object Deleted"}, "404": {"description": "Object Not Found"}}
 
         elif http_method == "patch":
             doc["summary"] = "Update a {} object".format(class_name)
@@ -431,25 +412,11 @@ def swagger_doc(cls, tags=None):
             sample_dict = cls._s_sample_dict()
             if sample:
                 sample_data = schema_from_object(
-                    model_name,
-                    {
-                        "data": {
-                            "attributes": sample_dict,
-                            "id": cls._s_sample_id(),
-                            "type": table_name,
-                        }
-                    },
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": table_name}}
                 )
             else:
                 sample_data = schema_from_object(
-                    model_name,
-                    {
-                        "data": {
-                            "attributes": sample_dict,
-                            "id": cls._s_sample_id(),
-                            "type": table_name,
-                        }
-                    },
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": table_name}}
                 )
             parameters.append(
                 {
@@ -551,12 +518,7 @@ def swagger_relationship_doc(cls, tags=None):
         else:
             doc_tags = tags
 
-        doc = {
-            "tags": doc_tags,
-            "description": "Returns {} {} ids".format(
-                parent_name, cls.relationship.key
-            ),
-        }
+        doc = {"tags": doc_tags, "description": "Returns {} {} ids".format(parent_name, cls.relationship.key)}
 
         responses = {}
         if http_method == "get":
@@ -577,17 +539,11 @@ def swagger_relationship_doc(cls, tags=None):
             child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class.get_swagger_doc("patch")
-            data = {
-                "type": child_class.__tablename__,
-                "attributes": sample_attrs,
-                "id": child_sample_id,
-            }
+            data = {"type": child_class.__tablename__, "attributes": sample_attrs, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 data = [data]
-            rel_post_schema = schema_from_object(
-                "{}_Relationship".format(class_name), {"data": data}
-            )
+            rel_post_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
             parameters.append(
                 {
                     "name": "{} body".format(class_name),
@@ -599,9 +555,7 @@ def swagger_relationship_doc(cls, tags=None):
             )
 
         elif http_method == "delete":
-            doc["summary"] = "Delete from {} {}".format(
-                parent_name, cls.relationship.key
-            )
+            doc["summary"] = "Delete from {} {}".format(parent_name, cls.relationship.key)
             doc["description"] = "Delete a {} object from the {} relation on {}".format(
                 child_class.__name__, cls.relationship.key, parent_name
             )

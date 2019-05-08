@@ -47,11 +47,10 @@ def get_legacy(param, default=0):
     """
     result = getattr(request, param, None)
     if result is None:
-        safrs.log.error(
-            'Legacy Request parameter "{}", consider upgrading'.format(param)
-        )
+        safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
         result = default
     return result
+
 
 # results for GET requests will go through filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
@@ -60,13 +59,13 @@ def jsonapi_filter(safrs_object):
         :parameter safrs_object:
         :return: a sqla query object
     """
-    
+
     # First check if a filter= URL query parameter has been used
-    filter_args = get_legacy('filter')
+    filter_args = get_legacy("filter")
     if filter_args:
         result = safrs_object._s_filter(filter_args)
         return result
-    
+
     filtered = []
     filters = get_legacy("filters", {})
     for col_name, val in filters.items():
@@ -147,9 +146,7 @@ def paginate(object_query, SAFRSObject=None):
     # With mysql innodb we can use following to retrieve the count:
     # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
     #
-    if (
-        SAFRSObject is None
-    ):  # for backwards compatibility, ie. when not passed as an arg to paginate()
+    if SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()
         count = object_query.count()
     else:
         count = SAFRSObject._s_count()
@@ -159,11 +156,7 @@ def paginate(object_query, SAFRSObject=None):
     first_args = (0, limit)
     last_args = (int(int(count / limit) * limit), limit)  # round down
     self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
-    next_args = (
-        (page_offset + limit, limit)
-        if page_offset + limit <= last_args[0]
-        else last_args
-    )
+    next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
     prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
 
     links = {
@@ -208,9 +201,7 @@ def get_included(data, limit, include="", level=0):
         return result
 
     if isinstance(data, (list, set)):
-        for included in [
-            get_included(obj, limit, include, level=level + 1) for obj in data
-        ]:
+        for included in [get_included(obj, limit, include, level=level + 1) for obj in data]:
             result = result.union(included)
         return result
 
@@ -247,9 +238,7 @@ def get_included(data, limit, include="", level=0):
                 result = result.union(included)
             except Exception as exc:
                 safrs.log.critical(
-                    "Failed to add included for {} (included: {} - {})".format(
-                        relationship, type(included), included
-                    )
+                    "Failed to add included for {} (included: {} - {})".format(relationship, type(included), included)
                 )
                 result.add(included)
 
@@ -260,10 +249,7 @@ def get_included(data, limit, include="", level=0):
                 result = result.union(nested_included)
 
         elif nested_rel:
-            for nested_included in [
-                get_included(result, limit, nested_rel, level=level + 1)
-                for obj in result
-            ]:
+            for nested_included in [get_included(result, limit, nested_rel, level=level + 1) for obj in result]:
                 result = result.union(nested_included)
 
     return result
@@ -285,13 +271,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     meta["count"] = count
 
     jsonapi = dict(version="1.0")
-    included = list(
-        get_included(
-            data,
-            limit,
-            include=request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED),
-        )
-    )
+    included = list(get_included(data, limit, include=request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)))
     """if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)"""
     result = dict(data=data)
@@ -350,9 +330,7 @@ class SAFRSRestAPI(Resource):
         A resource object’s attributes and its relationships are collectively called its “fields”.
     """
 
-    SAFRSObject = (
-        None
-    )  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     default_order = None  # used by sqla order_by
     object_id = None
 
@@ -453,9 +431,7 @@ class SAFRSRestAPI(Resource):
 
         # Check that the id in the body is equal to the id in the url
         body_id = data.get("id", None)
-        if body_id is None or self.SAFRSObject.id_type.validate_id(
-            id
-        ) != self.SAFRSObject.id_type.validate_id(body_id):
+        if body_id is None or self.SAFRSObject.id_type.validate_id(id) != self.SAFRSObject.id_type.validate_id(body_id):
             raise ValidationError("Invalid ID")
 
         attributes = data.get("attributes", {})
@@ -550,10 +526,6 @@ class SAFRSRestAPI(Resource):
             for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
                 attributes.pop(col_name, None)
 
-            # remove attributes that have relationship names
-            attributes = {attr_name : attributes[attr_name] for attr_name in attributes
-                          if attr_name not in self.SAFRSObject._s_relationship_names}
-            
             if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
                 # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
                 id = data.get("id")
@@ -675,9 +647,7 @@ class SAFRSRestMethodAPI(Resource):
         Only HTTP POST is supported
     """
 
-    SAFRSObject = (
-        None
-    )  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     method_name = None
 
     def __init__(self, *args, **kwargs):
@@ -931,9 +901,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # => Update TOONE Relationship
             # TODO!!!
             if self.SAFRSObject.relationship.direction != MANYTOONE:
-                raise GenericError(
-                    "To PATCH a TOMANY relationship you should provide a list"
-                )
+                raise GenericError("To PATCH a TOMANY relationship you should provide a list")
             child = self.child_class.get_instance(data.get("id", None))
             setattr(parent, self.rel_name, child)
             obj_args[self.child_object_id] = child.jsonapi_id
@@ -1031,9 +999,7 @@ class SAFRSRestRelationshipAPI(Resource):
             if len(data) == 0:
                 setattr(parent, self.SAFRSObject.relationship.key, None)
             if len(data) > 1:
-                raise ValidationError(
-                    "Too many items for a MANYTOONE relationship", 403
-                )
+                raise ValidationError("Too many items for a MANYTOONE relationship", 403)
             child_id = data[0].get("id")
             child_type = data[0].get("type")
             if not child_id or not child_type:

@@ -94,30 +94,18 @@ class Api(FRSApiBase):
         swagger_decorator = swagger_doc(safrs_object)
 
         # Create the class and decorate it
-        api_class = api_decorator(
-            type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator
-        )
+        api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
 
         # Expose the collection
-        safrs.log.info(
-            "Exposing %s on %s, endpoint: %s", safrs_object._s_type, url, endpoint
-        )
-        resource = self.add_resource(
-            api_class, url, endpoint=endpoint, methods=["GET", "POST"]
-        )
+        safrs.log.info("Exposing %s on %s, endpoint: %s", safrs_object._s_type, url, endpoint)
+        resource = self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
-        url = INSTANCE_URL_FMT.format(
-            url_prefix, safrs_object._s_type, safrs_object.__name__
-        )
+        url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
         # Expose the instances
         self.add_resource(api_class, url, endpoint=endpoint)
-        safrs.log.info(
-            "Exposing {} instances on {}, endpoint: {}".format(
-                safrs_object._s_type, url, endpoint
-            )
-        )
+        safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
 
         object_doc = parse_object_doc(safrs_object)
         object_doc["name"] = safrs_object._s_type
@@ -135,50 +123,29 @@ class Api(FRSApiBase):
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
-            api_method_class_name = "method_{}_{}".format(
-                safrs_object.__tablename__, method_name
-            )
+            api_method_class_name = "method_{}_{}".format(safrs_object.__tablename__, method_name)
             if (
-                isinstance(
-                    safrs_object.__dict__.get(method_name, None),
-                    (classmethod, staticmethod),
-                )
+                isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod))
                 or getattr(api_method, "__self__", None) is safrs_object
             ):
                 # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config("CLASSMETHOD_URL_FMT")
-                url = CLASSMETHOD_URL_FMT.format(
-                    url_prefix, safrs_object.__tablename__, method_name
-                )
+                url = CLASSMETHOD_URL_FMT.format(url_prefix, safrs_object.__tablename__, method_name)
             else:
                 # expose the method at the instance level
                 INSTANCEMETHOD_URL_FMT = get_config("INSTANCEMETHOD_URL_FMT")
                 url = INSTANCEMETHOD_URL_FMT.format(
-                    url_prefix,
-                    safrs_object.__tablename__,
-                    safrs_object.object_id,
-                    method_name,
+                    url_prefix, safrs_object.__tablename__, safrs_object.object_id, method_name
                 )
 
             ENDPOINT_FMT = get_config("ENDPOINT_FMT")
-            endpoint = ENDPOINT_FMT.format(
-                url_prefix, safrs_object.__tablename__ + "." + method_name
-            )
+            endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object.__tablename__ + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties = {"SAFRSObject": safrs_object, "method_name": method_name}
-            api_class = api_decorator(
-                type(api_method_class_name, (SAFRSRestMethodAPI,), properties),
-                swagger_decorator,
-            )
+            api_class = api_decorator(type(api_method_class_name, (SAFRSRestMethodAPI,), properties), swagger_decorator)
             meth_name = safrs_object.__tablename__ + "." + api_method.__name__
-            safrs.log.info(
-                "Exposing method {} on {}, endpoint: {}".format(
-                    meth_name, url, endpoint
-                )
-            )
-            self.add_resource(
-                api_class, url, endpoint=endpoint, methods=get_http_methods(api_method)
-            )
+            safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
+            self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method))
 
     def expose_relationship(self, relationship, url_prefix, tags):
         """
@@ -211,9 +178,7 @@ class Api(FRSApiBase):
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
-        decorators = getattr(parent_class, "custom_decorators", []) + getattr(
-            parent_class, "decorators", []
-        )
+        decorators = getattr(parent_class, "custom_decorators", []) + getattr(parent_class, "decorators", [])
         rel_object = type(
             rel_name,
             (SAFRSRelationshipObject,),
@@ -229,21 +194,12 @@ class Api(FRSApiBase):
         properties["SAFRSObject"] = rel_object
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
 
-        api_class = api_decorator(
-            type(api_class_name, (SAFRSRestRelationshipAPI,), properties),
-            swagger_decorator,
-        )
+        api_class = api_decorator(type(api_class_name, (SAFRSRestRelationshipAPI,), properties), swagger_decorator)
 
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
-        safrs.log.info(
-            "Exposing relationship {} on {}, endpoint: {}".format(
-                rel_name, url, endpoint
-            )
-        )
-        self.add_resource(
-            api_class, url, endpoint=endpoint, methods=["GET", "POST", "PATCH"]
-        )
+        safrs.log.info("Exposing relationship {} on {}, endpoint: {}".format(rel_name, url, endpoint))
+        self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST", "PATCH"])
 
         #
         try:
@@ -262,23 +218,13 @@ class Api(FRSApiBase):
         # Expose the relationship for <string:ChildId>, this lets us
         # query and delete the class relationship properties for a given
         # child id
-        url = (RELATIONSHIP_URL_FMT + "/<string:{}>").format(
-            url_prefix, rel_name, child_object_id
-        )
+        url = (RELATIONSHIP_URL_FMT + "/<string:{}>").format(url_prefix, rel_name, child_object_id)
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
-        safrs.log.info(
-            "Exposing {} relationship {} on {}, endpoint: {}".format(
-                parent_name, rel_name, url, endpoint
-            )
-        )
+        safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
 
         self.add_resource(
-            api_class,
-            url,
-            relationship=rel_object.relationship,
-            endpoint=endpoint,
-            methods=["GET", "DELETE"],
+            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"]
         )
 
     def add_resource(self, resource, *urls, **kwargs):
@@ -324,9 +270,7 @@ class Api(FRSApiBase):
                 swagger_url = extract_swagger_path(url)
                 for method in [m.lower() for m in resource.methods]:
 
-                    if method == "post" and swagger_url.strip("/").endswith(
-                        SAFRS_INSTANCE_SUFFIX
-                    ):
+                    if method == "post" and swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX):
                         # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
                         # "A server MUST return 403 Forbidden in response to an
                         # unsupported request to create a resource with a client-generated ID"
@@ -344,10 +288,7 @@ class Api(FRSApiBase):
 
                         if method == "get" and relationship:
                             default_include = ",".join(
-                                [
-                                    rel.key
-                                    for rel in relationship.mapper.class_.__mapper__.relationships
-                                ]
+                                [rel.key for rel in relationship.mapper.class_.__mapper__.relationships]
                             )
                             param = {
                                 "default": default_include,
@@ -361,21 +302,14 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                        if method == "get" and not swagger_url.endswith(
-                            SAFRS_INSTANCE_SUFFIX
-                        ):
+                        if method == "get" and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
                             # limit parameter specifies the number of items to return
 
                             for param in default_paging_parameters():
                                 if param not in filtered_parameters:
                                     filtered_parameters.append(param)
 
-                            default_include = ",".join(
-                                [
-                                    rel.key
-                                    for rel in self.safrs_object.__mapper__.relationships
-                                ]
-                            )
+                            default_include = ",".join([rel.key for rel in self.safrs_object.__mapper__.relationships])
 
                             param = {
                                 "default": default_include,
@@ -421,9 +355,7 @@ class Api(FRSApiBase):
                                     "in": "query",
                                     "format": "string",
                                     "required": False,
-                                    "description": "{} attribute filter (csv)".format(
-                                        column_name
-                                    ),
+                                    "description": "{} attribute filter (csv)".format(column_name),
                                 }
                                 if param not in filtered_parameters:
                                     filtered_parameters.append(param)
@@ -440,29 +372,19 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-
-                        if not (
-                            parameter.get("in") == "path"
-                            and not object_id in swagger_url
-                        ):
+                        if not (parameter.get("in") == "path" and not object_id in swagger_url):
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
 
                     method_doc["parameters"] = filtered_parameters
-                    method_doc["operationId"] = self.get_operation_id(
-                        path_item.get(method).get("summary", "")
-                    )
+                    method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
 
-                    if method == "get" and not swagger_url.endswith(
-                        SAFRS_INSTANCE_SUFFIX
-                    ):
+                    if method == "get" and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
                         # If no {id} was provided, we return a list of all the objects
                         # pylint: disable=invalid-formatstring
                         try:
-                            method_doc[
-                                "description"
-                            ] += " list (See GET /{{} for details)".format(
+                            method_doc["description"] += " list (See GET /{{} for details)".format(
                                 SAFRS_INSTANCE_SUFFIX
                             )
                             method_doc["responses"]["200"]["schema"] = ""
@@ -501,14 +423,7 @@ def api_decorator(cls, swagger_decorator):
     cls.http_methods = (
         {}
     )  # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
-    for method_name in [
-        "get",
-        "post",
-        "delete",
-        "patch",
-        "put",
-        "options",
-    ]:  # HTTP methods
+    for method_name in ["get", "post", "delete", "patch", "put", "options"]:  # HTTP methods
         method = getattr(cls, method_name, None)
         if not method:
             continue
@@ -522,9 +437,7 @@ def api_decorator(cls, swagger_decorator):
             decorated_method = custom_method
             # keep the default method as parent_<method_name>, e.g. parent_get
             parent_method = getattr(cls, method_name)
-            cls.http_methods[method_name] = lambda *args, **kwargs: parent_method(
-                *args, **kwargs
-            )
+            cls.http_methods[method_name] = lambda *args, **kwargs: parent_method(*args, **kwargs)
 
         # Apply custom decorators, specified as class variable list
         try:
@@ -533,16 +446,12 @@ def api_decorator(cls, swagger_decorator):
         except RecursionError:
             # Got this error when exposing WP DB, TODO: investigate where it comes from
             safrs.log.error(
-                "Failed to generate documentation for {} {} (Recursion Error)".format(
-                    cls, decorated_method
-                )
+                "Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method)
             )
         # pylint: disable=broad-except
         except Exception as exc:
             safrs.log.exception(exc)
-            safrs.log.error(
-                "Failed to generate documentation for {}".format(decorated_method)
-            )
+            safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
 
         # Add cors
         if cors_domain is not None:
@@ -618,12 +527,7 @@ class SAFRSRelationshipObject:
         object_name = cls.__name__
 
         object_model = {}
-        responses = {
-            "200": {
-                "description": "{} object".format(object_name),
-                "schema": object_model,
-            }
-        }
+        responses = {"200": {"description": "{} object".format(object_name), "schema": object_model}}
 
         if http_method == "post":
             responses = {"200": {"description": "Success"}}

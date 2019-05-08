@@ -35,9 +35,7 @@ def get_config(option):
     RESOURCE_URL_FMT = "{}/{}/"
     INSTANCE_URL_FMT = RESOURCE_URL_FMT + "<string:{}" + OBJECT_ID_SUFFIX + ">/"
     # last parameter for the "method" urls below will be the method name
-    INSTANCEMETHOD_URL_FMT = os.environ.get(
-        "INSTANCEMETHOD_URL_FMT", safrs.SAFRS.ENABLE_RELATIONSHIPS
-    )
+    INSTANCEMETHOD_URL_FMT = os.environ.get("INSTANCEMETHOD_URL_FMT", safrs.SAFRS.ENABLE_RELATIONSHIPS)
     if not INSTANCEMETHOD_URL_FMT:
         INSTANCEMETHOD_URL_FMT = RESOURCE_URL_FMT + "<string:{}>/{}"
     # (eg. /Users/get_list)
@@ -70,9 +68,7 @@ def get_config(option):
 
     # ENABLE_RELATIONSHIPS enables relationships to be included.
     # This may slow down certain queries if the relationships are not properly configured!
-    ENABLE_RELATIONSHIPS = bool(
-        os.environ.get("ENABLE_RELATIONSHIPS", safrs.SAFRS.ENABLE_RELATIONSHIPS)
-    )
+    ENABLE_RELATIONSHIPS = bool(os.environ.get("ENABLE_RELATIONSHIPS", safrs.SAFRS.ENABLE_RELATIONSHIPS))
     if not ENABLE_RELATIONSHIPS:
         ENABLE_RELATIONSHIPS = True
 

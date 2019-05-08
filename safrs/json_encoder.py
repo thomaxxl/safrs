@@ -10,11 +10,13 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
 from .db import SAFRSBase, SAFRSDummy
 
+
 class SAFRSFormattedResponse:
     """
         Custom response object
     """
-    #pylint: disable=too-few-public-methods
+
+    # pylint: disable=too-few-public-methods
     data = None
     meta = None
     errors = None
@@ -33,13 +35,15 @@ class SAFRSFormattedResponse:
 
         if not self.result is None:
             return {"meta": {"result": self.result}}
-            
+
         return None
+
 
 class SAFRSJSONEncoder(JSONEncoder):
     """
         Encodes safrs objs (SAFRSBase subclasses)
     """
+
     # pylint: disable=too-many-return-statements,logging-format-interpolation,protected-access,method-hidden
     def default(self, obj):
         """

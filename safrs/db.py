@@ -1,7 +1,7 @@
+# -*- coding: utf-8 -*-
 """
     db.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
 """
-# -*- coding: utf-8 -*-
 #
 # SQLAlchemy database schemas
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
@@ -101,7 +101,7 @@ class SAFRSBase(Model):
             instance = object.__new__(cls)
         else:
             safrs.log.debug("{} exists for {} ".format(cls.__name__, str(kwargs)))
-        # return SAFRSDummy()
+
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -110,7 +110,7 @@ class SAFRSBase(Model):
             - set the named attributes and add the object to the database
             - create relationships
         """
-        
+
         # All SAFRSBase subclasses have an id,
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
@@ -122,18 +122,17 @@ class SAFRSBase(Model):
         # Retrieve the values from each attribute (== class table column)
         db_args = {}
         columns = self.__table__.columns
-        relationships = self._s_relationships
         for column in columns:
             attr_val = self._s_parse_attr_value(kwargs, column)
             db_args[column.name] = attr_val
 
         # Add the related instances
-        for rel in relationships:
-            rel_attr = kwargs.get(rel.key,None)
+        for rel_name in self._s_relationship_names:
+            rel_attr = kwargs.get(rel_name, None)
             if not request and rel_attr:
                 # This shouldn't in the work in the web context
                 # because the relationships should already have been removed by SAFRSRestAPI.post
-                db_args[rel.key] = rel_attr
+                db_args[rel_name] = rel_attr
 
         # db_args now contains the class attributes. Initialize the DB model with them
         # All subclasses should have the DB.Model as superclass.
@@ -188,23 +187,17 @@ class SAFRSBase(Model):
             date_str = str(attr_val)
             try:
                 if "." in date_str:
-                    attr_val = datetime.datetime.strptime(
-                        date_str, "%Y-%m-%d %H:%M:%S.%f"
-                    )
+                    attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
                 else:
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             except (NotImplementedError, ValueError) as exc:
-                safrs.log.warning(
-                    'Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val)
-                )
+                safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
 
         elif column.type.python_type == datetime.date:
             try:
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
-                safrs.log.warning(
-                    'Invalid datetime.date {} for value "{}"'.format(exc, attr_val)
-                )
+                safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
         """
         TODO: should we do this?
         
@@ -286,9 +279,7 @@ class SAFRSBase(Model):
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
     @property
     def Type(self):
-        safrs.log.warning(
-            '({}): attribute "type" is not supported, renamed to "Type"'.format(self)
-        )
+        safrs.log.warning('({}): attribute "type" is not supported, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
@@ -364,19 +355,12 @@ class SAFRSBase(Model):
                 setattr(self, parameter, value)
         safrs.DB.session.add(self)
 
-    @orm.reconstructor
-    def init_object_schema(self):
-        """
-            init_object_schema
-        """
-        pass
-
     def to_dict(self, fields=None):
         """
-            Serialization
-            Create a dictionary with all the object parameters
+            Create a dictionary with all the instance "attributes"
             this method will be called by SAFRSJSONEncoder to serialize objects
         """
+
         result = {}
         if fields is None:
             # Check if fields have been provided in the request
@@ -398,22 +382,24 @@ class SAFRSBase(Model):
     @classmethod
     def _s_count(cls):
         """
-            returning None will cause sqlalchemy to perform a count() on the result
+            returning None will cause our jsonapi to perform a count() on the result
             this can be overridden with a cached value for performance on large tables (>1G)
         """
+
         return None
 
     def _s_jsonapi_encode(self):
         """
-            Encode object according to the jsonapi specification:
-            data = {
+            :return: Encoded object according to the jsonapi specification:
+            `data = {
                     "attributes": { ... },
                     "id": "...",
                     "links": { ... },
                     "relationships": { ... },
                     "type": "..."
-                    }
+                    }`
         """
+
         relationships = dict()
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
@@ -470,18 +456,13 @@ class SAFRSBase(Model):
                 if relationship.direction == MANYTOONE:
                     rel_item = getattr(self, rel_name)
                     if rel_item:
-                        data = {
-                            "id": rel_item.jsonapi_id,
-                            "type": rel_item.__tablename__,
-                        }
+                        data = {"id": rel_item.jsonapi_id, "type": rel_item.__tablename__}
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(self, rel_name)
                     limit = request.page_limit
                     if not get_config("ENABLE_RELATIONSHIPS"):
-                        meta[
-                            "warning"
-                        ] = "ENABLE_RELATIONSHIPS set to false in config.py"
+                        meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
                     elif rel_query:
                         # todo: chekc if lazy=dynamic
                         # In order to work with the relationship as with Query,
@@ -502,9 +483,7 @@ class SAFRSBase(Model):
                             count = len(items)
                         meta["count"] = count
                         meta["limit"] = limit
-                        data = [
-                            {"id": i.jsonapi_id, "type": i.__tablename__} for i in items
-                        ]
+                        data = [{"id": i.jsonapi_id, "type": i.__tablename__} for i in items]
                 else:  # shouldn't happen!!
                     safrs.log.error(
                         "Unknown relationship direction for relationship {}: {}".format(
@@ -547,9 +526,9 @@ class SAFRSBase(Model):
     def __iter__(self):
         return iter(self.to_dict())
 
-    def _s_from_dict(self, data):
+    def from_dict(self, data):
         """
-            Deserialization
+            Deserialization (this is handled by __init__ parsing of kwargs for now)
         """
         pass
 
@@ -570,6 +549,7 @@ class SAFRSBase(Model):
         """
         Retrieve a sample id for the API documentation, i.e. the first item in the DB
         """
+
         sample = cls._s_sample()
         if sample:
             j_id = sample.jsonapi_id
@@ -581,8 +561,9 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample(cls):
         """
-        Retrieve a sample instance for the API documentation, i.e. the first item in the DB
+            :return: a sample instance for the API documentation, i.e. the first item in the DB
         """
+
         first = None
 
         try:
@@ -594,7 +575,7 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample_dict(cls):
         """
-            Create a sample to be used in the swagger example
+            :return: a sample to be used as an example payload in the swagger example
         """
         """sample = cls._s_sample()
         if sample:
@@ -615,16 +596,10 @@ class SAFRSBase(Model):
                 if column.type.python_type not in (datetime.datetime, datetime.date):
                     arg = column.type.python_type()
             except NotImplementedError:
-                safrs.log.debug(
-                    "Failed to get python type for column {} (NotImplementedError)".format(
-                        column
-                    )
-                )
+                safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
                 arg = None
             except Exception as exc:
-                safrs.log.debug(
-                    "Failed to get python type for column {} ({})".format(column, exc)
-                )
+                safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
             sample[column.name] = arg
 
         return sample
@@ -649,12 +624,7 @@ class SAFRSBase(Model):
         object_name = cls.__name__
 
         object_model = cls.get_swagger_doc_object_model()
-        responses = {
-            "200": {
-                "description": "{} object".format(object_name),
-                "schema": object_model,
-            }
-        }
+        responses = {"200": {"description": "{} object".format(object_name), "schema": object_model}}
 
         if http_method == "patch":
             body = object_model
@@ -662,10 +632,7 @@ class SAFRSBase(Model):
 
         if http_method == "post":
             # body = cls.get_swagger_doc_post_parameters()
-            responses = {
-                "201": {"description": "Object successfully created"},
-                "403": {"description": "Invalid data"},
-            }
+            responses = {"201": {"description": "Object successfully created"}, "403": {"description": "Invalid data"}}
 
         if http_method == "get":
             responses = {"200": {"description": "Success"}}
@@ -676,9 +643,9 @@ class SAFRSBase(Model):
     @classmethod
     def _s_get_jsonapi_rpc_methods(cls):
         """
-        Retrieve the jsonapi_rpc methods (fka documented_api_method)
-        get_documented_api_methods
+            :return: a list of jsonapi_rpc methods for this class
         """
+
         result = []
         # pylint: disable=unused-variable
         for name, method in inspect.getmembers(cls):
@@ -693,7 +660,9 @@ class SAFRSBase(Model):
             Create a schema for object creation and updates through the HTTP PATCH and POST interfaces
             The schema is created using the sqlalchemy database schema. So there
             is a one-to-one mapping between json input data and db columns
+            :return: swagger doc
         """
+
         fields = {}
         sample_id = cls._s_sample_id()
         sample_instance = cls.get_instance(sample_id, failsafe=True)
@@ -718,10 +687,7 @@ class SAFRSBase(Model):
                 # swagger api spec doesn't support nullable values
                 continue
 
-            field = {
-                "type": swagger_type,
-                "example": str(default),
-            }  # added unicode str() for datetime encoding
+            field = {"type": swagger_type, "example": str(default)}  # added unicode str() for datetime encoding
             fields[column.name] = field
 
         model_name = "{}_{}".format(cls.__name__, "patch")
@@ -732,7 +698,11 @@ class SAFRSBase(Model):
     def get_endpoint(cls, url_prefix=None, type=None):
         """
             Return the API endpoint
+            :param prefix:
+            :param type:
+            :return:
         """
+
         if url_prefix is None:
             url_prefix = cls.url_prefix
         if type == "instance":
@@ -748,6 +718,7 @@ class SAFRSBase(Model):
             :param url_prefix:
             :return: endpoint url of this instance
         """
+
         try:
             params = {self.object_id: self.jsonapi_id}
             instance_url = url_for(self.get_endpoint(type="instance"), **params)
@@ -773,6 +744,7 @@ class SAFRSBase(Model):
             What is returned in the "meta" part
             may be implemented by the app
         """
+
         return {}
 
     def get_attr(self, attr):
@@ -790,8 +762,9 @@ class SAFRSBase(Model):
             :param filter_args: filter to apply, passed as a request URL parameter
             :return: sqla query object
         """
-        safrs.log.info('_s_filter args: {}'.format(filter_args))
-        safrs.log.info('override the {}._s_filter classmethod to implement your filtering'.format(cls.__name__))
+
+        safrs.log.info("_s_filter args: {}".format(filter_args))
+        safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
         return cls.query
 
 
