@@ -526,6 +526,13 @@ class SAFRSRestAPI(Resource):
             for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
                 attributes.pop(col_name, None)
 
+            # remove attributes that have relationship names
+            attributes = {
+                attr_name: attributes[attr_name]
+                for attr_name in attributes
+                if attr_name not in self.SAFRSObject._s_relationship_names
+            }
+
             if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
                 # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
                 id = data.get("id")
@@ -823,16 +830,19 @@ class SAFRSRestRelationshipAPI(Resource):
         parent, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
         errors = {}
+        count = 1 
+        meta = {}
 
         if child_id:
             child = self.child_class.get_instance(child_id)
+            links = {"self": child._s_url}
             # If {ChildId} is passed in the url, return the child object
             # there's a difference between to-one and -to-many relationships:
             if isinstance(relation, SAFRSBase):
-                result = [child]
+                data = [child]
             elif child in relation:
                 # item is in relationship, return the child
-                result = [child]
+                data = [child]
             else:
                 return "Not Found", 404
         # elif type(relation) == self.child_class: # ==>
@@ -842,7 +852,6 @@ class SAFRSRestRelationshipAPI(Resource):
             links = {"self": instance._s_url}
             if request.url != instance._s_url:
                 links["related"] = request.url
-            count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
 
         else:
