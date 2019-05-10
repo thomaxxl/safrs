@@ -28,14 +28,14 @@ from safrs import jsonapi_rpc  # rpc decorator
 from safrs import search, startswith  # rpc methods
 from flask import url_for, jsonify
 
-description = """
+description = '''
 <a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (less than 200 lines!)<br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
 - Auto-generated swagger spec: <a href=/swagger.json>swagger.json</a><br/> 
-- <a href=/swagger_editor/index.html?url=/swagger.json>Swagger2 Editor</a><br/>(updates can be added with the SAFRSAPI "custom_swagger" argument)
-"""
+- <a href="/swagger_editor/index.html?url=/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
+'''
 
 db = SQLAlchemy()
 # Add search and startswith methods so we can perform lookups from the frontend
@@ -60,6 +60,21 @@ class Book(SAFRSBase, db.Model):
     reviews = db.relationship(
         "Review", backref="book", cascade="save-update, merge, delete, delete-orphan"
     )
+
+    @classmethod
+    @jsonapi_rpc(http_methods=["GET"])
+    def get_by_name(cls, *args, **kwargs):
+        """
+            description : Generate and return a Thing based on name
+            args:
+                name:
+                    type : string
+                    example : thingy
+            pageable: false
+        """
+        print('args', args)
+        print('kwargs', kwargs)
+        return { "result" : 1}
 
 
 class Person(SAFRSBase, db.Model):
