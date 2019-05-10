@@ -92,10 +92,15 @@ def jsonapi_sort(object_query, safrs_object):
     if not sort_columns is None:
         for sort_column in sort_columns.split(","):
             if sort_column.startswith("-"):
-                attr = getattr(safrs_object, sort_column[1:], None).desc()
+                attr = getattr(safrs_object, sort_column[1:], None)
+                if attr is None:
+                    raise ValidationError("Invalid Sort Column Name")
+                attr = attr.desc()
                 object_query = object_query.order_by(attr)
             else:
                 attr = getattr(safrs_object, sort_column, None)
+                if attr is None:
+                    raise ValidationError("Invalid Sort Column Name")
                 object_query = object_query.order_by(attr)
 
     return object_query
