@@ -3,7 +3,7 @@ api_methods.py
 """
 from sqlalchemy import or_
 from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
-from .swagger_doc import documented_api_method, jsonapi_rpc
+from .swagger_doc import jsonapi_rpc
 from .errors import GenericError, ValidationError
 
 # from .safrs_types import SAFRSID
@@ -27,7 +27,7 @@ def get_list(self, id_list):
     return result
 
 
-@documented_api_method
+@jsonapi_rpc(http_methods=['POST'])
 def lookup_re_mysql(cls, **kwargs):
     """
         pageable: True
@@ -58,7 +58,7 @@ def lookup_re_mysql(cls, **kwargs):
     return result.all()
 
 
-@documented_api_method
+@jsonapi_rpc(http_methods=['POST'])
 def startswith(cls, **kwargs):
     """
         pageable: True

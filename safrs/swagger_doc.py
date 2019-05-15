@@ -33,7 +33,7 @@ def parse_object_doc(object):
     try:
         yaml_doc = yaml.load(raw_doc)
     except (SyntaxError, yaml.scanner.ScannerError) as exc:
-        safrs.LOGGER.error("Failed to parse documentation {} ({})".format(raw_doc, exc))
+        safrs.log.error("Failed to parse documentation {} ({})".format(raw_doc, exc))
         yaml_doc = {"description": raw_doc}
 
     except Exception as exc:
@@ -51,34 +51,44 @@ def documented_api_method(method):
         Decorator to expose functions in the REST API:
         When a method is decorated with documented_api_method, this means
         it becomes available for use through HTTP POST (i.e. public)
+        :param method: method to be decorated
+        :return: decorated method
     """
+
+    safrs.log.error(methodxx)
     USE_API_METHODS = get_config("USE_API_METHODS")
     if USE_API_METHODS:
         try:
             api_doc = parse_object_doc(method)
         except yaml.scanner.ScannerError:
-            safrs.LOGGER.error("Failed to parse documentation for %s", method)
+            safrs.log.error("Failed to parse documentation for %s", method)
         setattr(method, REST_DOC, api_doc)
     return method
 
 
 def jsonapi_rpc(http_methods):
     """
+        Decorator to expose functions in the REST API:
+        When a method is decorated with jsonapi_rpc, this means
+        it becomes available for use through HTTP POST (i.e. public)
+
         :param http_methods:
+        :return: function
     """
 
     def _documented_api_method(method):
         """
-            Decorator to expose functions in the REST API:
-            When a method is decorated with documented_api_method, this means
-            it becomes available for use through HTTP POST (i.e. public)
+            :param method:
+            add metadata to the method:
+                REST_DOC: swagger documentation
+                HTTP_METHODS: the http methods (GET/POST/..) used to call this method
         """
         USE_API_METHODS = get_config("USE_API_METHODS")
         if USE_API_METHODS:
             try:
                 api_doc = parse_object_doc(method)
             except yaml.scanner.ScannerError:
-                safrs.LOGGER.error("Failed to parse documentation for %s", method)
+                safrs.log.error("Failed to parse documentation for %s", method)
             setattr(method, REST_DOC, api_doc)
             setattr(method, HTTP_METHODS, http_methods)
         return method
@@ -91,6 +101,7 @@ def is_public(method):
         :param method:
         :return: True or False, whether the method is to be exposed
     """
+
     return hasattr(method, REST_DOC)
 
 
@@ -105,14 +116,19 @@ def get_doc(method):
 
 def get_http_methods(method):
     """
-    get_http_methods
+        :param method:
+        :return: a list of http methods used to call this method
     """
+
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
 def SchemaClassFactory(name, properties):
     """
         Generate a Schema class, used to describe swagger schemas
+        :param name: schema class name
+        :param properties: class attributes
+        :return: class
     """
 
     def __init__(self, **kwargs):
@@ -164,8 +180,11 @@ def encode_schema(obj):
 # pylint: disable=redefined-builtin
 def schema_from_object(name, object):
     """
-        schema_from_object
+        :param name:
+        :param object:
+        :return: swagger schema object
     """
+
     properties = {}
 
     if isinstance(object, str):
@@ -191,7 +210,7 @@ def schema_from_object(name, object):
                 properties[k] = {"example": "", "type": "string"}
             else:  # isinstance(object, datetime.datetime):
                 properties = {"example": str(k), "type": "string"}
-                safrs.LOGGER.warning("Invalid schema object type %s", type(object))
+                safrs.log.warning("Invalid schema object type %s", type(object))
     else:
         raise ValidationError("Invalid schema object type {}".format(type(object)))
 
@@ -204,7 +223,7 @@ def schema_from_object(name, object):
     return SchemaClassFactory(name, properties)
 
 
-def get_swagger_doc_post_arguments(cls, method_name):
+def get_swagger_doc_arguments(cls, method_name, http_method):
     """
         create a schema for all methods which can be called through the
         REST POST interface
@@ -223,6 +242,10 @@ def get_swagger_doc_post_arguments(cls, method_name):
         returned by get_doc()
 
         We use "meta" to remain compliant with the jsonapi schema
+
+        :param cls:
+        :param method_name:
+        :return: parameters, fields, description, method
     """
 
     parameters = []
@@ -236,18 +259,29 @@ def get_swagger_doc_post_arguments(cls, method_name):
         description = rest_doc.get("description", "")
         if rest_doc:
             method_args = rest_doc.get("args", [])
-            if method_args:
-                model_name = "{}_{}".format(cls.__name__, method_name)
-                method_field = {"method": method_name, "args": method_args}
-                fields["meta"] = schema_from_object(model_name, method_field)
-
             parameters = rest_doc.get("parameters", [])
+            if method_args:
+                if http_method == 'get' and isinstance(method_args, list):
+                    # query string arguments
+                    # e.g. [{'name': 'name', 'type': 'string', 'default': 'def value'}]
+                    for arg in method_args:
+                        arg["in"] = "query"
+                    parameters = method_args
+                    
+                elif isinstance(method_args, dict):
+                    """
+                        Post arguments, these require a schema
+                    """
+                    model_name = "{}_{}".format(cls.__name__, method_name)
+                    method_field = {"method": method_name, "args": method_args}
+                    fields["meta"] = schema_from_object(model_name, method_field)
+
             if rest_doc.get(PAGEABLE):
                 parameters += default_paging_parameters()
             if rest_doc.get(FILTERABLE):
                 pass
         else:
-            safrs.LOGGER.warning('No documentation for method "{}"'.format(method_name))
+            safrs.log.warning('No documentation for method "{}"'.format(method_name))
             # jsonapi_rpc method has no documentation, generate it w/ inspect
             f_args = inspect.getargspec(method).args
             f_defaults = inspect.getargspec(method).defaults or []
@@ -259,11 +293,10 @@ def get_swagger_doc_post_arguments(cls, method_name):
             arg_field = {"schema": model, "type": "string"}
             method_field = {"method": method_name, "args": args}
             fields["meta"] = schema_from_object(model_name, method_field)
-            print(fields["meta"])
 
         return parameters, fields, description, method
 
-    safrs.LOGGER.critical("Shouldnt get here ({})".format(method_name))
+    safrs.log.critical("Shouldnt get here ({})".format(method_name))
 
 
 def swagger_method_doc(cls, method_name, tags=None):
@@ -287,30 +320,34 @@ def swagger_method_doc(cls, method_name, tags=None):
 
         model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
+        parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
 
         if func.__name__ == "get":
-            parameters = [
-                {
-                    "name": "varargs",
-                    "in": "query",
-                    "description": "{} arguments".format(method_name),
-                    "required": False,
-                    "type": "string",
-                }
-            ]
-        else:
-            # typically POST
-            parameters, fields, description, method = get_swagger_doc_post_arguments(cls, method_name)
-            """if inspect.ismethod(method) and method.__self__ is cls:
-                # Mark classmethods: only these can be called when no {id} is given as parameter
-                # in the swagger ui
-                description += ' (classmethod)' """
+            if not parameters:
+                parameters = [
+                    {
+                        "name": "varargs",
+                        "in": "query",
+                        "description": "{} arguments".format(method_name),
+                        "required": False,
+                        "type": "string",
+                    }
+                ]
+            '''
+            param_model = SchemaClassFactory(model_name, fields)
+            parameters.append(
+                {"name": model_name, "in": "query", "description": description, "schema": param_model, "required": True}
+            )'''
+            
 
+        else:
             #
-            # Retrieve the swagger schemas for the documented_api_methods
+            # Retrieve the swagger schemas for the jsonapi_rpc methods
             #
+            parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
             model_name = "{}_{}_{}".format(func.__name__, cls.__name__, method_name)
             param_model = SchemaClassFactory(model_name, fields)
+
             parameters.append(
                 {"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True}
             )
@@ -429,7 +466,7 @@ def swagger_doc(cls, tags=None):
             )
         else:
             # one of 'options', 'head', 'patch'
-            safrs.LOGGER.debug('no documentation for "%s" ', http_method)
+            safrs.log.debug('no documentation for "%s" ', http_method)
 
         responses_str = {}
         for k, v in responses.items():
@@ -563,7 +600,7 @@ def swagger_relationship_doc(cls, tags=None):
 
         else:
             # one of 'options', 'head', 'patch'
-            safrs.LOGGER.info('no documentation for "%s" ', http_method)
+            safrs.log.info('no documentation for "%s" ', http_method)
 
         if http_method in ("patch",):
             # put_model, responses = child_class.get_swagger_doc(http_method)

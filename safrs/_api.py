@@ -118,7 +118,11 @@ class Api(FRSApiBase):
     def expose_methods(self, url_prefix, tags):
         """
             Expose the safrs "documented_api_method" decorated methods
+            :param url_prefix: api url prefix
+            :param tags: swagger tags
+            :return: None
         """
+
         safrs_object = self.safrs_object
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
@@ -145,7 +149,7 @@ class Api(FRSApiBase):
             api_class = api_decorator(type(api_method_class_name, (SAFRSRestMethodAPI,), properties), swagger_decorator)
             meth_name = safrs_object.__tablename__ + "." + api_method.__name__
             safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
-            self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method))
+            self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
 
     def expose_relationship(self, relationship, url_prefix, tags):
         """
@@ -158,6 +162,11 @@ class Api(FRSApiBase):
                 SAFRSObject = safrs_object
 
             add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
+
+            :param relationship: relationship
+            :param url_prefix: api url prefix
+            :param tags: swagger tags
+            :return: None
         """
 
         API_CLASSNAME_FMT = "{}_X_{}_API"
@@ -241,6 +250,7 @@ class Api(FRSApiBase):
         definitions = {}
         resource_methods = kwargs.get("methods", HTTP_METHODS)
         kwargs.pop("safrs_object", None)
+        is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False) # check if the exposed method is a jsonapi_rpc method
         for method in [m.lower() for m in resource.methods]:
             if not method.upper() in resource_methods:
                 continue
@@ -302,7 +312,7 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                        if method == "get" and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
+                        if method == "get" and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) and not is_jsonapi_rpc:
                             # limit parameter specifies the number of items to return
 
                             for param in default_paging_parameters():
