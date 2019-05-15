@@ -67,13 +67,11 @@ class Book(SAFRSBase, db.Model):
         """
             description : Generate and return a Thing based on name
             args:
-                name:
-                    type : string
-                    example : thingy
+                - name: name
+                  type: string
+                  default: xx
             pageable: false
         """
-        print('args', args)
-        print('kwargs', kwargs)
         return { "result" : 1}
 
 
