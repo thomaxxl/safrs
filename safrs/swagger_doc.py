@@ -334,7 +334,6 @@ def swagger_method_doc(cls, method_name, tags=None):
                     }
                 ]
             '''
-            param_model = SchemaClassFactory(model_name, fields)
             parameters.append(
                 {"name": model_name, "in": "query", "description": description, "schema": param_model, "required": True}
             )'''
