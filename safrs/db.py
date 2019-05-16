@@ -79,7 +79,6 @@ class SAFRSBase(Model):
         The object attributes should not match column names,
         this is why the attributes have the '_s_' prefix!
     """
-
     query_limit = 50
     # set this to False if you want to use the SAFRSBase in combination
     # with another framework, eg flask-admin
@@ -110,7 +109,6 @@ class SAFRSBase(Model):
             - set the named attributes and add the object to the database
             - create relationships
         """
-
         # All SAFRSBase subclasses have an id,
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
@@ -183,7 +181,7 @@ class SAFRSBase(Model):
             Parse datetime and date values for some common representations
             If another format is uses, the user should create a custom column type or custom serialization
         """
-        if column.type.python_type == datetime.datetime:
+        if attr_val and column.type.python_type == datetime.datetime:
             date_str = str(attr_val)
             try:
                 if "." in date_str:
@@ -193,7 +191,7 @@ class SAFRSBase(Model):
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
 
-        elif column.type.python_type == datetime.date:
+        elif attr_val and column.type.python_type == datetime.date:
             try:
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
@@ -209,7 +207,6 @@ class SAFRSBase(Model):
                 log.exception(exc)
                 raise ValidationError('Invalid attribute value "{}" for {} ({})'.format(attr_val, column.name, exc))
         """
-
         return attr_val
 
     def _s_expunge(self):
@@ -345,7 +342,6 @@ class SAFRSBase(Model):
         """
             Clone an object: copy the parameters and create a new id
         """
-
         make_transient(self)
         # pylint: disable=attribute-defined-outside-init
         self.id = self.id_type()
@@ -360,7 +356,6 @@ class SAFRSBase(Model):
             Create a dictionary with all the instance "attributes"
             this method will be called by SAFRSJSONEncoder to serialize objects
         """
-
         result = {}
         if fields is None:
             # Check if fields have been provided in the request
@@ -385,7 +380,6 @@ class SAFRSBase(Model):
             returning None will cause our jsonapi to perform a count() on the result
             this can be overridden with a cached value for performance on large tables (>1G)
         """
-
         return None
 
     def _s_jsonapi_encode(self):
@@ -399,7 +393,6 @@ class SAFRSBase(Model):
                     "type": "..."
                     }`
         """
-
         relationships = dict()
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
@@ -547,9 +540,8 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample_id(cls):
         """
-        Retrieve a sample id for the API documentation, i.e. the first item in the DB
+            :return: a sample id for the API documentation, i.e. the first item in the DB
         """
-
         sample = cls._s_sample()
         if sample:
             j_id = sample.jsonapi_id
@@ -563,7 +555,6 @@ class SAFRSBase(Model):
         """
             :return: a sample instance for the API documentation, i.e. the first item in the DB
         """
-
         first = None
 
         try:
@@ -580,7 +571,6 @@ class SAFRSBase(Model):
         """sample = cls._s_sample()
         if sample:
             return sample.to_dict()"""
-
         sample = {}
         for column in cls._s_columns:
             if column.name in ("id", "type"):
@@ -593,7 +583,11 @@ class SAFRSBase(Model):
                 else:
                     arg = column.default.arg
             try:
-                if column.type.python_type not in (datetime.datetime, datetime.date):
+                if column.type.python_type == datetime.datetime:
+                    arg = str(datetime.datetime.now())
+                elif column.type.python_type == datetime.date:
+                    arg = str(datetime.date.today())
+                else:
                     arg = column.type.python_type()
             except NotImplementedError:
                 safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
@@ -645,7 +639,6 @@ class SAFRSBase(Model):
         """
             :return: a list of jsonapi_rpc methods for this class
         """
-
         result = []
         # pylint: disable=unused-variable
         for name, method in inspect.getmembers(cls):
@@ -662,7 +655,6 @@ class SAFRSBase(Model):
             is a one-to-one mapping between json input data and db columns
             :return: swagger doc
         """
-
         fields = {}
         sample_id = cls._s_sample_id()
         sample_instance = cls.get_instance(sample_id, failsafe=True)
@@ -702,7 +694,6 @@ class SAFRSBase(Model):
             :param type:
             :return:
         """
-
         if url_prefix is None:
             url_prefix = cls.url_prefix
         if type == "instance":
@@ -718,7 +709,6 @@ class SAFRSBase(Model):
             :param url_prefix:
             :return: endpoint url of this instance
         """
-
         try:
             params = {self.object_id: self.jsonapi_id}
             instance_url = url_for(self.get_endpoint(type="instance"), **params)
@@ -744,7 +734,6 @@ class SAFRSBase(Model):
             What is returned in the "meta" part
             may be implemented by the app
         """
-
         return {}
 
     def get_attr(self, attr):
@@ -762,7 +751,6 @@ class SAFRSBase(Model):
             :param filter_args: filter to apply, passed as a request URL parameter
             :return: sqla query object
         """
-
         safrs.log.info("_s_filter args: {}".format(filter_args))
         safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
         return cls.query
@@ -772,7 +760,6 @@ class SAFRSDummy:
     """
         Debug class
     """
-
     def __getattr__(self, attr):
         print("get", attr)
 
