@@ -59,7 +59,6 @@ def jsonapi_filter(safrs_object):
         :parameter safrs_object:
         :return: a sqla query object
     """
-
     # First check if a filter= URL query parameter has been used
     filter_args = get_legacy("filter")
     if filter_args:
@@ -134,7 +133,6 @@ def paginate(object_query, SAFRSObject=None):
         :prameter SAFRSObject: optional
         :return: links, instances, count
     """
-
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ""
         result += "?" + "&".join(
@@ -267,7 +265,6 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
     :param data : the objects that will be serialized
     :return: jsonapi formatted dictionary
     """
-
     limit = get_legacy("page_limit", get_config("MAX_PAGE_LIMIT"))
     try:
         limit = int(limit)
@@ -335,7 +332,6 @@ class SAFRSRestAPI(Resource):
 
         A resource object’s attributes and its relationships are collectively called its “fields”.
     """
-
     SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     default_order = None  # used by sqla order_by
     object_id = None
@@ -609,7 +605,6 @@ class SAFRSRestAPI(Resource):
                 A server SHOULD return a 404 Not Found status code
                 if a deletion request fails due to the resource not existing.
         """
-
         id = kwargs.get(self.object_id, None)
 
         if id:
@@ -624,7 +619,6 @@ class SAFRSRestAPI(Resource):
         """
             Call the instance method specified by method_name
         """
-
         method = getattr(instance, method_name, False)
 
         if not method:
@@ -644,7 +638,6 @@ class SAFRSRestAPI(Resource):
             Get all instances. Subclasses may want to override this
             (for example to sort results)
         """
-
         if method_name:
             method(**args)
 
@@ -659,7 +652,6 @@ class SAFRSRestMethodAPI(Resource):
 
         Only HTTP POST is supported
     """
-
     SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     method_name = None
 
@@ -735,7 +727,6 @@ class SAFRSRestMethodAPI(Resource):
 
             ---
         """
-
         id = kwargs.get(self.object_id, None)
 
         if id is not None:
@@ -803,7 +794,6 @@ class SAFRSRestRelationshipAPI(Resource):
         found or accessed, or return a 403 Forbidden response if complete
         replacement is not allowed by the server.
     """
-
     SAFRSObject = None
 
     # pylint: disable=unused-argument
@@ -1064,7 +1054,6 @@ class SAFRSRestRelationshipAPI(Resource):
             ----
             Remove an item from a relationship
         """
-
         kwargs["require_child"] = True
         # pylint: disable=unused-variable
         # (parent is unused)
@@ -1087,7 +1076,6 @@ class SAFRSRestRelationshipAPI(Resource):
 
             :return: parent, child, relation
         """
-
         parent_id = kwargs.get(self.parent_object_id, None)
         if parent_id is None:
             raise ValidationError("Invalid Parent Id")

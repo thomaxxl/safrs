@@ -77,7 +77,7 @@ class SAFRSBase(Model):
         The jsonapi id is generated from the primary keys of the columns
 
         The object attributes should not match column names,
-        this is why the attributes have the '_s_' prefix!
+        this is why most of the methods & properties have the '_s_' prefix!
     """
     query_limit = 50
     # set this to False if you want to use the SAFRSBase in combination
@@ -196,17 +196,7 @@ class SAFRSBase(Model):
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
-        """
-        TODO: should we do this?
         
-        else:
-            # Check the attribute value type by casting it
-            try:
-                attr_val = column.type.python_type(attr_val)
-            except Exception as exc:
-                log.exception(exc)
-                raise ValidationError('Invalid attribute value "{}" for {} ({})'.format(attr_val, column.name, exc))
-        """
         return attr_val
 
     def _s_expunge(self):
@@ -262,12 +252,10 @@ class SAFRSBase(Model):
 
         return result
 
-    # pylint: disable=
     @classproperty
     def _s_class_name(cls):
         return cls.__tablename__
 
-    # pylint: disable=
     @classproperty
     def _s_type(cls):
         return cls.__tablename__
@@ -291,8 +279,8 @@ class SAFRSBase(Model):
         return self.__mapper__.relationships
 
     @classproperty
-    def _s_relationship_names(self):
-        return [rel.key for rel in self.__mapper__.relationships]
+    def _s_relationship_names(cls):
+        return [rel.key for rel in cls.__mapper__.relationships]
 
     def _s_patch(self, **attributes):
         columns = {col.name: col for col in self._s_columns}
