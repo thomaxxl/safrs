@@ -127,7 +127,7 @@ class SAFRSBase(Model):
         # Add the related instances
         for rel_name in self._s_relationship_names:
             rel_attr = kwargs.get(rel_name, None)
-            if not request and rel_attr:
+            if rel_attr:
                 # This shouldn't in the work in the web context
                 # because the relationships should already have been removed by SAFRSRestAPI.post
                 db_args[rel_name] = rel_attr
@@ -139,7 +139,8 @@ class SAFRSBase(Model):
             safrs.DB.Model.__init__(self, **db_args)
         except Exception as exc:
             # OOPS .. things are going bad, this might happen using sqla automap
-            safrs.log.error("Failed to instantiate object")
+            safrs.log.error("Failed to instantiate {}".format(self))
+            safrs.log.debug("db args: {}".format(db_args))
             safrs.log.exception(exc)
             safrs.DB.Model.__init__(self)
 
@@ -185,8 +186,10 @@ class SAFRSBase(Model):
             date_str = str(attr_val)
             try:
                 if "." in date_str:
+                    # str(datetime.datetime.now()) => "%Y-%m-%d %H:%M:%S.%f"
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
                 else:
+                    # JS datepicker format
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
