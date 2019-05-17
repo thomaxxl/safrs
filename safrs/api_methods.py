@@ -57,14 +57,14 @@ def lookup_re_mysql(cls, **kwargs):
 
     return result.all()
 
-
+@classmethod
 @jsonapi_rpc(http_methods=['POST'])
 def startswith(cls, **kwargs):
     """
         pageable: True
         description : lookup column names
         args:
-        name: t
+           name: ""
     """
     # from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
     result = cls
