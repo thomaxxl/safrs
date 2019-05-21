@@ -42,14 +42,15 @@ def test_decorator(func):
 # pylint: disable=invalid-name
 # Uppercase bc we're returning the API class here, eventually this might become a class by itself
 def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI", **kwargs):
-    """ API factory method:
-        - configure SAFRS
-        - create API
-        :param app: flask app
+    """ :param app: flask app
         :param host: the host used in the swagger doc
         :param port: the port used in the swagger doc
         :param prefix: the Swagger url prefix (not the api prefix)
         :param description: the swagger description
+
+        API factory method:
+            * configure SAFRS
+            * create API
     """
     decorators = kwargs.pop("decorators", [])  # eg. test_decorator
     custom_swagger = kwargs.pop("custom_swagger", {})
@@ -202,7 +203,7 @@ __all__ = (
     "SAFRSBase",
     "jsonapi_rpc",
     # jsonapi:
-    "SAFRSJSONEncoder",
+    #"SAFRSJSONEncoder",
     "paginate",
     "jsonapi_format_response",
     "SAFRSFormattedResponse",
