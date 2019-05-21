@@ -89,7 +89,7 @@ fi
 
 
 echo GET books_read
-books_read_id=$(curl -X GET --header 'Accept: application/json' "http://127.0.0.1:5000/People/$id/books_read?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob" 2>/dev/null | jq -r ".data[0].id")
+books_read_id=$(curl -X GET --header 'Accept: application/json' "http://127.0.0.1:5000/People/$id/books_read?page[limit]=10&include=publisher&sort=title" 2>/dev/null | jq -r ".data[0].id")
 
 ret=$?
 if [[ $ret != 0  || $books_read_id != $book_id ]];then
