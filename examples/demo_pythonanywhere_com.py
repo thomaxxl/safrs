@@ -86,14 +86,12 @@ class Person(SAFRSBase, db.Model):
     reviews = db.relationship("Review", backref="reader")
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
-    @classmethod
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
         """
             description : Send an email
             args:
                 email:
-                    type : string
                     example : test email
         """
         content = "Mail to {} : {}\n".format(self.name, email)
@@ -107,12 +105,11 @@ class Person(SAFRSBase, db.Model):
         """
             description : Generate and return a Thing based on name
             args:
-                my_post_body_param:
-                      default: 5
-                      type: int
+                my_post_body_param: xxx
             pageable: false
             parameters:
                 - name : my_query_string_param
+                  default : my_value
         """
         print(kwargs)
         print(args)
