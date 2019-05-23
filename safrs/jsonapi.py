@@ -156,6 +156,8 @@ def paginate(object_query, SAFRSObject=None):
         count = SAFRSObject._s_count()
     if count is None:
         count = object_query.count()
+        if count > get_config('MAX_TABLE_COUNT'):
+            log.warning("Large table count detected, performance may be impacted, consider using '_s_count'")
 
     first_args = (0, limit)
     last_args = (int(int(count / limit) * limit), limit)  # round down

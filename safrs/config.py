@@ -72,6 +72,7 @@ def get_config(option):
     if not ENABLE_RELATIONSHIPS:
         ENABLE_RELATIONSHIPS = True
 
+    MAX_TABLE_COUNT = int(os.environ.get("MAX_TABLE_COUNT", safrs.SAFRS.MAX_TABLE_COUNT))
     try:
         result = current_app.config[option]
     except (KeyError, RuntimeError):

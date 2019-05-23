@@ -95,6 +95,8 @@ class SAFRS:
     CLASSMETHOD_URL_FMT = None
     RELATIONSHIP_URL_FMT = None
     ENDPOINT_FMT = None
+    MAX_TABLE_COUNT = 10**7 # table counts will become really slow for large tables, inform the user about it using this
+
     #
     config = {}
 
