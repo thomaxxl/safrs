@@ -46,26 +46,6 @@ def parse_object_doc(object):
     return api_doc
 
 
-def documented_api_method(method):
-    """
-        Decorator to expose functions in the REST API:
-        When a method is decorated with documented_api_method, this means
-        it becomes available for use through HTTP POST (i.e. public)
-        :param method: method to be decorated
-        :return: decorated method
-    """
-
-    safrs.log.error(methodxx)
-    USE_API_METHODS = get_config("USE_API_METHODS")
-    if USE_API_METHODS:
-        try:
-            api_doc = parse_object_doc(method)
-        except yaml.scanner.ScannerError:
-            safrs.log.error("Failed to parse documentation for %s", method)
-        setattr(method, REST_DOC, api_doc)
-    return method
-
-
 def jsonapi_rpc(http_methods):
     """
         Decorator to expose functions in the REST API:
@@ -225,27 +205,28 @@ def schema_from_object(name, object):
 
 def get_swagger_doc_arguments(cls, method_name, http_method):
     """
+        :param cls: class containing the method to be exposed
+        :param method_name: name of the method to be exposed
+        :param http_method: HTTP method used to invoke
+        :return: parameters, fields, description, method
+
         create a schema for all methods which can be called through the
         REST POST interface
 
         A method is called with following JSON payload:
-        {
+        ```{
             "meta"   : {
                          "args" : {
                                     "parameter1" : "value1" ,
                                     "parameter2" : "value2" ,
                                   }
                        }
-        }
+        }```
 
         The schema is created using the values from the documented_api_method decorator,
         returned by get_doc()
 
         We use "meta" to remain compliant with the jsonapi schema
-
-        :param cls:
-        :param method_name:
-        :return: parameters, fields, description, method
     """
 
     parameters = []
@@ -258,19 +239,29 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         rest_doc = get_doc(method)
         description = rest_doc.get("description", "")
         if rest_doc:
-            method_args = rest_doc.get("args", [])
-            parameters = rest_doc.get("parameters", [])
-            if method_args:
-                if http_method == 'get' and isinstance(method_args, list):
-                    # query string arguments
-                    # e.g. [{'name': 'name', 'type': 'string', 'default': 'def value'}]
-                    for arg in method_args:
-                        arg["in"] = "query"
-                    parameters = method_args
-                    
-                elif isinstance(method_args, dict):
+            method_args = rest_doc.get("args", []) # jsonapi_rpc "POST" method arguments
+            parameters = rest_doc.get("parameters", []) # query string parameters
+            if method_args and isinstance(method_args, dict):
+                if http_method == 'get':
                     """
-                        Post arguments, these require a schema
+                        GET jsonapi_rpc args are passed in the query string 
+                    """
+                    for arg_name, arg_desc in method_args.items():
+                        if isinstance(arg_desc, dict):
+                            arg_type = arg_desc.get("type")
+                            default = arg_desc.get("default", arg_desc.get("example", ""))
+                        elif isinstance(arg_desc, str):
+                            default = arg_desc
+                            arg_type = "string"
+                        else:
+                            log.error("Invalid argument description {}".format(method_args))
+                        parameters += [{"name" : arg_name, 
+                                        "default":  default,
+                                        "type" : arg_type,
+                                        "in" : "query"}]
+                else:
+                    """
+                        Post arguments, these require us to build a schema
                     """
                     model_name = "{}_{}".format(cls.__name__, method_name)
                     method_field = {"method": method_name, "args": method_args}
@@ -293,6 +284,12 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             arg_field = {"schema": model, "type": "string"}
             method_field = {"method": method_name, "args": args}
             fields["meta"] = schema_from_object(model_name, method_field)
+
+        for param in parameters:
+            if param.get("in") is None:
+                param["in"] = "query"
+            if param.get("type") is None:
+                param["type"] = "string"
 
         return parameters, fields, description, method
 

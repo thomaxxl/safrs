@@ -756,6 +756,11 @@ class SAFRSRestMethodAPI(Resource):
         result = method(**args)
 
         response = {"meta": {"result": result}}
+ 
+        if isinstance(result, SAFRSFormattedResponse):
+            response = result
+        else:
+            response = {"meta": {"result": result}}
 
         return jsonify(response)  # 200 : default
 

@@ -1,32 +1,12 @@
 """
-api_methods.py
+.. api_methods::
 """
 from sqlalchemy import or_
 from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 from .swagger_doc import jsonapi_rpc
 from .errors import GenericError, ValidationError
 
-# from .safrs_types import SAFRSID
-
-
-def get_list(self, id_list):
-    """
-        description: [deprecated] use csv filter[idx] instead
-        args:
-            id_list:
-                - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-                - xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-    """
-
-    result = []
-    for idx in id_list:
-        instance = self._s_query.get(idx)
-        if idx:
-            result.append(instance)
-
-    return result
-
-
+@classmethod
 @jsonapi_rpc(http_methods=['POST'])
 def lookup_re_mysql(cls, **kwargs):
     """
@@ -57,14 +37,13 @@ def lookup_re_mysql(cls, **kwargs):
 
     return result.all()
 
-
-@jsonapi_rpc(http_methods=['POST'])
+@classmethod
+@jsonapi_rpc(http_methods=['GET'])
 def startswith(cls, **kwargs):
     """
         pageable: True
         description : lookup column names
-        args:
-        name: t
+        
     """
     # from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
     result = cls

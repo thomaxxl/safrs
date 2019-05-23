@@ -24,6 +24,7 @@ from flask_admin import Admin
 from flask_admin.contrib import sqla
 from safrs import SAFRSAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
+from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate, ValidationError
 from safrs import jsonapi_rpc  # rpc decorator
 from safrs import search, startswith  # rpc methods
 from flask import url_for, jsonify
@@ -61,19 +62,6 @@ class Book(SAFRSBase, db.Model):
         "Review", backref="book", cascade="save-update, merge, delete, delete-orphan"
     )
 
-    @classmethod
-    @jsonapi_rpc(http_methods=["GET"])
-    def get_by_name(cls, *args, **kwargs):
-        """
-            description : Generate and return a Thing based on name
-            args:
-                - name: name
-                  type: string
-                  default: xx
-            pageable: false
-        """
-        return { "result" : 1}
-
 
 class Person(SAFRSBase, db.Model):
     """
@@ -98,20 +86,47 @@ class Person(SAFRSBase, db.Model):
     reviews = db.relationship("Review", backref="reader")
     # Following method is exposed through the REST API
     # This means it can be invoked with a HTTP POST
-    @classmethod
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
         """
             description : Send an email
             args:
                 email:
-                    type : string
                     example : test email
         """
         content = "Mail to {} : {}\n".format(self.name, email)
         with open("/tmp/mail.txt", "a+") as mailfile:
             mailfile.write(content)
         return {"result": "sent {}".format(content)}
+
+    @classmethod
+    @jsonapi_rpc(http_methods=["GET","POST"])
+    def my_rpc(cls, *args, **kwargs):
+        """
+            description : Generate and return a Thing based on name
+            args:
+                my_post_body_param: xxx
+            pageable: false
+            parameters:
+                - name : my_query_string_param
+                  default : my_value
+        """
+        print(kwargs)
+        print(args)
+
+        result = cls
+        response = SAFRSFormattedResponse()
+        try:
+            instances = result.query
+            links, instances, count = paginate(instances)
+            data = [item for item in instances]
+            meta = {}
+            errors = None
+            response.response = jsonapi_format_response(data, meta, links, errors, count)
+        except Exception as exc:
+            log.exception(exc)
+
+        return response
 
 
 class Publisher(SAFRSBase, db.Model):

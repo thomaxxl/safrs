@@ -6,19 +6,20 @@
 Welcome to safrs's documentation!
 =================================
 
-Contents:
-
-Check https://github.com/thomaxxl/safrs/blob/master/README.md
 
 .. toctree::
    :maxdepth: 2
+   :caption: Table of Contents
 
+   safrs
+   api_methods
 
+Check https://github.com/thomaxxl/safrs/blob/master/README.md
 
 Indices and tables
 ==================
 
-* :ref:`genindex`
 * :ref:`modindex`
+* :ref:`genindex`
 * :ref:`search`
 
