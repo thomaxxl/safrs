@@ -245,7 +245,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                 if http_method == 'get':
                     """
                         GET jsonapi_rpc args are passed in the query string 
-                    """
+                    
                     for arg_name, arg_desc in method_args.items():
                         if isinstance(arg_desc, dict):
                             arg_type = arg_desc.get("type")
@@ -255,10 +255,11 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                             arg_type = "string"
                         else:
                             log.error("Invalid argument description {}".format(method_args))
-                        parameters += [{"name" : arg_name, 
+                        '''parameters += [{"name" : arg_name, 
                                         "default":  default,
                                         "type" : arg_type,
-                                        "in" : "query"}]
+                                        "in" : "query"}]'''
+                    """
                 else:
                     """
                         Post arguments, these require us to build a schema

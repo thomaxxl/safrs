@@ -17,7 +17,7 @@
 import sys
 import os
 import datetime
-from flask import Flask, redirect, send_from_directory
+from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_admin import Admin
@@ -83,16 +83,18 @@ class Person(SAFRSBase, db.Model):
     books_written = db.relationship(
         "Book", backref="author", foreign_keys=[Book.author_id]
     )
-    reviews = db.relationship("Review", backref="reader")
-    # Following method is exposed through the REST API
-    # This means it can be invoked with a HTTP POST
+    reviews = db.relationship("Review", backref="reader"
+        )
+    # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
         """
             description : Send an email
             args:
-                email:
-                    example : test email
+                email: test email
+            parameters:
+                - name : my_query_string_param
+                  default : my_value
         """
         content = "Mail to {} : {}\n".format(self.name, email)
         with open("/tmp/mail.txt", "a+") as mailfile:
@@ -103,17 +105,16 @@ class Person(SAFRSBase, db.Model):
     @jsonapi_rpc(http_methods=["GET","POST"])
     def my_rpc(cls, *args, **kwargs):
         """
-            description : Generate and return a Thing based on name
-            args:
-                my_post_body_param: xxx
+            description : Generate and return a jsonapi-formatted response
             pageable: false
             parameters:
                 - name : my_query_string_param
                   default : my_value
+            args:
+                email: test email
         """
-        print(kwargs)
         print(args)
-
+        print(kwargs)
         result = cls
         response = SAFRSFormattedResponse()
         try:
@@ -199,7 +200,8 @@ def start_api(HOST="0.0.0.0", PORT=None):
             swagger_host += ":{}".format(PORT)
 
         custom_swagger = {
-            "info": {"title": "New Title"}
+            "info": {"title": "New Title"},
+            "securityDefinitions": {  "ApiKeyAuth": {"type": "apiKey" , "in" : "header", "name": "My-Cookie"} }
         }  # Customized swagger will be merged
 
         api = SAFRSAPI(
@@ -258,23 +260,16 @@ def goto_api():
     return redirect(OAS_PREFIX)
 
 
-@app.route("/site-map")
-def site_map():
-    def has_no_empty_params(rule):
-        defaults = rule.defaults if rule.defaults is not None else ()
-        arguments = rule.arguments if rule.arguments is not None else ()
-        return len(defaults) >= len(arguments)
-
-    links = []
-    for rule in app.url_map.iter_rules():
-        if "GET" in rule.methods and has_no_empty_params(rule):
-            url = url_for(rule.endpoint, **(rule.defaults or {}))
-            links.append((url, rule.endpoint))
-    return jsonify(links)
-
+@app.route('/sd')
+def shutdown():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+    return ''
 
 if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "thomaxxl.pythonanywhere.com"
     PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
     start_api(HOST, PORT)
-    app.run(host=HOST, port=PORT)
+    app.run(host=HOST, port=PORT,threaded=False)

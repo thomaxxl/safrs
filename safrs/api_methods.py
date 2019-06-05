@@ -103,7 +103,7 @@ def search(cls, **kwargs):
         pageable: True
         description : lookup column names
         args:
-            query: keyword
+            col_name: value
     """
     query = kwargs.get("query", "")
     response = SAFRSFormattedResponse()
