@@ -38,7 +38,7 @@ def lookup_re_mysql(cls, **kwargs):
     return result.all()
 
 @classmethod
-@jsonapi_rpc(http_methods=['GET'])
+@jsonapi_rpc(http_methods=['POST'])
 def startswith(cls, **kwargs):
     """
         pageable: True
