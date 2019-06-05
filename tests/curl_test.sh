@@ -3,9 +3,11 @@
 #
 
 READER_NAME="TestReader"
+HOST=$1
+test_host=${HOST:=http://127.0.0.1:5000}
 
 echo Get People
-curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' 'http://127.0.0.1:5000/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob' > /dev/null 2>&1
+curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host"'/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob' > /dev/null 2>&1
 
 ret=$?
 
@@ -25,7 +27,7 @@ id=$(curl -X POST --header 'Content-Type: application/json' --header 'Accept: ap
      },  
      "type": "People"  
    }  
- }' 'http://127.0.0.1:5000/People/' 2>/dev/null | jq -r .data.id)
+ }' "$test_host/People/" 2>/dev/null | jq -r .data.id)
 
 ret=$?
 if [[ $ret != 0 ]]; then
@@ -34,15 +36,15 @@ if [[ $ret != 0 ]]; then
 fi
 
 echo "Get Reader (id $id)"
-curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "http://127.0.0.1:5000/People/$id" >/dev/null 2>&1
+curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host/People/$id" >/dev/null 2>&1
 ret=$?
 if [[ $ret != 0 ]]; then
 	echo FAIL
 	exit 1
 fi
 
-echo "Get Readers with filter: http://127.0.0.1:5000/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=$READER_NAME"
-curl -g "http://127.0.0.1:5000/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=$READER_NAME" >/dev/null 2>&1
+echo "Get Readers with filter: $test_host/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=$READER_NAME"
+curl -g "$test_host/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=$READER_NAME" >/dev/null 2>&1
 
 echo Patch Reader
 curl -X PATCH --header 'Content-Type: application/json' --header 'Accept: application/json' -d '{  
@@ -53,10 +55,10 @@ curl -X PATCH --header 'Content-Type: application/json' --header 'Accept: applic
        "dob" : "1988-08-09",  
        "comment": ""  
      },  
-     "id": "5213a17a-b195-4b52-befd-d1c039009517",  
+     "id": "'$id'",  
      "type": "People"  
    }  
- }' 'http://127.0.0.1:5000/People/fd220bc4-eb73-4dfe-8cfa-a15f810e88ca/' >/dev/null 2>&1
+ }' "$test_host/People/$id/" >/dev/null 2>&1
 
 
 ret=$?
@@ -66,7 +68,7 @@ if [[ $ret != 0 ]]; then
 fi
 
 echo GET Books
-book_id=$(curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' 'http://127.0.0.1:5000/Books/?page[limit]=10&include=publisher%2Creviews%2Creader%2Cauthor&sort=title%2Creader_id%2Cauthor_id%2Cpublisher_id' 2>/dev/null | jq -r '.data[0].id')
+book_id=$(curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host"'/Books/?page[limit]=10&include=publisher%2Creviews%2Creader%2Cauthor&sort=title%2Creader_id%2Cauthor_id%2Cpublisher_id' 2>/dev/null | jq -r '.data[0].id')
 
 echo "POST books_read ( reader id : $id, book_id : $book_id)"
 
@@ -78,7 +80,7 @@ curl -X POST --header 'Content-Type: application/json' --header 'Accept: applica
        "id": "'$book_id'"  
      }  
    ]  
- }' "http://127.0.0.1:5000/People/$id/books_read" >/dev/null 2>&1
+ }' "$test_host/People/$id/books_read" >/dev/null 2>&1
 
 
 ret=$?
@@ -89,7 +91,7 @@ fi
 
 
 echo GET books_read
-books_read_id=$(curl -X GET --header 'Accept: application/json' "http://127.0.0.1:5000/People/$id/books_read?page[limit]=10&include=publisher&sort=title" 2>/dev/null | jq -r ".data[0].id")
+books_read_id=$(curl -X GET --header 'Accept: application/json' "$test_host/People/$id"'/books_read?page[limit]=10&include=publisher&sort=title' 2>/dev/null | jq -r ".data[0].id")
 
 ret=$?
 if [[ $ret != 0  || $books_read_id != $book_id ]];then
@@ -97,8 +99,8 @@ if [[ $ret != 0  || $books_read_id != $book_id ]];then
 	exit 1
 fi
 
-echo "Delete books_read (http://127.0.0.1:5000/People/$id/books_read/$book_id)"
-curl -X DELETE --header 'Accept: application/json' "http://127.0.0.1:5000/People/$id/books_read/$book_id" >/dev/null 2>&1
+echo "Delete books_read ($test_host/People/$id/books_read/$book_id)"
+curl -X DELETE --header 'Accept: application/json' "$test_host/People/$id/books_read/$book_id" >/dev/null 2>&1
 
 ret=$?
 if [[ $ret != 0 ]]; then
@@ -107,7 +109,7 @@ if [[ $ret != 0 ]]; then
 fi
 
 echo Delete Reader
-curl -X DELETE --header 'Accept: application/json' "http://127.0.0.1:5000/People/$id" >/dev/null 2>&1
+curl -X DELETE --header 'Accept: application/json' "$test_host/People/$id" >/dev/null 2>&1
 ret=$?
 if [[ $ret != 0 ]]; then
 	echo FAIL
@@ -115,7 +117,7 @@ if [[ $ret != 0 ]]; then
 fi
 
 
-curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' 'http://127.0.0.1:5000/People/?page[limit]=10&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=Author%200&fields[People]=name,dob' >/dev/null 2>&1
+curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host"'/People/?page[limit]=10&sort=name%2Cemail%2Ccomment%2Cdob&filter[name]=Author%200&fields[People]=name,dob' >/dev/null 2>&1
 ret=$?
 if [[ $ret != 0 ]]; then
   echo FAIL
@@ -128,12 +130,36 @@ curl -X POST --header 'Content-Type: application/json' --header 'Accept: applica
      "method": "send_mail",  
      "args": {  
        "email": {  
-         "type": "string",  
          "example": "test email"  
        }  
      }  
    }  
- }' 'http://127.0.0.1:5000/People/send_mail' > /dev/null 2>&1
+ }' "$test_host/People/$id/send_mail" > /dev/null 2>&1
+
+ret=$?
+if [[ $ret != 0 ]]; then
+	echo FAIL
+	exit 1
+fi
+
+echo Test my_rpc
+curl -X GET "$test_host/People/my_rpc?my_query_string_param=my_value&my_post_body_param=xxx" -H "accept: application/json" > /dev/null 2>&1
+
+ret=$?
+if [[ $ret != 0 ]]; then
+	echo FAIL
+	exit 1
+fi
+
+curl -X GET "$test_host/People/?page%5Boffset%5D=0&page%5Blimit%5D=10&include=books_read%2Cbooks_written%2Creviews&fields%5BPeople%5D=name%2Cemail%2Ccomment%2Cdob&sort=name%2Cemail%2Ccomment%2Cdob&filter%5Bname%5D=xxx" -H "accept: application/json" -H "Content-Type: application/vnd.api+json" > /dev/null 2>&1
+
+ret=$?
+if [[ $ret != 0 ]]; then
+	echo FAIL
+	exit 1
+fi
+
+curl -X GET "$test_host/People/?page%5Boffset%5D=0&page%5Blimit%5D=10&include=books_read%2Cbooks_written%2Creviews&fields%5BPeople%5D=name%2Cemail%2Ccomment%2Cdob&sort=name%2Cemail%2Ccomment%2Cdob&filter%5Bname%5D=xxx&filter%5Bdob%5D=x" -H "accept: application/json" -H "Content-Type: application/vnd.api+json" > /dev/null 2>&1
 
 ret=$?
 if [[ $ret != 0 ]]; then
@@ -142,5 +168,6 @@ if [[ $ret != 0 ]]; then
 fi
 
 
+curl $test_host/sd
 
 echo DONE
