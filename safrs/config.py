@@ -99,4 +99,3 @@ def get_legacy(param, default=0):
         safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
         result = default
     return result
-

@@ -36,7 +36,6 @@ from urllib.parse import urlparse
 
 INCLUDE_ALL = "+all"
 
-
 # results for GET requests will go through filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
     """

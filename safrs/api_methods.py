@@ -15,8 +15,6 @@ def lookup_re_mysql(cls, **kwargs):
         args:
             name: thom.*
     """
-    # from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
-
     result = cls
     response = SAFRSFormattedResponse()
     for key, value in kwargs.items():
@@ -45,7 +43,6 @@ def startswith(cls, **kwargs):
         description : lookup column names
         
     """
-    # from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
     result = cls
     response = SAFRSFormattedResponse()
     try:
