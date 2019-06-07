@@ -192,6 +192,8 @@ This method shows up in the swagger interface:
 The ```send_mail``` method is documented with the ```jsonapi_rpc``` decorator. 
 This decorator generates a schema based on the function documentation. This documentation contains yaml specification of the API which is used by the swagger UI. 
 
+[api_methods.py](safrs/api_methods.py) contains a couple of methods that can be used in your models.
+
 The yaml specification has to be in the first part of the function and class comments. These parts are delimited by four dashes ("----") . The rest of the comment may contain additional documentation.
 
 <a class="mk-toclify" id="class-methods"></a>
