@@ -301,7 +301,10 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_type(cls):
-        return cls.__tablename__
+        """
+            :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
+        """
+        return getattr(cls,'__tablename__',cls.__name__)
 
     # jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all

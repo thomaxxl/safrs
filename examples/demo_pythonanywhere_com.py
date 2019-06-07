@@ -62,6 +62,12 @@ class Book(SAFRSBase, db.Model):
         "Review", backref="book", cascade="save-update, merge, delete, delete-orphan"
     )
 
+    def get(*args, **kwargs):
+        print(args)
+        print(kwargs)
+
+        return {}
+
 
 class Person(SAFRSBase, db.Model):
     """
@@ -136,7 +142,6 @@ class Publisher(SAFRSBase, db.Model):
         ---
         demonstrate custom (de)serialization in __init__ and to_dict
     """
-
     __tablename__ = "Publishers"
     id = db.Column(db.Integer, primary_key=True)  # Integer pk instead of str
     name = db.Column(db.String, default="")
@@ -164,7 +169,6 @@ class Review(SAFRSBase, db.Model):
     """
         description: Review description
     """
-
     __tablename__ = "Reviews"
     reader_id = db.Column(
         db.String, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True

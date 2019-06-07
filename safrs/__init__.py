@@ -74,8 +74,6 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
 
 
 # pylint: enable=invalid-name
-
-
 class SAFRS:
     """This class configures the Flask application to serve SAFRSBase instances
     :param app: a Flask application.

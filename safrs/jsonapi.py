@@ -149,7 +149,6 @@ def paginate(object_query, SAFRSObject=None):
     # Make it configurable
     # With mysql innodb we can use following to retrieve the count:
     # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
-    #
     if SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()
         count = object_query.count()
     else:
