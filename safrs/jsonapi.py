@@ -30,26 +30,11 @@ import safrs
 from .db import SAFRSBase
 from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
-from .config import get_config
+from .config import get_config, get_legacy
 from .json_encoder import SAFRSFormattedResponse
 from urllib.parse import urlparse
 
 INCLUDE_ALL = "+all"
-
-
-def get_legacy(param, default=0):
-    """
-        retrieve request parameters
-        Used for backwards compatibility (with safrs < 2.x)
-        :param param: parameter to retrieve
-        :param default:
-        :return: prequest parameter or None
-    """
-    result = getattr(request, param, None)
-    if result is None:
-        safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
-        result = default
-    return result
 
 
 # results for GET requests will go through filter -> sort -> paginate

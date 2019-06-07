@@ -5,7 +5,7 @@ The get_config function handles the current config while remaining backwards com
 
 """
 import os
-from flask import current_app
+from flask import current_app, request
 import safrs
 
 
@@ -85,3 +85,18 @@ def get_config(option):
         raise
 
     return result
+
+def get_legacy(param, default=0):
+    """
+        retrieve request parameters
+        Used for backwards compatibility (with safrs < 2.x)
+        :param param: parameter to retrieve
+        :param default:
+        :return: prequest parameter or None
+    """
+    result = getattr(request, param, None)
+    if result is None:
+        safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
+        result = default
+    return result
+
