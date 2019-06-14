@@ -70,18 +70,10 @@ class SAFRSJSONEncoder(JSONEncoder):
             return obj.isoformat()
         if isinstance(obj, SAFRSDummy):
             return {}
-        # We shouldn't get here in a normal setup
-        # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        if safrs.log.getEffectiveLevel() >= logging.INFO:
-            # only continue if in debug mode
-            safrs.log.warning('Unknown obj type "{}" for {}'.format(type(obj), obj))
-            return {"error": "invalid object"}
         if isinstance(obj, set):
             return list(obj)
         if isinstance(obj, DeclarativeMeta):
             return self.sqla_encode(obj)
-        if isinstance(obj, SAFRSFormattedResponse):
-            return obj.to_dict()
         if isinstance(obj, SAFRSFormattedResponse):
             return obj.to_dict()
         if isinstance(obj, decimal.Decimal):
@@ -89,8 +81,13 @@ class SAFRSJSONEncoder(JSONEncoder):
         if isinstance(obj, bytes):
             safrs.log.warning("bytes obj, TODO")
 
-        else:
+        # We shouldn't get here in a normal setup
+        # getting here means we already abused safrs... and we're no longer jsonapi compliant
+        if safrs.log.getEffectiveLevel() >= logging.INFO:
+            # only continue if in debug mode
             safrs.log.warning('Unknown obj type "{}" for {}'.format(type(obj), obj))
+            return {"error": "invalid object"}
+        
         return self.ghetto_encode(obj)
 
     @staticmethod
