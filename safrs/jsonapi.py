@@ -244,7 +244,7 @@ def get_included(data, limit, include="", level=0):
     return result
 
 
-def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None):
+def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count=None):
     """
     Create a response dict according to the json:api schema spec
     :param data : the objects that will be serialized
@@ -257,7 +257,7 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
         raise ValidationError("page[limit] error")
     if meta is None:
         meta = {}
-        
+
     meta["limit"] = limit
     meta["count"] = count
 
