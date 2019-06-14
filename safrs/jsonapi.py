@@ -255,6 +255,9 @@ def jsonapi_format_response(data, meta=None, links=None, errors=None, count=None
         limit = int(limit)
     except ValueError:
         raise ValidationError("page[limit] error")
+    if meta is None:
+        meta = {}
+        
     meta["limit"] = limit
     meta["count"] = count
 

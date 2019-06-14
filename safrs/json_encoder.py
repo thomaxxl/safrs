@@ -10,7 +10,6 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
 from .db import SAFRSBase, SAFRSDummy
 
-
 class SAFRSFormattedResponse:
     """
         Custom response object
@@ -22,6 +21,17 @@ class SAFRSFormattedResponse:
     errors = None
     result = None
     response = None
+
+    def __init__(self, *args, **kwargs):
+        """
+            :param data:
+            :param meta:
+            :param links:
+            :param errors:
+            :param count:
+        """
+        self.response = safrs.jsonapi_format_response(*args, **kwargs)
+
 
     def to_dict(self):
         """
