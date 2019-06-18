@@ -49,17 +49,17 @@ def jsonapi_filter(safrs_object):
         result = safrs_object._s_filter(filter_args)
         return result
 
-    filtered = []
+    expressions = []
     filters = get_legacy("filters", {})
     for col_name, val in filters.items():
         if not col_name in safrs_object._s_column_names:
             safrs.log.warning("Invalid Column {}".format(col_name))
             continue
         column = getattr(safrs_object, col_name)
-        filtered.append(safrs_object.query.filter(column.in_(val.split(","))))
+        expressions.append(column.in_(val.split(",")))
 
-    if filtered:
-        result = filtered[0].union_all(*filtered).distinct()
+    if expressions:
+        result = safrs_object.query.filter(*expressions)
     else:
         result = safrs_object.query
 
