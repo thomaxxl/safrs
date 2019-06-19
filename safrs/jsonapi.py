@@ -40,7 +40,7 @@ INCLUDE_ALL = "+all"
 def jsonapi_filter(safrs_object):
     """
         Apply the request.args filters to the object
-        :parameter safrs_object:
+        :param safrs_object:
         :return: a sqla query object
     """
     # First check if a filter= URL query parameter has been used
@@ -70,6 +70,9 @@ def jsonapi_sort(object_query, safrs_object):
     """
         http://jsonapi.org/format/#fetching-sorting
         sort by csv sort= values
+        :param object_query: sqla query object
+        :param safrs_object: SAFRSObject
+        :return: sqla query object
     """
     sort_columns = request.args.get("sort", None)
     if not sort_columns is None:
@@ -113,8 +116,8 @@ def paginate(object_query, SAFRSObject=None):
         We use page[offset] and page[limit], where
         offset is the number of records to offset by prior to returning resources
 
-        :parameter object_query: SQLAalchemy query object
-        :prameter SAFRSObject: optional
+        :param object_query: SQLAalchemy query object
+        :param SAFRSObject: optional
         :return: links, instances, count
     """
     def get_link(count, limit):
