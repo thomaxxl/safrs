@@ -4,7 +4,7 @@
 
 READER_NAME="TestReader"
 HOST=$1
-test_host=${HOST:=http://127.0.0.1:5000}
+test_host=${HOST:="http://127.0.0.1:5000"}
 
 echo Get People
 curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host"'/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob' > /dev/null 2>&1
@@ -114,6 +114,14 @@ ret=$?
 if [[ $ret != 0 ]]; then
 	echo FAIL
 	exit 1
+fi
+
+echo "Test Filter"
+filter_count=$(curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host"'/People/?page%5Boffset%5D=0&page%5Blimit%5D=10&include=books_read%2Cbooks_written%2Creviews&fields%5BPeople%5D=name%2Cemail%2Ccomment%2Cdob&sort=name%2Cemail%2Ccomment%2Cdob&filter%5Bname%5D=Author%200%2CAuthor%201&filter%5Bemail%5D=author_email0%2Cauthor_email1'  2>/dev/null | jq -r ".meta.count")
+ret=$?
+if [[ $ret != 0 || $filter_count != 2 ]]; then
+  echo FAIL
+  exit 1
 fi
 
 
