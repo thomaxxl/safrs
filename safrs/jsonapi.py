@@ -80,15 +80,13 @@ def jsonapi_sort(object_query, safrs_object):
             if sort_column.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
                 attr = getattr(safrs_object, sort_column[1:], None)
-                if attr is None:
-                    raise ValidationError("Invalid sort column {}".format(sort_column))
-                attr = attr.desc()
-                object_query = object_query.order_by(attr)
+                if not attr is None: attr = attr.desc()
             else:
                 attr = getattr(safrs_object, sort_column, None)
-                if attr is None:
-                    raise ValidationError("Invalid sort column {}".format(sort_column))
-                object_query = object_query.order_by(attr)
+            if attr is None:
+                log.error("Invalid sort column {}".format(sort_column))
+                continue
+            object_query = object_query.order_by(attr)
 
     return object_query
 

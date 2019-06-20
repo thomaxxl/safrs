@@ -283,6 +283,12 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_jsonapi_attrs(cls):
+        '''
+            :return: list of jsonapi attributes
+            At the moment we expect the column name to be equal to the column name
+            Things will go south if this isn't thee case and we should use
+            the cls.__mapper__._polymorphic_properties instead
+        '''
         result = []
         for attr in cls._s_column_names:
             # jsonapi schema prohibits the use of the fields 'id' and 'type' in the attributes
@@ -308,9 +314,10 @@ class SAFRSBase(Model):
 
     # jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
     # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
+    # This may cause other errors too, for ex when sorting
     @property
     def Type(self):
-        safrs.log.warning('({}): attribute "type" is not supported, renamed to "Type"'.format(self))
+        safrs.log.warning('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
