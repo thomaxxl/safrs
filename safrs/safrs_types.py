@@ -150,7 +150,9 @@ class SAFRSID:
         """
             Validate a given id (eg. check if it's a valid uuid, email etc.)
         """
-        safrs.log.debug("Validation not implemented")
+        
+        safrs.log.debug("ID Validation not implemented")
+        return id
         """return
         for pk in id.split(cls.delimiter):
             try:

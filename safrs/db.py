@@ -88,6 +88,9 @@ class SAFRSBase(Model):
     url_prefix = ""
     allow_client_generated_ids = False
 
+    exclude_attrs = []
+    exclude_rels = []
+
     def __new__(cls, **kwargs):
         """
             If an object with given arguments already exists, this object is instantiated
@@ -160,7 +163,8 @@ class SAFRSBase(Model):
             :param column: database column
             :return parsed value:
         """
-        attr_val = kwargs.get(column.name, None)
+        attr_name = column.name
+        attr_val = kwargs.get(attr_name, None)
         if attr_val is None and column.default:
             attr_val = column.default.arg
             return attr_val
@@ -284,13 +288,16 @@ class SAFRSBase(Model):
     @classproperty
     def _s_jsonapi_attrs(cls):
         '''
-            :return: list of jsonapi attributes
+            :return: list of jsonapi attribute names
             At the moment we expect the column name to be equal to the column name
             Things will go south if this isn't thee case and we should use
             the cls.__mapper__._polymorphic_properties instead
         '''
         result = []
         for attr in cls._s_column_names:
+            # Ignore the exclude_attrs for serialization/deserialization
+            if attr in cls.exclude_attrs:
+                continue
             # jsonapi schema prohibits the use of the fields 'id' and 'type' in the attributes
             # http://jsonapi.org/format/#document-resource-object-fields
             if attr == "type":
@@ -329,16 +336,21 @@ class SAFRSBase(Model):
 
     @property
     def _s_relationships(self):
-        return self.__mapper__.relationships
+        """
+            :return: the relationships used for jsonapi (de/)serialization
+        """
+        rels = [ rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels ]
+        return rels
 
     @classproperty
     def _s_relationship_names(cls):
-        return [rel.key for rel in cls.__mapper__.relationships]
+        rel_names = [rel.key for rel in cls.__mapper__.relationships if rel.key not in cls.exclude_rels]
+        return rel_names
 
     def _s_patch(self, **attributes):
         columns = {col.name: col for col in self._s_columns}
         for attr, value in attributes.items():
-            if attr in columns:
+            if attr in columns and attr in self._s_jsonapi_attrs:
                 value = self._s_parse_attr_value(attributes, columns[attr])
                 setattr(self, attr, value)
 
@@ -362,6 +374,12 @@ class SAFRSBase(Model):
 
             Create a dictionary with all the instance "attributes"
             this method will be called by SAFRSJSONEncoder to serialize objects
+
+            The optional `fields` attribute is used to implement jsonapi "Sparse Fieldsets"
+            https://jsonapi.org/format/#fetching-sparse-fieldsets:
+              client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
+              The value of the fields parameter MUST be a comma-separated (U+002C COMMA, “,”) list that refers to the name(s) of the fields to be returned.
+              If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects of that type in its response.
         """
         result = {}
         if fields is None:
@@ -378,6 +396,7 @@ class SAFRSBase(Model):
             try:
                 result[attr] = getattr(self, attr)
             except:
+                log.warning("Failed to fetch {}".format(attr))
                 result[attr] = getattr(self, attr.lower())
         return result
 
@@ -580,7 +599,7 @@ class SAFRSBase(Model):
             return sample.to_dict()"""
         sample = {}
         for column in cls._s_columns:
-            if column.name in ("id", "type"):
+            if column.name in ("id", "type") or column.name not in cls._s_jsonapi_attrs:
                 continue
             arg = None
             if column.default:

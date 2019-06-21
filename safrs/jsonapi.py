@@ -74,17 +74,20 @@ def jsonapi_sort(object_query, safrs_object):
         :param safrs_object: SAFRSObject
         :return: sqla query object
     """
-    sort_columns = request.args.get("sort", None)
-    if not sort_columns is None:
-        for sort_column in sort_columns.split(","):
-            if sort_column.startswith("-"):
+    sort_attrs = request.args.get("sort", None)
+    if not sort_attrs is None:
+        for sort_attr in sort_attrs.split(","):
+            if sort_attr.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
-                attr = getattr(safrs_object, sort_column[1:], None)
+                # The sort order for each sort field MUST be ascending unless it is prefixed 
+                #with a minus (U+002D HYPHEN-MINUS, “-“), in which case it MUST be descending.
+                sort_attr = sort_attr[1:]
+                attr = getattr(safrs_object, sort_attr, None)
                 if not attr is None: attr = attr.desc()
             else:
-                attr = getattr(safrs_object, sort_column, None)
-            if attr is None:
-                log.error("Invalid sort column {}".format(sort_column))
+                attr = getattr(safrs_object, sort_attr, None)
+            if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
+                log.error("Invalid sort column {}".format(sort_attr))
                 continue
             object_query = object_query.order_by(attr)
 

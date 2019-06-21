@@ -17,6 +17,7 @@
 import sys
 import os
 import datetime
+import hashlib
 from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -84,6 +85,10 @@ class Person(SAFRSBase, db.Model):
         "Book", backref="author", foreign_keys=[Book.author_id]
     )
     reviews = db.relationship("Review", backref="reader")
+
+    password = db.Column(db.Text, default="")
+    exclude_attrs = ["password"]
+
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
@@ -180,7 +185,8 @@ def start_api(HOST="0.0.0.0", PORT=None):
         db.create_all()
         # populate the database
         for i in range(300):
-            reader = Person(name="Reader " + str(i), email="reader_email" + str(i))
+            secret = hashlib.sha256(bytes(i)).hexdigest()
+            reader = Person(name="Reader " + str(i), email="reader_email" + str(i), password=secret)
             author = Person(name="Author " + str(i), email="author_email" + str(i))
             book = Book(title="book_title" + str(i))
             review = Review(
@@ -192,6 +198,7 @@ def start_api(HOST="0.0.0.0", PORT=None):
             author.books_written.append(book)
             for obj in [reader, author, book, publisher, review]:
                 db.session.add(obj)
+
             db.session.commit()
 
         swagger_host = HOST
@@ -200,7 +207,7 @@ def start_api(HOST="0.0.0.0", PORT=None):
 
         custom_swagger = {
             "info": {"title": "New Title"},
-            "securityDefinitions": {  "ApiKeyAuth": {"type": "apiKey" , "in" : "header", "name": "My-Cookie"} }
+            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey" , "in" : "header", "name": "My-ApiKey"}}
         }  # Customized swagger will be merged
 
         api = SAFRSAPI(
@@ -235,7 +242,7 @@ CORS(
 )
 
 app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True
+    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/db", DEBUG=True
 )  # DEBUG will also show safrs log messages + exception messages
 
 
