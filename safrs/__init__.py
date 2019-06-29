@@ -58,7 +58,7 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     api = Api(
         app,
         api_spec_url="/swagger",
-        host=host,
+        host="%s:%s"%(host, port),
         custom_swagger=custom_swagger,
         description=description,
         decorators=decorators,
