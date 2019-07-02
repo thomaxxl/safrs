@@ -58,11 +58,12 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     api = Api(
         app,
         api_spec_url="/swagger",
-        host=host,
+        host="%s:%s"%(host, port),
         custom_swagger=custom_swagger,
         description=description,
         decorators=decorators,
-        prefix="",
+        prefix=prefix,
+        base_path=prefix
     )
 
     @app.before_request
@@ -114,10 +115,11 @@ class SAFRS:
         if app.config.get("DEBUG", False):
             LOGGER.setLevel(logging.DEBUG)
 
+
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
         if swaggerui_blueprint is None:
-            swaggerui_blueprint = get_swaggerui_blueprint(prefix, "/swagger.json")
+            swaggerui_blueprint = get_swaggerui_blueprint(prefix, "%s/swagger.json"%(prefix))
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
 
