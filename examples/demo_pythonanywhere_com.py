@@ -242,7 +242,7 @@ CORS(
 )
 
 app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/db", DEBUG=True
+    SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True
 )  # DEBUG will also show safrs log messages + exception messages
 
 

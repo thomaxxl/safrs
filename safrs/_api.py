@@ -345,8 +345,10 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
+                            sort_attrs = self.safrs_object._s_jsonapi_attrs
+
                             param = {
-                                "default": ",".join(self.safrs_object._s_jsonapi_attrs),
+                                "default": ",".join(sort_attrs),
                                 "type": "string",
                                 "name": "sort",
                                 "in": "query",

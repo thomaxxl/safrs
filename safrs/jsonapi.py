@@ -137,7 +137,9 @@ def paginate(object_query, SAFRSObject=None):
     # Make it configurable
     # With mysql innodb we can use following to retrieve the count:
     # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
-    if SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()
+    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        count = len(object_query)
+    elif SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()
         count = object_query.count()
     else:
         count = SAFRSObject._s_count()
@@ -168,9 +170,13 @@ def paginate(object_query, SAFRSObject=None):
         del links["next"]
     if prev_args == first_args:
         del links["prev"]
-
-    res_query = object_query.offset(page_offset).limit(limit)
-    instances = res_query.all()
+    
+    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        instances = object_query[page_offset:page_offset+limit]
+    else:
+        res_query = object_query.offset(page_offset).limit(limit)
+        instances = res_query.all()
+    
     return links, instances, count
 
 
@@ -846,16 +852,22 @@ class SAFRSRestRelationshipAPI(Resource):
             if request.url != instance._s_url:
                 links["related"] = request.url
             meta.update(dict(instance_meta=instance._s_meta()))
+        elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
+            meta = {"direction": "TOMANY"}
+            instances = [item for item in relation if isinstance(item, SAFRSBase)]
+            links, data, count = paginate(relation, self.child_class)
+            links = {}
+            count = len(data)
 
         else:
-            # No {ChildId} given:
-            # return a list of all relationship items
-            data = [item for item in relation if isinstance(item, SAFRSBase)]
             meta = {"direction": "TOMANY"}
-            instances = jsonapi_filter(self.child_class)
-            instances = jsonapi_sort(instances, self.child_class)
+            instances = jsonapi_sort(relation, self.child_class)
             links, data, count = paginate(instances, self.child_class)
 
+        # only pass debug info when in debug mode
+        if safrs.log.getEffectiveLevel() > logging.DEBUG:
+            meta = {}
+        
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
 

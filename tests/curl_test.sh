@@ -175,7 +175,14 @@ if [[ $ret != 0 ]]; then
 	exit 1
 fi
 
-
-curl $test_host/sd
+echo "Test Publisher/books count"
+pub_book_count=$(curl -X GET  "$test_host/Publishers/1/?page%5Boffset%5D=0&page%5Blimit%5D=10&include=books&fields%5BPublishers%5D=name&sort=name" -H "accept: application/json" -H "Content-Type: application/vnd.api+json" 2>/dev/null| jq -r .meta.count)
+ret=$?
+if [[ $pub_book_count != 1 || $ret != 0 ]]; then
+  echo FAIL
+  exit 1
+fi
+ 
+#curl $test_host/sd
 
 echo DONE
