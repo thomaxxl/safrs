@@ -87,7 +87,7 @@ def jsonapi_sort(object_query, safrs_object):
             else:
                 attr = getattr(safrs_object, sort_attr, None)
             if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
-                log.error("Invalid sort column {}".format(sort_attr))
+                safrs.log.error("Invalid sort column {}".format(sort_attr))
                 continue
             object_query = object_query.order_by(attr)
 
@@ -146,7 +146,7 @@ def paginate(object_query, SAFRSObject=None):
     if count is None:
         count = object_query.count()
         if count > get_config('MAX_TABLE_COUNT'):
-            log.warning("Large table count detected, performance may be impacted, consider using '_s_count'")
+            safrs.log.warning("Large table count detected, performance may be impacted, consider using '_s_count'")
 
     first_args = (0, limit)
     last_args = (int(int(count / limit) * limit), limit)  # round down
