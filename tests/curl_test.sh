@@ -4,7 +4,7 @@
 
 READER_NAME="TestReader"
 HOST=$1
-test_host=${HOST:="http://127.0.0.1:5000"}
+test_host=${HOST:="http://127.0.0.1:5000/api"}
 
 echo Get People
 curl -X GET --header 'Accept: application/json' --header 'Content-Type: application/vnd.api+json' "$test_host"'/People/?page[limit]=10&include=books_read%2Cbooks_written%2Creviews&sort=name%2Cemail%2Ccomment%2Cdob' > /dev/null 2>&1

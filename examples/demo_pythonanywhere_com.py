@@ -178,7 +178,7 @@ class Review(SAFRSBase, db.Model):
     created = db.Column(db.DateTime, default=datetime.datetime.now())
 
 
-def start_api(HOST="0.0.0.0", PORT=None):
+def start_api(swagger_host="0.0.0.0", PORT=None):
 
     with app.app_context():
         db.init_app(app)
@@ -200,10 +200,6 @@ def start_api(HOST="0.0.0.0", PORT=None):
                 db.session.add(obj)
 
             db.session.commit()
-
-        swagger_host = HOST
-        if PORT and PORT != 80:
-            swagger_host += ":{}".format(PORT)
 
         custom_swagger = {
             "info": {"title": "New Title"},
