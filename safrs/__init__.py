@@ -54,11 +54,17 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     """
     decorators = kwargs.pop("decorators", [])  # eg. test_decorator
     custom_swagger = kwargs.pop("custom_swagger", {})
-    SAFRS(app, host=host, port=port, prefix=prefix)
+    SAFRS(app, prefix=prefix)
+    # the host shown in the swagger ui
+    # this host may be different from the hostname of the server and
+    # sometimes we don't want to show the port (eg when proxied)
+    # in that case the port may be None
+    if port:
+        host = "%s:%s"%(host, port)
     api = Api(
         app,
         api_spec_url="/swagger",
-        host="%s:%s"%(host, port),
+        host=host,
         custom_swagger=custom_swagger,
         description=description,
         decorators=decorators,

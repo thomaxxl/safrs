@@ -56,10 +56,14 @@ def jsonapi_filter(safrs_object):
             safrs.log.warning("Invalid Column {}".format(col_name))
             continue
         column = getattr(safrs_object, col_name)
-        expressions.append(column.in_(val.split(",")))
+        expressions.append((column,val))
 
-    if expressions:
-        result = safrs_object.query.filter(*expressions)
+    if isinstance(safrs_object, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        print(expressions)
+        result = safrs_object
+    elif expressions:
+        expressions_ = [column.in_(val.split(",")) for column, val in expressions]
+        result = safrs_object.query.filter(*expressions_)
     else:
         result = safrs_object.query
 
@@ -89,7 +93,12 @@ def jsonapi_sort(object_query, safrs_object):
             if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
                 safrs.log.error("Invalid sort column {}".format(sort_attr))
                 continue
-            object_query = object_query.order_by(attr)
+            if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+                object_query = sorted(list(object_query), key= lambda obj: getattr(obj, sort_attr))
+                if sort_attr.startswith("-"):
+                    object_query = reverse(object_query)
+            else:
+                object_query = object_query.order_by(attr)
 
     return object_query
 
@@ -855,10 +864,10 @@ class SAFRSRestRelationshipAPI(Resource):
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
             meta = {"direction": "TOMANY"}
             instances = [item for item in relation if isinstance(item, SAFRSBase)]
-            links, data, count = paginate(relation, self.child_class)
+            instances = jsonapi_sort(instances, self.child_class)
+            links, data, count = paginate(instances, self.child_class)
             links = {}
             count = len(data)
-
         else:
             meta = {"direction": "TOMANY"}
             instances = jsonapi_sort(relation, self.child_class)

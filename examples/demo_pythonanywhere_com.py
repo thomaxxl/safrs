@@ -144,6 +144,7 @@ class Publisher(SAFRSBase, db.Model):
     __tablename__ = "Publishers"
     id = db.Column(db.Integer, primary_key=True)  # Integer pk instead of str
     name = db.Column(db.String, default="")
+    #books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
     books = db.relationship("Book", back_populates="publisher")
 
     def __init__(self, *args, **kwargs):
