@@ -35,8 +35,8 @@ description = '''
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (less than 200 lines!)<br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
-- Auto-generated swagger spec: <a href=/swagger.json>swagger.json</a><br/> 
-- <a href="/swagger_editor/index.html?url=/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
+- Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
+- <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 '''
 
 db = SQLAlchemy()
