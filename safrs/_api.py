@@ -384,7 +384,7 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                        if not (parameter.get("in") == "path" and not object_id in swagger_url):
+                        if not (parameter.get("in") == "path" and not object_id in swagger_url) and parameter not in filtered_parameters:
                             # Only if a path param is in path url then we add the param
                             filtered_parameters.append(parameter)
 
