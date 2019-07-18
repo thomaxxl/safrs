@@ -242,7 +242,7 @@ class Api(FRSApiBase):
             This method is partly copied from flask_restful_swagger_2/__init__.py
 
             I changed it because we don't need path id examples when
-            there's no {id} in the path. 
+            there's no {id} in the path.
             We also have to filter out the unwanted parameters
         """
         relationship = kwargs.pop("relationship", False)  # relationship object

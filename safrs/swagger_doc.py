@@ -362,9 +362,9 @@ def swagger_method_doc(cls, method_name, tags=None):
             }
         )
         doc["parameters"] = parameters
-        doc["produces"] = ["application/json"]
-        doc["responses"] = responses =  {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description} }
+        doc["produces"] = ["application/vnd.api+json"]
+        doc["responses"] = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
+                            str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description} }
 
         return swagger.doc(doc)(func)
 
@@ -475,7 +475,7 @@ def swagger_doc(cls, tags=None):
 
         doc["parameters"] = parameters
         doc["responses"] = responses_str
-        doc["produces"] = ["application/json"]
+        doc["produces"] = ["application/vnd.api+json"]
 
         method_doc = parse_object_doc(func)
         safrs.dict_merge(doc, method_doc)
