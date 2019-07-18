@@ -10,6 +10,7 @@ from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import get_config
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
+from http import HTTPStatus
 import safrs
 
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
@@ -362,7 +363,8 @@ def swagger_method_doc(cls, method_name, tags=None):
         )
         doc["parameters"] = parameters
         doc["produces"] = ["application/json"]
-        doc["responses"] = responses = {"200": {"description": "Success"}}
+        doc["responses"] = responses =  {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
+                                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description} }
 
         return swagger.doc(doc)(func)
 
@@ -437,7 +439,8 @@ def swagger_doc(cls, tags=None):
 
         elif http_method == "delete":
             doc["summary"] = doc["description"] = "Delete a {} object".format(class_name)
-            responses = {"204": {"description": "Object Deleted"}, "404": {"description": "Object Not Found"}}
+            responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
+                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
 
         elif http_method == "patch":
             doc["summary"] = "Update a {} object".format(class_name)
@@ -593,7 +596,8 @@ def swagger_relationship_doc(cls, tags=None):
             doc["description"] = "Delete a {} object from the {} relation on {}".format(
                 child_class.__name__, cls.relationship.key, parent_name
             )
-            responses = {"204": {"description": "Object Deleted"}}
+            responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
+                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
 
         else:
             # one of 'options', 'head', 'patch'
@@ -602,7 +606,8 @@ def swagger_relationship_doc(cls, tags=None):
         if http_method in ("patch",):
             # put_model, responses = child_class.get_swagger_doc(http_method)
             doc["summary"] = "Update a {} object".format(class_name)
-            responses = {"201": {"description": "Object Updated"}}
+            responses = {str(HTTPStatus.CREATED.value): {"description": HTTPStatus.CREATED.description},
+                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
 
         doc["parameters"] = parameters
         doc["responses"] = responses

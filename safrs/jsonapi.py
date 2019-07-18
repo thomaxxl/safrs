@@ -33,6 +33,7 @@ from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config, get_legacy
 from .json_encoder import SAFRSFormattedResponse
 from urllib.parse import urlparse
+from http import HTTPStatus
 
 INCLUDE_ALL = "+all"
 
@@ -456,7 +457,7 @@ class SAFRSRestAPI(Resource):
         obj_args = {instance.object_id: instance.jsonapi_id}
         # Retrieve the object json and return it to the client
         obj_data = self.get(**obj_args)
-        response = make_response(obj_data, 201)
+        response = make_response(obj_data, HTTPStatus.CREATED)
         # Set the Location header to the newly created object
         response.headers["Location"] = url_for(self.endpoint, **obj_args)
         return response
@@ -570,7 +571,7 @@ class SAFRSRestAPI(Resource):
             obj_args = {instance.object_id: instance.jsonapi_id}
             # Retrieve the object json and return it to the client
             obj_data = self.get(**obj_args)
-            response = make_response(obj_data, 201)
+            response = make_response(obj_data, HTTPStatus.CREATED)
             # Set the Location header to the newly created object
             response.headers["Location"] = url_for(self.endpoint, **obj_args)
 
@@ -852,24 +853,24 @@ class SAFRSRestRelationshipAPI(Resource):
                 # item is in relationship, return the child
                 data = [child]
             else:
-                return "Not Found", 404
+                return "Not Found", HTTPStatus.NOT_FOUND
         # elif type(relation) == self.child_class: # ==>
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             data = instance = relation
-            meta = {"direction": "TOONE"}
+            #meta = {"direction": "TOONE"}
             links = {"self": instance._s_url}
             if request.url != instance._s_url:
                 links["related"] = request.url
             meta.update(dict(instance_meta=instance._s_meta()))
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
-            meta = {"direction": "TOMANY"}
+            #meta = {"direction": "TOMANY"}
             instances = [item for item in relation if isinstance(item, SAFRSBase)]
             instances = jsonapi_sort(instances, self.child_class)
             links, data, count = paginate(instances, self.child_class)
             links = {}
             count = len(data)
         else:
-            meta = {"direction": "TOMANY"}
+            #meta = {"direction": "TOMANY"}
             instances = jsonapi_sort(relation, self.child_class)
             links, data, count = paginate(instances, self.child_class)
 
@@ -986,7 +987,7 @@ class SAFRSRestRelationshipAPI(Resource):
         else:
             obj_data = self.get(**obj_args)
             # Retrieve the object json and return it to the client
-            response = make_response(obj_data, 201)
+            response = make_response(obj_data, HTTPStatus.CREATED)
             # Set the Location header to the newly created object
             # todo: set location header
             # response.headers['Location'] = url_for(self.endpoint, **obj_args)
@@ -1022,14 +1023,14 @@ class SAFRSRestRelationshipAPI(Resource):
             if len(data) == 0:
                 setattr(parent, self.SAFRSObject.relationship.key, None)
             if len(data) > 1:
-                raise ValidationError("Too many items for a MANYTOONE relationship", 403)
+                raise ValidationError("Too many items for a MANYTOONE relationship", HTTPStatus.FORBIDDEN)
             child_id = data[0].get("id")
             child_type = data[0].get("type")
             if not child_id or not child_type:
-                raise ValidationError("Invalid data payload", 403)
+                raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
             if child_type != self.child_class.__name__:
-                raise ValidationError("Invalid type", 403)
+                raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
 
             child = self.child_class.get_instance(child_id)
             setattr(parent, self.SAFRSObject.relationship.key, child)

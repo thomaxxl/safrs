@@ -22,6 +22,7 @@ from .jsonapi import SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
 from flask_restful.representations.json import output_json
 from flask_restful.utils import OrderedDict
 from functools import wraps
+from http import HTTPStatus
 
 HTTP_METHODS = ["GET", "PUT", "POST", "DELETE", "PATCH"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
@@ -241,7 +242,8 @@ class Api(FRSApiBase):
             This method is partly copied from flask_restful_swagger_2/__init__.py
 
             I changed it because we don't need path id examples when
-            there's no {id} in the path. We filter out the unwanted parameters
+            there's no {id} in the path. 
+            We also have to filter out the unwanted parameters
         """
         relationship = kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
@@ -539,13 +541,10 @@ class SAFRSRelationshipObject:
         object_name = cls.__name__
 
         object_model = {}
-        responses = {"200": {"description": "{} object".format(object_name), "schema": object_model}}
+        responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
 
-        if http_method == "post":
-            responses = {"200": {"description": "Success"}}
-
-        if http_method == "get":
-            responses = {"200": {"description": "Success"}}
-            # responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
+        if http_method.upper() in ("POST","GET"):
+            responses = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
+                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
 
         return body, responses

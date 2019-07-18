@@ -9,6 +9,7 @@ import traceback
 import logging
 import safrs
 from sqlalchemy.exc import DontWrapMixin
+from http import HTTPStatus
 
 HIDDEN_LOG = "(debug logging disabled)"
 
@@ -18,10 +19,10 @@ class NotFoundError(Exception, DontWrapMixin):
     This exception is raised when an item was not found
     """
 
-    status_code = 404
+    status_code = HTTPStatus.NOT_FOUND.value
     message = "NotFoundError: "
 
-    def __init__(self, message="", status_code=404):
+    def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value):
         Exception.__init__(self)
         self.status_code = status_code
         if safrs.log.getEffectiveLevel() <= logging.DEBUG:
@@ -36,10 +37,10 @@ class ValidationError(Exception, DontWrapMixin):
     This exception is raised when invalid input has been detected
     """
 
-    status_code = 400
+    status_code = HTTPStatus.BAD_REQUEST.value
     message = "Validation Error: "
 
-    def __init__(self, message="", status_code=400):
+    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value):
         Exception.__init__(self)
         self.status_code = status_code
         if safrs.log.getEffectiveLevel() <= logging.DEBUG:
@@ -54,7 +55,7 @@ class GenericError(Exception, DontWrapMixin):
     This exception is raised when an error has been detected
     """
 
-    status_code = 500
+    status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
     message = "Generic Error: "
 
     def __init__(self, message):

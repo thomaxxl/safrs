@@ -17,6 +17,7 @@ from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
+from http import HTTPStatus
 
 # safrs dependencies:
 import safrs
@@ -646,18 +647,21 @@ class SAFRSBase(Model):
         object_name = cls.__name__
 
         object_model = cls._get_swagger_doc_object_model()
-        responses = {"200": {"description": "{} object".format(object_name), "schema": object_model}}
+        responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model},
+                     str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
 
         if http_method == "patch":
             body = object_model
-            responses = {"200": {"description": "Object successfully updated"}}
+            responses = {str(HTTPStatus.OK.value): {"description": "Object successfully updated"}}
 
         if http_method == "post":
             # body = cls.get_swagger_doc_post_parameters()
-            responses = {"201": {"description": "Object successfully created"}, "403": {"description": "Invalid data"}}
+            responses = {str(HTTPStatus.CREATED.value): {"description": "Object successfully created"},
+                         str(HTTPStatus.CREATED.value): {"description": "Invalid data"}}
 
         if http_method == "get":
-            responses = {"200": {"description": "Success"}}
+            responses = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
+                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
             # responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
         
         return body, responses
