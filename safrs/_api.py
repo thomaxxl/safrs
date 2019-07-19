@@ -352,7 +352,7 @@ class Api(FRSApiBase):
                             if relationship:
                                 # We're adding a relationship, eg /Books/{BookId}/user
                                 # so we have to add the documentation for the *target* collection, (User)
-                                safrs_object = safrs.db.SAFRSBase.__table2safrs__[relationship.target.name]
+                                safrs_object = safrs.db.SAFRSBase.__table2safrs__.get(relationship.target.name, safrs_object)
 
                             # limit parameter specifies the number of items to return
                             for param in default_paging_parameters():
