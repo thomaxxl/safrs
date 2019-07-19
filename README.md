@@ -1,7 +1,7 @@
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/d121f32b06ee41a7813f5c7650b172c2)](https://app.codacy.com/app/thomaxxl/safrs?utm_source=github.com&utm_medium=referral&utm_content=thomaxxl/safrs&utm_campaign=Badge_Grade_Dashboard)
 [![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![License](https://img.shields.io/pypi/l/safrs.svg)](https://github.com/thomaxxl/safrs/blob/master/LICENSE)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/d121f32b06ee41a7813f5c7650b172c2)](https://app.codacy.com/app/thomaxxl/safrs?utm_source=github.com&utm_medium=referral&utm_content=thomaxxl/safrs&utm_campaign=Badge_Grade_Dashboard)
 [![Downloads](https://pepy.tech/badge/safrs)](https://pepy.tech/project/safrs)
 
 # SAFRS: Python OpenAPI & JSON:API Framework
