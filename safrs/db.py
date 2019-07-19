@@ -92,6 +92,8 @@ class SAFRSBase(Model):
     exclude_attrs = []
     exclude_rels = []
 
+    __table2safrs__ = {} # allow us to lookup a SAFRSObject by its tablename
+
     def __new__(cls, **kwargs):
         """
             If an object with given arguments already exists, this object is instantiated
@@ -105,6 +107,7 @@ class SAFRSBase(Model):
         else:
             safrs.log.debug("{} exists for {} ".format(cls.__name__, str(kwargs)))
 
+        cls.__table2safrs__[cls.__tablename__] = cls # allow us to lookup a SAFRSObject by its tablename
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -512,7 +515,8 @@ class SAFRSBase(Model):
                     )
                 # add the relationship direction, for debugging purposes.
                 if safrs.log.getEffectiveLevel() < logging.INFO:
-                    meta["direction"] = relationship.direction.name
+                    # meta["direction"] = relationship.direction.name
+                    pass
 
             rel_link = urljoin(self_link, rel_name)
             links = dict(self=rel_link)

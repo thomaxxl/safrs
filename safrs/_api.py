@@ -295,6 +295,8 @@ class Api(FRSApiBase):
                         continue
 
                     filtered_parameters = []
+                    safrs_object = self.safrs_object
+                    
                     for parameter in method_doc.get("parameters", []):
                         object_id = "{%s}" % parameter.get("name")
 
@@ -314,14 +316,20 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                        if method == "get" and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX) and not is_jsonapi_rpc:
-                            # limit parameter specifies the number of items to return
+                        if method == "get":
+                            param = {
+                                "default": ",".join(safrs_object._s_jsonapi_attrs),
+                                "type": "string",
+                                "name": "fields[{}]".format(safrs_object._s_type),
+                                "in": "query",
+                                "format": "string",
+                                "required": False,
+                                "description": "Related fields to include (csv)",
+                            }
+                            if param not in filtered_parameters:
+                                filtered_parameters.append(param)
 
-                            for param in default_paging_parameters():
-                                if param not in filtered_parameters:
-                                    filtered_parameters.append(param)
-
-                            default_include = ",".join([rel.key for rel in self.safrs_object.__mapper__.relationships])
+                            default_include = ",".join([rel.key for rel in safrs_object.__mapper__.relationships])
 
                             param = {
                                 "default": default_include,
@@ -335,19 +343,23 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            param = {
-                                "default": ",".join(self.safrs_object._s_jsonapi_attrs),
-                                "type": "string",
-                                "name": "fields[{}]".format(self.safrs_object._s_type),
-                                "in": "query",
-                                "format": "string",
-                                "required": False,
-                                "description": "Related relationships to include (csv)",
-                            }
-                            if param not in filtered_parameters:
-                                filtered_parameters.append(param)
 
-                            sort_attrs = self.safrs_object._s_jsonapi_attrs
+                        #
+                        # Add the fields, sort, filter parameters to the swagger doc when retrieving a collection
+                        #
+                        if method == "get" and not swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX) and not is_jsonapi_rpc:
+                            relationship = getattr(resource.SAFRSObject, 'relationship',None)
+                            if relationship:
+                                # We're adding a relationship, eg /Books/{BookId}/user
+                                # so we have to add the documentation for the *target* collection, (User)
+                                safrs_object = safrs.db.SAFRSBase.__table2safrs__[relationship.target.name]
+
+                            # limit parameter specifies the number of items to return
+                            for param in default_paging_parameters():
+                                if param not in filtered_parameters:
+                                    filtered_parameters.append(param)
+
+                            sort_attrs = safrs_object._s_jsonapi_attrs
 
                             param = {
                                 "default": ",".join(sort_attrs),
@@ -361,7 +373,7 @@ class Api(FRSApiBase):
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            for column_name in self.safrs_object._s_column_names:
+                            for column_name in safrs_object._s_column_names:
                                 param = {
                                     "default": "",
                                     "type": "string",
