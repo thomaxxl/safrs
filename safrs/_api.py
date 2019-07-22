@@ -347,7 +347,7 @@ class Api(FRSApiBase):
                         #
                         # Add the fields, sort, filter parameters to the swagger doc when retrieving a collection
                         #
-                        if method == "get" and not swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX) and not is_jsonapi_rpc:
+                        if method == "get" and not (swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX) or is_jsonapi_rpc):
                             relationship = getattr(resource.SAFRSObject, 'relationship',None)
                             if relationship:
                                 # We're adding a relationship, eg /Books/{BookId}/user
