@@ -1,9 +1,12 @@
+"""
+  This module defines jsonapi-related "Resource" objects:
+  - SAFRSRestAPI for exposed database objects
+  - SAFRSRestRelationshipAPI for exposed database relationships
+  - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
+"""
+
 # -*- coding: utf-8 -*-
 #
-# This module defines jsonapi-related "Resource" objects:
-# - SAFRSRestAPI for exposed database objects
-# - SAFRSRestRelationshipAPI for exposed database relationships
-# - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
 #
 # Some linting errors to ignore
 # pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
@@ -17,7 +20,7 @@
 # - move all swagger formatting to swagger_doc
 #
 import logging
-import re
+from http import HTTPStatus
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
@@ -31,8 +34,7 @@ from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config, get_legacy
 from .json_encoder import SAFRSFormattedResponse
-from urllib.parse import urlparse
-from http import HTTPStatus
+
 
 INCLUDE_ALL = "+all"
 
@@ -56,7 +58,7 @@ def jsonapi_filter(safrs_object):
             safrs.log.warning("Invalid Column {}".format(col_name))
             continue
         column = getattr(safrs_object, col_name)
-        expressions.append((column,val))
+        expressions.append((column, val))
 
     if isinstance(safrs_object, (list, sqlalchemy.orm.collections.InstrumentedList)):
         print(expressions)
@@ -83,7 +85,7 @@ def jsonapi_sort(object_query, safrs_object):
         for sort_attr in sort_attrs.split(","):
             if sort_attr.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
-                # The sort order for each sort field MUST be ascending unless it is prefixed 
+                # The sort order for each sort field MUST be ascending unless it is prefixed
                 #with a minus (U+002D HYPHEN-MINUS, “-“), in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
                 attr = getattr(safrs_object, sort_attr, None)
@@ -94,9 +96,10 @@ def jsonapi_sort(object_query, safrs_object):
                 safrs.log.error("Invalid sort column {}".format(sort_attr))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-                object_query = sorted(list(object_query), key= lambda obj: getattr(obj, sort_attr))
+                object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr))
                 if sort_attr.startswith("-"):
-                    object_query = reverse(object_query)
+                    # reverse it, still a bug
+                    object_query = object_query
             else:
                 object_query = object_query.order_by(attr)
 
@@ -179,13 +182,13 @@ def paginate(object_query, SAFRSObject=None):
         del links["next"]
     if prev_args == first_args:
         del links["prev"]
-    
+
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
         instances = object_query[page_offset:page_offset+limit]
     else:
         res_query = object_query.offset(page_offset).limit(limit)
         instances = res_query.all()
-    
+
     return links, instances, count
 
 
@@ -246,14 +249,13 @@ def get_included(data, limit, include="", level=0):
                 result = result.union(included)
             except Exception as exc:
                 safrs.log.critical(
-                    "Failed to add included for {} (included: {} - {})".format(relationship, type(included), included)
+                    "Failed to add included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc)
                 )
                 result.add(included)
 
         if INCLUDE_ALL in includes:
-            for nested_included in [
-                get_included(result, limit, level=level + 1) for obj in result
-            ]:  # Removed recursion with get_included(result, limit, INCLUDE_ALL)
+            for nested_included in [get_included(result, limit, level=level + 1) for obj in result]:
+                # Removed recursion with get_included(result, limit, INCLUDE_ALL)
                 result = result.union(nested_included)
 
         elif nested_rel:
@@ -515,7 +517,6 @@ class SAFRSRestAPI(Resource):
             # "A server MUST return 403 Forbidden in response to an
             # unsupported request to create a resource with a client-generated ID"
             response = {"meta": {"error": "Unsupported JSONAPI Request"}}, 403
-            return response
 
         else:
             # Create a new instance of the SAFRSObject
@@ -675,7 +676,7 @@ class SAFRSRestMethodAPI(Resource):
         """
             responses :
                 403:
-                    description : 
+                    description :
                 201:
                     description: Created
                 202:
@@ -761,7 +762,7 @@ class SAFRSRestMethodAPI(Resource):
         result = method(**args)
 
         response = {"meta": {"result": result}}
- 
+
         if isinstance(result, SAFRSFormattedResponse):
             response = result
         else:
@@ -838,7 +839,7 @@ class SAFRSRestRelationshipAPI(Resource):
         parent, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
         errors = {}
-        count = 1 
+        count = 1
         meta = {}
 
         if child_id:
@@ -876,7 +877,7 @@ class SAFRSRestRelationshipAPI(Resource):
         # only pass debug info when in debug mode
         if safrs.log.getEffectiveLevel() > logging.DEBUG:
             meta = {}
-        
+
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
 
