@@ -300,6 +300,9 @@ The [examples](examples) folder contains more example scripts:
 - Flask-Admin integration example, eg.:
 ![demo](docs/images/flask-admin.png)
 
+A docker image can be found here:
+[https://github.com/thomaxxl/safrs-example](https://github.com/thomaxxl/safrs-example)
+
 <a class="mk-toclify" id="advanced-usage"></a>
 ## Advanced Usage
 
