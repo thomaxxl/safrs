@@ -4,13 +4,17 @@ flask_restful_swagger2 API subclass
 import traceback
 import copy
 import logging
+from http import HTTPStatus
 import werkzeug
 from flask_restful import abort
+from flask_restful.representations.json import output_json
+from flask_restful.utils import OrderedDict
+from flask_restful.utils import cors
 from flask_restful_swagger_2 import Api as FRSApiBase
-from flask_restful_swagger_2.swagger import create_swagger_endpoint, add_parameters
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
 from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor
+from functools import wraps
 import safrs
 
 # Import here in order to avoid circular dependencies, (todo: fix)
@@ -19,10 +23,6 @@ from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_me
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
 from .jsonapi import SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
-from flask_restful.representations.json import output_json
-from flask_restful.utils import OrderedDict
-from functools import wraps
-from http import HTTPStatus
 
 HTTP_METHODS = ["GET", "PUT", "POST", "DELETE", "PATCH"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
@@ -40,31 +40,29 @@ class Api(FRSApiBase):
     def __init__(self, *args, **kwargs):
         """
             http://jsonapi.org/format/#content-negotiation-servers
-            Servers MUST send all JSON:API data in response documents with 
+            Servers MUST send all JSON:API data in response documents with
             the header Content-Type: application/vnd.api+json without any media type parameters.
 
-            Servers MUST respond with a 415 Unsupported Media Type status code if 
+            Servers MUST respond with a 415 Unsupported Media Type status code if
             a request specifies the header Content-Type: application/vnd.api+json with any media type parameters.
 
-            Servers MUST respond with a 406 Not Acceptable status code if 
-            a request’s Accept header contains the JSON:API media type and 
+            Servers MUST respond with a 406 Not Acceptable status code if
+            a request’s Accept header contains the JSON:API media type and
             all instances of that media type are modified with media type parameters.
         """
 
         custom_swagger = kwargs.pop("custom_swagger", {})
         kwargs["default_mediatype"] = "application/vnd.api+json"
         super(Api, self).__init__(*args, **kwargs)
-        swagger_doc = self.get_swagger_doc()
-        safrs.dict_merge(swagger_doc, custom_swagger)
+        _swagger_doc = self.get_swagger_doc()
+        safrs.dict_merge(_swagger_doc, custom_swagger)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
 
     def expose_object(self, safrs_object, url_prefix="", **properties):
         """
             This methods creates the API url endpoints for the SAFRObjects
             :param safrs_object: SAFSBase subclass that we would like to expose
-        """
 
-        """
             creates a class of the form
 
             @api_decorator
@@ -75,7 +73,6 @@ class Api(FRSApiBase):
 
             tablename: safrs_object.__tablename__, e.g. "Users"
             classname: safrs_object.__name__, e.g. "User"
-
         """
         self.safrs_object = safrs_object
         safrs_object.url_prefix = url_prefix
@@ -99,7 +96,7 @@ class Api(FRSApiBase):
 
         # Expose the collection
         safrs.log.info("Exposing %s on %s, endpoint: %s", safrs_object._s_type, url, endpoint)
-        resource = self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
+        self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__)
@@ -129,10 +126,8 @@ class Api(FRSApiBase):
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = "method_{}_{}".format(safrs_object.__tablename__, method_name)
-            if (
-                isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod))
-                or getattr(api_method, "__self__", None) is safrs_object
-            ):
+            if (isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod))
+                    or getattr(api_method, "__self__", None) is safrs_object):
                 # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config("CLASSMETHOD_URL_FMT")
                 url = CLASSMETHOD_URL_FMT.format(url_prefix, safrs_object.__tablename__, method_name)
@@ -245,6 +240,13 @@ class Api(FRSApiBase):
             there's no {id} in the path.
             We also have to filter out the unwanted parameters
         """
+        
+        #
+        # This function has grown out of proportion and should be refactored, disable lint warning for now
+        #
+        #pylint: disable=too-many-nested-blocks,too-many-statements, too-many-locals
+        #
+
         relationship = kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
 
@@ -296,7 +298,7 @@ class Api(FRSApiBase):
 
                     filtered_parameters = []
                     safrs_object = self.safrs_object
-                    
+
                     for parameter in method_doc.get("parameters", []):
                         object_id = "{%s}" % parameter.get("name")
 
@@ -348,7 +350,7 @@ class Api(FRSApiBase):
                         # Add the fields, sort, filter parameters to the swagger doc when retrieving a collection
                         #
                         if method == "get" and not (swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX) or is_jsonapi_rpc):
-                            relationship = getattr(resource.SAFRSObject, 'relationship',None)
+                            relationship = getattr(resource.SAFRSObject, 'relationship', None)
                             if relationship:
                                 # We're adding a relationship, eg /Books/{BookId}/user
                                 # so we have to add the documentation for the *target* collection, (User)
@@ -406,9 +408,9 @@ class Api(FRSApiBase):
                     method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
 
-                    if method == "get" and not swagger_url.endswith(SAFRS_INSTANCE_SUFFIX):
+                    if method == "get" and not swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX):
                         # If no {id} was provided, we return a list of all the objects
-                        # pylint: disable=invalid-formatstring
+                        # pylint: disable=bad-format-string
                         try:
                             method_doc["description"] += " list (See GET /{{} for details)".format(
                                 SAFRS_INSTANCE_SUFFIX
@@ -534,6 +536,7 @@ def http_method_decorator(fun):
     return method_wrapper
 
 
+#pylint: disable=too-few-public-methods
 class SAFRSRelationshipObject:
     """
         Relationship object
@@ -555,8 +558,8 @@ class SAFRSRelationshipObject:
         object_model = {}
         responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
 
-        if http_method.upper() in ("POST","GET"):
+        if http_method.upper() in ("POST", "GET"):
             responses = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
+                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         return body, responses

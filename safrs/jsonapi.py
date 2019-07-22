@@ -24,7 +24,6 @@ import sqlalchemy.orm.collections
 from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import make_response, url_for
 from flask import jsonify, request
-from flask_restful.utils import cors
 from flask_restful_swagger_2 import Resource
 import safrs
 from .db import SAFRSBase
