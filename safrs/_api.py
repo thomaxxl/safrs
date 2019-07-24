@@ -240,7 +240,6 @@ class Api(FRSApiBase):
             there's no {id} in the path.
             We also have to filter out the unwanted parameters
         """
-        
         #
         # This function has grown out of proportion and should be refactored, disable lint warning for now
         #

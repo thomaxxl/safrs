@@ -8,16 +8,15 @@
 import inspect
 import datetime
 import logging
+from http import HTTPStatus
 from urllib.parse import urljoin
 from flask import request, url_for
 from flask_sqlalchemy import Model
 import sqlalchemy
-from sqlalchemy import orm
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
-from http import HTTPStatus
 
 # safrs dependencies:
 import safrs
@@ -186,7 +185,7 @@ class SAFRSBase(Model):
             """
             return attr_val
 
-        """ 
+        """
             Parse datetime and date values for some common representations
             If another format is uses, the user should create a custom column type or custom serialization
         """
@@ -207,13 +206,13 @@ class SAFRSBase(Model):
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
-        
+
         return attr_val
 
     def _s_expunge(self):
         session = sqla_inspect(self).session
         session.expunge(self)
-    
+
     # pylint: disable=
     @classmethod
     def get_instance(cls, item=None, failsafe=False):
@@ -321,13 +320,16 @@ class SAFRSBase(Model):
         """
             :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
         """
-        return getattr(cls,'__tablename__',cls.__name__)
+        return getattr(cls, '__tablename__', cls.__name__)
 
-    # jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
-    # we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
-    # This may cause other errors too, for ex when sorting
     @property
     def Type(self):
+        """
+            jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
+            we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
+            This may cause other errors too, for ex when sorting
+        """
+
         safrs.log.warning('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
 
@@ -343,7 +345,7 @@ class SAFRSBase(Model):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [ rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels ]
+        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels]
         return rels
 
     @classproperty
@@ -400,7 +402,7 @@ class SAFRSBase(Model):
             try:
                 result[attr] = getattr(self, attr)
             except:
-                log.warning("Failed to fetch {}".format(attr))
+                safrs.log.warning("Failed to fetch {}".format(attr))
                 result[attr] = getattr(self, attr.lower())
         return result
 
@@ -599,9 +601,13 @@ class SAFRSBase(Model):
         """
             :return: a sample to be used as an example payload in the swagger example
         """
-        """sample = cls._s_sample()
-        if sample:
-            return sample.to_dict()"""
+        # If running in debug mode, return a sample from the database
+        if safrs.log.getEffectiveLevel() < logging.INFO:
+            sample = cls._s_sample()
+            if sample:
+                return sample.to_dict()
+
+        # create a swagger example based on the jsonapi attributes (i.e. the database column schema)
         sample = {}
         for column in cls._s_columns:
             if column.name in ("id", "type") or column.name not in cls._s_jsonapi_attrs:
@@ -652,7 +658,7 @@ class SAFRSBase(Model):
 
         object_model = cls._get_swagger_doc_object_model()
         responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model},
-                     str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
+                     str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         if http_method == "patch":
             body = object_model
@@ -665,9 +671,9 @@ class SAFRSBase(Model):
 
         if http_method == "get":
             responses = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
+                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
             # responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
-        
+
         return body, responses
 
     @classmethod

@@ -87,7 +87,7 @@ class SAFRSJSONEncoder(JSONEncoder):
             # only continue if in debug mode
             safrs.log.warning('Unknown obj type "{}" for {}'.format(type(obj), obj))
             return {"error": "invalid object"}
-        
+
         return self.ghetto_encode(obj)
 
     @staticmethod
