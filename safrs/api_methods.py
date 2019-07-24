@@ -85,6 +85,8 @@ def startswith(cls, **kwargs):
     """
         pageable: True
         description : lookup column names
+        args: 
+            column: value
         
     """
     result = cls

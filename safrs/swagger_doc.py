@@ -2,15 +2,14 @@
 Functions for api documentation: these decorators generate the swagger schemas
 """
 import inspect
-import logging
 import datetime
+from http import HTTPStatus
 import yaml
 import decimal
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import get_config
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
-from http import HTTPStatus
 import safrs
 
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
@@ -21,7 +20,7 @@ DOC_DELIMITER = "---"  # used as delimiter between the rest_doc swagger yaml spe
 PAGEABLE = "pageable"  # denotes whether an api method is pageable
 FILTERABLE = "filterable"
 
-# pylint: disable=redefined-builtin,line-too-long
+# pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
 def parse_object_doc(object):
     """
         Parse the yaml description from the documented methods
@@ -117,7 +116,7 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise ValidationError("Argument {} not valid for {}".format((key, self.__class__.__name__)))
+                raise ValidationError("Argument {} not valid for {}".format(key, self.__class__.__name__))
             setattr(self, key, value)
 
     newclass = type(name, (Schema,), {"__init__": __init__, "properties": properties})
@@ -175,7 +174,7 @@ def schema_from_object(name, object):
         properties = {"example": 0, "type": "integer"}
 
     elif isinstance(object, (datetime.datetime, datetime.date)):
-        properties = {"example": str(k), "type": "string"}
+        properties = {"example": str(object), "type": "string"}
 
     elif isinstance(object, dict):
         for k, v in object.items():
@@ -245,8 +244,8 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             if method_args and isinstance(method_args, dict):
                 if http_method == 'get':
                     """
-                        GET jsonapi_rpc args are passed in the query string 
-                    
+                        GET jsonapi_rpc args are passed in the query string
+
                     for arg_name, arg_desc in method_args.items():
                         if isinstance(arg_desc, dict):
                             arg_type = arg_desc.get("type")
@@ -256,7 +255,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                             arg_type = "string"
                         else:
                             log.error("Invalid argument description {}".format(method_args))
-                        '''parameters += [{"name" : arg_name, 
+                        '''parameters += [{"name" : arg_name,
                                         "default":  default,
                                         "type" : arg_type,
                                         "in" : "query"}]'''
@@ -283,7 +282,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             args = dict(zip(f_args, f_defaults))
             model_name = "{}_{}".format(cls.__name__, method_name)
             model = SchemaClassFactory(model_name, [])
-            arg_field = {"schema": model, "type": "string"}
+            #arg_field = {"schema": model, "type": "string"} # tbd?
             method_field = {"method": method_name, "args": args}
             fields["meta"] = schema_from_object(model_name, method_field)
 
@@ -336,7 +335,6 @@ def swagger_method_doc(cls, method_name, tags=None):
             parameters.append(
                 {"name": model_name, "in": "query", "description": description, "schema": param_model, "required": True}
             )'''
-            
 
         else:
             #
@@ -364,7 +362,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         doc["parameters"] = parameters
         doc["produces"] = ["application/vnd.api+json"]
         doc["responses"] = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                            str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description} }
+                            str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         return swagger.doc(doc)(func)
 
@@ -440,7 +438,7 @@ def swagger_doc(cls, tags=None):
         elif http_method == "delete":
             doc["summary"] = doc["description"] = "Delete a {} object".format(class_name)
             responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
-                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
+                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         elif http_method == "patch":
             doc["summary"] = "Update a {} object".format(class_name)
@@ -571,7 +569,6 @@ def swagger_relationship_doc(cls, tags=None):
             sample = getattr(cls, "sample", lambda: None)()
             if sample:
                 sample_attrs = sample._s_sample_dict()
-                sample_id = sample.id
 
             child_sample_id = child_class._s_sample_id()
 
@@ -597,7 +594,7 @@ def swagger_relationship_doc(cls, tags=None):
                 child_class.__name__, cls.relationship.key, parent_name
             )
             responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
-                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
+                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         else:
             # one of 'options', 'head', 'patch'
@@ -607,7 +604,7 @@ def swagger_relationship_doc(cls, tags=None):
             # put_model, responses = child_class.get_swagger_doc(http_method)
             doc["summary"] = "Update a {} object".format(class_name)
             responses = {str(HTTPStatus.CREATED.value): {"description": HTTPStatus.CREATED.description},
-                         str(HTTPStatus.NOT_FOUND.value): { "description" : HTTPStatus.NOT_FOUND.description}}
+                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         doc["parameters"] = parameters
         doc["responses"] = responses
