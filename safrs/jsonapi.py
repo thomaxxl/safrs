@@ -634,9 +634,9 @@ class SAFRSRestAPI(Resource):
             instance = self.SAFRSObject.get_instance(id)
             safrs.DB.session.delete(instance)
         else:
-            raise NotFoundError(id, status_code=404)
+            raise NotFoundError(id, status_code=HTTPStatus.NOT_FOUND)
 
-        return jsonify({})
+        return {}, HTTPStatus.NO_CONTENT
 
     def call_method_by_name(self, instance, method_name, args):
         """
@@ -1057,7 +1057,6 @@ class SAFRSRestRelationshipAPI(Resource):
             result = [child]
 
         else:  # direction is TOMANY => append the items to the relationship
-            print(data)
             for item in data:
                 if not isinstance(item, dict):
                     raise ValidationError("Invalid data type {}".format(item))
@@ -1104,8 +1103,9 @@ class SAFRSRestRelationshipAPI(Resource):
             relation.remove(child)
         else:
             safrs.log.warning("Child not in relation")
-
-        return jsonify({})
+            return jsonify({}, HTTPStatus.NOT_FOUND)
+        
+        return {}, HTTPStatus.NO_CONTENT
 
     def parse_args(self, **kwargs):
         """
