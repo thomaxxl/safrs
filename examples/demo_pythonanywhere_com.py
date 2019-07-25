@@ -57,7 +57,7 @@ class Book(SAFRSBase, db.Model):
     title = db.Column(db.String, default="")
     reader_id = db.Column(db.String, db.ForeignKey("People.id"))
     author_id = db.Column(db.String, db.ForeignKey("People.id"))
-    publisher_id = db.Column(db.String, db.ForeignKey("Publishers.id"))
+    publisher_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     publisher = db.relationship("Publisher", back_populates="books")
     reviews = db.relationship(
         "Review", backref="book", cascade="save-update, merge, delete, delete-orphan"
