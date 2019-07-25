@@ -281,9 +281,12 @@ class Api(FRSApiBase):
                 if not url.startswith("/"):
                     raise ValidationError("paths must start with a /")
                 swagger_url = extract_swagger_path(url)
+
+                # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
+                exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
                 for method in [m.lower() for m in resource.methods]:
 
-                    if method == "post" and swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX):
+                    if method == "post" and exposing_instance:
                         # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
                         # "A server MUST return 403 Forbidden in response to an
                         # unsupported request to create a resource with a client-generated ID"
@@ -301,10 +304,23 @@ class Api(FRSApiBase):
                     for parameter in method_doc.get("parameters", []):
                         object_id = "{%s}" % parameter.get("name")
 
-                        if method == "get" and relationship:
-                            default_include = ",".join(
-                                [rel.key for rel in relationship.mapper.class_.__mapper__.relationships]
-                            )
+                        if relationship and not exposing_instance:
+                            # We're adding a relationship, eg /Books/{BookId}/user
+                            # so we have to add the documentation for the *target* collection, (User)
+                            safrs_object = safrs.db.SAFRSBase.__table2safrs__.get(relationship.target.name, safrs_object)
+
+                        if method == "get":
+                            
+                            # Add the include query string swagger    
+                            default_include = ",".join(safrs_object._s_relationship_names)
+                            default_fields = safrs_object._s_jsonapi_attrs
+                            if relationship:
+                                # we're exposing a relationship: the default arguments must show the
+                                # relationships of the target
+                                default_include = ",".join(
+                                    [rel.key for rel in relationship.mapper.class_.__mapper__.relationships]
+                                )
+                            
                             param = {
                                 "default": default_include,
                                 "type": "string",
@@ -312,48 +328,30 @@ class Api(FRSApiBase):
                                 "in": "query",
                                 "format": "string",
                                 "required": False,
-                                "description": "Related relationships to include (csv)",
+                                "description": '"{}" relationships to include (csv)'.format(safrs_object.__tablename__),
                             }
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                        if method == "get":
+                            # Add the fields query string swagger
+                            # todo: get the columns of the target
                             param = {
-                                "default": ",".join(safrs_object._s_jsonapi_attrs),
+                                "default": ",".join(default_fields),
                                 "type": "string",
                                 "name": "fields[{}]".format(safrs_object._s_type),
                                 "in": "query",
                                 "format": "string",
                                 "required": False,
-                                "description": "Related fields to include (csv)",
+                                "description": '"{}" fields to include (csv)'.format(safrs_object.__tablename__),
                             }
                             if param not in filtered_parameters:
                                 filtered_parameters.append(param)
 
-                            default_include = ",".join([rel.key for rel in safrs_object.__mapper__.relationships])
-
-                            param = {
-                                "default": default_include,
-                                "type": "string",
-                                "name": "include",
-                                "in": "query",
-                                "format": "string",
-                                "required": False,
-                                "description": "Related relationships to include (csv)",
-                            }
-                            if param not in filtered_parameters:
-                                filtered_parameters.append(param)
-
-
                         #
-                        # Add the fields, sort, filter parameters to the swagger doc when retrieving a collection
+                        # Add the sort, filter parameters to the swagger doc when retrieving a collection
                         #
-                        if method == "get" and not (swagger_url.strip('/').endswith(SAFRS_INSTANCE_SUFFIX) or is_jsonapi_rpc):
+                        if method == "get" and not (exposing_instance or is_jsonapi_rpc):
                             relationship = getattr(resource.SAFRSObject, 'relationship', None)
-                            if relationship:
-                                # We're adding a relationship, eg /Books/{BookId}/user
-                                # so we have to add the documentation for the *target* collection, (User)
-                                safrs_object = safrs.db.SAFRSBase.__table2safrs__.get(relationship.target.name, safrs_object)
 
                             # limit parameter specifies the number of items to return
                             for param in default_paging_parameters():

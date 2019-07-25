@@ -858,6 +858,7 @@ class SAFRSRestRelationshipAPI(Resource):
         errors = {}
         count = 1
         meta = {}
+        data = None
 
         if child_id:
             child = self.child_class.get_instance(child_id)
@@ -1056,9 +1057,10 @@ class SAFRSRestRelationshipAPI(Resource):
             result = [child]
 
         else:  # direction is TOMANY => append the items to the relationship
+            print(data)
             for item in data:
-                if not isinstance(json_response, dict):
-                    raise ValidationError("Invalid data type")
+                if not isinstance(item, dict):
+                    raise ValidationError("Invalid data type {}".format(item))
                 child_id = item.get("id", None)
                 if child_id is None:
                     errors.append("no child id {}".format(data))

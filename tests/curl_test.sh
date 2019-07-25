@@ -51,7 +51,7 @@ curl -X PATCH --header 'Content-Type: application/json' --header 'Accept: applic
    "data": {  
      "attributes": {  
        "name": "Reader 0",  
-       "email": "reader_email0",  
+       "email": "reader_email0",
        "dob" : "1988-08-09",  
        "comment": ""  
      },  
