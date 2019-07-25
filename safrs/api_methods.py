@@ -2,10 +2,10 @@
 .. api_methods::
 """
 from sqlalchemy import or_
+import safrs
 from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
 from .swagger_doc import jsonapi_rpc
 from .errors import GenericError, ValidationError
-import safrs
 
 
 @classmethod
@@ -85,9 +85,8 @@ def startswith(cls, **kwargs):
     """
         pageable: True
         description : lookup column names
-        args: 
+        args:
             column: value
-        
     """
     result = cls
     response = SAFRSFormattedResponse()

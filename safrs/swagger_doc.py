@@ -3,9 +3,9 @@ Functions for api documentation: these decorators generate the swagger schemas
 """
 import inspect
 import datetime
+import decimal
 from http import HTTPStatus
 import yaml
-import decimal
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError

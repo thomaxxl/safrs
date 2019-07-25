@@ -1,11 +1,17 @@
+# -*- coding: utf-8 -*-
 """
-  This module defines jsonapi-related "Resource" objects:
+  This file contains jsonapi-related flask-restful "Resource" objects:
   - SAFRSRestAPI for exposed database objects
   - SAFRSRestRelationshipAPI for exposed database relationships
   - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
+
+  Other jsonapi-related functions are also implemented here:
+  - filtering: jsonapi_filter
+  - sorting: jsonapi_sort
+  - pagination: paginate
+  - retrieve included resources: get_included
 """
 
-# -*- coding: utf-8 -*-
 #
 #
 # Some linting errors to ignore
@@ -32,27 +38,33 @@ import safrs
 from .db import SAFRSBase
 from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
-from .config import get_config, get_legacy
+from .config import get_config, get_request_param
 from .json_encoder import SAFRSFormattedResponse
 
+INCLUDE_ALL = "+all" # this "include" query string parameter value tells us to retrieve all included resources
 
-INCLUDE_ALL = "+all"
-
-# results for GET requests will go through filter -> sort -> paginate
+# JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
     """
+        https://jsonapi.org/recommendations/#filtering
         Apply the request.args filters to the object
         :param safrs_object:
         :return: a sqla query object
     """
     # First check if a filter= URL query parameter has been used
-    filter_args = get_legacy("filter")
+    # the SAFRSObject should've implemented a filter method or 
+    # overwritten the _s_filter method to implement custom filtering
+    filter_args = get_request_param("filter")
     if filter_args:
-        result = safrs_object._s_filter(filter_args)
+        safrs_object_filter = getattr(safrs_object, 'filter', None)
+        if callable(safrs_object_filter):
+            result = safrs_object_filter(filter_args)
+        else:
+            result = safrs_object._s_filter(filter_args)
         return result
 
     expressions = []
-    filters = get_legacy("filters", {})
+    filters = get_request_param("filters", {})
     for col_name, val in filters.items():
         if not col_name in safrs_object._s_column_names:
             safrs.log.warning("Invalid Column {}".format(col_name))
@@ -61,7 +73,6 @@ def jsonapi_filter(safrs_object):
         expressions.append((column, val))
 
     if isinstance(safrs_object, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        print(expressions)
         result = safrs_object
     elif expressions:
         expressions_ = [column.in_(val.split(",")) for column, val in expressions]
@@ -86,7 +97,7 @@ def jsonapi_sort(object_query, safrs_object):
             if sort_attr.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
                 # The sort order for each sort field MUST be ascending unless it is prefixed
-                #with a minus (U+002D HYPHEN-MINUS, “-“), in which case it MUST be descending.
+                # with a minus, in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
                 attr = getattr(safrs_object, sort_attr, None)
                 if not attr is None: attr = attr.desc()
@@ -141,8 +152,8 @@ def paginate(object_query, SAFRSObject=None):
         )
         return result
 
-    page_offset = get_legacy("page_offset")
-    limit = get_legacy("page_limit", get_config("MAX_PAGE_LIMIT"))
+    page_offset = get_request_param("page_offset")
+    limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
@@ -271,7 +282,7 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     :param data : the objects that will be serialized
     :return: jsonapi formatted dictionary
     """
-    limit = get_legacy("page_limit", get_config("MAX_PAGE_LIMIT"))
+    limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
     try:
         limit = int(limit)
     except ValueError:
@@ -442,8 +453,13 @@ class SAFRSRestAPI(Resource):
 
         # Check that the id in the body is equal to the id in the url
         body_id = data.get("id", None)
-        if body_id is None or self.SAFRSObject.id_type.validate_id(id) != self.SAFRSObject.id_type.validate_id(body_id):
-            raise ValidationError("Invalid ID")
+        if body_id is None:
+            raise ValidationError("No ID in body")
+        if self.SAFRSObject.id_type.validate_id(id) != self.SAFRSObject.id_type.validate_id(body_id):
+            print(type(self.SAFRSObject.id_type.validate_id(id)))
+            print(type(self.SAFRSObject.id_type.validate_id(body_id)))
+            raise ValidationError("Invalid ID {} != {}".format(self.SAFRSObject.id_type.validate_id(id),
+                                                               self.SAFRSObject.id_type.validate_id(body_id)))
 
         attributes = data.get("attributes", {})
         attributes["id"] = id
@@ -451,7 +467,7 @@ class SAFRSRestAPI(Resource):
         # If the instance (id) already exists, it will be updated with the data
         instance = self.SAFRSObject.get_instance(id)
         if not instance:
-            raise ValidationError("Invalid ID")
+            raise ValidationError("No instance with ID")
         instance._s_patch(**attributes)
 
         # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
