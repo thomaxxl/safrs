@@ -455,17 +455,16 @@ class SAFRSRestAPI(Resource):
         body_id = data.get("id", None)
         if body_id is None:
             raise ValidationError("No ID in body")
-        if self.SAFRSObject.id_type.validate_id(id) != self.SAFRSObject.id_type.validate_id(body_id):
-            print(type(self.SAFRSObject.id_type.validate_id(id)))
-            print(type(self.SAFRSObject.id_type.validate_id(body_id)))
-            raise ValidationError("Invalid ID {} != {}".format(self.SAFRSObject.id_type.validate_id(id),
-                                                               self.SAFRSObject.id_type.validate_id(body_id)))
+        path_id = self.SAFRSObject.id_type.validate_id(id)
+        body_id = self.SAFRSObject.id_type.validate_id(body_id)
+        if path_id != body_id:
+            raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id,type(body_id), body_id))
 
         attributes = data.get("attributes", {})
-        attributes["id"] = id
+        attributes["id"] = body_id
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
-        instance = self.SAFRSObject.get_instance(id)
+        instance = self.SAFRSObject.get_instance(body_id)
         if not instance:
             raise ValidationError("No instance with ID")
         instance._s_patch(**attributes)
@@ -843,6 +842,8 @@ class SAFRSRestRelationshipAPI(Resource):
     def get(self, **kwargs):
         """
             ---
+            https://jsonapi.org/format/#fetching-relationships
+
             Retrieve a relationship or list of relationship member ids
 
             http://jsonapi.org/format/#fetching-relationships-responses :
@@ -864,12 +865,14 @@ class SAFRSRestRelationshipAPI(Resource):
             # If {ChildId} is passed in the url, return the child object
             # there's a difference between to-one and -to-many relationships:
             if isinstance(relation, SAFRSBase):
-                data = [child]
-            elif child in relation:
+                if child != relation:
+                    return "Not Found", HTTPStatus.NOT_FOUND
+            elif child not in relation:
                 # item is in relationship, return the child
-                data = [child]
-            else:
                 return "Not Found", HTTPStatus.NOT_FOUND
+            else:
+                return jsonify({"data" : child,
+                                "links" : {"self": request.url, "related": child._s_url}})
         # elif type(relation) == self.child_class: # ==>
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             data = instance = relation
