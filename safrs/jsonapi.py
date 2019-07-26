@@ -1048,9 +1048,9 @@ class SAFRSRestRelationshipAPI(Resource):
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
             # https://jsonapi.org/format/#crud-updating-to-one-relationships
-            # We should only use patch to update 
+            # We should only use patch to update
             # previous versions incorrectly implemented the jsonapi spec for updating manytoone relationships
-            # keep things backwards compatible for now    
+            # keep things backwards compatible for now
             child = data
             if isinstance(data, list):
                 log.warning("Using a list to update a manytoone relationship is deprecated")
