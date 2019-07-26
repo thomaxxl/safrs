@@ -833,6 +833,7 @@ class SAFRSRestRelationshipAPI(Resource):
         # The object_ids are the ids in the swagger path e.g {FileId}
         self.parent_object_id = self.parent_class.object_id
         self.child_object_id = self.child_class.object_id
+        self.relationship = self.SAFRSObject.relationship
 
         if self.parent_object_id == self.child_object_id:
             # see expose_relationship: if a relationship consists of
@@ -860,6 +861,9 @@ class SAFRSRestRelationshipAPI(Resource):
         meta = {}
         data = None
 
+        if relation is None:
+            # child may have been deleted
+            return "Not Found", HTTPStatus.NOT_FOUND
         if child_id:
             child = self.child_class.get_instance(child_id)
             links = {"self": child._s_url}
@@ -877,26 +881,18 @@ class SAFRSRestRelationshipAPI(Resource):
         # elif type(relation) == self.child_class: # ==>
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             data = instance = relation
-            #meta = {"direction": "TOONE"}
-            links = {"self": instance._s_url}
+            links = {"self": request.url}
             if request.url != instance._s_url:
-                links["related"] = request.url
+                links["related"] = instance._s_url
             meta.update(dict(instance_meta=instance._s_meta()))
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
-            #meta = {"direction": "TOMANY"}
             instances = [item for item in relation if isinstance(item, SAFRSBase)]
             instances = jsonapi_sort(instances, self.child_class)
             links, data, count = paginate(instances, self.child_class)
-            links = {}
             count = len(data)
         else:
-            #meta = {"direction": "TOMANY"}
             instances = jsonapi_sort(relation, self.child_class)
             links, data, count = paginate(instances, self.child_class)
-
-        # only pass debug info when in debug mode
-        if safrs.log.getEffectiveLevel() > logging.DEBUG:
-            meta = {}
 
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
@@ -942,11 +938,23 @@ class SAFRSRestRelationshipAPI(Resource):
         obj_args = {self.parent_object_id: parent.jsonapi_id}
 
         if isinstance(data, dict):
-            # => Update TOONE Relationship
-            # TODO!!!
+            # https://jsonapi.org/format/#crud-updating-to-one-relationships
+            # server MUST respond to PATCH requests to a URL from a to-one relationship link as described below.
+            #   The PATCH request MUST include a top-level member named data containing one of:
+            #   a resource identifier object corresponding to the new related resource.
+            #   null, to remove the relationship.
+            
             if self.SAFRSObject.relationship.direction != MANYTOONE:
                 raise GenericError("To PATCH a TOMANY relationship you should provide a list")
-            child = self.child_class.get_instance(data.get("id", None))
+            child_id = data.get("id")
+            child_type = data.get("type")
+            if not child_id or not child_type:
+                raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
+
+            if child_type != self.child_class.__name__:
+                raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
+
+            child = self.child_class.get_instance(child_id)
             setattr(parent, self.rel_name, child)
             obj_args[self.child_object_id] = child.jsonapi_id
 
@@ -1039,22 +1047,31 @@ class SAFRSRestRelationshipAPI(Resource):
         data = json_response.get("data")
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
-            # pylint: disable=len-as-condition
-            if len(data) == 0:
-                setattr(parent, self.SAFRSObject.relationship.key, None)
-            if len(data) > 1:
-                raise ValidationError("Too many items for a MANYTOONE relationship", HTTPStatus.FORBIDDEN)
-            child_id = data[0].get("id")
-            child_type = data[0].get("type")
-            if not child_id or not child_type:
-                raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
+            # https://jsonapi.org/format/#crud-updating-to-one-relationships
+            # We should only use patch to update 
+            # previous versions incorrectly implemented the jsonapi spec for updating manytoone relationships
+            # keep things backwards compatible for now    
+            child = data
+            if isinstance(data, list):
+                log.warning("Using a list to update a manytoone relationship is deprecated")
+                if len(data) == 0:
+                    setattr(parent, self.SAFRSObject.relationship.key, None)
+                elif len(data) > 1:
+                    raise ValidationError("Too many items for a MANYTOONE relationship", HTTPStatus.FORBIDDEN)
+                else:
+                    child = data[0]
+            if child:
+                child_id = child.get("id")
+                child_type = child.get("type")
+                if not child_id or not child_type:
+                    raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
-            if child_type != self.child_class.__name__:
-                raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
+                if child_type != self.child_class.__name__:
+                    raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
 
-            child = self.child_class.get_instance(child_id)
-            setattr(parent, self.SAFRSObject.relationship.key, child)
-            result = [child]
+                child = self.child_class.get_instance(child_id)
+                setattr(parent, self.SAFRSObject.relationship.key, child)
+                result = [child]
 
         else:  # direction is TOMANY => append the items to the relationship
             for item in data:
@@ -1101,9 +1118,12 @@ class SAFRSRestRelationshipAPI(Resource):
         child = self.child_class.get_instance(child_id)
         if child in relation:
             relation.remove(child)
+        elif child == relation and getattr(parent, self.rel_name, None) == child:
+            # Delete the item from the many-to-one relationship
+            delattr(parent, self.rel_name)
         else:
-            safrs.log.warning("Child not in relation")
-            return jsonify({}, HTTPStatus.NOT_FOUND)
+            safrs.log.warning("Item with id {} not in relation".format(child_id))
+            return {}, HTTPStatus.NOT_FOUND
         
         return {}, HTTPStatus.NO_CONTENT
 
