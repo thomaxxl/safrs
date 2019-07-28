@@ -384,7 +384,7 @@ def swagger_doc(cls, tags=None):
         """
         default_id = cls._s_sample_id()
         class_name = cls.__name__
-        table_name = cls.__tablename__
+        table_name = cls._s_type
         http_method = func.__name__.lower()
         parameters = [
             {
@@ -414,12 +414,13 @@ def swagger_doc(cls, tags=None):
         model_name = "{}_{}".format(class_name, http_method)
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)
+            doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
             _, responses = cls.get_swagger_doc(http_method)
 
         elif http_method == "post":
             _, responses = cls.get_swagger_doc(http_method)
             doc["summary"] = "Create a {} object".format(class_name)
-
+            
             #
             # Create the default POST body schema
             #
@@ -492,7 +493,7 @@ def get_sample_dict(sample):
         sample_dict = sample.to_dict()
     else:
         cols = sample.__table__.columns
-        sample_dict = {col.name: "" for col in cols if not col.name == "id"}
+        sample_dict = {col.name: "" for col in cols if col.name in sample._s_jsonapi_attrs}
     return encode_schema(sample_dict)
 
 
@@ -509,7 +510,7 @@ def swagger_relationship_doc(cls, tags=None):
         parent_class = cls.relationship.parent.class_
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
-        table_name = cls.__tablename__
+        table_name = cls._s_type
         http_method = func.__name__.lower()
         #######################################################################
         # Following will only happen when exposing an exisiting DB
@@ -573,7 +574,7 @@ def swagger_relationship_doc(cls, tags=None):
             child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class.get_swagger_doc("patch")
-            data = {"type": child_class.__tablename__, "attributes": sample_attrs, "id": child_sample_id}
+            data = {"type": child_class._s_type, "attributes": sample_attrs, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 data = [data]
@@ -595,6 +596,24 @@ def swagger_relationship_doc(cls, tags=None):
             )
             responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
                          str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
+
+            child_sample_id = child_class._s_sample_id()
+
+            _, responses = child_class.get_swagger_doc("patch")
+            data = {"type": child_class._s_type, "id": child_sample_id}
+
+            if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
+                data = [data]
+            rel_del_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
+            parameters.append(
+                {
+                    "name": "{} body".format(class_name),
+                    "in": "body",
+                    "description": "{} POST model".format(class_name),
+                    "schema": rel_del_schema,
+                    "required": True,
+                }
+            )
 
         else:
             # one of 'options', 'head', 'patch'

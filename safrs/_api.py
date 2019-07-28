@@ -15,17 +15,27 @@ from flask_restful_swagger_2 import validate_definitions_object, parse_method_do
 from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor
 from functools import wraps
+import collections
+import json
 import safrs
 
 # Import here in order to avoid circular dependencies, (todo: fix)
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
-from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
+from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods, parse_object_doc
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
 from .jsonapi import SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
+from .util import classproperty
 
-HTTP_METHODS = ["GET", "PUT", "POST", "DELETE", "PATCH"]
+HTTP_METHODS = ["GET", "POST",  "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
+
+def get_resource_methods(resource, ordered_methods=HTTP_METHODS):
+    """
+        :return: the http methods from the SwaggerEndpoint and SAFRS Resources, in the order specified by ordered_methods
+    """
+    resource_methods = [m.lower() for m in ordered_methods if m in resource.methods]
+    return resource_methods
 
 # pylint: disable=protected-access,invalid-name,line-too-long,logging-format-interpolation,fixme,too-many-branches
 class Api(FRSApiBase):
@@ -34,7 +44,6 @@ class Api(FRSApiBase):
         this method creates an API endpoint for the SAFRSBase object and corresponding swagger
         documentation
     """
-
     _operation_ids = {}
 
     def __init__(self, *args, **kwargs):
@@ -71,7 +80,7 @@ class Api(FRSApiBase):
 
             add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
 
-            tablename: safrs_object.__tablename__, e.g. "Users"
+            tablename: safrs_object._s_class_name, e.g. "Users"
             classname: safrs_object.__name__, e.g. "User"
         """
         self.safrs_object = safrs_object
@@ -95,16 +104,16 @@ class Api(FRSApiBase):
         api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
 
         # Expose the collection
-        safrs.log.info("Exposing %s on %s, endpoint: %s", safrs_object._s_type, url, endpoint)
+        safrs.log.info("Exposing {} on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_type, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
         # Expose the instances
-        self.add_resource(api_class, url, endpoint=endpoint)
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
-
+        self.add_resource(api_class, url, endpoint=endpoint)
+        
         object_doc = parse_object_doc(safrs_object)
         object_doc["name"] = safrs_object._s_type
         self._swagger_object["tags"].append(object_doc)
@@ -125,25 +134,25 @@ class Api(FRSApiBase):
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
-            api_method_class_name = "method_{}_{}".format(safrs_object.__tablename__, method_name)
+            api_method_class_name = "method_{}_{}".format(safrs_object._s_class_name, method_name)
             if (isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod))
                     or getattr(api_method, "__self__", None) is safrs_object):
                 # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config("CLASSMETHOD_URL_FMT")
-                url = CLASSMETHOD_URL_FMT.format(url_prefix, safrs_object.__tablename__, method_name)
+                url = CLASSMETHOD_URL_FMT.format(url_prefix, safrs_object._s_class_name, method_name)
             else:
                 # expose the method at the instance level
                 INSTANCEMETHOD_URL_FMT = get_config("INSTANCEMETHOD_URL_FMT")
                 url = INSTANCEMETHOD_URL_FMT.format(
-                    url_prefix, safrs_object.__tablename__, safrs_object.object_id, method_name
+                    url_prefix, safrs_object._s_class_name, safrs_object.object_id, method_name
                 )
 
             ENDPOINT_FMT = get_config("ENDPOINT_FMT")
-            endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object.__tablename__ + "." + method_name)
+            endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_class_name + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties = {"SAFRSObject": safrs_object, "method_name": method_name}
             api_class = api_decorator(type(api_method_class_name, (SAFRSRestMethodAPI,), properties), swagger_decorator)
-            meth_name = safrs_object.__tablename__ + "." + api_method.__name__
+            meth_name = safrs_object._s_class_name + "." + api_method.__name__
             safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
 
@@ -185,7 +194,7 @@ class Api(FRSApiBase):
         # Relationship object
         decorators = getattr(parent_class, "custom_decorators", []) + getattr(parent_class, "decorators", [])
         rel_object = type(
-            rel_name,
+            "{}.{}".format(parent_name,rel_name), # Name of the class we're creating here
             (SAFRSRelationshipObject,),
             {
                 "relationship": relationship,
@@ -193,6 +202,8 @@ class Api(FRSApiBase):
                 # This makes things really complicated!!!
                 # TODO: simplify this by creating a proper superclass
                 "custom_decorators": decorators,
+                "parent" : parent_class,
+                "_target" : safrs_object
             },
         )
 
@@ -204,7 +215,7 @@ class Api(FRSApiBase):
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
         safrs.log.info("Exposing relationship {} on {}, endpoint: {}".format(rel_name, url, endpoint))
-        self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST", "PATCH"])
+        self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST", "PATCH", "DELETE"])
 
         #
         try:
@@ -245,16 +256,15 @@ class Api(FRSApiBase):
         #
         #pylint: disable=too-many-nested-blocks,too-many-statements, too-many-locals
         #
-
         relationship = kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
 
-        path_item = {}
+        path_item = collections.OrderedDict()
         definitions = {}
         resource_methods = kwargs.get("methods", HTTP_METHODS)
         kwargs.pop("safrs_object", None)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False) # check if the exposed method is a jsonapi_rpc method
-        for method in [m.lower() for m in resource.methods]:
+        for method in get_resource_methods(resource):
             if not method.upper() in resource_methods:
                 continue
             f = getattr(resource, method, None)
@@ -276,7 +286,6 @@ class Api(FRSApiBase):
         self._swagger_object["definitions"].update(definitions)
 
         if path_item:
-            validate_path_item_object(path_item)
             for url in urls:
                 if not url.startswith("/"):
                     raise ValidationError("paths must start with a /")
@@ -284,8 +293,8 @@ class Api(FRSApiBase):
 
                 # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
                 exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
-                for method in [m.lower() for m in resource.methods]:
 
+                for method in get_resource_methods(resource):
                     if method == "post" and exposing_instance:
                         # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
                         # "A server MUST return 403 Forbidden in response to an
@@ -297,10 +306,13 @@ class Api(FRSApiBase):
                     method_doc = copy.deepcopy(path_item.get(method))
                     if not method_doc:
                         continue
+                    
+                    collection_summary = method_doc.pop("collection_summary",method_doc.get("summary",None))
+                    if not exposing_instance:
+                        method_doc["summary"] = collection_summary
 
-                    filtered_parameters = []
+                    parameters = []
                     safrs_object = self.safrs_object
-
                     for parameter in method_doc.get("parameters", []):
                         object_id = "{%s}" % parameter.get("name")
 
@@ -310,42 +322,13 @@ class Api(FRSApiBase):
                             safrs_object = safrs.db.SAFRSBase.__table2safrs__.get(relationship.target.name, safrs_object)
 
                         if method == "get":
-                            
-                            # Add the include query string swagger    
-                            default_include = ",".join(safrs_object._s_relationship_names)
-                            default_fields = safrs_object._s_jsonapi_attrs
-                            if relationship:
-                                # we're exposing a relationship: the default arguments must show the
-                                # relationships of the target
-                                default_include = ",".join(
-                                    [rel.key for rel in relationship.mapper.class_.__mapper__.relationships]
-                                )
-                            
-                            param = {
-                                "default": default_include,
-                                "type": "string",
-                                "name": "include",
-                                "in": "query",
-                                "format": "string",
-                                "required": False,
-                                "description": '"{}" relationships to include (csv)'.format(safrs_object.__tablename__),
-                            }
-                            if param not in filtered_parameters:
-                                filtered_parameters.append(param)
+                            # Get the jsonapi included resources, ie the exposed relationships
+                            param = resource.get_swagger_include()
+                            parameters.append(param)
 
-                            # Add the fields query string swagger
-                            # todo: get the columns of the target
-                            param = {
-                                "default": ",".join(default_fields),
-                                "type": "string",
-                                "name": "fields[{}]".format(safrs_object._s_type),
-                                "in": "query",
-                                "format": "string",
-                                "required": False,
-                                "description": '"{}" fields to include (csv)'.format(safrs_object.__tablename__),
-                            }
-                            if param not in filtered_parameters:
-                                filtered_parameters.append(param)
+                            # Get the jsonapi fields[], ie the exposed attributes/columns
+                            param = resource.get_swagger_fields()
+                            parameters.append(param)
 
                         #
                         # Add the sort, filter parameters to the swagger doc when retrieving a collection
@@ -354,58 +337,26 @@ class Api(FRSApiBase):
                             relationship = getattr(resource.SAFRSObject, 'relationship', None)
 
                             # limit parameter specifies the number of items to return
-                            for param in default_paging_parameters():
-                                if param not in filtered_parameters:
-                                    filtered_parameters.append(param)
+                            parameters += default_paging_parameters()
+                            
+                            param = resource.get_swagger_sort()
+                            parameters.append(param)
 
-                            sort_attrs = safrs_object._s_jsonapi_attrs
+                            parameters += list(resource.get_swagger_filters())
 
-                            param = {
-                                "default": ",".join(sort_attrs),
-                                "type": "string",
-                                "name": "sort",
-                                "in": "query",
-                                "format": "string",
-                                "required": False,
-                                "description": "Sort order",
-                            }
-                            if param not in filtered_parameters:
-                                filtered_parameters.append(param)
-
-                            for column_name in safrs_object._s_column_names:
-                                param = {
-                                    "default": "",
-                                    "type": "string",
-                                    "name": "filter[{}]".format(column_name),
-                                    "in": "query",
-                                    "format": "string",
-                                    "required": False,
-                                    "description": "{} attribute filter (csv)".format(column_name),
-                                }
-                                if param not in filtered_parameters:
-                                    filtered_parameters.append(param)
-
-                            param = {
-                                "default": "",
-                                "type": "string",
-                                "name": "filter",
-                                "in": "query",
-                                "format": "string",
-                                "required": False,
-                                "description": "Custom filter",
-                            }
-                            if param not in filtered_parameters:
-                                filtered_parameters.append(param)
-
-                        if not (parameter.get("in") == "path" and not object_id in swagger_url) and parameter not in filtered_parameters:
+                        if not (parameter.get("in") == "path" and not object_id in swagger_url) and parameter not in parameters:
                             # Only if a path param is in path url then we add the param
-                            filtered_parameters.append(parameter)
+                            parameters.append(parameter)
 
-                    method_doc["parameters"] = filtered_parameters
+                    unique_params = OrderedDict() # rm duplicates
+                    for param in parameters:
+                        unique_params[param["name"]] = param
+                    method_doc["parameters"] = list(unique_params.values())
                     method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
+                    validate_path_item_object(path_item)
 
-                    if method == "get" and not swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX):
+                    if method == "get" and not exposing_instance:
                         # If no {id} was provided, we return a list of all the objects
                         # pylint: disable=bad-format-string
                         try:
@@ -536,10 +487,9 @@ def http_method_decorator(fun):
 #pylint: disable=too-few-public-methods
 class SAFRSRelationshipObject:
     """
-        Relationship object
+        Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
     """
-
-    __tablename__ = "tabname"
+    _s_class_name = None
     __name__ = "name"
 
     @classmethod
@@ -548,6 +498,8 @@ class SAFRSRelationshipObject:
             Create a swagger api model based on the sqlalchemy schema
             if an instance exists in the DB, the first entry is used as example
         """
+        #print(http_method)
+        #print(parse_object_doc(getattr(cls,http_method)))
         body = {}
         responses = {}
         object_name = cls.__name__
@@ -560,3 +512,19 @@ class SAFRSRelationshipObject:
                          str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
 
         return body, responses
+
+    @classproperty
+    def _s_relationship_names(cls):
+        return cls._target._s_relationship_names
+
+    @classproperty
+    def _s_jsonapi_attrs(cls):
+        return cls._target._s_relationship_names
+
+    @classproperty
+    def _s_type(cls):
+        return cls._target._s_type
+
+    @classproperty
+    def _s_column_names(cls):
+        return cls._target._s_column_names
