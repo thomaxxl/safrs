@@ -239,10 +239,10 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         rest_doc = get_doc(method)
         description = rest_doc.get("description", "")
         if rest_doc:
-            method_args = rest_doc.get("args", []) # jsonapi_rpc "POST" method arguments
-            parameters = rest_doc.get("parameters", []) # query string parameters
+            method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
+            parameters = rest_doc.get("parameters", [])  # query string parameters
             if method_args and isinstance(method_args, dict):
-                if http_method == 'get':
+                if http_method == "get":
                     """
                         GET jsonapi_rpc args are passed in the query string
 
@@ -282,7 +282,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             args = dict(zip(f_args, f_defaults))
             model_name = "{}_{}".format(cls.__name__, method_name)
             model = SchemaClassFactory(model_name, [])
-            #arg_field = {"schema": model, "type": "string"} # tbd?
+            # arg_field = {"schema": model, "type": "string"} # tbd?
             method_field = {"method": method_name, "args": args}
             fields["meta"] = schema_from_object(model_name, method_field)
 
@@ -295,78 +295,6 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         return parameters, fields, description, method
 
     safrs.log.critical("Shouldnt get here ({})".format(method_name))
-
-
-def swagger_method_doc(cls, method_name, tags=None):
-    """
-    swagger_method_doc
-    """
-
-    def swagger_doc_gen(func):
-
-        class_name = cls.__name__
-        if tags is None:
-            doc_tags = [class_name]
-        else:
-            doc_tags = tags
-
-        doc = {
-            "tags": doc_tags,
-            "description": "Invoke {}.{}".format(class_name, method_name),
-            "summary": "Invoke {}.{}".format(class_name, method_name),
-        }
-
-        model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
-        param_model = SchemaClassFactory(model_name, {})
-        parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
-
-        if func.__name__ == "get":
-            if not parameters:
-                parameters = [
-                    {
-                        "name": "varargs",
-                        "in": "query",
-                        "description": "{} arguments".format(method_name),
-                        "required": False,
-                        "type": "string",
-                    }
-                ]
-            '''
-            parameters.append(
-                {"name": model_name, "in": "query", "description": description, "schema": param_model, "required": True}
-            )'''
-
-        else:
-            #
-            # Retrieve the swagger schemas for the jsonapi_rpc methods
-            #
-            parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
-            model_name = "{}_{}_{}".format(func.__name__, cls.__name__, method_name)
-            param_model = SchemaClassFactory(model_name, fields)
-
-            parameters.append(
-                {"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True}
-            )
-
-        # URL Path Parameter
-        default_id = cls._s_sample_id()
-        parameters.append(
-            {
-                "name": cls.object_id,  # parameter id, e.g. UserId
-                "in": "path",
-                "type": "string",
-                "default": default_id,
-                "required": True,
-            }
-        )
-        doc["parameters"] = parameters
-        doc["produces"] = ["application/vnd.api+json"]
-        doc["responses"] = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                            str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
-
-        return swagger.doc(doc)(func)
-
-    return swagger_doc_gen
 
 
 #
@@ -407,7 +335,7 @@ def swagger_doc(cls, tags=None):
         else:
             doc_tags = tags
 
-        doc = {"tags": doc_tags, "description": "Returns a {}".format(class_name)}
+        doc = {"tags": doc_tags}
 
         responses = {}
         # adhere to open api
@@ -420,7 +348,7 @@ def swagger_doc(cls, tags=None):
         elif http_method == "post":
             _, responses = cls.get_swagger_doc(http_method)
             doc["summary"] = "Create a {} object".format(class_name)
-            
+
             #
             # Create the default POST body schema
             #
@@ -437,12 +365,12 @@ def swagger_doc(cls, tags=None):
             )
 
         elif http_method == "delete":
-            doc["summary"] = doc["description"] = "Delete a {} object".format(class_name)
-            responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
-                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
+            responses = {
+                HTTPStatus.NO_CONTENT.value: {"description": HTTPStatus.NO_CONTENT.description},
+                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
+            }
 
         elif http_method == "patch":
-            doc["summary"] = "Update a {} object".format(class_name)
             post_model, responses = cls.get_swagger_doc("patch")
             sample = cls._s_sample_dict()
             sample_dict = cls._s_sample_dict()
@@ -478,7 +406,7 @@ def swagger_doc(cls, tags=None):
 
         method_doc = parse_object_doc(func)
         safrs.dict_merge(doc, method_doc)
-
+        apply_fstring(doc, locals())
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
@@ -511,6 +439,7 @@ def swagger_relationship_doc(cls, tags=None):
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
         table_name = cls._s_type
+        type = cls._s_type
         http_method = func.__name__.lower()
         #######################################################################
         # Following will only happen when exposing an exisiting DB
@@ -547,25 +476,19 @@ def swagger_relationship_doc(cls, tags=None):
             },
         ]
 
-        parent_name = parent_class.__name__
-
         if tags is None:
-            doc_tags = [table_name]
+            doc_tags = [type]
         else:
             doc_tags = tags
 
-        doc = {"tags": doc_tags, "description": "Returns {} {} ids".format(parent_name, cls.relationship.key)}
+        doc = {"tags": doc_tags}
+        doc.update(parse_object_doc(func))
 
         responses = {}
         if http_method == "get":
-            doc["summary"] = "Retrieve a {} object".format(class_name)
             _, responses = cls.get_swagger_doc(http_method)
         elif http_method in ("post", "patch"):
             _, responses = cls.get_swagger_doc(http_method)
-            doc["summary"] = "Update {}".format(cls.relationship.key)
-            doc["description"] = "Add a {} object to the {} relation on {}".format(
-                child_class.__name__, cls.relationship.key, parent_name
-            )
             sample_attrs = {}
             sample = getattr(cls, "sample", lambda: None)()
             if sample:
@@ -590,13 +513,6 @@ def swagger_relationship_doc(cls, tags=None):
             )
 
         elif http_method == "delete":
-            doc["summary"] = "Delete from {} {}".format(parent_name, cls.relationship.key)
-            doc["description"] = "Delete a {} object from the {} relation on {}".format(
-                child_class.__name__, cls.relationship.key, parent_name
-            )
-            responses = {str(HTTPStatus.NO_CONTENT.value): {"description": HTTPStatus.NO_CONTENT.description},
-                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
-
             child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class.get_swagger_doc("patch")
@@ -619,15 +535,92 @@ def swagger_relationship_doc(cls, tags=None):
             # one of 'options', 'head', 'patch'
             safrs.log.info('no documentation for "%s" ', http_method)
 
-        if http_method in ("patch",):
-            # put_model, responses = child_class.get_swagger_doc(http_method)
-            doc["summary"] = "Update a {} object".format(class_name)
-            responses = {str(HTTPStatus.CREATED.value): {"description": HTTPStatus.CREATED.description},
-                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
-
         doc["parameters"] = parameters
+        if doc.get("responses"):
+            responses.update({str(val): desc for val, desc in doc["responses"].items()})
         doc["responses"] = responses
 
+        direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
+        parent_name = parent_class.__name__ # to be used by f-string
+        child_name = child_class.__name__ # to be used by f-string
+        apply_fstring(doc, locals())
+        return swagger.doc(doc)(func)
+
+    return swagger_doc_gen
+
+
+def swagger_method_doc(cls, method_name, tags=None):
+    """
+        Generate decorator used to document SAFRSRestMethodAPI instances
+    """
+
+    def swagger_doc_gen(func):
+        """
+            decorator
+        """
+
+        class_name = cls.__name__
+        if tags is None:
+            doc_tags = [class_name]
+        else:
+            doc_tags = tags
+
+        doc = {
+            "tags": doc_tags,
+            "description": "Invoke {}.{}".format(class_name, method_name),
+            "summary": "Invoke {}.{}".format(class_name, method_name),
+            "responses": {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description}},
+        }
+
+        model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
+        param_model = SchemaClassFactory(model_name, {})
+        parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
+
+        if func.__name__ == "get":
+            if not parameters:
+                parameters = [
+                    {
+                        "name": "varargs",
+                        "in": "query",
+                        "description": "{} arguments".format(method_name),
+                        "required": False,
+                        "type": "string",
+                    }
+                ]
+            """
+            parameters.append(
+                {"name": model_name, "in": "query", "description": description, "schema": param_model, "required": True}
+            )"""
+
+        else:
+            #
+            # Retrieve the swagger schemas for the jsonapi_rpc methods
+            #
+            parameters, fields, description, method = get_swagger_doc_arguments(
+                cls, method_name, http_method=func.__name__
+            )
+            model_name = "{}_{}_{}".format(func.__name__, cls.__name__, method_name)
+            param_model = SchemaClassFactory(model_name, fields)
+
+            parameters.append(
+                {"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True}
+            )
+
+        # URL Path Parameter
+        default_id = cls._s_sample_id()
+        parameters.append(
+            {
+                "name": cls.object_id,  # parameter id, e.g. UserId
+                "in": "path",
+                "type": "string",
+                "default": default_id,
+                "required": True,
+            }
+        )
+        doc["parameters"] = parameters
+        doc["produces"] = ["application/vnd.api+json"]
+
+        apply_fstring(doc, locals())
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
@@ -635,7 +628,7 @@ def swagger_relationship_doc(cls, tags=None):
 
 def default_paging_parameters():
     """
-    default_paging_parameters
+        default_paging_parameters
     """
 
     parameters = []
@@ -661,3 +654,19 @@ def default_paging_parameters():
     }
     parameters.append(param)
     return parameters
+
+
+def apply_fstring(swagger_obj, vars, k=None):
+    """
+        Format the f-strings in the swagger object
+    """
+    if isinstance(swagger_obj, str):
+        return swagger_obj.format(**vars)
+    elif isinstance(swagger_obj, list):
+        for i in swagger_obj:
+            apply_fstring(i, vars)
+    elif isinstance(swagger_obj, dict):
+        for k, v in swagger_obj.items():
+            swagger_obj[k] = apply_fstring(v, vars)
+
+    return swagger_obj

@@ -42,7 +42,7 @@ from .config import get_config, get_request_param
 from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
 
-INCLUDE_ALL = "+all" # this "include" query string parameter value tells us to retrieve all included resources
+INCLUDE_ALL = "+all"  # this "include" query string parameter value tells us to retrieve all included resources
 
 # JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
@@ -53,11 +53,11 @@ def jsonapi_filter(safrs_object):
         :return: a sqla query object
     """
     # First check if a filter= URL query parameter has been used
-    # the SAFRSObject should've implemented a filter method or 
+    # the SAFRSObject should've implemented a filter method or
     # overwritten the _s_filter method to implement custom filtering
     filter_args = get_request_param("filter")
     if filter_args:
-        safrs_object_filter = getattr(safrs_object, 'filter', None)
+        safrs_object_filter = getattr(safrs_object, "filter", None)
         if callable(safrs_object_filter):
             result = safrs_object_filter(filter_args)
         else:
@@ -101,7 +101,8 @@ def jsonapi_sort(object_query, safrs_object):
                 # with a minus, in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
                 attr = getattr(safrs_object, sort_attr, None)
-                if not attr is None: attr = attr.desc()
+                if not attr is None:
+                    attr = attr.desc()
             else:
                 attr = getattr(safrs_object, sort_attr, None)
             if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
@@ -145,6 +146,7 @@ def paginate(object_query, SAFRSObject=None):
         :param SAFRSObject: optional
         :return: links, instances, count
     """
+
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ""
         result += "?" + "&".join(
@@ -169,7 +171,7 @@ def paginate(object_query, SAFRSObject=None):
         count = SAFRSObject._s_count()
     if count is None:
         count = object_query.count()
-        if count > get_config('MAX_TABLE_COUNT'):
+        if count > get_config("MAX_TABLE_COUNT"):
             safrs.log.warning("Large table count detected, performance may be impacted, consider using '_s_count'")
 
     first_args = (0, limit)
@@ -196,7 +198,7 @@ def paginate(object_query, SAFRSObject=None):
         del links["prev"]
 
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        instances = object_query[page_offset:page_offset+limit]
+        instances = object_query[page_offset : page_offset + limit]
     else:
         res_query = object_query.offset(page_offset).limit(limit)
         instances = res_query.all()
@@ -261,7 +263,9 @@ def get_included(data, limit, include="", level=0):
                 result = result.union(included)
             except Exception as exc:
                 safrs.log.critical(
-                    "Failed to add included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc)
+                    "Failed to add included for {} (included: {} - {}): {}".format(
+                        relationship, type(included), included, exc
+                    )
                 )
                 result.add(included)
 
@@ -316,8 +320,8 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
 
 class Resource(FRSResource):
 
-    SAFRSObject = None # The class that will be returned when a http method is invoked
-                       # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    SAFRSObject = None  # The class that will be returned when a http method is invoked
+    # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
 
     @classmethod
     def get_swagger_include(cls):
@@ -376,6 +380,9 @@ class Resource(FRSResource):
 
     @classmethod
     def get_swagger_filters(cls):
+        """
+            :return: JSON:API filters swagger spec
+        """
         for column_name in cls.SAFRSObject._s_column_names:
             param = {
                 "default": "",
@@ -389,14 +396,14 @@ class Resource(FRSResource):
             yield param
 
         yield {
-                "default": "",
-                "type": "string",
-                "name": "filter",
-                "in": "query",
-                "format": "string",
-                "required": False,
-                "description": "Custom filter",
-            }
+            "default": "",
+            "type": "string",
+            "name": "filter",
+            "in": "query",
+            "format": "string",
+            "required": False,
+            "description": "Custom filter",
+        }
 
 
 class SAFRSRestAPI(Resource):
@@ -438,6 +445,7 @@ class SAFRSRestAPI(Resource):
 
         A resource object’s attributes and its relationships are collectively called its “fields”.
     """
+
     default_order = None  # used by sqla order_by
     object_id = None
 
@@ -454,6 +462,8 @@ class SAFRSRestAPI(Resource):
 
     def get(self, **kwargs):
         """
+            summary : Retrieve a {class_name} object
+            description : Retrieve a {class_name} object
             responses :
                 404 :
                     description : Not Found
@@ -508,6 +518,7 @@ class SAFRSRestAPI(Resource):
 
     def patch(self, **kwargs):
         """
+            summary : Update {class_name}
             responses:
                 200 :
                     description : Accepted
@@ -543,7 +554,7 @@ class SAFRSRestAPI(Resource):
         path_id = self.SAFRSObject.id_type.validate_id(id)
         body_id = self.SAFRSObject.id_type.validate_id(body_id)
         if path_id != body_id:
-            raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id,type(body_id), body_id))
+            raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id, type(body_id), body_id))
 
         attributes = data.get("attributes", {})
         attributes["id"] = body_id
@@ -565,6 +576,7 @@ class SAFRSRestAPI(Resource):
 
     def post(self, **kwargs):
         """
+            summary : Create {class_name}
             responses :
                 403:
                     description : This implementation does not accept client-generated IDs
@@ -679,7 +691,8 @@ class SAFRSRestAPI(Resource):
 
     def delete(self, **kwargs):
         """
-            responses:
+            summary: Delete from {class_name}
+            responses :
                 202 :
                     description: Accepted
                 204 :
@@ -760,6 +773,7 @@ class SAFRSRestMethodAPI(Resource):
 
         Only HTTP POST is supported
     """
+
     SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     method_name = None
 
@@ -775,6 +789,7 @@ class SAFRSRestMethodAPI(Resource):
 
     def post(self, **kwargs):
         """
+            summary : call             
             responses :
                 403:
                     description :
@@ -908,6 +923,7 @@ class SAFRSRestRelationshipAPI(Resource):
         found or accessed, or return a 403 Forbidden response if complete
         replacement is not allowed by the server.
     """
+
     SAFRSObject = None
 
     def __new__(cls, *args, **kwargs):
@@ -931,6 +947,8 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def get(self, **kwargs):
         """
+            summary : Retrieve {child_name} from {cls.relationship.key}
+            description : Retrieve {child_name} items from the {cls.relationship.key} "{direction}" relationship
             ---
             https://jsonapi.org/format/#fetching-relationships
 
@@ -965,8 +983,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 # item is in relationship, return the child
                 return "Not Found", HTTPStatus.NOT_FOUND
             else:
-                return jsonify({"data" : child,
-                                "links" : {"self": request.url, "related": child._s_url}})
+                return jsonify({"data": child, "links": {"self": request.url, "related": child._s_url}})
         # elif type(relation) == self.target: # ==>
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             data = instance = relation
@@ -989,6 +1006,8 @@ class SAFRSRestRelationshipAPI(Resource):
     # Relationship patching
     def patch(self, **kwargs):
         """
+            summary : Update {cls.relationship.key}
+            description : Update the {cls.relationship.key} "{direction}" relationship
             responses:
                 200 :
                     description : Accepted
@@ -1032,7 +1051,7 @@ class SAFRSRestRelationshipAPI(Resource):
             #   The PATCH request MUST include a top-level member named data containing one of:
             #   a resource identifier object corresponding to the new related resource.
             #   null, to remove the relationship.
-            
+
             if self.SAFRSObject.relationship.direction != MANYTOONE:
                 raise GenericError("To PATCH a TOMANY relationship you should provide a list")
             child_id = data.get("id")
@@ -1112,6 +1131,8 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def post(self, **kwargs):
         """
+            summary: Add {child_name} items to {cls.relationship.key}
+            description : Add {child_name} items to the {cls.relationship.key} "{direction}" relationship
             responses :
                 403:
                     description : This implementation does not accept client-generated IDs
@@ -1185,6 +1206,8 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def delete(self, **kwargs):
         """
+            summary : Delete {child_name} from {cls.relationship.key}
+            description : Delete {child_name} items from the {cls.relationship.key} "{direction}" relationship
             responses:
                 202 :
                     description: Accepted
@@ -1203,7 +1226,7 @@ class SAFRSRestRelationshipAPI(Resource):
         # pylint: disable=unused-variable
         # (parent is unused)
         parent, relation = self.parse_args(**kwargs)
-        
+
         # No child id=> delete specified items from the relationship
         payload = request.get_jsonapi_payload()
         if not isinstance(payload, dict):
@@ -1251,14 +1274,14 @@ class SAFRSRestRelationshipAPI(Resource):
                     raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
                 if child_type != self.target._s_type:
-                    raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)                    
+                    raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
 
                 child = self.target.get_instance(child_id)
                 if child in relation:
                     relation.remove(child)
                 else:
                     safrs.log.warning("Item with id {} not in relation".format(child_id))
-    
+
         return {}, HTTPStatus.NO_CONTENT
 
     def parse_args(self, **kwargs):

@@ -79,6 +79,7 @@ class SAFRSBase(Model):
         The object attributes should not match column names,
         this is why most of the methods & properties have the '_s_' prefix!
     """
+
     query_limit = 50
     # set this to False if you want to use the SAFRSBase in combination
     # with another framework, eg flask-admin
@@ -90,8 +91,6 @@ class SAFRSBase(Model):
 
     exclude_attrs = []
     exclude_rels = []
-
-    __table2safrs__ = {} # allow us to lookup a SAFRSObject by its tablename
 
     def __new__(cls, **kwargs):
         """
@@ -106,7 +105,6 @@ class SAFRSBase(Model):
         else:
             safrs.log.debug("{} exists for {} ".format(cls.__name__, str(kwargs)))
 
-        cls.__table2safrs__[cls.__tablename__] = cls # allow us to lookup a SAFRSObject by its tablename
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -290,12 +288,12 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_jsonapi_attrs(cls):
-        '''
+        """
             :return: list of jsonapi attribute names
             At the moment we expect the column name to be equal to the column name
             Things will go south if this isn't thee case and we should use
             the cls.__mapper__._polymorphic_properties instead
-        '''
+        """
         result = []
         for attr in cls._s_column_names:
             # Ignore the exclude_attrs for serialization/deserialization
@@ -313,14 +311,18 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_class_name(cls):
-        return cls.__tablename__
+        return cls.__name__
 
+    @classproperty
+    def _s_collection_name(cls):
+        return getattr(cls, "__tablename__", cls.__name__)
+    
     @classproperty
     def _s_type(cls):
         """
             :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
         """
-        return getattr(cls, '__tablename__', cls.__name__)
+        return getattr(cls, "__tablename__", cls.__name__)
 
     @property
     def Type(self):
@@ -657,8 +659,10 @@ class SAFRSBase(Model):
         object_name = cls.__name__
 
         object_model = cls._get_swagger_doc_object_model()
-        responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model},
-                     str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
+        responses = {
+            str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model},
+            str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
+        }
 
         if http_method == "patch":
             body = object_model
@@ -666,12 +670,16 @@ class SAFRSBase(Model):
 
         if http_method == "post":
             # body = cls.get_swagger_doc_post_parameters()
-            responses = {str(HTTPStatus.CREATED.value): {"description": "Object successfully created"},
-                         str(HTTPStatus.CREATED.value): {"description": "Invalid data"}}
+            responses = {
+                str(HTTPStatus.CREATED.value): {"description": "Object successfully created"},
+                str(HTTPStatus.CREATED.value): {"description": "Invalid data"},
+            }
 
         if http_method == "get":
-            responses = {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                         str(HTTPStatus.NOT_FOUND.value): {"description" : HTTPStatus.NOT_FOUND.description}}
+            responses = {
+                str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
+                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
+            }
             # responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
 
         return body, responses
@@ -802,6 +810,7 @@ class SAFRSDummy:
     """
         Debug class
     """
+
     def __getattr__(self, attr):
         print("get", attr)
 

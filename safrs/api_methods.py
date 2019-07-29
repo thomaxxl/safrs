@@ -41,6 +41,7 @@ def duplicate(self):
         description: Duplicate an object - copy it and give it a new id
     """
     from sqlalchemy.orm.session import make_transient
+
     session = safrs.DB.session
     session.expunge(self)
     make_transient(self)
@@ -52,7 +53,7 @@ def duplicate(self):
 
 
 @classmethod
-@jsonapi_rpc(http_methods=['POST'])
+@jsonapi_rpc(http_methods=["POST"])
 def lookup_re_mysql(cls, **kwargs):
     """
         pageable: True
@@ -80,7 +81,7 @@ def lookup_re_mysql(cls, **kwargs):
 
 
 @classmethod
-@jsonapi_rpc(http_methods=['POST'])
+@jsonapi_rpc(http_methods=["POST"])
 def startswith(cls, **kwargs):
     """
         pageable: True

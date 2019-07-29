@@ -60,7 +60,7 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     # sometimes we don't want to show the port (eg when proxied)
     # in that case the port may be None
     if port:
-        host = "%s:%s"%(host, port)
+        host = "%s:%s" % (host, port)
     api = Api(
         app,
         api_spec_url="/swagger",
@@ -69,7 +69,7 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
         description=description,
         decorators=decorators,
         prefix=prefix,
-        base_path=prefix
+        base_path=prefix,
     )
 
     @app.before_request
@@ -101,7 +101,9 @@ class SAFRS:
     CLASSMETHOD_URL_FMT = None
     RELATIONSHIP_URL_FMT = None
     ENDPOINT_FMT = None
-    MAX_TABLE_COUNT = 10**7 # table counts will become really slow for large tables, inform the user about it using this
+    MAX_TABLE_COUNT = (
+        10 ** 7
+    )  # table counts will become really slow for large tables, inform the user about it using this
 
     #
     config = {}
@@ -121,11 +123,10 @@ class SAFRS:
         if app.config.get("DEBUG", False):
             LOGGER.setLevel(logging.DEBUG)
 
-
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
         if swaggerui_blueprint is None:
-            swaggerui_blueprint = get_swaggerui_blueprint(prefix, "%s/swagger.json"%(prefix))
+            swaggerui_blueprint = get_swaggerui_blueprint(prefix, "%s/swagger.json" % (prefix))
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
 
@@ -211,7 +212,7 @@ __all__ = (
     "SAFRSBase",
     "jsonapi_rpc",
     # jsonapi:
-    #"SAFRSJSONEncoder",
+    # "SAFRSJSONEncoder",
     "paginate",
     "jsonapi_format_response",
     "SAFRSFormattedResponse",

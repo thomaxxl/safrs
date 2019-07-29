@@ -152,7 +152,7 @@ class SAFRSID:
         """
         if len(cls.columns) == 1:
             return cls.columns[0].type.python_type(id)
-            
+
         safrs.log.debug("ID Validation not implemented")
         return id
         """return

@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
 from .db import SAFRSBase, SAFRSDummy
 
+
 class SAFRSFormattedResponse:
     """
         Custom response object
@@ -31,7 +32,6 @@ class SAFRSFormattedResponse:
             :param count:
         """
         self.response = safrs.jsonapi_format_response(*args, **kwargs)
-
 
     def to_dict(self):
         """
