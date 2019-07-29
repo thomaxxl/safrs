@@ -528,12 +528,11 @@ class SAFRSRestAPI(Resource):
         if not id:
             raise ValidationError("Invalid ID")
 
-        req_json = request.get_jsonapi_payload()
-        if not isinstance(req_json, dict):
+        payload = request.get_jsonapi_payload()
+        if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
 
-        data = req_json.get("data")
-        print(data)
+        data = payload.get("data")
         if not data or not isinstance(data, dict):
             raise ValidationError("Invalid Data Object")
 
@@ -812,9 +811,9 @@ class SAFRSRestMethodAPI(Resource):
             raise ValidationError("Method is not public")
 
         args = dict(request.args)
-        json_data = request.get_jsonapi_payload()
-        if json_data:
-            args = json_data.get("meta", {}).get("args", {})
+        payload = request.get_jsonapi_payload()
+        if payload:
+            args = payload.get("meta", {}).get("args", {})
 
         safrs.log.debug("method {} args {}".format(self.method_name, args))
 
@@ -1251,9 +1250,6 @@ class SAFRSRestRelationshipAPI(Resource):
                 if not child_id or not child_type:
                     raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
-                print('PL')
-                print(payload)
-                print(self.target._s_type, child_type)
                 if child_type != self.target._s_type:
                     raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)                    
 
