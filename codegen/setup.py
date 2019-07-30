@@ -36,5 +36,5 @@ setup(
     include_package_data=True,
     long_description="""\
     &lt;a href&#x3D;http://jsonapi.org&gt;Json-API&lt;/a&gt; compliant API built with https://github.com/thomaxxl/safrs &lt;br/&gt;- &lt;a href&#x3D;\&quot;https://github.com/thomaxxl/safrs/blob/master/examples/demo_relationship.py\&quot;&gt;Source code of this page&lt;/a&gt; &lt;br/&gt; - Auto-generated swagger spec: &lt;a href&#x3D;swagger.json&gt;swagger.json&lt;/a&gt; &lt;br/&gt; - Petstore &lt;a href&#x3D;http://petstore.swagger.io/?url&#x3D;http://thomaxxl.pythonanywhere.com/api/swagger.json&gt;Swagger2 UI&lt;/a&gt;                                         # noqa: E501
-    """
+    """,
 )

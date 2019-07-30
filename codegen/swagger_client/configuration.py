@@ -66,7 +66,7 @@ class Configuration(six.with_metaclass(TypeWithDefault, object)):
         self.logger["package_logger"] = logging.getLogger("swagger_client")
         self.logger["urllib3_logger"] = logging.getLogger("urllib3")
         # Log format
-        self.logger_format = '%(asctime)s %(levelname)s %(message)s'
+        self.logger_format = "%(asctime)s %(levelname)s %(message)s"
         # Log stream handler
         self.logger_stream_handler = None
         # Log file handler
@@ -99,7 +99,7 @@ class Configuration(six.with_metaclass(TypeWithDefault, object)):
         # Proxy URL
         self.proxy = None
         # Safe chars for path_param
-        self.safe_chars_for_path_param = ''
+        self.safe_chars_for_path_param = ""
 
     @property
     def logger_file(self):
@@ -203,9 +203,8 @@ class Configuration(six.with_metaclass(TypeWithDefault, object)):
         :param identifier: The identifier of apiKey.
         :return: The token for api key authentication.
         """
-        if (self.api_key.get(identifier) and
-                self.api_key_prefix.get(identifier)):
-            return self.api_key_prefix[identifier] + ' ' + self.api_key[identifier]  # noqa: E501
+        if self.api_key.get(identifier) and self.api_key_prefix.get(identifier):
+            return self.api_key_prefix[identifier] + " " + self.api_key[identifier]  # noqa: E501
         elif self.api_key.get(identifier):
             return self.api_key[identifier]
 
@@ -214,27 +213,24 @@ class Configuration(six.with_metaclass(TypeWithDefault, object)):
 
         :return: The token for basic HTTP authentication.
         """
-        return urllib3.util.make_headers(
-            basic_auth=self.username + ':' + self.password
-        ).get('authorization')
+        return urllib3.util.make_headers(basic_auth=self.username + ":" + self.password).get("authorization")
 
     def auth_settings(self):
         """Gets Auth Settings dict for api client.
 
         :return: The Auth Settings information dict.
         """
-        return {
-
-        }
+        return {}
 
     def to_debug_report(self):
         """Gets the essential information for debugging.
 
         :return: The report for debugging.
         """
-        return "Python SDK Debug Report:\n"\
-               "OS: {env}\n"\
-               "Python Version: {pyversion}\n"\
-               "Version of the API: 0.0\n"\
-               "SDK Package Version: 1.0.0".\
-               format(env=sys.platform, pyversion=sys.version)
+        return (
+            "Python SDK Debug Report:\n"
+            "OS: {env}\n"
+            "Python Version: {pyversion}\n"
+            "Version of the API: 0.0\n"
+            "SDK Package Version: 1.0.0".format(env=sys.platform, pyversion=sys.version)
+        )
