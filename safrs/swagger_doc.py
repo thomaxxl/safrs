@@ -242,41 +242,32 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
             parameters = rest_doc.get("parameters", [])  # query string parameters
             if method_args and isinstance(method_args, dict):
-                if http_method == "get":
-                    """
-                        GET jsonapi_rpc args are passed in the query string
-
-                    for arg_name, arg_desc in method_args.items():
-                        if isinstance(arg_desc, dict):
-                            arg_type = arg_desc.get("type")
-                            default = arg_desc.get("default", arg_desc.get("example", ""))
-                        elif isinstance(arg_desc, str):
-                            default = arg_desc
-                            arg_type = "string"
-                        else:
-                            log.error("Invalid argument description {}".format(method_args))
-                        '''parameters += [{"name" : arg_name,
-                                        "default":  default,
-                                        "type" : arg_type,
-                                        "in" : "query"}]'''
-                    """
-                else:
+                if http_method == "post":
                     """
                         Post arguments, these require us to build a schema
                     """
                     model_name = "{}_{}".format(cls.__name__, method_name)
                     method_field = {"method": method_name, "args": method_args}
                     fields["meta"] = schema_from_object(model_name, method_field)
-
             if rest_doc.get(PAGEABLE):
                 parameters += default_paging_parameters()
             if rest_doc.get(FILTERABLE):
-                pass
+                for column_name in cls._s_column_names:
+                    param = {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[{}]".format(column_name),
+                        "in": "query",
+                        "format": "string",
+                        "required": False,
+                        "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(column_name),
+                    }
+                    parameters += param
         else:
             safrs.log.warning('No documentation for method "{}"'.format(method_name))
             # jsonapi_rpc method has no documentation, generate it w/ inspect
-            f_args = inspect.getargspec(method).args
-            f_defaults = inspect.getargspec(method).defaults or []
+            f_args = inspect.getfullargspec(method).args
+            f_defaults = inspect.getfullargspec(method).defaults or []
             if f_args[0] in ("cls", "self"):
                 f_args = f_args[1:]
             args = dict(zip(f_args, f_defaults))
@@ -294,8 +285,6 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
 
         return parameters, fields, description, method
 
-    safrs.log.critical("Shouldnt get here ({})".format(method_name))
-
 
 #
 # Decorator is called when a swagger endpoint class is instantiated
@@ -308,11 +297,11 @@ def swagger_doc(cls, tags=None):
 
     def swagger_doc_gen(func):
         """
-            Decorator used to document (SAFRSBase) class methods exposed in the API
+            Decorator used to document SAFRSRestAPI HTTP methods exposed in the API
         """
         default_id = cls._s_sample_id()
         class_name = cls.__name__
-        table_name = cls._s_type
+        collection_name = cls._s_type
         http_method = func.__name__.lower()
         parameters = [
             {
@@ -327,11 +316,12 @@ def swagger_doc(cls, tags=None):
                 "in": "header",
                 "type": "string",
                 "default": "application/vnd.api+json",
+                "enum": ["application/vnd.api+json", "application/json"],
                 "required": True,
             },
         ]
         if tags is None:
-            doc_tags = [table_name]
+            doc_tags = [collection_name]
         else:
             doc_tags = tags
 
@@ -353,7 +343,7 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             #
             sample_dict = cls._s_sample_dict()
-            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": table_name}})
+            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": collection_name}})
             parameters.append(
                 {
                     "name": "POST body",
@@ -376,11 +366,11 @@ def swagger_doc(cls, tags=None):
             sample_dict = cls._s_sample_dict()
             if sample:
                 sample_data = schema_from_object(
-                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": table_name}}
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": collection_name}}
                 )
             else:
                 sample_data = schema_from_object(
-                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": table_name}}
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": collection_name}}
                 )
             parameters.append(
                 {
@@ -395,13 +385,8 @@ def swagger_doc(cls, tags=None):
             # one of 'options', 'head', 'patch'
             safrs.log.debug('no documentation for "%s" ', http_method)
 
-        responses_str = {}
-        for k, v in responses.items():
-            # convert int response code to string
-            responses_str[str(k)] = v
-
         doc["parameters"] = parameters
-        doc["responses"] = responses_str
+        doc["responses"] = responses
         doc["produces"] = ["application/vnd.api+json"]
 
         method_doc = parse_object_doc(func)
@@ -497,7 +482,7 @@ def swagger_relationship_doc(cls, tags=None):
             child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class.get_swagger_doc("patch")
-            data = {"type": child_class._s_type, "attributes": sample_attrs, "id": child_sample_id}
+            data = {"type": child_class._s_type, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 data = [data]
@@ -541,8 +526,8 @@ def swagger_relationship_doc(cls, tags=None):
         doc["responses"] = responses
 
         direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
-        parent_name = parent_class.__name__ # to be used by f-string
-        child_name = child_class.__name__ # to be used by f-string
+        parent_name = parent_class.__name__  # to be used by f-string
+        child_name = child_class.__name__  # to be used by f-string
         apply_fstring(doc, locals())
         return swagger.doc(doc)(func)
 
@@ -587,15 +572,8 @@ def swagger_method_doc(cls, method_name, tags=None):
                         "type": "string",
                     }
                 ]
-            """
-            parameters.append(
-                {"name": model_name, "in": "query", "description": description, "schema": param_model, "required": True}
-            )"""
-
         else:
-            #
-            # Retrieve the swagger schemas for the jsonapi_rpc methods
-            #
+            # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
             parameters, fields, description, method = get_swagger_doc_arguments(
                 cls, method_name, http_method=func.__name__
             )
@@ -667,6 +645,11 @@ def apply_fstring(swagger_obj, vars, k=None):
             apply_fstring(i, vars)
     elif isinstance(swagger_obj, dict):
         for k, v in swagger_obj.items():
-            swagger_obj[k] = apply_fstring(v, vars)
+            new_v = apply_fstring(v, vars)
+            if isinstance(k, int):
+                # used to convert integer codes (from the responses)
+                del swagger_obj[k]
+                k = str(k)
+            swagger_obj[k] = new_v
 
     return swagger_obj

@@ -316,7 +316,7 @@ class SAFRSBase(Model):
     @classproperty
     def _s_collection_name(cls):
         return getattr(cls, "__tablename__", cls.__name__)
-    
+
     @classproperty
     def _s_type(cls):
         """
@@ -393,7 +393,7 @@ class SAFRSBase(Model):
         if fields is None:
             # Check if fields have been provided in the request
             if request:
-                fields = request.fields.get(self._s_type, self._s_jsonapi_attrs)
+                fields = request.fields.get(self._s_class_name, self._s_jsonapi_attrs)
             else:
                 fields = self._s_jsonapi_attrs
 
@@ -603,12 +603,6 @@ class SAFRSBase(Model):
         """
             :return: a sample to be used as an example payload in the swagger example
         """
-        # If running in debug mode, return a sample from the database
-        if safrs.log.getEffectiveLevel() < logging.INFO:
-            sample = cls._s_sample()
-            if sample:
-                return sample.to_dict()
-
         # create a swagger example based on the jsonapi attributes (i.e. the database column schema)
         sample = {}
         for column in cls._s_columns:
@@ -622,6 +616,8 @@ class SAFRSBase(Model):
                 else:
                     arg = column.default.arg
             try:
+                if column.type.python_type == int:
+                    arg = 0
                 if column.type.python_type == datetime.datetime:
                     arg = str(datetime.datetime.now())
                 elif column.type.python_type == datetime.date:

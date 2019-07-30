@@ -337,7 +337,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": '"{}" relationships to include (csv)'.format(cls.SAFRSObject._s_type),
+            "description": "<b>{}</b> relationships to include <i>(csv)</i>".format(cls.SAFRSObject._s_class_name),
         }
         return param
 
@@ -352,11 +352,11 @@ class Resource(FRSResource):
         param = {
             "default": ",".join(default_fields),
             "type": "string",
-            "name": "fields[{}]".format(cls.SAFRSObject._s_type),
+            "name": "fields[{}]".format(cls.SAFRSObject._s_class_name),
             "in": "query",
             "format": "string",
             "required": False,
-            "description": '"{}" fields to include (csv)'.format(cls.SAFRSObject._s_type),
+            "description": "<b>{}</b> fields to include <i>(csv)</i>".format(cls.SAFRSObject._s_class_name),
         }
         return param
 
@@ -391,7 +391,7 @@ class Resource(FRSResource):
                 "in": "query",
                 "format": "string",
                 "required": False,
-                "description": "{} attribute filter (csv)".format(column_name),
+                "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(column_name),
             }
             yield param
 
@@ -402,7 +402,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "Custom filter",
+            "description": "Custom <b>{}</b> filter".format(cls.SAFRSObject._s_class_name),
         }
 
 
@@ -463,7 +463,7 @@ class SAFRSRestAPI(Resource):
     def get(self, **kwargs):
         """
             summary : Retrieve a {class_name} object
-            description : Retrieve a {class_name} object
+            description : Retrieve {class_name} from {collection_name}
             responses :
                 404 :
                     description : Not Found
@@ -519,6 +519,7 @@ class SAFRSRestAPI(Resource):
     def patch(self, **kwargs):
         """
             summary : Update {class_name}
+            description: Update {class_name} attributes
             responses:
                 200 :
                     description : Accepted
@@ -691,7 +692,7 @@ class SAFRSRestAPI(Resource):
 
     def delete(self, **kwargs):
         """
-            summary: Delete from {class_name}
+            summary: Delete {class_name} from {collection_name}
             responses :
                 202 :
                     description: Accepted
@@ -948,7 +949,7 @@ class SAFRSRestRelationshipAPI(Resource):
     def get(self, **kwargs):
         """
             summary : Retrieve {child_name} from {cls.relationship.key}
-            description : Retrieve {child_name} items from the {cls.relationship.key} "{direction}" relationship
+            description : Retrieve {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
             ---
             https://jsonapi.org/format/#fetching-relationships
 
@@ -1007,7 +1008,7 @@ class SAFRSRestRelationshipAPI(Resource):
     def patch(self, **kwargs):
         """
             summary : Update {cls.relationship.key}
-            description : Update the {cls.relationship.key} "{direction}" relationship
+            description : Update the {parent_name} {cls.relationship.key} "{direction}" relationship
             responses:
                 200 :
                     description : Accepted
@@ -1132,7 +1133,7 @@ class SAFRSRestRelationshipAPI(Resource):
     def post(self, **kwargs):
         """
             summary: Add {child_name} items to {cls.relationship.key}
-            description : Add {child_name} items to the {cls.relationship.key} "{direction}" relationship
+            description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
             responses :
                 403:
                     description : This implementation does not accept client-generated IDs
@@ -1207,7 +1208,7 @@ class SAFRSRestRelationshipAPI(Resource):
     def delete(self, **kwargs):
         """
             summary : Delete {child_name} from {cls.relationship.key}
-            description : Delete {child_name} items from the {cls.relationship.key} "{direction}" relationship
+            description : Delete {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
             responses:
                 202 :
                     description: Accepted

@@ -282,7 +282,6 @@ class Api(FRSApiBase):
                 path_item[method] = operation
                 definitions.update(definitions_)
                 summary = parse_method_doc(f, operation)
-
                 if summary:
                     operation["summary"] = summary.split("<br/>")[0]
 
@@ -405,7 +404,6 @@ def api_decorator(cls, swagger_decorator):
             continue
 
         decorated_method = method
-
         # if the SAFRSObject has a custom http method decorator, use it
         # e.g. SAFRSObject.get
         custom_method = getattr(cls.SAFRSObject, method_name, None)
@@ -440,7 +438,6 @@ def api_decorator(cls, swagger_decorator):
             decorated_method = custom_decorator(decorated_method)
 
         setattr(cls, method_name, decorated_method)
-
     return cls
 
 
@@ -499,8 +496,6 @@ class SAFRSRelationshipObject:
             Create a swagger api model based on the sqlalchemy schema
             if an instance exists in the DB, the first entry is used as example
         """
-        # print(http_method)
-        # print(parse_object_doc(getattr(cls,http_method)))
         body = {}
         responses = {}
         object_name = cls.__name__
@@ -531,3 +526,7 @@ class SAFRSRelationshipObject:
     @classproperty
     def _s_column_names(cls):
         return cls._target._s_column_names
+
+    @classproperty
+    def _s_class_name(cls):
+        return cls._target.__name__
