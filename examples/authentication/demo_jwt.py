@@ -11,7 +11,7 @@
 # - A rest api is available
 # - swagger2 documentation is generated
 #
-'''
+"""
 Example invocation: 
 
 t@TEMP:~$ token=$(curl -X POST localhost:5000/login -d '{ "username" : "test", "password" : "test" }' --header "Content-Type: application/json" | jq .access_token -r)
@@ -42,7 +42,7 @@ t@TEMP:~$ curl localhost:5000/users/ -H "Authorization: Bearer $token"
     "limit": 250
   }
 }
-'''
+"""
 import sys
 import os
 import logging
@@ -56,12 +56,10 @@ from safrs import SAFRSBase, SAFRS, Api, jsonapi_rpc
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from passlib.apps import custom_app_context as pwd_context
-from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
-from flask_jwt_extended import (
-    JWTManager, jwt_required, create_access_token,
-    get_jwt_identity
-)
-db  = SQLAlchemy()
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+
+db = SQLAlchemy()
 auth = HTTPBasicAuth()
 
 
@@ -69,22 +67,25 @@ def test_dec(f):
     print(f, f.__name__)
     return f
 
+
 class Item(SAFRSBase, db.Model):
-    '''
+    """
         description: Item description
-    '''
-    __tablename__ = 'Items'
+    """
+
+    __tablename__ = "Items"
     id = Column(String, primary_key=True)
-    name = Column(String, default = '')
-    user_id = db.Column(db.String, db.ForeignKey('Users.id'))
-    user = db.relationship('User', back_populates="items")
+    name = Column(String, default="")
+    user_id = db.Column(db.String, db.ForeignKey("Users.id"))
+    user = db.relationship("User", back_populates="items")
 
 
 class User(SAFRSBase, db.Model):
-    '''
+    """
         description: User description (With JWT Authentication)
-    '''
-    __tablename__ = 'Users'
+    """
+
+    __tablename__ = "Users"
     #
     # Add the jwt_required decorator to the exposed methods
     #
@@ -92,55 +93,51 @@ class User(SAFRSBase, db.Model):
 
     id = db.Column(String, primary_key=True)
     username = db.Column(db.String(32), index=True)
-    items = db.relationship('Item', back_populates="user", lazy='dynamic')
-
+    items = db.relationship("Item", back_populates="user", lazy="dynamic")
 
 
 def start_app(app):
 
     SAFRS(app)
-    api  = Api(app, api_spec_url = '/api/swagger', host = '{}:{}'.format(HOST,PORT), schemes = [ "http" ] )
+    api = Api(app, api_spec_url="/api/swagger", host="{}:{}".format(HOST, PORT), schemes=["http"])
 
-    username='admin'
+    username = "admin"
 
-    item = Item(name='test',email='em@il')
+    item = Item(name="test", email="em@il")
     user = User(username=username)
 
     api.expose_object(Item)
     api.expose_object(User)
 
-    print('Starting API: http://{}:{}/api'.format(HOST,PORT))
+    print("Starting API: http://{}:{}/api".format(HOST, PORT))
 
     # Identity can be any data that is json serializable
     access_token = create_access_token(identity=username)
-    print('Test Authorization header access_token: Bearer', access_token)
-    api._swagger_object['securityDefinitions'] = {
-                "Bearer": {
-                    "type": "apiKey",
-                    "name": "Authorization",
-                    "in": "header"
-                }}
+    print("Test Authorization header access_token: Bearer", access_token)
+    api._swagger_object["securityDefinitions"] = {"Bearer": {"type": "apiKey", "name": "Authorization", "in": "header"}}
 
-    app.run(host=HOST, port = PORT)
+    app.run(host=HOST, port=PORT)
 
 
 #
 # APP Initialization
 #
 
-app = Flask('demo_app')
+app = Flask("demo_app")
 jwt = JWTManager(app)
-app.config.update( SQLALCHEMY_DATABASE_URI = 'sqlite://',
-                   SQLALCHEMY_TRACK_MODIFICATIONS = False,
-                   SECRET_KEY = b'sdqfjqsdfqizroqnxwc',
-                   JWT_SECRET_KEY = 'ik,ncbxh',
-                   DEBUG = True)
-HOST = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
+app.config.update(
+    SQLALCHEMY_DATABASE_URI="sqlite://",
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    SECRET_KEY=b"sdqfjqsdfqizroqnxwc",
+    JWT_SECRET_KEY="ik,ncbxh",
+    DEBUG=True,
+)
+HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
 PORT = 5000
 db.init_app(app)
 
 
-@app.route('/login', methods=['POST'])
+@app.route("/login", methods=["POST"])
 def login():
     if not request.is_json:
         return jsonify({"msg": "Missing JSON in request"}), 400
@@ -148,26 +145,27 @@ def login():
     # Identity can be any data that is json serializable
     access_token = create_access_token(identity=username)
 
-    username = request.json.get('username', None)
-    password = request.json.get('password', None)
+    username = request.json.get("username", None)
+    password = request.json.get("password", None)
     if not username:
         return jsonify({"msg": "Missing username parameter"}), 400
     if not password:
         return jsonify({"msg": "Missing password parameter"}), 400
 
-    if username != 'test' or password != 'test':
+    if username != "test" or password != "test":
         return jsonify({"msg": "Bad username or password"}), 401
 
     return jsonify(access_token=access_token), 200
 
 
-@app.route('/')
+@app.route("/")
 def goto_api():
-    return redirect('/api')
+    return redirect("/api")
+
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    '''cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/'''
+    """cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/"""
     db.session.remove()
 
 
@@ -175,4 +173,3 @@ def shutdown_session(exception=None):
 with app.app_context():
     db.create_all()
     start_app(app)
-

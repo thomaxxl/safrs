@@ -30,14 +30,14 @@ from safrs import jsonapi_rpc  # rpc decorator
 from safrs import search, startswith  # rpc methods
 from flask import url_for, jsonify
 
-description = '''
+description = """
 <a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (less than 200 lines!)<br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
 - Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
-'''
+"""
 
 db = SQLAlchemy()
 # Add search and startswith methods so we can perform lookups from the frontend
@@ -59,9 +59,7 @@ class Book(SAFRSBase, db.Model):
     author_id = db.Column(db.String, db.ForeignKey("People.id"))
     publisher_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     publisher = db.relationship("Publisher", back_populates="books")
-    reviews = db.relationship(
-        "Review", backref="book", cascade="save-update, merge, delete, delete-orphan"
-    )
+    reviews = db.relationship("Review", backref="book", cascade="save-update, merge, delete, delete-orphan")
 
 
 class Person(SAFRSBase, db.Model):
@@ -75,15 +73,8 @@ class Person(SAFRSBase, db.Model):
     email = db.Column(db.String, default="")
     comment = db.Column(db.Text, default="")
     dob = db.Column(db.Date)
-    books_read = db.relationship(
-        "Book",
-        backref="reader",
-        foreign_keys=[Book.reader_id],
-        cascade="save-update, merge",
-    )
-    books_written = db.relationship(
-        "Book", backref="author", foreign_keys=[Book.author_id]
-    )
+    books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
+    books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader")
 
     password = db.Column(db.Text, default="")
@@ -106,7 +97,7 @@ class Person(SAFRSBase, db.Model):
         return {"result": "sent {}".format(content)}
 
     @classmethod
-    @jsonapi_rpc(http_methods=["GET","POST"])
+    @jsonapi_rpc(http_methods=["GET", "POST"])
     def my_rpc(cls, *args, **kwargs):
         """
             description : Generate and return a jsonapi-formatted response
@@ -133,6 +124,10 @@ class Person(SAFRSBase, db.Model):
 
         return response
 
+    @jsonapi_rpc(http_methods=["GET", "POST"])
+    def none(cls, *args, **kwargs):
+        return {}
+
 
 class Publisher(SAFRSBase, db.Model):
     """
@@ -144,7 +139,7 @@ class Publisher(SAFRSBase, db.Model):
     __tablename__ = "Publishers"
     id = db.Column(db.Integer, primary_key=True)  # Integer pk instead of str
     name = db.Column(db.String, default="")
-    #books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
+    # books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
     books = db.relationship("Book", back_populates="publisher")
 
     def __init__(self, *args, **kwargs):
@@ -171,9 +166,7 @@ class Review(SAFRSBase, db.Model):
     """
 
     __tablename__ = "Reviews"
-    reader_id = db.Column(
-        db.String, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True
-    )
+    reader_id = db.Column(db.String, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True)
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
     review = db.Column(db.String, default="")
     created = db.Column(db.DateTime, default=datetime.datetime.now())
@@ -190,9 +183,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             reader = Person(name="Reader " + str(i), email="reader_email" + str(i), password=secret)
             author = Person(name="Author " + str(i), email="author_email" + str(i))
             book = Book(title="book_title" + str(i))
-            review = Review(
-                reader_id=reader.id, book_id=book.id, review="review " + str(i)
-            )
+            review = Review(reader_id=reader.id, book_id=book.id, review="review " + str(i))
             publisher = Publisher(name="name" + str(i))
             publisher.books.append(book)
             reader.books_read.append(book)
@@ -204,7 +195,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         custom_swagger = {
             "info": {"title": "New Title"},
-            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey" , "in" : "header", "name": "My-ApiKey"}}
+            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
         }  # Customized swagger will be merged
 
         api = SAFRSAPI(
@@ -246,16 +237,12 @@ app.config.update(
 @app.route("/ja")  # React jsonapi frontend
 @app.route("/ja/<path:path>", endpoint="jsonapi_admin")
 def send_ja(path="index.html"):
-    return send_from_directory(
-        os.path.join(os.path.dirname(__file__), "..", "jsonapi-admin/build"), path
-    )
+    return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "jsonapi-admin/build"), path)
 
 
 @app.route("/swagger_editor/<path:path>", endpoint="swagger_editor")
 def send_swagger_editor(path="index.html"):
-    return send_from_directory(
-        os.path.join(os.path.dirname(__file__), "..", "swagger-editor"), path
-    )
+    return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "swagger-editor"), path)
 
 
 @app.route("/")
@@ -263,16 +250,17 @@ def goto_api():
     return redirect(OAS_PREFIX)
 
 
-@app.route('/sd')
+@app.route("/sd")
 def shutdown():
-    func = request.environ.get('werkzeug.server.shutdown')
+    func = request.environ.get("werkzeug.server.shutdown")
     if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
+        raise RuntimeError("Not running with the Werkzeug Server")
     func()
-    return ''
+    return ""
+
 
 if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "thomaxxl.pythonanywhere.com"
     PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
     start_api(HOST, PORT)
-    app.run(host=HOST, port=PORT,threaded=False)
+    app.run(host=HOST, port=PORT, threaded=False)
