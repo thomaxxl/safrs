@@ -354,12 +354,6 @@ def swagger_doc(cls, tags=None):
                 }
             )
 
-        elif http_method == "delete":
-            responses = {
-                HTTPStatus.NO_CONTENT.value: {"description": HTTPStatus.NO_CONTENT.description},
-                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
-            }
-
         elif http_method == "patch":
             post_model, responses = cls.get_swagger_doc("patch")
             sample = cls._s_sample_dict()
@@ -536,7 +530,7 @@ def swagger_relationship_doc(cls, tags=None):
 
 def swagger_method_doc(cls, method_name, tags=None):
     """
-        Generate decorator used to document SAFRSRestMethodAPI instances
+        Generate decorator used to document SAFRSJSONRPCAPI instances
     """
 
     def swagger_doc_gen(func):

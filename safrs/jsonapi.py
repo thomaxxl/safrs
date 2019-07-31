@@ -155,8 +155,12 @@ def paginate(object_query, SAFRSObject=None):
         )
         return result
 
-    page_offset = get_request_param("page_offset")
-    limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
+    try:
+        page_offset = int(get_request_param("page_offset"))
+        limit = int(get_request_param("page_limit", get_config("MAX_PAGE_LIMIT")))
+    except ValueError:
+        raise ValidationError("Pagination Value Error")
+    
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
@@ -200,8 +204,13 @@ def paginate(object_query, SAFRSObject=None):
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
         instances = object_query[page_offset : page_offset + limit]
     else:
-        res_query = object_query.offset(page_offset).limit(limit)
-        instances = res_query.all()
+        try:
+            res_query = object_query.offset(page_offset).limit(limit)
+            instances = res_query.all()
+        except OverflowError:
+            raise ValidationError('Pagination Overflow Error')
+        except Exception as exc:
+            raise GenericError('Pagination Error')
 
     return links, instances, count
 
@@ -465,6 +474,8 @@ class SAFRSRestAPI(Resource):
             summary : Retrieve a {class_name} object
             description : Retrieve {class_name} from {collection_name}
             responses :
+                403 :
+                    description : Forbidden
                 404 :
                     description : Not Found
             ---
@@ -534,7 +545,7 @@ class SAFRSRestAPI(Resource):
                 409 :
                     description : Conflict
             ---
-            Create or update the object specified by id
+            Update the object with the specified id
         """
         id = kwargs.get(self.object_id, None)
         if not id:
@@ -768,7 +779,7 @@ class SAFRSRestAPI(Resource):
         return instances
 
 
-class SAFRSRestMethodAPI(Resource):
+class SAFRSJSONRPCAPI(Resource):
     """
         Route wrapper for the underlying SAFRSBase jsonapi_rpc
 
@@ -798,12 +809,15 @@ class SAFRSRestMethodAPI(Resource):
                     description: Created
                 202:
                     description : Accepted
+                403 :
+                    description : Forbidden
                 404:
                     description : Not Found
                 409:
                     description : Conflict
             ---
-            HTTP POST: apply actions, return 200 regardless
+            HTTP POST: apply actions, return 200 regardless.
+            The actual jsonapi_rpc method may return other codes
         """
         id = kwargs.get(self.object_id, None)
 

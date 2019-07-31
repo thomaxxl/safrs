@@ -24,7 +24,7 @@ from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_paramet
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods, parse_object_doc
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
-from .jsonapi import SAFRSRestAPI, SAFRSRestMethodAPI, SAFRSRestRelationshipAPI
+from .jsonapi import SAFRSRestAPI, SAFRSJSONRPCAPI, SAFRSRestRelationshipAPI
 from .util import classproperty
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
@@ -156,7 +156,7 @@ class Api(FRSApiBase):
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties = {"SAFRSObject": safrs_object, "method_name": method_name}
-            api_class = api_decorator(type(api_method_class_name, (SAFRSRestMethodAPI,), properties), swagger_decorator)
+            api_class = api_decorator(type(api_method_class_name, (SAFRSJSONRPCAPI,), properties), swagger_decorator)
             meth_name = safrs_object._s_class_name + "." + api_method.__name__
             safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
@@ -238,6 +238,7 @@ class Api(FRSApiBase):
         # Expose the relationship for <string:ChildId>, this lets us
         # query and delete the class relationship properties for a given
         # child id
+        # nb: this is not really documented in the jsonapi spec, remove??
         url = (RELATIONSHIP_URL_FMT + "/<string:{}>").format(url_prefix, rel_name, child_object_id)
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 

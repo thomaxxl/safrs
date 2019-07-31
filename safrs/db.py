@@ -728,7 +728,7 @@ class SAFRSBase(Model):
             field = {"type": swagger_type, "example": str(default)}  # added unicode str() for datetime encoding
             fields[column.name] = field
 
-        model_name = "{}_{}".format(cls.__name__, "patch")
+        model_name = "{}_{}".format(cls.__name__, "CreateUpdate")
         model = SchemaClassFactory(model_name, fields)
         return model
 
