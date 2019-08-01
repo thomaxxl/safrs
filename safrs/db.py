@@ -192,24 +192,18 @@ class SAFRSBase(Model):
             try:
                 if "." in date_str:
                     # str(datetime.datetime.now()) => "%Y-%m-%d %H:%M:%S.%f"
-                    attr_val = datetime.datetime.strptime(
-                        date_str, "%Y-%m-%d %H:%M:%S.%f"
-                    )
+                    attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
                 else:
                     # JS datepicker format
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             except (NotImplementedError, ValueError) as exc:
-                safrs.log.warning(
-                    'Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val)
-                )
+                safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
 
         elif attr_val and column.type.python_type == datetime.date:
             try:
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
-                safrs.log.warning(
-                    'Invalid datetime.date {} for value "{}"'.format(exc, attr_val)
-                )
+                safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
 
         return attr_val
 
@@ -338,9 +332,7 @@ class SAFRSBase(Model):
             This may cause other errors too, for ex when sorting
         """
 
-        safrs.log.warning(
-            '({}): attribute name "type" is reserved, renamed to "Type"'.format(self)
-        )
+        safrs.log.warning('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
@@ -355,20 +347,12 @@ class SAFRSBase(Model):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [
-            rel
-            for rel in self.__mapper__.relationships
-            if rel.key not in self.exclude_rels
-        ]
+        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels]
         return rels
 
     @classproperty
     def _s_relationship_names(cls):
-        rel_names = [
-            rel.key
-            for rel in cls.__mapper__.relationships
-            if rel.key not in cls.exclude_rels
-        ]
+        rel_names = [rel.key for rel in cls.__mapper__.relationships if rel.key not in cls.exclude_rels]
         return rel_names
 
     def _s_patch(self, **attributes):
@@ -499,18 +483,13 @@ class SAFRSBase(Model):
                 if relationship.direction == MANYTOONE:
                     rel_item = getattr(self, rel_name)
                     if rel_item:
-                        data = {
-                            "id": rel_item.jsonapi_id,
-                            "type": rel_item.__tablename__,
-                        }
+                        data = {"id": rel_item.jsonapi_id, "type": rel_item.__tablename__}
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(self, rel_name)
                     limit = request.page_limit
                     if not get_config("ENABLE_RELATIONSHIPS"):
-                        meta[
-                            "warning"
-                        ] = "ENABLE_RELATIONSHIPS set to false in config.py"
+                        meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
                     elif rel_query:
                         # todo: chekc if lazy=dynamic
                         # In order to work with the relationship as with Query,
@@ -531,9 +510,7 @@ class SAFRSBase(Model):
                             count = len(items)
                         meta["count"] = count
                         meta["limit"] = limit
-                        data = [
-                            {"id": i.jsonapi_id, "type": i.__tablename__} for i in items
-                        ]
+                        data = [{"id": i.jsonapi_id, "type": i.__tablename__} for i in items]
                 else:  # shouldn't happen!!
                     safrs.log.error(
                         "Unknown relationship direction for relationship {}: {}".format(
@@ -648,16 +625,10 @@ class SAFRSBase(Model):
                 else:
                     arg = column.type.python_type()
             except NotImplementedError:
-                safrs.log.debug(
-                    "Failed to get python type for column {} (NotImplementedError)".format(
-                        column
-                    )
-                )
+                safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
                 arg = None
             except Exception as exc:
-                safrs.log.debug(
-                    "Failed to get python type for column {} ({})".format(column, exc)
-                )
+                safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
             sample[column.name] = arg
 
         return sample
@@ -685,36 +656,25 @@ class SAFRSBase(Model):
 
         object_model = cls._get_swagger_doc_object_model()
         responses = {
-            str(HTTPStatus.OK.value): {
-                "description": "{} object".format(object_name),
-                "schema": object_model,
-            },
-            str(HTTPStatus.NOT_FOUND.value): {
-                "description": HTTPStatus.NOT_FOUND.description
-            },
+            str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model},
+            str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
         }
 
         if http_method == "patch":
             body = object_model
-            responses = {
-                str(HTTPStatus.OK.value): {"description": "Object successfully updated"}
-            }
+            responses = {str(HTTPStatus.OK.value): {"description": "Object successfully updated"}}
 
         if http_method == "post":
             # body = cls.get_swagger_doc_post_parameters()
             responses = {
-                str(HTTPStatus.CREATED.value): {
-                    "description": "Object successfully created"
-                },
+                str(HTTPStatus.CREATED.value): {"description": "Object successfully created"},
                 str(HTTPStatus.CREATED.value): {"description": "Invalid data"},
             }
 
         if http_method == "get":
             responses = {
                 str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                str(HTTPStatus.NOT_FOUND.value): {
-                    "description": HTTPStatus.NOT_FOUND.description
-                },
+                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
             }
             # responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
 
@@ -765,10 +725,7 @@ class SAFRSBase(Model):
                 # swagger api spec doesn't support nullable values
                 continue
 
-            field = {
-                "type": swagger_type,
-                "example": str(default),
-            }  # added unicode str() for datetime encoding
+            field = {"type": swagger_type, "example": str(default)}  # added unicode str() for datetime encoding
             fields[column.name] = field
 
         model_name = "{}_{}".format(cls.__name__, "CreateUpdate")
@@ -841,11 +798,7 @@ class SAFRSBase(Model):
             :return: sqla query object
         """
         safrs.log.info("_s_filter args: {}".format(filter_args))
-        safrs.log.info(
-            "override the {}._s_filter classmethod to implement your filtering".format(
-                cls.__name__
-            )
-        )
+        safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
         return cls.query
 
 

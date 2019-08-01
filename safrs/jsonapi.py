@@ -42,9 +42,7 @@ from .config import get_config, get_request_param
 from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
 
-INCLUDE_ALL = (
-    "+all"
-)  # this "include" query string parameter value tells us to retrieve all included resources
+INCLUDE_ALL = "+all"  # this "include" query string parameter value tells us to retrieve all included resources
 
 # JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
@@ -110,12 +108,8 @@ def jsonapi_sort(object_query, safrs_object):
             if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
                 safrs.log.error("Invalid sort column {}".format(sort_attr))
                 continue
-            if isinstance(
-                object_query, (list, sqlalchemy.orm.collections.InstrumentedList)
-            ):
-                object_query = sorted(
-                    list(object_query), key=lambda obj: getattr(obj, sort_attr)
-                )
+            if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+                object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr))
                 if sort_attr.startswith("-"):
                     # reverse it, still a bug
                     object_query = object_query
@@ -175,27 +169,19 @@ def paginate(object_query, SAFRSObject=None):
     # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
         count = len(object_query)
-    elif (
-        SAFRSObject is None
-    ):  # for backwards compatibility, ie. when not passed as an arg to paginate()
+    elif SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()
         count = object_query.count()
     else:
         count = SAFRSObject._s_count()
     if count is None:
         count = object_query.count()
         if count > get_config("MAX_TABLE_COUNT"):
-            safrs.log.warning(
-                "Large table count detected, performance may be impacted, consider using '_s_count'"
-            )
+            safrs.log.warning("Large table count detected, performance may be impacted, consider using '_s_count'")
 
     first_args = (0, limit)
     last_args = (int(int(count / limit) * limit), limit)  # round down
     self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
-    next_args = (
-        (page_offset + limit, limit)
-        if page_offset + limit <= last_args[0]
-        else last_args
-    )
+    next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
     prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
 
     links = {
@@ -249,9 +235,7 @@ def get_included(data, limit, include="", level=0):
         return result
 
     if isinstance(data, (list, set)):
-        for included in [
-            get_included(obj, limit, include, level=level + 1) for obj in data
-        ]:
+        for included in [get_included(obj, limit, include, level=level + 1) for obj in data]:
             result = result.union(included)
         return result
 
@@ -295,17 +279,12 @@ def get_included(data, limit, include="", level=0):
                 result.add(included)
 
         if INCLUDE_ALL in includes:
-            for nested_included in [
-                get_included(result, limit, level=level + 1) for obj in result
-            ]:
+            for nested_included in [get_included(result, limit, level=level + 1) for obj in result]:
                 # Removed recursion with get_included(result, limit, INCLUDE_ALL)
                 result = result.union(nested_included)
 
         elif nested_rel:
-            for nested_included in [
-                get_included(result, limit, nested_rel, level=level + 1)
-                for obj in result
-            ]:
+            for nested_included in [get_included(result, limit, nested_rel, level=level + 1) for obj in result]:
                 result = result.union(nested_included)
 
     return result
@@ -329,13 +308,7 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     meta["count"] = count
 
     jsonapi = dict(version="1.0")
-    included = list(
-        get_included(
-            data,
-            limit,
-            include=request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED),
-        )
-    )
+    included = list(get_included(data, limit, include=request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)))
     """if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)"""
     result = dict(data=data)
@@ -373,9 +346,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "<b>{}</b> relationships to include <i>(csv)</i>".format(
-                cls.SAFRSObject._s_class_name
-            ),
+            "description": "<b>{}</b> relationships to include <i>(csv)</i>".format(cls.SAFRSObject._s_class_name),
         }
         return param
 
@@ -394,9 +365,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "<b>{}</b> fields to include <i>(csv)</i>".format(
-                cls.SAFRSObject._s_class_name
-            ),
+            "description": "<b>{}</b> fields to include <i>(csv)</i>".format(cls.SAFRSObject._s_class_name),
         }
         return param
 
@@ -431,9 +400,7 @@ class Resource(FRSResource):
                 "in": "query",
                 "format": "string",
                 "required": False,
-                "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(
-                    column_name
-                ),
+                "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(column_name),
             }
             yield param
 
@@ -444,9 +411,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "Custom <b>{}</b> filter".format(
-                cls.SAFRSObject._s_class_name
-            ),
+            "description": "Custom <b>{}</b> filter".format(cls.SAFRSObject._s_class_name),
         }
 
 
@@ -601,11 +566,7 @@ class SAFRSRestAPI(Resource):
         path_id = self.SAFRSObject.id_type.validate_id(id)
         body_id = self.SAFRSObject.id_type.validate_id(body_id)
         if path_id != body_id:
-            raise ValidationError(
-                "Invalid ID {} {} != {} {}".format(
-                    type(path_id), path_id, type(body_id), body_id
-                )
-            )
+            raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id, type(body_id), body_id))
 
         attributes = data.get("attributes", {})
         attributes["id"] = body_id
@@ -825,9 +786,7 @@ class SAFRSJSONRPCAPI(Resource):
         Only HTTP POST is supported
     """
 
-    SAFRSObject = (
-        None
-    )  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     method_name = None
 
     def __init__(self, *args, **kwargs):
@@ -1028,9 +987,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # child may have been deleted
             return "Not Found", HTTPStatus.NOT_FOUND
         if child_id:
-            log.warning(
-                "Fetching relationship items by path id is deprecated and will be removed"
-            )
+            log.warning("Fetching relationship items by path id is deprecated and will be removed")
             child = self.target.get_instance(child_id)
             links = {"self": child._s_url}
             # If {ChildId} is passed in the url, return the child object
@@ -1042,12 +999,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 # item is in relationship, return the child
                 return "Not Found", HTTPStatus.NOT_FOUND
             else:
-                return jsonify(
-                    {
-                        "data": child,
-                        "links": {"self": request.url, "related": child._s_url},
-                    }
-                )
+                return jsonify({"data": child, "links": {"self": request.url, "related": child._s_url}})
         # elif type(relation) == self.target: # ==>
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             data = instance = relation
@@ -1117,9 +1069,7 @@ class SAFRSRestRelationshipAPI(Resource):
             #   null, to remove the relationship.
 
             if self.SAFRSObject.relationship.direction != MANYTOONE:
-                raise GenericError(
-                    "To PATCH a TOMANY relationship you should provide a list"
-                )
+                raise GenericError("To PATCH a TOMANY relationship you should provide a list")
             child_id = data.get("id")
             child_type = data.get("type")
             if not child_id or not child_type:
@@ -1229,16 +1179,11 @@ class SAFRSRestRelationshipAPI(Resource):
             # keep things backwards compatible for now
             child = data
             if isinstance(data, list):
-                safrs.log.warning(
-                    "Using a list to update a manytoone relationship is deprecated"
-                )
+                safrs.log.warning("Using a list to update a manytoone relationship is deprecated")
                 if len(data) == 0:
                     setattr(parent, self.SAFRSObject.relationship.key, None)
                 elif len(data) > 1:
-                    raise ValidationError(
-                        "Too many items for a MANYTOONE relationship",
-                        HTTPStatus.FORBIDDEN,
-                    )
+                    raise ValidationError("Too many items for a MANYTOONE relationship", HTTPStatus.FORBIDDEN)
                 else:
                     child = data[0]
             if child:
@@ -1313,9 +1258,7 @@ class SAFRSRestRelationshipAPI(Resource):
             if isinstance(data, list):
                 if data and isinstance(data[0], dict):
                     # invalid, try to fix it by deleting the firs item from the list
-                    safrs.log.warning(
-                        "Invalid Payload to delete from MANYTOONE relationship"
-                    )
+                    safrs.log.warning("Invalid Payload to delete from MANYTOONE relationship")
                     data = data[0]
                 else:
                     raise ValidationError("Invalid data payload")
@@ -1353,9 +1296,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 if child in relation:
                     relation.remove(child)
                 else:
-                    safrs.log.warning(
-                        "Item with id {} not in relation".format(child_id)
-                    )
+                    safrs.log.warning("Item with id {} not in relation".format(child_id))
 
         return {}, HTTPStatus.NO_CONTENT
 

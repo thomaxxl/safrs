@@ -35,9 +35,7 @@ def get_config(option):
     RESOURCE_URL_FMT = "{}/{}/"
     INSTANCE_URL_FMT = RESOURCE_URL_FMT + "<string:{}" + OBJECT_ID_SUFFIX + ">/"
     # last parameter for the "method" urls below will be the method name
-    INSTANCEMETHOD_URL_FMT = os.environ.get(
-        "INSTANCEMETHOD_URL_FMT", safrs.SAFRS.ENABLE_RELATIONSHIPS
-    )
+    INSTANCEMETHOD_URL_FMT = os.environ.get("INSTANCEMETHOD_URL_FMT", safrs.SAFRS.ENABLE_RELATIONSHIPS)
     if not INSTANCEMETHOD_URL_FMT:
         INSTANCEMETHOD_URL_FMT = RESOURCE_URL_FMT + "<string:{}>/{}"
     # (eg. /Users/get_list)
@@ -70,15 +68,11 @@ def get_config(option):
 
     # ENABLE_RELATIONSHIPS enables relationships to be included.
     # This may slow down certain queries if the relationships are not properly configured!
-    ENABLE_RELATIONSHIPS = bool(
-        os.environ.get("ENABLE_RELATIONSHIPS", safrs.SAFRS.ENABLE_RELATIONSHIPS)
-    )
+    ENABLE_RELATIONSHIPS = bool(os.environ.get("ENABLE_RELATIONSHIPS", safrs.SAFRS.ENABLE_RELATIONSHIPS))
     if not ENABLE_RELATIONSHIPS:
         ENABLE_RELATIONSHIPS = True
 
-    MAX_TABLE_COUNT = int(
-        os.environ.get("MAX_TABLE_COUNT", safrs.SAFRS.MAX_TABLE_COUNT)
-    )
+    MAX_TABLE_COUNT = int(os.environ.get("MAX_TABLE_COUNT", safrs.SAFRS.MAX_TABLE_COUNT))
     try:
         result = current_app.config[option]
     except (KeyError, RuntimeError):
@@ -103,9 +97,7 @@ def get_legacy(param, default=0):
     """
     result = getattr(request, param, None)
     if result is None:
-        safrs.log.error(
-            'Legacy Request parameter "{}", consider upgrading'.format(param)
-        )
+        safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
         result = default
     return result
 

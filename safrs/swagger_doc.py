@@ -116,9 +116,7 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise ValidationError(
-                    "Argument {} not valid for {}".format(key, self.__class__.__name__)
-                )
+                raise ValidationError("Argument {} not valid for {}".format(key, self.__class__.__name__))
             setattr(self, key, value)
 
     newclass = type(name, (Schema,), {"__init__": __init__, "properties": properties})
@@ -241,9 +239,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         rest_doc = get_doc(method)
         description = rest_doc.get("description", "")
         if rest_doc:
-            method_args = rest_doc.get(
-                "args", []
-            )  # jsonapi_rpc "POST" method arguments
+            method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
             parameters = rest_doc.get("parameters", [])  # query string parameters
             if method_args and isinstance(method_args, dict):
                 if http_method == "post":
@@ -264,9 +260,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                         "in": "query",
                         "format": "string",
                         "required": False,
-                        "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(
-                            column_name
-                        ),
+                        "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(column_name),
                     }
                     parameters += param
         else:
@@ -338,9 +332,7 @@ def swagger_doc(cls, tags=None):
         model_name = "{}_{}".format(class_name, http_method)
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)
-            doc["collection_summary"] = "Retrieve a collection of {} objects".format(
-                class_name
-            )
+            doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
             _, responses = cls.get_swagger_doc(http_method)
 
         elif http_method == "post":
@@ -351,10 +343,7 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             #
             sample_dict = cls._s_sample_dict()
-            sample_data = schema_from_object(
-                model_name,
-                {"data": {"attributes": sample_dict, "type": collection_name}},
-            )
+            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": collection_name}})
             parameters.append(
                 {
                     "name": "POST body",
@@ -371,25 +360,11 @@ def swagger_doc(cls, tags=None):
             sample_dict = cls._s_sample_dict()
             if sample:
                 sample_data = schema_from_object(
-                    model_name,
-                    {
-                        "data": {
-                            "attributes": sample_dict,
-                            "id": cls._s_sample_id(),
-                            "type": collection_name,
-                        }
-                    },
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": collection_name}}
                 )
             else:
                 sample_data = schema_from_object(
-                    model_name,
-                    {
-                        "data": {
-                            "attributes": sample_dict,
-                            "id": cls._s_sample_id(),
-                            "type": collection_name,
-                        }
-                    },
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": collection_name}}
                 )
             parameters.append(
                 {
@@ -425,9 +400,7 @@ def get_sample_dict(sample):
         sample_dict = sample.to_dict()
     else:
         cols = sample.__table__.columns
-        sample_dict = {
-            col.name: "" for col in cols if col.name in sample._s_jsonapi_attrs
-        }
+        sample_dict = {col.name: "" for col in cols if col.name in sample._s_jsonapi_attrs}
     return encode_schema(sample_dict)
 
 
@@ -507,9 +480,7 @@ def swagger_relationship_doc(cls, tags=None):
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 data = [data]
-            rel_post_schema = schema_from_object(
-                "{}_Relationship".format(class_name), {"data": data}
-            )
+            rel_post_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
             parameters.append(
                 {
                     "name": "{} body".format(class_name),
@@ -528,9 +499,7 @@ def swagger_relationship_doc(cls, tags=None):
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 data = [data]
-            rel_del_schema = schema_from_object(
-                "{}_Relationship".format(class_name), {"data": data}
-            )
+            rel_del_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
             parameters.append(
                 {
                     "name": "{} body".format(class_name),
@@ -550,11 +519,7 @@ def swagger_relationship_doc(cls, tags=None):
             responses.update({str(val): desc for val, desc in doc["responses"].items()})
         doc["responses"] = responses
 
-        direction = (
-            "to-many"
-            if cls.relationship.direction in (ONETOMANY, MANYTOMANY)
-            else "to-one"
-        )
+        direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
         parent_name = parent_class.__name__  # to be used by f-string
         child_name = child_class.__name__  # to be used by f-string
         apply_fstring(doc, locals())
@@ -583,16 +548,12 @@ def swagger_method_doc(cls, method_name, tags=None):
             "tags": doc_tags,
             "description": "Invoke {}.{}".format(class_name, method_name),
             "summary": "Invoke {}.{}".format(class_name, method_name),
-            "responses": {
-                str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description}
-            },
+            "responses": {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description}},
         }
 
         model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
-        parameters, fields, description, method = get_swagger_doc_arguments(
-            cls, method_name, http_method=func.__name__
-        )
+        parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
 
         if func.__name__ == "get":
             if not parameters:
@@ -614,13 +575,7 @@ def swagger_method_doc(cls, method_name, tags=None):
             param_model = SchemaClassFactory(model_name, fields)
 
             parameters.append(
-                {
-                    "name": model_name,
-                    "in": "body",
-                    "description": description,
-                    "schema": param_model,
-                    "required": True,
-                }
+                {"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True}
             )
 
         # URL Path Parameter
