@@ -1192,8 +1192,8 @@ class SAFRSRestRelationshipAPI(Resource):
                 if not child_id or not child_type:
                     raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
-                if child_type != self.target.__name__:
-                    raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
+                if child_type != self.target._s_type:
+                    raise ValidationError("Invalid type {} != {}".format(child_type,self.target.__name__), HTTPStatus.FORBIDDEN)
 
                 child = self.target.get_instance(child_id)
                 setattr(parent, self.SAFRSObject.relationship.key, child)
