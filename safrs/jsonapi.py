@@ -987,6 +987,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # child may have been deleted
             return "Not Found", HTTPStatus.NOT_FOUND
         if child_id:
+            log.warning("Fetching relationship items by path id is deprecated and will be removed")
             child = self.target.get_instance(child_id)
             links = {"self": child._s_url}
             # If {ChildId} is passed in the url, return the child object

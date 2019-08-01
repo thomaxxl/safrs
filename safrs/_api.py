@@ -245,7 +245,7 @@ class Api(FRSApiBase):
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
 
         self.add_resource(
-            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"]
+            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated = True
         )
 
     def add_resource(self, resource, *urls, **kwargs):
@@ -269,7 +269,10 @@ class Api(FRSApiBase):
         resource_methods = kwargs.get("methods", HTTP_METHODS)
         kwargs.pop("safrs_object", None)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
+        deprecated = kwargs.pop("deprecated", False) # TBD!!
         for method in get_resource_methods(resource):
+            if deprecated:
+                continue
             if not method.upper() in resource_methods:
                 continue
             f = getattr(resource, method, None)
