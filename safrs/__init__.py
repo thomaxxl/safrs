@@ -41,7 +41,9 @@ def test_decorator(func):
 
 # pylint: disable=invalid-name
 # Uppercase bc we're returning the API class here, eventually this might become a class by itself
-def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI", **kwargs):
+def SAFRSAPI(
+    app, host="localhost", port=5000, prefix="", description="SAFRSAPI", **kwargs
+):
     """ :param app: flask app
         :param host: the host used in the swagger doc
         :param port: the port used in the swagger doc
@@ -93,7 +95,9 @@ class SAFRS:
     ENABLE_RELATIONSHIPS = None
     LOGLEVEL = logging.WARNING
     OBJECT_ID_SUFFIX = None
-    DEFAULT_INCLUDED = ""  # change to +all to include everything (slower because relationships will be fetched)
+    DEFAULT_INCLUDED = (
+        ""
+    )  # change to +all to include everything (slower because relationships will be fetched)
     INSTANCE_ENDPOINT_FMT = None
     INSTANCE_URL_FMT = None
     RESOURCE_URL_FMT = None
@@ -126,7 +130,9 @@ class SAFRS:
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
         if swaggerui_blueprint is None:
-            swaggerui_blueprint = get_swaggerui_blueprint(prefix, "%s/swagger.json" % (prefix), config={'docExpansion': 'none'})
+            swaggerui_blueprint = get_swaggerui_blueprint(
+                prefix, "%s/swagger.json" % (prefix), config={"docExpansion": "none"}
+            )
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
 
@@ -155,7 +161,9 @@ class SAFRS:
         log = logging.getLogger(__name__)
         if log.level == logging.NOTSET:
             handler = logging.StreamHandler(sys.stderr)
-            formatter = logging.Formatter("[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s")
+            formatter = logging.Formatter(
+                "[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s"
+            )
             handler.setFormatter(formatter)
             log.setLevel(loglevel)
             log.addHandler(handler)
