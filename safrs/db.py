@@ -301,9 +301,8 @@ class SAFRSBase(Model):
 
     @hybrid_property
     def _s_jsonapi_attrs(self):
-        result = {attr : getattr(self,attr) for attr in self.__class__._s_jsonapi_attrs}
+        result = {attr: getattr(self, attr) for attr in self.__class__._s_jsonapi_attrs}
         return result
-    
 
     @_s_jsonapi_attrs.expression
     def _s_jsonapi_attrs(cls):

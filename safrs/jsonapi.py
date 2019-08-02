@@ -1069,16 +1069,8 @@ class SAFRSRestRelationshipAPI(Resource):
             #   null, to remove the relationship.
 
             if self.SAFRSObject.relationship.direction != MANYTOONE:
-                raise GenericError("To PATCH a TOMANY relationship you should provide a list")
-            child_id = data.get("id")
-            child_type = data.get("type")
-            if not child_id or not child_type:
-                raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
-
-            if child_type != self.target._s_type:
-                raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
-
-            child = self.target.get_instance(child_id)
+                raise GenericError("Provide a list o PATCH a TOMANY relationship")
+            child = self._parse_child_data(data)
             setattr(parent, self.rel_name, child)
             obj_args[self.child_object_id] = child.jsonapi_id
 
@@ -1104,11 +1096,9 @@ class SAFRSRestRelationshipAPI(Resource):
             # otherwise it is an instance of InstrumentedList and we have to empty it
             # ( we could loop all items but this is slower for large collections )
             tmp_rel = []
-            for child in data:
-                if not isinstance(child, dict):
-                    raise ValidationError("Invalid data object")
-                child_instance = self.target.get_instance(child["id"])
-                tmp_rel.append(child_instance)
+            for child_data in data:
+                child = self._parse_child_data(child_data)
+                tmp_rel.append(child)
 
             if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
                 relation[:] = tmp_rel
@@ -1175,46 +1165,50 @@ class SAFRSRestRelationshipAPI(Resource):
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
             # https://jsonapi.org/format/#crud-updating-to-one-relationships
-            # We should only use patch to update
-            # previous versions incorrectly implemented the jsonapi spec for updating manytoone relationships
-            # keep things backwards compatible for now
-            child = data
-            if isinstance(data, list):
-                safrs.log.warning("Using a list to update a manytoone relationship is deprecated")
-                if len(data) == 0:
-                    setattr(parent, self.SAFRSObject.relationship.key, None)
-                elif len(data) > 1:
-                    raise ValidationError("A MANYTOONE relationship can only hold a single item", HTTPStatus.FORBIDDEN)
-                else:
-                    child = data[0]
-            if child:
-                child_id = child.get("id")
-                child_type = child.get("type")
-                if not child_id or not child_type:
-                    raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
-
-                if child_type != self.target._s_type:
-                    raise ValidationError("Invalid type {} != {}".format(child_type,self.target.__name__), HTTPStatus.FORBIDDEN)
-
-                child = self.target.get_instance(child_id)
-                setattr(parent, self.SAFRSObject.relationship.key, child)
+            # We should only use patch to update a relationship
+            child_data = data
+            if isinstance(child_data, list):
+                raise ValidationError(
+                    """
+                            Invalid data payload: MANYTOONE relationship can only hold a single item,
+                            please provide a dictionary object
+                            """,
+                    HTTPStatus.FORBIDDEN,
+                )
+            if child_data:
+                child = self._parse_child_data(child_data)
                 result = [child]
 
         else:  # direction is TOMANY => append the items to the relationship
-            for item in data:
-                if not isinstance(item, dict):
-                    raise ValidationError("Invalid data type {}".format(item))
-                child_id = item.get("id", None)
-                if child_id is None:
-                    raise ValidationError("no child id {}".format(data))
-                child = self.target.get_instance(child_id)
-                if not child:
-                    raise ValidationError("invalid child id {}".format(child_id))
+            for child_data in data:
+                child = self._parse_child_data(child_data)
                 if not child in relation:
                     relation.append(child)
-            result = [item for item in relation]
+            result = [child for child in relation]
 
         return {}, 204
+
+    def _parse_child_data(self, child_data):
+        """
+            Validate the jsonapi payload in child_data, which should contain "id" and "type" keys
+        """
+        if not isinstance(child_data, dict):
+            print(child_data)
+            raise ValidationError("Invalid data type {}".format(child_data))
+        child_id = child_data.get("id", None)
+        if child_id is None:
+            raise ValidationError("no child id {}".format(data))
+        child_type = child_data.get("type")
+        if not child_id or not child_type:
+            raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
+        if child_type != self.target._s_type:
+            raise ValidationError(
+                "Invalid type {} != {}".format(child_type, self.target.__name__), HTTPStatus.FORBIDDEN
+            )
+        child = self.target.get_instance(child_id)
+        if not child:
+            raise ValidationError("invalid child id {}".format(child_id))
+        return child
 
     def delete(self, **kwargs):
         """
