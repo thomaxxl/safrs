@@ -15,8 +15,8 @@ from flask_sqlalchemy import Model
 import sqlalchemy
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
+from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 
 # safrs dependencies:
 import safrs
@@ -286,7 +286,26 @@ class SAFRSBase(Model):
     def _s_columns(cls):
         return list(cls.__mapper__.columns)
 
+    @property
+    def _s_relationships(self):
+        """
+            :return: the relationships used for jsonapi (de/)serialization
+        """
+        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels]
+        return rels
+
     @classproperty
+    def _s_relationship_names(cls):
+        rel_names = [rel.key for rel in cls.__mapper__.relationships if rel.key not in cls.exclude_rels]
+        return rel_names
+
+    @hybrid_property
+    def _s_jsonapi_attrs(self):
+        result = {attr : getattr(self,attr) for attr in self.__class__._s_jsonapi_attrs}
+        return result
+    
+
+    @_s_jsonapi_attrs.expression
     def _s_jsonapi_attrs(cls):
         """
             :return: list of jsonapi attribute names
@@ -341,19 +360,6 @@ class SAFRSBase(Model):
         if not self.Type == value:
             self.Type = value
         self.type = value
-
-    @property
-    def _s_relationships(self):
-        """
-            :return: the relationships used for jsonapi (de/)serialization
-        """
-        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels]
-        return rels
-
-    @classproperty
-    def _s_relationship_names(cls):
-        rel_names = [rel.key for rel in cls.__mapper__.relationships if rel.key not in cls.exclude_rels]
-        return rel_names
 
     def _s_patch(self, **attributes):
         columns = {col.name: col for col in self._s_columns}
@@ -416,6 +422,7 @@ class SAFRSBase(Model):
         """
         return None
 
+    @hybrid_method
     def _s_jsonapi_encode(self):
         """
             :return: Encoded object according to the jsonapi specification:
@@ -449,7 +456,7 @@ class SAFRSBase(Model):
 
         self_link = self._s_url
 
-        for relationship in self.__mapper__.relationships:
+        for relationship in self._s_relationships:
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
 
@@ -671,13 +678,6 @@ class SAFRSBase(Model):
                 str(HTTPStatus.CREATED.value): {"description": "Invalid data"},
             }
 
-        if http_method == "get":
-            responses = {
-                str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
-            }
-            # responses['200']['schema'] = {'$ref': '#/definitions/{}'.format(object_model.__name__)}
-
         return body, responses
 
     @classmethod
@@ -705,7 +705,7 @@ class SAFRSBase(Model):
         sample_id = cls._s_sample_id()
         sample_instance = cls.get_instance(sample_id, failsafe=True)
         for column in cls._s_columns:
-            if column.name in ("id", "type"):
+            if column.name not in cls._s_jsonapi_attrs:
                 continue
             # convert the column type to string and map it to a swagger type
             column_type = str(column.type)
@@ -781,14 +781,6 @@ class SAFRSBase(Model):
             may be implemented by the app
         """
         return {}
-
-    def get_attr(self, attr):
-        """
-            :param attr: jsonapi attribute name
-            :return: attribute value from the corresponding column of the sqla object
-        """
-        if attr in self._s_column_names:
-            return getattr(self, attr)
 
     @classmethod
     def _s_filter(cls, filter_args):

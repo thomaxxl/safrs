@@ -58,8 +58,8 @@ class Book(SAFRSBase, db.Model):
     reader_id = db.Column(db.String, db.ForeignKey("People.id"))
     author_id = db.Column(db.String, db.ForeignKey("People.id"))
     publisher_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
-    publisher = db.relationship("Publisher", back_populates="books")
-    reviews = db.relationship("Review", backref="book", cascade="save-update, merge, delete, delete-orphan")
+    publisher = db.relationship("Publisher", back_populates="books", cascade="save-update, delete")
+    reviews = db.relationship("Review", backref="book")
 
 
 class Person(SAFRSBase, db.Model):
@@ -123,10 +123,6 @@ class Person(SAFRSBase, db.Model):
             log.exception(exc)
 
         return response
-
-    @jsonapi_rpc(http_methods=["GET", "POST"])
-    def none(cls, *args, **kwargs):
-        return {}
 
 
 class Publisher(SAFRSBase, db.Model):

@@ -1075,7 +1075,7 @@ class SAFRSRestRelationshipAPI(Resource):
             if not child_id or not child_type:
                 raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
-            if child_type != self.target.__name__:
+            if child_type != self.target._s_type:
                 raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
 
             child = self.target.get_instance(child_id)
@@ -1150,23 +1150,24 @@ class SAFRSRestRelationshipAPI(Resource):
             summary: Add {child_name} items to {cls.relationship.key}
             description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
             responses :
-                403:
-                    description : This implementation does not accept client-generated IDs
-                201:
-                    description: Created
                 202:
                     description : Accepted
+                204:
+                    description : No Content
                 404:
                     description : Not Found
                 409:
                     description : Conflict
             ---
             Add a child to a relationship
+            202 Accepted
+            If a relationship update request has been accepted for processing, but the processing has not been completed by the time the server responds, the server MUST return a 202 Accepted status code.
+
+            204 No Content
+            A server MUST return a 204 No Content status code if an update is successful and the representation of the resource in the request matches the result.
         """
-        errors = []
         kwargs["require_child"] = True
         parent, relation = self.parse_args(**kwargs)
-
         payload = request.get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
@@ -1183,7 +1184,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 if len(data) == 0:
                     setattr(parent, self.SAFRSObject.relationship.key, None)
                 elif len(data) > 1:
-                    raise ValidationError("Too many items for a MANYTOONE relationship", HTTPStatus.FORBIDDEN)
+                    raise ValidationError("A MANYTOONE relationship can only hold a single item", HTTPStatus.FORBIDDEN)
                 else:
                     child = data[0]
             if child:
@@ -1205,20 +1206,15 @@ class SAFRSRestRelationshipAPI(Resource):
                     raise ValidationError("Invalid data type {}".format(item))
                 child_id = item.get("id", None)
                 if child_id is None:
-                    errors.append("no child id {}".format(data))
-                    safrs.log.error(errors)
-                    continue
+                    raise ValidationError("no child id {}".format(data))
                 child = self.target.get_instance(child_id)
-
                 if not child:
-                    errors.append("invalid child id {}".format(child_id))
-                    safrs.log.error(errors)
-                    continue
+                    raise ValidationError("invalid child id {}".format(child_id))
                 if not child in relation:
                     relation.append(child)
             result = [item for item in relation]
 
-        return jsonify({"data": result})
+        return {}, 204
 
     def delete(self, **kwargs):
         """

@@ -127,7 +127,7 @@ class SAFRS:
         swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
         if swaggerui_blueprint is None:
             swaggerui_blueprint = get_swaggerui_blueprint(
-                prefix, "%s/swagger.json" % (prefix), config={"docExpansion": "none"}
+                prefix, "{}/swagger.json".format(prefix), config={"docExpansion": "none", "defaultModelsExpandDepth" : -1}
             )
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
