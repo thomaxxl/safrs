@@ -244,4 +244,4 @@ class SAFRSSHA256HashID(SAFRSID):
         validate_id
         """
         # todo
-        pass
+        return _id
