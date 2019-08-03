@@ -438,8 +438,6 @@ class Resource(FRSResource):
         }
 
 
-
-
 class SAFRSRestAPI(Resource):
     """
         Flask webservice wrapper for the underlying Resource Object:

@@ -81,7 +81,7 @@ class SAFRSBase(Model):
     """
 
     query_limit = 50
-    db_commit = True # commit instances automatically, see also auto_commit
+    db_commit = True  # commit instances automatically, see also auto_commit
     http_methods = {}  # http methods, used in case of override
     url_prefix = ""
     allow_client_generated_ids = False
