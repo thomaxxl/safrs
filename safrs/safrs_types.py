@@ -229,7 +229,7 @@ class SAFRSSHA256HashID(SAFRSID):
     """
 
     @classmethod
-    def gen_id(cls):
+    def _gen_id(cls):
         """
             Create a hash based on the current time
             This is just an example
@@ -239,7 +239,7 @@ class SAFRSSHA256HashID(SAFRSID):
         return hashlib.sha256(now).hexdigest()
 
     @classmethod
-    def validate_id(cls, _id):
+    def _validate_id(cls, _id):
         """
         validate_id
         """

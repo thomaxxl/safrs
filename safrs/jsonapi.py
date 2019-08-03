@@ -74,6 +74,7 @@ def jsonapi_filter(safrs_object):
         expressions.append((column, val))
 
     if isinstance(safrs_object, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        # todo: filter properly
         result = safrs_object
     elif expressions:
         expressions_ = [column.in_(val.split(",")) for column, val in expressions]
@@ -664,7 +665,7 @@ class SAFRSRestAPI(Resource):
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
             # "A server MUST return 403 Forbidden in response to an
             # unsupported request to create a resource with a client-generated ID"
-            response = {"meta": {"error": "Unsupported JSONAPI Request"}}, 403
+            return {"error": "Unsupported JSONAPI Request"}, 403
 
         else:
             # Create a new instance of the SAFRSObject

@@ -28,6 +28,7 @@ from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate, ValidationError
 from safrs import jsonapi_rpc  # rpc decorator
 from safrs import search, startswith  # rpc methods
+from safrs.safrs_types import SAFRSSHA256HashID
 from flask import url_for, jsonify
 
 description = """
@@ -76,6 +77,7 @@ class Person(SAFRSBase, db.Model):
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader")
+    id_type = SAFRSSHA256HashID
 
     password = db.Column(db.Text, default="")
     exclude_attrs = ["password"]
