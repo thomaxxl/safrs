@@ -148,7 +148,7 @@ class SAFRSBase(Model):
             safrs.log.exception(exc)
             safrs.DB.Model.__init__(self)
 
-        if self.db_commit:
+        if self.auto_commit:
             # Add the object to the database if specified by the class parameters
             safrs.DB.session.add(self)
             try:
@@ -156,6 +156,14 @@ class SAFRSBase(Model):
             except sqlalchemy.exc.SQLAlchemyError as exc:
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
+
+    @property
+    def auto_commit(self):
+        return self.db_commit
+
+    @auto_commit.setter
+    def auto_commit(self, value):
+        self.db_commit = value
 
     def _s_parse_attr_value(self, kwargs, column):
         """
@@ -227,7 +235,6 @@ class SAFRSBase(Model):
                 raise ValidationError("Invalid item type")
         else:
             id = item
-
         try:
             primary_keys = cls.id_type.get_pks(id)
         except AttributeError:
@@ -243,8 +250,6 @@ class SAFRSBase(Model):
                 safrs.log.error("get_instance : %s", str(exc))
 
             if not instance and not failsafe:
-                # TODO: id gets reflected back to the user: should we filter it for XSS ?
-                # or let the client handle it?
                 raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
 

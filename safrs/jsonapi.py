@@ -331,6 +331,29 @@ class Resource(FRSResource):
 
     SAFRSObject = None  # The class that will be returned when a http method is invoked
     # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    target = None
+
+    def _parse_target_data(self, child_data):
+        """
+            Validate the jsonapi payload in child_data, which should contain "id" and "type" keys
+        """
+        if not isinstance(child_data, dict):
+            print(child_data)
+            raise ValidationError("Invalid data type {}".format(child_data))
+        child_id = child_data.get("id", None)
+        if child_id is None:
+            raise ValidationError("no child id {}".format(child_data))
+        child_type = child_data.get("type")
+        if not child_id or not child_type:
+            raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
+        if child_type != self.target._s_type:
+            raise ValidationError(
+                "Invalid type {} != {}".format(child_type, self.target.__name__), HTTPStatus.FORBIDDEN
+            )
+        child = self.target.get_instance(child_id)
+        if not child:
+            raise ValidationError("invalid child id {}".format(child_id))
+        return child
 
     @classmethod
     def get_swagger_include(cls):
@@ -413,6 +436,8 @@ class Resource(FRSResource):
             "required": False,
             "description": "Custom <b>{}</b> filter".format(cls.SAFRSObject._s_class_name),
         }
+
+
 
 
 class SAFRSRestAPI(Resource):
@@ -677,7 +702,7 @@ class SAFRSRestAPI(Resource):
             # pylint: disable=not-callable
             instance = self.SAFRSObject(**attributes)
 
-            if not instance.db_commit:
+            if not instance.auto_commit:
                 #
                 # The item has not yet been added/commited by the SAFRSBase,
                 # in that case we have to do it ourselves
@@ -1070,7 +1095,7 @@ class SAFRSRestRelationshipAPI(Resource):
 
             if self.SAFRSObject.relationship.direction != MANYTOONE:
                 raise GenericError("Provide a list o PATCH a TOMANY relationship")
-            child = self._parse_child_data(data)
+            child = self._parse_target_data(data)
             setattr(parent, self.rel_name, child)
             obj_args[self.child_object_id] = child.jsonapi_id
 
@@ -1097,7 +1122,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # ( we could loop all items but this is slower for large collections )
             tmp_rel = []
             for child_data in data:
-                child = self._parse_child_data(child_data)
+                child = self._parse_target_data(child_data)
                 tmp_rel.append(child)
 
             if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
@@ -1176,39 +1201,17 @@ class SAFRSRestRelationshipAPI(Resource):
                     HTTPStatus.FORBIDDEN,
                 )
             if child_data:
-                child = self._parse_child_data(child_data)
+                child = self._parse_target_data(child_data)
                 result = [child]
 
         else:  # direction is TOMANY => append the items to the relationship
             for child_data in data:
-                child = self._parse_child_data(child_data)
+                child = self._parse_target_data(child_data)
                 if not child in relation:
                     relation.append(child)
             result = [child for child in relation]
 
         return {}, 204
-
-    def _parse_child_data(self, child_data):
-        """
-            Validate the jsonapi payload in child_data, which should contain "id" and "type" keys
-        """
-        if not isinstance(child_data, dict):
-            print(child_data)
-            raise ValidationError("Invalid data type {}".format(child_data))
-        child_id = child_data.get("id", None)
-        if child_id is None:
-            raise ValidationError("no child id {}".format(data))
-        child_type = child_data.get("type")
-        if not child_id or not child_type:
-            raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
-        if child_type != self.target._s_type:
-            raise ValidationError(
-                "Invalid type {} != {}".format(child_type, self.target.__name__), HTTPStatus.FORBIDDEN
-            )
-        child = self.target.get_instance(child_id)
-        if not child:
-            raise ValidationError("invalid child id {}".format(child_id))
-        return child
 
     def delete(self, **kwargs):
         """
