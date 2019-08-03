@@ -20,7 +20,7 @@ class NotFoundError(Exception, DontWrapMixin):
     """
 
     status_code = HTTPStatus.NOT_FOUND.value
-    message = "NotFoundError: "
+    message = "NotFoundError "
 
     def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value):
         Exception.__init__(self)

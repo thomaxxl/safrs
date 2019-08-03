@@ -294,7 +294,7 @@ class SAFRSBase(Model):
     def _s_columns(cls):
         return list(cls.__mapper__.columns)
 
-    @property
+    @classproperty
     def _s_relationships(self):
         """
             :return: the relationships used for jsonapi (de/)serialization
@@ -670,19 +670,19 @@ class SAFRSBase(Model):
 
         object_model = cls._get_swagger_doc_object_model()
         responses = {
-            str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model},
-            str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
+            HTTPStatus.OK.value: { "description": HTTPStatus.OK.description},
+            HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
         }
 
-        if http_method == "patch":
+        if http_method == "get":
             body = object_model
-            responses = {str(HTTPStatus.OK.value): {"description": "Object successfully updated"}}
-
-        if http_method == "post":
+            #responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
+            
+        if http_method in ("post", "patch"):
             # body = cls.get_swagger_doc_post_parameters()
             responses = {
-                str(HTTPStatus.CREATED.value): {"description": "Object successfully created"},
-                str(HTTPStatus.CREATED.value): {"description": "Invalid data"},
+                HTTPStatus.OK.value: { "description": HTTPStatus.OK.description},
+                HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
             }
 
         return body, responses

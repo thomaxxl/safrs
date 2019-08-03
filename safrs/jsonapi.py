@@ -767,39 +767,10 @@ class SAFRSRestAPI(Resource):
             instance = self.SAFRSObject.get_instance(id)
             safrs.DB.session.delete(instance)
         else:
-            raise NotFoundError(id, status_code=HTTPStatus.NOT_FOUND)
+            # This endpoint shouldn't be exposed so this code is not reachable
+            raise GenericError("", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         return {}, HTTPStatus.NO_CONTENT
-
-    def call_method_by_name(self, instance, method_name, args):
-        """
-            Call the instance method specified by method_name
-        """
-        method = getattr(instance, method_name, False)
-
-        if not method:
-            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(method_name))
-        if not is_public(method):
-            raise ValidationError("Method is not public")
-
-        if not args:
-            args = {}
-
-        result = method(**args)
-        return result
-
-    def get_instances(self, filter, method_name, sort, search=""):
-        """
-            Get all instances. Subclasses may want to override this
-            (for example to sort results)
-        """
-        if method_name:
-            method(**args)
-
-        instances = self.SAFRSObject.query.filter_by(**filter).order_by(None)
-
-        return instances
 
 
 class SAFRSJSONRPCAPI(Resource):
@@ -1017,10 +988,9 @@ class SAFRSRestRelationshipAPI(Resource):
             # there's a difference between to-one and -to-many relationships:
             if isinstance(relation, SAFRSBase):
                 if child != relation:
-                    return "Not Found", HTTPStatus.NOT_FOUND
+                    raise NotFoundError()
             elif child not in relation:
-                # item is in relationship, return the child
-                return "Not Found", HTTPStatus.NOT_FOUND
+                raise NotFoundError()
             else:
                 return jsonify({"data": child, "links": {"self": request.url, "related": child._s_url}})
         # elif type(relation) == self.target: # ==>

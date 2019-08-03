@@ -103,7 +103,7 @@ def get_http_methods(method):
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
-def SchemaClassFactory(name, properties):
+def  SchemaClassFactory(name, properties):
     """
         Generate a Schema class, used to describe swagger schemas
         :param name: schema class name
@@ -377,7 +377,7 @@ def swagger_doc(cls, tags=None):
             )
         else:
             # one of 'options', 'head', 'patch'
-            safrs.log.debug('no documentation for "%s" ', http_method)
+            safrs.log.debug('no documentation for "%s" ', func)
 
         doc["parameters"] = parameters
         doc["responses"] = responses
@@ -548,7 +548,7 @@ def swagger_method_doc(cls, method_name, tags=None):
             "tags": doc_tags,
             "description": "Invoke {}.{}".format(class_name, method_name),
             "summary": "Invoke {}.{}".format(class_name, method_name),
-            "responses": {str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description}},
+            "responses": {HTTPStatus.OK.value: {"description": HTTPStatus.OK.description}},
         }
 
         model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
@@ -638,7 +638,7 @@ def apply_fstring(swagger_obj, vars, k=None):
         for i in swagger_obj:
             apply_fstring(i, vars)
     elif isinstance(swagger_obj, dict):
-        for k, v in swagger_obj.items():
+        for k, v in swagger_obj.copy().items():
             new_v = apply_fstring(v, vars)
             if isinstance(k, int):
                 # used to convert integer codes (from the responses)
