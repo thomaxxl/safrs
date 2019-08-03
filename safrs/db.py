@@ -670,18 +670,18 @@ class SAFRSBase(Model):
 
         object_model = cls._get_swagger_doc_object_model()
         responses = {
-            HTTPStatus.OK.value: { "description": HTTPStatus.OK.description},
+            HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
             HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
         }
 
         if http_method == "get":
             body = object_model
-            #responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
-            
+            # responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
+
         if http_method in ("post", "patch"):
             # body = cls.get_swagger_doc_post_parameters()
             responses = {
-                HTTPStatus.OK.value: { "description": HTTPStatus.OK.description},
+                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
                 HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
             }
 

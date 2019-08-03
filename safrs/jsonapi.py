@@ -614,7 +614,7 @@ class SAFRSRestAPI(Resource):
             summary : Create {class_name}
             responses :
                 403:
-                    description : This implementation does not accept client-generated IDs
+                    description : Forbidden
                 201:
                     description: Created
                 202:
@@ -661,66 +661,63 @@ class SAFRSRestAPI(Resource):
         id = kwargs.get(self.object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
-            # "A server MUST return 403 Forbidden in response to an
-            # unsupported request to create a resource with a client-generated ID"
-            return {"error": "Unsupported JSONAPI Request"}, 403
+            raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=403)
 
-        else:
-            # Create a new instance of the SAFRSObject
-            data = payload.get("data")
-            if data is None:
-                raise ValidationError("Request contains no data")
-            if not isinstance(data, dict):
-                raise ValidationError("data is not a dict object")
+        # Create a new instance of the SAFRSObject
+        data = payload.get("data")
+        if data is None:
+            raise ValidationError("Request contains no data")
+        if not isinstance(data, dict):
+            raise ValidationError("Data is not a dict object")
 
-            obj_type = data.get("type", None)
-            if not obj_type:  # or type..
-                raise ValidationError("Invalid type member")
+        obj_type = data.get("type", None)
+        if not obj_type:  # or type..
+            raise ValidationError("Invalid type member")
 
-            attributes = data.get("attributes", {})
-            # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
-            # SAFRSObject allow_client_generated_ids attribute
-            for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
-                attributes.pop(col_name, None)
+        attributes = data.get("attributes", {})
+        # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
+        # SAFRSObject allow_client_generated_ids attribute
+        for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
+            attributes.pop(col_name, None)
 
-            # remove attributes that have relationship names
-            attributes = {
-                attr_name: attributes[attr_name]
-                for attr_name in attributes
-                if attr_name not in self.SAFRSObject._s_relationship_names
-            }
+        # remove attributes that have relationship names
+        attributes = {
+            attr_name: attributes[attr_name]
+            for attr_name in attributes
+            if attr_name not in self.SAFRSObject._s_relationship_names
+        }
 
-            if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
-                # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-                id = data.get("id")
-                self.SAFRSObject.id_type.get_pks(id)
+        if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
+            # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
+            id = data.get("id")
+            self.SAFRSObject.id_type.get_pks(id)
 
-            # Create the object instance with the specified id and json data
-            # If the instance (id) already exists, it will be updated with the data
-            # pylint: disable=not-callable
-            instance = self.SAFRSObject(**attributes)
+        # Create the object instance with the specified id and json data
+        # If the instance (id) already exists, it will be updated with the data
+        # pylint: disable=not-callable
+        instance = self.SAFRSObject(**attributes)
 
-            if not instance.auto_commit:
-                #
-                # The item has not yet been added/commited by the SAFRSBase,
-                # in that case we have to do it ourselves
-                #
-                safrs.DB.session.add(instance)
-                try:
-                    safrs.DB.session.commit()
-                except sqlalchemy.exc.SQLAlchemyError as exc:
-                    # Exception may arise when a db constrained has been violated
-                    # (e.g. duplicate key)
-                    safrs.log.warning(str(exc))
-                    raise GenericError(str(exc))
+        if not instance.auto_commit:
+            #
+            # The item has not yet been added/commited by the SAFRSBase,
+            # in that case we have to do it ourselves
+            #
+            safrs.DB.session.add(instance)
+            try:
+                safrs.DB.session.commit()
+            except sqlalchemy.exc.SQLAlchemyError as exc:
+                # Exception may arise when a db constrained has been violated
+                # (e.g. duplicate key)
+                safrs.log.warning(str(exc))
+                raise GenericError(str(exc))
 
-            # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-            obj_args = {instance.object_id: instance.jsonapi_id}
-            # Retrieve the object json and return it to the client
-            obj_data = self.get(**obj_args)
-            response = make_response(obj_data, HTTPStatus.CREATED)
-            # Set the Location header to the newly created object
-            response.headers["Location"] = url_for(self.endpoint, **obj_args)
+        # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+        obj_args = {instance.object_id: instance.jsonapi_id}
+        # Retrieve the object json and return it to the client
+        obj_data = self.get(**obj_args)
+        response = make_response(obj_data, HTTPStatus.CREATED)
+        # Set the Location header to the newly created object
+        response.headers["Location"] = url_for(self.endpoint, **obj_args)
 
         return response
 
@@ -763,137 +760,14 @@ class SAFRSRestAPI(Resource):
         """
         id = kwargs.get(self.object_id, None)
 
-        if id:
-            instance = self.SAFRSObject.get_instance(id)
-            safrs.DB.session.delete(instance)
-        else:
+        if not id:
             # This endpoint shouldn't be exposed so this code is not reachable
-            raise GenericError("", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
+            raise ValidationError("", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
+
+        instance = self.SAFRSObject.get_instance(id)
+        safrs.DB.session.delete(instance)
 
         return {}, HTTPStatus.NO_CONTENT
-
-
-class SAFRSJSONRPCAPI(Resource):
-    """
-        Route wrapper for the underlying SAFRSBase jsonapi_rpc
-
-        Only HTTP POST is supported
-    """
-
-    SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
-    method_name = None
-
-    def __init__(self, *args, **kwargs):
-        """
-            -object_id is the function used to create the url parameter name
-            (eg "User" -> "UserId" )
-            -this parameter is used in the swagger endpoint spec,
-            eg. /Users/{UserId} where the UserId parameter is the id of the underlying SAFRSObject.
-        """
-        self.object_id = self.SAFRSObject.object_id
-        self.target = self.SAFRSObject
-
-    def post(self, **kwargs):
-        """
-            summary : call             
-            responses :
-                403:
-                    description :
-                201:
-                    description: Created
-                202:
-                    description : Accepted
-                403 :
-                    description : Forbidden
-                404:
-                    description : Not Found
-                409:
-                    description : Conflict
-            ---
-            HTTP POST: apply actions, return 200 regardless.
-            The actual jsonapi_rpc method may return other codes
-        """
-        id = kwargs.get(self.object_id, None)
-
-        if id is not None:
-            instance = self.SAFRSObject.get_instance(id)
-            if not instance:
-                # If no instance was found this means the user supplied
-                # an invalid ID
-                raise ValidationError("Invalid ID")
-
-        else:
-            # No ID was supplied, apply method to the class itself
-            instance = self.SAFRSObject
-
-        method = getattr(instance, self.method_name, None)
-
-        if not method:
-            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(self.method_name))
-        if not is_public(method):
-            raise ValidationError("Method is not public")
-
-        args = dict(request.args)
-        payload = request.get_jsonapi_payload()
-        if payload:
-            args = payload.get("meta", {}).get("args", {})
-
-        safrs.log.debug("method {} args {}".format(self.method_name, args))
-
-        result = method(**args)
-
-        if isinstance(result, SAFRSFormattedResponse):
-            response = result
-        else:
-            response = {"meta": {"result": result}}
-
-        return jsonify(response)  # 200 : default
-
-    def get(self, **kwargs):
-        """
-            responses :
-                404 :
-                    description : Not Found
-                403 :
-                    description : Forbidden
-
-            ---
-        """
-        id = kwargs.get(self.object_id, None)
-
-        if id is not None:
-            instance = self.SAFRSObject.get_instance(id)
-            if not instance:
-                # If no instance was found this means the user supplied
-                # an invalid ID
-                raise ValidationError("Invalid ID")
-
-        else:
-            # No ID was supplied, apply method to the class itself
-            instance = self.SAFRSObject
-
-        method = getattr(instance, self.method_name, None)
-
-        if not method:
-            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(self.method_name))
-        if not is_public(method):
-            raise ValidationError("Method is not public")
-
-        args = dict(request.args)
-        safrs.log.debug("method {} args {}".format(self.method_name, args))
-
-        result = method(**args)
-
-        response = {"meta": {"result": result}}
-
-        if isinstance(result, SAFRSFormattedResponse):
-            response = result
-        else:
-            response = {"meta": {"result": result}}
-
-        return jsonify(response)  # 200 : default
 
 
 class SAFRSRestRelationshipAPI(Resource):
@@ -954,6 +828,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # two same objects, the object_id should be different (i.e. append "2")
             self.child_object_id += "2"
 
+    # Retrieve relationship data
     def get(self, **kwargs):
         """
             summary : Retrieve {child_name} from {cls.relationship.key}
@@ -1067,7 +942,7 @@ class SAFRSRestRelationshipAPI(Resource):
             setattr(parent, self.rel_name, child)
             obj_args[self.child_object_id] = child.jsonapi_id
 
-        elif isinstance(data, list):
+        elif isinstance(data, list) and not self.SAFRSObject.relationship.direction == MANYTOONE:
             """
                 http://jsonapi.org/format/#crud-updating-to-many-relationships
 
@@ -1077,11 +952,6 @@ class SAFRSRestRelationshipAPI(Resource):
                 or accessed, or return a 403 Forbidden response if complete
                 replacement is not allowed by the server.
             """
-            if self.SAFRSObject.relationship.direction == MANYTOONE:
-                raise GenericError(
-                    "To PATCH a MANYTOONE relationship you \
-                should provide a dictionary instead of a list"
-                )
             # first remove all items, then append the new items
             # if the relationship has been configured with lazy="dynamic"
             # then it is a subclass of AppenderBaseQuery and
@@ -1098,36 +968,30 @@ class SAFRSRestRelationshipAPI(Resource):
             else:
                 setattr(parent, self.rel_name, tmp_rel)
 
-        elif data is None:
+        elif data is None and self.SAFRSObject.relationship.direction == MANYTOONE:
             # { data : null } //=> clear the relationship
-            if self.SAFRSObject.relationship.direction == MANYTOONE:
-                child = getattr(parent, self.SAFRSObject.relationship.key)
-                if child:
-                    pass
-                setattr(parent, self.rel_name, None)
-            else:
-                #
-                # should we allow this??
-                # maybe we just want to raise an error here ...???
-                setattr(parent, self.rel_name, [])
+            child = getattr(parent, self.SAFRSObject.relationship.key)
+            if child:
+                pass
+            setattr(parent, self.rel_name, None)
         else:
-            raise ValidationError("Invalid Data Object Type")
+            raise ValidationError(
+                'Invalid data object type "{}" for this "{}"" relationship'.format(
+                    type(data), self.SAFRSObject.relationship.direction
+                )
+            )
 
         if data is None:
             # item removed from relationship => 202 accepted
             # TODO: add response to swagger
             # add meta?
-
-            response = {}, 200
+            response = {}, HTTPStatus.ACCEPTED
         else:
             obj_data = self.get(**obj_args)
-            # Retrieve the object json and return it to the client
             response = make_response(obj_data, HTTPStatus.CREATED)
-            # Set the Location header to the newly created object
-            # todo: set location header
-            # response.headers['Location'] = url_for(self.endpoint, **obj_args)
         return response
 
+    # Adding items to a relationship
     def post(self, **kwargs):
         """
             summary: Add {child_name} items to {cls.relationship.key}
@@ -1240,6 +1104,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 safrs.log.warning("child not in relation")
 
         else:
+            # https://jsonapi.org/format/#crud-updating-to-many-relationships
             children = data
             if not isinstance(data, list) or not children:
                 raise ValidationError("Invalid data payload")
@@ -1278,3 +1143,122 @@ class SAFRSRestRelationshipAPI(Resource):
         relation = getattr(parent, self.rel_name)
 
         return parent, relation
+
+
+class SAFRSJSONRPCAPI(Resource):
+    """
+        Route wrapper for the underlying SAFRSBase jsonapi_rpc
+
+        Only HTTP POST is supported
+    """
+
+    SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    method_name = None
+
+    def __init__(self, *args, **kwargs):
+        """
+            -object_id is the function used to create the url parameter name
+            (eg "User" -> "UserId" )
+            -this parameter is used in the swagger endpoint spec,
+            eg. /Users/{UserId} where the UserId parameter is the id of the underlying SAFRSObject.
+        """
+        self.object_id = self.SAFRSObject.object_id
+        self.target = self.SAFRSObject
+
+    def post(self, **kwargs):
+        """
+            summary : call             
+            responses :
+                403:
+                    description :
+                201:
+                    description: Created
+                202:
+                    description : Accepted
+                403 :
+                    description : Forbidden
+                404:
+                    description : Not Found
+                409:
+                    description : Conflict
+            ---
+            HTTP POST: apply actions, return 200 regardless.
+            The actual jsonapi_rpc method may return other codes
+        """
+        id = kwargs.get(self.object_id, None)
+
+        if id is not None:
+            instance = self.SAFRSObject.get_instance(id)
+            if not instance:
+                # If no instance was found this means the user supplied
+                # an invalid ID
+                raise ValidationError("Invalid ID")
+
+        else:
+            # No ID was supplied, apply method to the class itself
+            instance = self.SAFRSObject
+
+        method = getattr(instance, self.method_name, None)
+
+        if not method:
+            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
+            raise ValidationError('Invalid method "{}"'.format(self.method_name))
+        if not is_public(method):
+            raise ValidationError("Method is not public")
+
+        args = dict(request.args)
+        payload = request.get_jsonapi_payload()
+        if payload:
+            args = payload.get("meta", {}).get("args", {})
+
+        safrs.log.debug("method {} args {}".format(self.method_name, args))
+        result = method(**args)
+
+        if isinstance(result, SAFRSFormattedResponse):
+            response = result
+        else:
+            response = {"meta": {"result": result}}
+
+        return jsonify(response)  # 200 : default
+
+    def get(self, **kwargs):
+        """
+            responses :
+                404 :
+                    description : Not Found
+                403 :
+                    description : Forbidden
+
+            ---
+        """
+        id = kwargs.get(self.object_id, None)
+
+        if id is not None:
+            instance = self.SAFRSObject.get_instance(id)
+            if not instance:
+                # If no instance was found this means the user supplied
+                # an invalid ID
+                raise ValidationError("Invalid ID")
+
+        else:
+            # No ID was supplied, apply method to the class itself
+            instance = self.SAFRSObject
+
+        method = getattr(instance, self.method_name, None)
+
+        if not method:
+            # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
+            raise ValidationError('Invalid method "{}"'.format(self.method_name))
+        if not is_public(method):
+            raise ValidationError("Method is not public")
+
+        args = dict(request.args)
+        safrs.log.debug("method {} args {}".format(self.method_name, args))
+        result = method(**args)
+
+        if isinstance(result, SAFRSFormattedResponse):
+            response = result
+        else:
+            response = {"meta": {"result": result}}
+
+        return jsonify(response)  # 200 : default

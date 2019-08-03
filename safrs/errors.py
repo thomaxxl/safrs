@@ -58,7 +58,7 @@ class GenericError(Exception, DontWrapMixin):
     status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
     message = "Generic Error: "
 
-    def __init__(self, message):
+    def __init__(self, message, status_code=HTTPStatus.BAD_REQUEST.value):
         Exception.__init__(self)
         if safrs.log.getEffectiveLevel() <= logging.DEBUG:
             self.message += str(message)

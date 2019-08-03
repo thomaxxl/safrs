@@ -103,7 +103,7 @@ def get_http_methods(method):
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
-def  SchemaClassFactory(name, properties):
+def SchemaClassFactory(name, properties):
     """
         Generate a Schema class, used to describe swagger schemas
         :param name: schema class name
