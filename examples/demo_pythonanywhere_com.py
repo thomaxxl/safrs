@@ -59,7 +59,7 @@ class Book(SAFRSBase, db.Model):
     author_id = db.Column(db.String, db.ForeignKey("People.id"))
     publisher_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     publisher = db.relationship("Publisher", back_populates="books", cascade="save-update, delete")
-    reviews = db.relationship("Review", backref="book")
+    reviews = db.relationship("Review", backref="book", cascade="save-update, delete")
 
 
 class Person(SAFRSBase, db.Model):
@@ -75,7 +75,7 @@ class Person(SAFRSBase, db.Model):
     dob = db.Column(db.Date)
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
-    reviews = db.relationship("Review", backref="reader")
+    reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
     
     password = db.Column(db.Text, default="")
     exclude_attrs = ["password"]
