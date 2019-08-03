@@ -81,10 +81,7 @@ class SAFRSBase(Model):
     """
 
     query_limit = 50
-    # set this to False if you want to use the SAFRSBase in combination
-    # with another framework, eg flask-admin
-    # The caller will have to add and commit the object by itself then...
-    db_commit = True
+    db_commit = True # commit instances automatically, see also auto_commit
     http_methods = {}  # http methods, used in case of override
     url_prefix = ""
     allow_client_generated_ids = False
@@ -157,12 +154,18 @@ class SAFRSBase(Model):
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
 
-    @property
+    @classproperty
     def auto_commit(self):
+        """
+            fka db_commit
+        """
         return self.db_commit
 
     @auto_commit.setter
     def auto_commit(self, value):
+        """
+            setter
+        """
         self.db_commit = value
 
     def _s_parse_attr_value(self, kwargs, column):

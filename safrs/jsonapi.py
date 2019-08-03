@@ -338,7 +338,6 @@ class Resource(FRSResource):
             Validate the jsonapi payload in child_data, which should contain "id" and "type" keys
         """
         if not isinstance(child_data, dict):
-            print(child_data)
             raise ValidationError("Invalid data type {}".format(child_data))
         child_id = child_data.get("id", None)
         if child_id is None:
@@ -597,7 +596,7 @@ class SAFRSRestAPI(Resource):
         attributes["id"] = body_id
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
-        instance = self.SAFRSObject.get_instance(body_id)
+        instance = self._parse_target_data(data)
         if not instance:
             raise ValidationError("No instance with ID")
         instance._s_patch(**attributes)
