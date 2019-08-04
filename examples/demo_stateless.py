@@ -124,7 +124,7 @@ class Test(SAFRSBase):
 
     @classproperty
     def _s_jsonapi_attrs(cls):
-        return []
+        return ["my_custom_field"]
 
     @classproperty
     def _s_column_names(cls):
@@ -148,7 +148,7 @@ class Test(SAFRSBase):
         return 1
 
     def to_dict(self):
-        result = { "name" : self.name , "some-info" : "extra info" }
+        result = { "name" : self.name , "my_custom_field" : "extra info" }
         return result
 
 
