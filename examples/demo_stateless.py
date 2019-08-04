@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-  This demo application demonstrates the functionality of the safrs documented REST API
-  After installing safrs with pip, you can run this app standalone:
-  $ python3 demo_relationship.py [Listener-IP]
-
-  This will run the example on http://Listener-Ip:5000
-
-  - A database is created and a user is added
-  - A rest api is available
-  - swagger documentation is generated
-
-  This is a minimal example, you'll probably want to use demo_relationship_ext.py instead!!!
-"""
 import sys
 import logging
 import builtins
