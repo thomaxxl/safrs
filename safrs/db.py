@@ -17,7 +17,6 @@ from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-
 # safrs dependencies:
 import safrs
 from .swagger_doc import SchemaClassFactory, get_doc
@@ -96,7 +95,7 @@ class SAFRSBase(Model):
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs.get("id", ""))
         # Lookup the object with the PKs
-        instance = cls.query.filter_by(**primary_keys).first()
+        instance = cls._s_query.filter_by(**primary_keys).first()
         if not instance:
             instance = object.__new__(cls)
         else:
@@ -164,7 +163,7 @@ class SAFRSBase(Model):
     @auto_commit.setter
     def auto_commit(self, value):
         """
-            setter
+            autom_commit setter
         """
         self.db_commit = value
 
@@ -219,10 +218,12 @@ class SAFRSBase(Model):
         return attr_val
 
     def _s_expunge(self):
+        """
+            expunge an object from its session
+        """
         session = sqla_inspect(self).session
         session.expunge(self)
 
-    # pylint: disable=
     @classmethod
     def get_instance(cls, item=None, failsafe=False):
         """
@@ -248,7 +249,7 @@ class SAFRSBase(Model):
 
         if not id is None or not failsafe:
             try:
-                instance = cls.query.filter_by(**primary_keys).first()
+                instance = cls._s_query.filter_by(**primary_keys).first()
             except Exception as exc:
                 safrs.log.error("get_instance : %s", str(exc))
 
@@ -279,6 +280,9 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_query(cls):
+        """
+            :return: sqla query object
+        """
         _table = getattr(cls, "_table", None)
         if _table:
             return safrs.DB.session.query(_table)
@@ -288,13 +292,19 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_column_names(cls):
+        """
+            :return: list of column names
+        """
         return [c.name for c in cls.__mapper__.columns]
 
     @classproperty
     def _s_columns(cls):
+        """
+            :return: list of columns
+        """
         return list(cls.__mapper__.columns)
 
-    @classproperty
+    @hybrid_property
     def _s_relationships(self):
         """
             :return: the relationships used for jsonapi (de/)serialization
@@ -304,11 +314,17 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_relationship_names(cls):
+        """
+            :return: list of realtionship names
+        """
         rel_names = [rel.key for rel in cls.__mapper__.relationships if rel.key not in cls.exclude_rels]
         return rel_names
 
     @hybrid_property
     def _s_jsonapi_attrs(self):
+        """
+            :return: dictionary of exposed attribute names and values
+        """
         result = {attr: getattr(self, attr) for attr in self.__class__._s_jsonapi_attrs}
         return result
 
@@ -337,10 +353,16 @@ class SAFRSBase(Model):
 
     @classproperty
     def _s_class_name(cls):
+        """
+            The name of the instances
+        """
         return cls.__name__
 
     @classproperty
     def _s_collection_name(cls):
+        """
+            The name of the collection
+        """
         return getattr(cls, "__tablename__", cls.__name__)
 
     @classproperty
@@ -363,12 +385,19 @@ class SAFRSBase(Model):
 
     @Type.setter
     def Type(self, value):
+        """
+            Type property setter
+        """
         # pylint: disable=attribute-defined-outside-init
         if not self.Type == value:
             self.Type = value
         self.type = value
 
     def _s_patch(self, **attributes):
+        """
+            update the object attributes 
+            :param **attributes:
+        """
         columns = {col.name: col for col in self._s_columns}
         for attr, value in attributes.items():
             if attr in columns and attr in self._s_jsonapi_attrs:
@@ -378,6 +407,7 @@ class SAFRSBase(Model):
     def _s_clone(self, **kwargs):
         """
             Clone an object: copy the parameters and create a new id
+            :param *kwargs: 
         """
         make_transient(self)
         # pylint: disable=attribute-defined-outside-init
@@ -390,11 +420,11 @@ class SAFRSBase(Model):
 
     def to_dict(self, fields=None):
         """
-            :param fields: if set, fields to include in the result
-            :return: dictionary object
-
             Create a dictionary with all the instance "attributes"
             this method will be called by SAFRSJSONEncoder to serialize objects
+
+            :param fields: if set, fields to include in the result
+            :return: dictionary object
 
             The optional `fields` attribute is used to implement jsonapi "Sparse Fieldsets"
             https://jsonapi.org/format/#fetching-sparse-fieldsets:
@@ -565,20 +595,17 @@ class SAFRSBase(Model):
 
         return data
 
-    def __iter__(self):
-        return iter(self.to_dict())
-
-    def _from_dict(self, data):
-        """
-            Deserialization (this is handled by __init__ parsing of kwargs for now)
-        """
-        pass
-
     def __unicode__(self):
+        """
+
+        """
         name = getattr(self, "name", self.__class__.__name__)
         return name
 
     def __str__(self):
+        """
+
+        """
         name = getattr(self, "name", self.__class__.__name__)
         return "<SAFRS {}>".format(name)
 
@@ -798,7 +825,7 @@ class SAFRSBase(Model):
         """
         safrs.log.info("_s_filter args: {}".format(filter_args))
         safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
-        return cls.query
+        return cls._s_query
 
 
 class SAFRSDummy:

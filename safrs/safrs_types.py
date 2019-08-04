@@ -10,7 +10,8 @@ import json
 import safrs
 from sqlalchemy.types import PickleType, String
 from sqlalchemy.types import TypeDecorator, BLOB
-from safrs.errors import ValidationError
+from .errors import ValidationError
+from .util import classproperty
 
 if sys.version_info[0] == 3:
     unicode = str
@@ -209,6 +210,13 @@ class SAFRSID:
 
         return result
 
+    @classproperty
+    def column_names(self):
+        """
+            :return: a list of columns names of this id type
+        """
+        return [c.name for c in self.columns]
+    
 
 def get_id_type(cls, Super=SAFRSID):
     """
@@ -229,7 +237,7 @@ class SAFRSSHA256HashID(SAFRSID):
     """
 
     @classmethod
-    def _gen_id(cls):
+    def gen_id(cls):
         """
             Create a hash based on the current time
             This is just an example
@@ -239,7 +247,7 @@ class SAFRSSHA256HashID(SAFRSID):
         return hashlib.sha256(now).hexdigest()
 
     @classmethod
-    def _validate_id(cls, _id):
+    def validate_id(cls, _id):
         """
         validate_id
         """

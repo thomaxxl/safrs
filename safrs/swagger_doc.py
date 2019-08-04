@@ -260,7 +260,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                         "in": "query",
                         "format": "string",
                         "required": False,
-                        "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(column_name),
+                        "description": "{} attribute filter (csv)".format(column_name),
                     }
                     parameters += param
         else:
@@ -512,7 +512,7 @@ def swagger_relationship_doc(cls, tags=None):
 
         else:
             # one of 'options', 'head', 'patch'
-            safrs.log.info('no documentation for "%s" ', http_method)
+            safrs.log.info('no documentation for "{}" '.format(http_method))
 
         doc["parameters"] = parameters
         if doc.get("responses"):

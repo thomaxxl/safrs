@@ -78,9 +78,9 @@ def jsonapi_filter(safrs_object):
         result = safrs_object
     elif expressions:
         expressions_ = [column.in_(val.split(",")) for column, val in expressions]
-        result = safrs_object.query.filter(*expressions_)
+        result = safrs_object._s_query.filter(*expressions_)
     else:
-        result = safrs_object.query
+        result = safrs_object._s_query
 
     return result
 
@@ -369,7 +369,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "<b>{}</b> relationships to include <i>(csv)</i>".format(cls.SAFRSObject._s_class_name),
+            "description": "{} relationships to include (csv)".format(cls.SAFRSObject._s_class_name),
         }
         return param
 
@@ -388,7 +388,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "<b>{}</b> fields to include <i>(csv)</i>".format(cls.SAFRSObject._s_class_name),
+            "description": "{} fields to include (csv)".format(cls.SAFRSObject._s_class_name),
         }
         return param
 
@@ -423,7 +423,7 @@ class Resource(FRSResource):
                 "in": "query",
                 "format": "string",
                 "required": False,
-                "description": "<b>{}</b> attribute filter <i>(csv)</i>".format(column_name),
+                "description": "{} attribute filter (csv)".format(column_name),
             }
             yield param
 
@@ -434,7 +434,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "Custom <b>{}</b> filter".format(cls.SAFRSObject._s_class_name),
+            "description": "Custom {} filter".format(cls.SAFRSObject._s_class_name),
         }
 
 
@@ -677,7 +677,7 @@ class SAFRSRestAPI(Resource):
         attributes = data.get("attributes", {})
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
         # SAFRSObject allow_client_generated_ids attribute
-        for col_name in [c.name for c in self.SAFRSObject.id_type.columns]:
+        for col_name in self.SAFRSObject.id_type.column_names:
             attributes.pop(col_name, None)
 
         # remove attributes that have relationship names
