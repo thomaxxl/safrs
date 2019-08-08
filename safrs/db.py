@@ -370,7 +370,7 @@ class SAFRSBase(Model):
         """
             :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
         """
-        return getattr(cls, "__tablename__", cls.__name__)
+        return cls.__name__
 
     @property
     def Type(self):

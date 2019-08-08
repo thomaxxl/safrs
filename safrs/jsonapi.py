@@ -348,7 +348,7 @@ class Resource(FRSResource):
             raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
         if child_type != self.target._s_type:
             raise ValidationError(
-                "Invalid type {} != {}".format(child_type, self.target.__name__), HTTPStatus.FORBIDDEN
+                "Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN
             )
         child = self.target.get_instance(child_id)
         if not child:
