@@ -343,7 +343,7 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             #
             sample_dict = cls._s_sample_dict()
-            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": collection_name}})
+            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
             parameters.append(
                 {
                     "name": "POST body",
@@ -360,11 +360,11 @@ def swagger_doc(cls, tags=None):
             sample_dict = cls._s_sample_dict()
             if sample:
                 sample_data = schema_from_object(
-                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": collection_name}}
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}}
                 )
             else:
                 sample_data = schema_from_object(
-                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": collection_name}}
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}}
                 )
             parameters.append(
                 {
