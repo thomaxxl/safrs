@@ -21,7 +21,7 @@ import safrs
 
 # Import here in order to avoid circular dependencies, (todo: fix)
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
-from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods, parse_object_doc
+from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
 from .jsonapi import SAFRSRestAPI, SAFRSJSONRPCAPI, SAFRSRestRelationshipAPI
@@ -91,7 +91,7 @@ class Api(FRSApiBase):
         api_class_name = "{}_API".format(safrs_object._s_type)
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
-        tags = [safrs_object._s_type]
+        tags = [safrs_object._s_collection_name]
         # Expose the methods first
         self.expose_methods(url_prefix, tags=tags)
 
@@ -118,7 +118,7 @@ class Api(FRSApiBase):
         self.add_resource(api_class, url, endpoint=endpoint)
 
         object_doc = parse_object_doc(safrs_object)
-        object_doc["name"] = safrs_object._s_type
+        object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
 
         for relationship in safrs_object._s_relationships:

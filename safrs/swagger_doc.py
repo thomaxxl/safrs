@@ -301,7 +301,7 @@ def swagger_doc(cls, tags=None):
         """
         default_id = cls._s_sample_id()
         class_name = cls.__name__
-        collection_name = cls._s_type
+        collection_name = cls._s_collection_name
         http_method = func.__name__.lower()
         parameters = [
             {
@@ -456,7 +456,7 @@ def swagger_relationship_doc(cls, tags=None):
         ]
 
         if tags is None:
-            doc_tags = [type]
+            doc_tags = [cls._s_collection_name]
         else:
             doc_tags = tags
 
@@ -540,7 +540,7 @@ def swagger_method_doc(cls, method_name, tags=None):
 
         class_name = cls.__name__
         if tags is None:
-            doc_tags = [class_name]
+            doc_tags = [cls._s_collection_name]
         else:
             doc_tags = tags
 

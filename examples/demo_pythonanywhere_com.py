@@ -49,7 +49,7 @@ SAFRSBase.db_commit = False
 
 class Book(SAFRSBase, db.Model):
     """
-        description: Book description
+        description: My book description
     """
 
     __tablename__ = "Books"
@@ -64,7 +64,7 @@ class Book(SAFRSBase, db.Model):
 
 class Person(SAFRSBase, db.Model):
     """
-        description: People description
+        description: My person description
     """
 
     __tablename__ = "People"
@@ -127,7 +127,7 @@ class Person(SAFRSBase, db.Model):
 
 class Publisher(SAFRSBase, db.Model):
     """
-        description: Publisher description
+        description: My publisher description
         ---
         demonstrate custom (de)serialization in __init__ and to_dict
     """
