@@ -527,7 +527,7 @@ class SAFRSBase(Model):
                 if relationship.direction == MANYTOONE:
                     rel_item = getattr(self, rel_name)
                     if rel_item:
-                        data = {"id": rel_item.jsonapi_id, "type": rel_item.__tablename__}
+                        data = {"id": rel_item.jsonapi_id, "type": rel_item._s_type}
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
                     # Data is optional, it's also really slow for large sets!!!!!
                     rel_query = getattr(self, rel_name)
@@ -554,7 +554,7 @@ class SAFRSBase(Model):
                             count = len(items)
                         meta["count"] = count
                         meta["limit"] = limit
-                        data = [{"id": i.jsonapi_id, "type": i.__tablename__} for i in items]
+                        data = [{"id": i.jsonapi_id, "type": i._s_type} for i in items]
                 else:  # shouldn't happen!!
                     safrs.log.error(
                         "Unknown relationship direction for relationship {}: {}".format(
