@@ -148,7 +148,7 @@ class Api(FRSApiBase):
                 # expose the method at the instance level
                 INSTANCEMETHOD_URL_FMT = get_config("INSTANCEMETHOD_URL_FMT")
                 url = INSTANCEMETHOD_URL_FMT.format(
-                    url_prefix, safrs_object._s_class_name, safrs_object.object_id, method_name
+                    url_prefix, safrs_object._s_collection_name, safrs_object.object_id, method_name
                 )
 
             ENDPOINT_FMT = get_config("ENDPOINT_FMT")
