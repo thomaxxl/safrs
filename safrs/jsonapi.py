@@ -3,7 +3,7 @@
   This file contains jsonapi-related flask-restful "Resource" objects:
   - SAFRSRestAPI for exposed database objects
   - SAFRSRestRelationshipAPI for exposed database relationships
-  - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
+  - SAFRSJSONRPCAPI for exposed jsonapi_rpc methods
 
   Other jsonapi-related functions are also implemented here:
   - filtering: jsonapi_filter
@@ -661,7 +661,7 @@ class SAFRSRestAPI(Resource):
         id = kwargs.get(self.object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
-            raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=403)
+            raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
@@ -1199,7 +1199,7 @@ class SAFRSJSONRPCAPI(Resource):
             instance = self.SAFRSObject
 
         method = getattr(instance, self.method_name, None)
-
+        
         if not method:
             # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
             raise ValidationError('Invalid method "{}"'.format(self.method_name))
