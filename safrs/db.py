@@ -302,6 +302,9 @@ class SAFRSBase(Model):
         """
             :return: list of columns
         """
+        mapper = getattr(cls,'__mapper__',None)
+        if mapper is None:
+            return []
         return list(cls.__mapper__.columns)
 
     @hybrid_property
