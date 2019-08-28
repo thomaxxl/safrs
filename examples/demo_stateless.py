@@ -86,6 +86,9 @@ class TestQuery:
     def all(cls):
         return [Test(name = "name")]
 
+    def order_by(cls, attr_name):
+        return cls
+
 from sqlalchemy.ext.hybrid import hybrid_property
 class Test(SAFRSBase):
     """
@@ -94,6 +97,7 @@ class Test(SAFRSBase):
     id_type = TestID
     ja_type = "TestType"
     name = 'None'
+    my_custom_field = ""
     
     def __new__(cls, *args, **kwargs):
         """
@@ -130,7 +134,7 @@ class Test(SAFRSBase):
         """
             return the attributes kv pairs
         """
-        return {"name" : self.name , "my_custom_field" : "extra info"}
+        return {"name" : self.name , "my_custom_field" : self.my_custom_field}
     
     @classproperty
     def _s_jsonapi_attrs(cls):
