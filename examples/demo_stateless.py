@@ -96,6 +96,9 @@ class Test(SAFRSBase):
     name = 'None'
     
     def __new__(cls, *args, **kwargs):
+        """
+            override SAFRSBase.__new__
+        """
         return object.__new__(cls)
 
     def __init__(self, *args, **kwargs):
@@ -103,42 +106,62 @@ class Test(SAFRSBase):
 
     @classproperty
     def _s_type(cls):
+        """
+            json:api type
+        """
         return cls.ja_type
 
     @classproperty
     def _s_query(cls):
+        """
+            query placeholder
+        """
         return TestQuery()
-
-    @classmethod
-    def _s_get_jsonapi_rpc_methods(cls):
-        return []
 
     @classproperty
     def _s_relationships(cls):
+        """
+            return the the relationships
+        """
         return {}
 
     @property
     def _s_jsonapi_attrs(self):
+        """
+            return the attributes kv pairs
+        """
         return {"name" : self.name , "my_custom_field" : "extra info"}
     
     @classproperty
     def _s_jsonapi_attrs(cls):
-        return {"1":1}
+        """
+            return the attribute names used to generate the swagger
+        """
         return ["name", "my_custom_field"]
-        
-    @classproperty
-    def _s_columns(cls):
-        return []
 
     @classproperty
     def _s_url(self):
+        """
+            
+        """
         return "http://tmp"
     
     @classmethod
     def get_instance(cls, id, failsafe=False):
+        """
+            return the instance specified by id
+        """
         result = Test()
         return result
 
+    @classmethod
+    def _s_get_jsonapi_rpc_methods(cls):
+        """
+            
+        """
+        return []
+
+    
 
 
 if __name__ == "__main__":
