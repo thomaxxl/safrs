@@ -295,7 +295,7 @@ class SAFRSBase(Model):
         """
             :return: list of column names
         """
-        return [c.name for c in cls.__mapper__.columns]
+        return [c.name for c in cls._s_columns]
 
     @classproperty
     def _s_columns(cls):
@@ -317,7 +317,7 @@ class SAFRSBase(Model):
         """
             :return: list of realtionship names
         """
-        rel_names = [rel.key for rel in cls.__mapper__.relationships if rel.key not in cls.exclude_rels]
+        rel_names = [rel.key for rel in cls._s_relationships]
         return rel_names
 
     @hybrid_property
@@ -333,7 +333,7 @@ class SAFRSBase(Model):
         """
             :return: list of jsonapi attribute names
             At the moment we expect the column name to be equal to the column name
-            Things will go south if this isn't thee case and we should use
+            Things will go south if this isn't the case and we should use
             the cls.__mapper__._polymorphic_properties instead
         """
         result = []

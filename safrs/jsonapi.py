@@ -3,7 +3,7 @@
   This file contains jsonapi-related flask-restful "Resource" objects:
   - SAFRSRestAPI for exposed database objects
   - SAFRSRestRelationshipAPI for exposed database relationships
-  - SAFRSJSONRPCAPI for exposed jsonapi_rpc methods
+  - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
 
   Other jsonapi-related functions are also implemented here:
   - filtering: jsonapi_filter
@@ -66,12 +66,12 @@ def jsonapi_filter(safrs_object):
 
     expressions = []
     filters = get_request_param("filters", {})
-    for col_name, val in filters.items():
-        if not col_name in safrs_object._s_column_names:
-            safrs.log.warning("Invalid Column {}".format(col_name))
+    for attr_name, val in filters.items():
+        if not attr_name in safrs_object._s_jsonapi_attrs + ['id']:
+            safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
-        column = getattr(safrs_object, col_name)
-        expressions.append((column, val))
+        attr = getattr(safrs_object, attr_name)
+        expressions.append((attr, val))
 
     if isinstance(safrs_object, (list, sqlalchemy.orm.collections.InstrumentedList)):
         # todo: filter properly
@@ -348,7 +348,7 @@ class Resource(FRSResource):
             raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
         if child_type != self.target._s_type:
             raise ValidationError(
-                "Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN
+                "Invalid type {} != {}".format(child_type, self.target.__name__), HTTPStatus.FORBIDDEN
             )
         child = self.target.get_instance(child_id)
         if not child:
@@ -378,11 +378,11 @@ class Resource(FRSResource):
         """
             :return: JSON:API fields[] swagger spec
         """
-        default_fields = cls.SAFRSObject._s_jsonapi_attrs
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs)
         # Add the fields query string swagger
         # todo: get the columns of the target
         param = {
-            "default": ",".join(default_fields),
+            "default": ",".join(attr_list),
             "type": "string",
             "name": "fields[{}]".format(cls.SAFRSObject._s_class_name),
             "in": "query",
@@ -397,10 +397,10 @@ class Resource(FRSResource):
         """
             :return: JSON:API sort swagger spec
         """
-        sort_attrs = cls.SAFRSObject._s_jsonapi_attrs
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ['id']
 
         param = {
-            "default": ",".join(sort_attrs),
+            "default": ",".join(attr_list),
             "type": "string",
             "name": "sort",
             "in": "query",
@@ -414,8 +414,11 @@ class Resource(FRSResource):
     def get_swagger_filters(cls):
         """
             :return: JSON:API filters swagger spec
+            create the filter[] swagger doc for all jsonapi attributes + the id
         """
-        for column_name in cls.SAFRSObject._s_column_names:
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ['id']
+
+        for column_name in attr_list:
             param = {
                 "default": "",
                 "type": "string",
@@ -1199,7 +1202,7 @@ class SAFRSJSONRPCAPI(Resource):
             instance = self.SAFRSObject
 
         method = getattr(instance, self.method_name, None)
-        
+
         if not method:
             # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
             raise ValidationError('Invalid method "{}"'.format(self.method_name))
@@ -1262,3 +1265,55 @@ class SAFRSJSONRPCAPI(Resource):
             response = {"meta": {"result": result}}
 
         return jsonify(response)  # 200 : default
+
+
+
+# pylint: disable=too-few-public-methods
+class SAFRSRelationship:
+    """
+        Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
+    """
+
+    _s_class_name = None
+    __name__ = "name"
+
+    @classmethod
+    def get_swagger_doc(cls, http_method):
+        """
+            Create a swagger api model based on the sqlalchemy schema
+            if an instance exists in the DB, the first entry is used as example
+        """
+        body = {}
+        responses = {}
+        object_name = cls.__name__
+
+        object_model = {}
+        responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
+
+        if http_method.upper() in ("POST", "GET"):
+            responses = {
+                str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
+                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
+            }
+
+        return body, responses
+
+    @classproperty
+    def _s_relationship_names(cls):
+        return cls._target._s_relationship_names
+
+    @classproperty
+    def _s_jsonapi_attrs(cls):
+        return cls._target._s_relationship_names
+
+    @classproperty
+    def _s_type(cls):
+        return cls._target._s_type
+
+    @classproperty
+    def _s_column_names(cls):
+        return cls._target._s_column_names
+
+    @classproperty
+    def _s_class_name(cls):
+        return cls._target.__name__

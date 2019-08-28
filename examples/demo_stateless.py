@@ -85,15 +85,15 @@ class TestQuery:
 
     def all(cls):
         return [Test(name = "name")]
-    
 
-
+from sqlalchemy.ext.hybrid import hybrid_property
 class Test(SAFRSBase):
     """
         description: Book description
     """
     id_type = TestID
     ja_type = "TestType"
+    name = 'None'
     
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
@@ -107,7 +107,6 @@ class Test(SAFRSBase):
 
     @classproperty
     def _s_query(cls):
-        print(cls)
         return TestQuery()
 
     @classmethod
@@ -115,21 +114,18 @@ class Test(SAFRSBase):
         return []
 
     @classproperty
-    def _s_relationship_names(cls):
-        return []
-
-    @classproperty
     def _s_relationships(cls):
         return {}
 
+    @property
+    def _s_jsonapi_attrs(self):
+        return {"name" : self.name , "my_custom_field" : "extra info"}
+    
     @classproperty
     def _s_jsonapi_attrs(cls):
-        return ["my_custom_field"]
-
-    @classproperty
-    def _s_column_names(cls):
-        return []
-    
+        return {"1":1}
+        return ["name", "my_custom_field"]
+        
     @classproperty
     def _s_columns(cls):
         return []
@@ -141,14 +137,6 @@ class Test(SAFRSBase):
     @classmethod
     def get_instance(cls, id, failsafe=False):
         result = Test()
-        return result
-
-    @classmethod
-    def _s_sample_id(cls):
-        return 1
-
-    def to_dict(self):
-        result = { "name" : self.name , "my_custom_field" : "extra info" }
         return result
 
 
