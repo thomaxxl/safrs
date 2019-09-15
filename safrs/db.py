@@ -17,6 +17,7 @@ from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+
 # safrs dependencies:
 import safrs
 from .swagger_doc import SchemaClassFactory, get_doc
@@ -81,7 +82,7 @@ class SAFRSBase(Model):
 
     query_limit = 50
     db_commit = True  # commit instances automatically, see also auto_commit
-    http_methods = {}  # http methods, used in case of override
+    http_methods = {"GET", "POST", "PATCH", "DELETE", "PUT"}  # http methods, used in case of override
     url_prefix = ""
     allow_client_generated_ids = False
 
@@ -302,7 +303,7 @@ class SAFRSBase(Model):
         """
             :return: list of columns
         """
-        mapper = getattr(cls,'__mapper__',None)
+        mapper = getattr(cls, "__mapper__", None)
         if mapper is None:
             return []
         return list(cls.__mapper__.columns)
@@ -696,24 +697,25 @@ class SAFRSBase(Model):
         """
         body = {}
         responses = {}
-        object_name = cls.__name__
 
-        object_model = cls._get_swagger_doc_object_model()
-        responses = {
-            HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
-            HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
-        }
-
-        if http_method == "get":
-            body = object_model
-            # responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
-
-        if http_method in ("post", "patch"):
-            # body = cls.get_swagger_doc_post_parameters()
+        if http_method in cls.http_methods:
+            object_name = cls.__name__
+            object_model = cls._get_swagger_doc_object_model()
             responses = {
                 HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
-                HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
+                HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
             }
+
+            if http_method == "get":
+                body = object_model
+                # responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
+
+            if http_method in ("post", "patch"):
+                # body = cls.get_swagger_doc_post_parameters()
+                responses = {
+                    HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
+                    HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
+                }
 
         return body, responses
 

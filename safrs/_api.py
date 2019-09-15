@@ -31,14 +31,6 @@ HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
 
 
-def get_resource_methods(resource, ordered_methods=HTTP_METHODS):
-    """
-        :return: the http methods from the SwaggerEndpoint and SAFRS Resources, in the order specified by ordered_methods
-    """
-    resource_methods = [m.lower() for m in ordered_methods if m in resource.methods]
-    return resource_methods
-
-
 # pylint: disable=protected-access,invalid-name,line-too-long,logging-format-interpolation,fixme,too-many-branches
 class Api(FRSApiBase):
     """
@@ -101,6 +93,7 @@ class Api(FRSApiBase):
         endpoint = safrs_object.get_endpoint()
 
         properties["SAFRSObject"] = safrs_object
+        properties["http_methods"] = safrs_object.http_methods
         swagger_decorator = swagger_doc(safrs_object)
 
         # Create the class and decorate it
@@ -114,7 +107,9 @@ class Api(FRSApiBase):
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
         # Expose the instances
-        safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
+        safrs.log.info(
+            "Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint)
+        )
         self.add_resource(api_class, url, endpoint=endpoint)
 
         object_doc = parse_object_doc(safrs_object)
@@ -155,6 +150,7 @@ class Api(FRSApiBase):
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties = {"SAFRSObject": safrs_object, "method_name": method_name}
+            properties["http_methods"] = safrs_object.http_methods
             api_class = api_decorator(type(api_method_class_name, (SAFRSJSONRPCAPI,), properties), swagger_decorator)
             meth_name = safrs_object._s_class_name + "." + api_method.__name__
             safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
@@ -212,6 +208,7 @@ class Api(FRSApiBase):
         )
 
         properties["SAFRSObject"] = rel_object
+        properties["http_methods"] = safrs_object.http_methods
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
         api_class = api_decorator(type(api_class_name, (SAFRSRestRelationshipAPI,), properties), swagger_decorator)
 
@@ -252,6 +249,20 @@ class Api(FRSApiBase):
             deprecated=True,
         )
 
+    @staticmethod
+    def get_resource_methods(resource, ordered_methods=HTTP_METHODS):
+        """
+            :return: the http methods from the SwaggerEndpoint and SAFRS Resources, in the order specified by ordered_methods
+        """
+        om = ordered_methods
+        try:
+            om = [m.upper() for m in resource.SAFRSObject.http_methods if m.upper() in ordered_methods]
+        except:
+            pass
+
+        resource_methods = [m.lower() for m in ordered_methods if m in resource.methods and m.upper() in om]
+        return resource_methods
+
     def add_resource(self, resource, *urls, **kwargs):
         """
             This method is partly copied from flask_restful_swagger_2/__init__.py
@@ -274,7 +285,7 @@ class Api(FRSApiBase):
         kwargs.pop("safrs_object", None)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
         deprecated = kwargs.pop("deprecated", False)  # TBD!!
-        for method in get_resource_methods(resource):
+        for method in self.get_resource_methods(resource):
             if deprecated:
                 continue
             if not method.upper() in resource_methods:
@@ -305,7 +316,7 @@ class Api(FRSApiBase):
                 # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
                 exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
 
-                for method in get_resource_methods(resource):
+                for method in self.get_resource_methods(resource):
                     if method == "post" and exposing_instance:
                         # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
                         # "A server MUST return 403 Forbidden in response to an
@@ -375,6 +386,12 @@ class Api(FRSApiBase):
                             pass
 
                 self._swagger_object["paths"][swagger_url] = path_item
+
+        # disable API methods that were not set by the SAFRSObject
+        for http_method in HTTP_METHODS:
+            hm = http_method.lower()
+            if not hm in self.get_resource_methods(resource):
+                setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
 
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 

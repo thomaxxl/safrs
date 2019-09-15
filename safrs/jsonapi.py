@@ -67,7 +67,7 @@ def jsonapi_filter(safrs_object):
     expressions = []
     filters = get_request_param("filters", {})
     for attr_name, val in filters.items():
-        if not attr_name in safrs_object._s_jsonapi_attrs + ['id']:
+        if not attr_name in safrs_object._s_jsonapi_attrs + ["id"]:
             safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
         attr = getattr(safrs_object, attr_name)
@@ -397,7 +397,7 @@ class Resource(FRSResource):
         """
             :return: JSON:API sort swagger spec
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ['id']
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ["id"]
 
         param = {
             "default": ",".join(attr_list),
@@ -416,7 +416,7 @@ class Resource(FRSResource):
             :return: JSON:API filters swagger spec
             create the filter[] swagger doc for all jsonapi attributes + the id
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ['id']
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ["id"]
 
         for column_name in attr_list:
             param = {
@@ -664,7 +664,9 @@ class SAFRSRestAPI(Resource):
         id = kwargs.get(self.object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
-            raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED)
+            raise ValidationError(
+                "POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED
+            )
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
@@ -1265,7 +1267,6 @@ class SAFRSJSONRPCAPI(Resource):
             response = {"meta": {"result": result}}
 
         return jsonify(response)  # 200 : default
-
 
 
 # pylint: disable=too-few-public-methods
