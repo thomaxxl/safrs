@@ -216,7 +216,7 @@ class SAFRSID:
             :return: a list of columns names of this id type
         """
         return [c.name for c in self.columns]
-    
+
 
 def get_id_type(cls, Super=SAFRSID):
     """
