@@ -500,6 +500,7 @@ def http_method_decorator(fun):
                 message = str(exc)
 
         safrs.DB.session.rollback()
+        safrs.log.error(message)
         errors = dict(detail=message)
         abort(status_code, errors=[errors])
 

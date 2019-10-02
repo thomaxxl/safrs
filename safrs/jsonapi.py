@@ -110,10 +110,9 @@ def jsonapi_sort(object_query, safrs_object):
                 safrs.log.error("Invalid sort column {}".format(sort_attr))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-                object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr))
-                if sort_attr.startswith("-"):
-                    # reverse it, still a bug
-                    object_query = object_query
+                object_query = sorted(
+                    list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-")
+                )
             else:
                 object_query = object_query.order_by(attr)
 
@@ -347,9 +346,7 @@ class Resource(FRSResource):
         if not child_id or not child_type:
             raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
         if child_type != self.target._s_type:
-            raise ValidationError(
-                "Invalid type {} != {}".format(child_type, self.target.__name__), HTTPStatus.FORBIDDEN
-            )
+            raise ValidationError("Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN)
         child = self.target.get_instance(child_id)
         if not child:
             raise ValidationError("invalid child id {}".format(child_id))

@@ -85,7 +85,7 @@ class SAFRSJSONEncoder(JSONEncoder):
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
         if safrs.log.getEffectiveLevel() >= logging.INFO:
             # only continue if in debug mode
-            safrs.log.warning('Unknown obj type "{}" for {}'.format(type(obj), obj))
+            safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
             return {"error": "invalid object"}
 
         return self.ghetto_encode(obj)

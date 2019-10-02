@@ -64,7 +64,6 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     "MEDIUMTEXT": "string",
     "UUID": "string",
 }
-
 #
 # SAFRSBase superclass
 #
@@ -639,6 +638,8 @@ class SAFRSBase(Model):
 
         try:
             first = cls._s_query.first()
+        except RecursionError as exc:
+            safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
         except Exception as exc:
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
         return first
