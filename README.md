@@ -81,17 +81,18 @@ You can also check the interface in the [live demo](http://thomaxxl.pythonanywhe
 
 Database objects are implemented as subclasses of the SAFRSBase and SQLAlchemy model classes. The SQLAlchemy columns are serialized to JSON when the corresponding REST API is invoked. 
 
-Following example from [demo.py](examples/demo.py) illustrates how the API is built and documented:
+Following example [app](examples/mini_app.py) illustrates how the API is built and documented:
 
 ```python
 class User(SAFRSBase, db.Model):
-    '''
+    """
         description: User description
-    '''
-    __tablename__ = 'Users'
-    id = Column(String, primary_key=True)
-    name = Column(String, default='')
-    email = Column(String, default='')
+    """
+
+    __tablename__ = "Users"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    email = db.Column(db.String)
 
 ```
 
