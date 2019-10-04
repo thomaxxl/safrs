@@ -10,12 +10,14 @@ try:  # for pip >= 10
 except ImportError:  # for pip <= 9.0.3
     from pip.req import parse_requirements
 
-install_requires = [str(ir.req) for ir in parse_requirements("requirements.txt", session=False)]
+install_requires = [
+    str(ir.req) for ir in parse_requirements("requirements.txt", session=False)
+]
 
 setup(
     name="safrs",
     packages=["safrs"],
-    version="2.5.3",
+    version="2.5.4",
     license="MIT",
     description="safrs : SqlAlchemy Flask-Restful Swagger2",
     long_description=open("README.rst").read(),
