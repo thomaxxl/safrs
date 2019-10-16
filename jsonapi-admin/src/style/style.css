@@ -4,9 +4,6 @@
 	font-size: 0.8em;
 }
 
-.dropdown-item {
-	background-color:black !important;
-}
 .btn-group {
 	width : 100%;
 }
@@ -47,6 +44,8 @@
 
 .image-popover {
 	max-width: 100%;
+	z-index : 999;
+	
 }
 
 .table th, .table td {
@@ -85,7 +84,7 @@ td.react-bootstrap-table-editing-cell input:active{
 
 
 a {
- color: red;
+ color: navy;
 }
 
 
@@ -132,4 +131,68 @@ a {
 .search {
 	/* stupid adaptation to bootstrap col-sm-12 , todo: fix*/
 	margin-right: 15px;
+}
+
+
+.active {
+	color: black;
+}
+
+.inline-images .Images{
+	padding-left: 1.2em;
+	color: #aaa;
+	font-style: italic;
+}
+
+.inline-images div {
+	display: inline-block;
+}
+
+.automat_popover {
+    width: 60em;
+    background-color: white;
+    border: none;
+
+}
+
+.analysis_summary {
+    width: 100%;
+    background-color: white;
+    border: 1px solid #ccc;
+    padding: 12px;
+    border-radius: 0.3rem;
+}
+
+.popover-bodyX {
+    background-color: white;
+
+}
+
+.popover-headerX {
+	margin: 0px;
+}
+
+.analysis_summary dl {
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  margin: 0
+}
+.analysis_summary dt {
+  float: left;
+  width: 40%;
+  /* adjust the width; make sure the total of both is 100% */
+  padding: 0;
+  margin: 0
+}
+.analysis_summary dd {
+  float: left;
+  width: 60%;
+  /* adjust the width; make sure the total of both is 100% */
+  padding: 0;
+  margin: 0
+}
+
+.InvalidImage {
+	color: red;
 }

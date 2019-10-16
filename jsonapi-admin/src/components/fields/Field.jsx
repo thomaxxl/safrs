@@ -25,6 +25,7 @@ class Field extends React.Component {
            const EditorRenderer = column.editorRenderer
            let defaultValue= this.props.value
            result = <EditorRenderer column={column} {...this.props} defaultValue={defaultValue} onChange={this.props.onChange} />
+           //result = <div>TODO</div>
            
         }
         else{

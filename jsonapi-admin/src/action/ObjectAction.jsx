@@ -8,21 +8,9 @@ export const getResponse = data => ({
     data
 });
 
-export function getJsondata(url) {
-  return (
-    ObjectApi.getJsondata(url)
-    .then((data) => {
-      return data
-    })
-    .catch((err) => {
-      return err
-    })
-  )
-}
-
 export function getAction(objectKey, offset, limit, ...queryArgs) {
-    return (dispatch) => {    
-        return ObjectApi.getAllDatas( objectKey, offset, limit, ...queryArgs )
+    return (dispatch) => {
+        return ObjectApi.getCollection( objectKey, offset, limit, ...queryArgs )
             .then(data => {
                 dispatch({...getResponse(data)});
             }).catch(error => {
@@ -31,13 +19,13 @@ export function getAction(objectKey, offset, limit, ...queryArgs) {
     };
 };
 
-export const updateExistingResponse = (rel_or_not,objectKey, change_id, dataField, BeingAddedOrEdited) => ({
+export const updateExistingResponse = (rel_or_not,objectKey, change_id, dataField, object) => ({
     type: ActionType.UPDATE_EXISTING_RESPONSE,
     objectKey:objectKey,
     rel_or_not:rel_or_not,
     dataField:dataField,
     change_id:change_id,
-    item: BeingAddedOrEdited
+    item: object
 });
 
 export const addNewResponse = data => ({
@@ -47,25 +35,23 @@ export const addNewResponse = data => ({
 
 
 
-export function saveAction(objectKey, BeingAddedOrEdited, offset, limit,dataField) {
-    // return function (dispatch) {
-    //     return ObjectApi.saveData(objectKey, BeingAddedOrEdited)
-    //         .then((data) => {
-    //             if (BeingAddedOrEdited.id) {
-    //                 dispatch(updateExistingResponse(0,objectKey, BeingAddedOrEdited.id, dataField, BeingAddedOrEdited))
-    //             } else {
-    //                 dispatch(addNewResponse())
-    //             }
-    //         }).catch(error => {
-    //             throw error
-    //         });
+export function saveAction(objectKey, object, offset, limit, dataField) {
+    return function (dispatch) {
+        return ObjectApi.saveData(objectKey, object)
+            .then((data) => {
+                if (object.id) {
+                    dispatch(updateExistingResponse(0,objectKey, object.id, dataField, object))
+                } else {
+                    dispatch(addNewResponse())
+                }
+                // dispatch(getAction(objectKey, offset, limit))
+                dispatch(getSingleResponse(data));
+                return data.id
+            }).catch(error => {
+                throw error
+            });
                 
-    // };
-    ObjectApi.saveData(objectKey, BeingAddedOrEdited)
-    return (dispatch) => {
-        dispatch(updateExistingResponse(0,objectKey, BeingAddedOrEdited.id, dataField, BeingAddedOrEdited))
-        return Promise.resolve();
-    }
+    };
 }
 
 export const updateSelectOptionResponse = (route, objectKey,data) => ({
@@ -98,9 +84,10 @@ export function updateRelationshipAction(objectKey, id, rel_name, data, offset, 
     //         })
     // };
 
+    //console.log(objectKey, id, rel_name, data)
     ObjectApi.updateRelationship(objectKey, id, rel_name, data)
     return (dispatch) => {
-        if(data.action_type === 'one') dispatch(updateExistingResponse(1,objectKey,id,rel_name,data))
+        if(data && data.action_type === 'one') dispatch(updateExistingResponse(1,objectKey,id,rel_name,data))
         else dispatch(updateExistingResponse(2,objectKey,id,rel_name,data))
         return Promise.resolve();
     }
@@ -111,10 +98,12 @@ export const getSingleResponse = data => ({
     data: data
 });
 
-export function getSingleAction(objectKey, Id) {
+export function getSingleAction(objectKey, Id, requestArgs) {
+    
     
     return (dispatch) => {
-        return ObjectApi.getData(objectKey, Id)
+        
+        return ObjectApi.getItem(objectKey, Id, requestArgs)
             .then(data => {
                 dispatch(getSingleResponse(data));
             }).catch(error => {

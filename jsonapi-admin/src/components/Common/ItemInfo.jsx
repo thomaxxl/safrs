@@ -10,19 +10,19 @@ class ItemView extends React.Component {
 
 
 class ItemInfo extends React.Component {
+    /*
+        Default ItemInfo viewer, this will be rendered if no viewer is specified for an item
+    */
 
     constructor(props) {
         super(props)
+        console.log('ItemInfo', props)
         this.state = { item: null }
 
         let item_id = this.props.match.params.itemId
         this.props.action.getSingleAction(this.props.objectKey, this.props.match.params.itemId).then(() => {
-            for (let item of this.props.api_data[this.props.objectKey].data) {
-                if (item.id === item_id) {
-                    this.setState({ item: item })
-                    break;
-                }
-            }
+            let item = this.props.api_data[this.props.objectKey].data.find(item => item.id == item_id)
+            this.setState({ item: item })
         })
     }
 
@@ -35,4 +35,4 @@ class ItemInfo extends React.Component {
     }
 }
 
-export default ItemInfo
+export {ItemInfo}

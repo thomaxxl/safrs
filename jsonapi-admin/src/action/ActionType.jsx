@@ -1,3 +1,9 @@
+/*
+https://redux.js.org/basics/actions
+
+Actions are payloads of information that send data from your application to your store. 
+They are the only source of information for the store. You send them to the store using store.dispatch().
+*/
 export const GET_MODAL_RESPONSE = 'GET_MODAL_RESPONSE';
 export const GET_FORM_RESPONSE = 'GET_FORM_RESPONSE';
 export const GET_ANALYZE_RESPONSE = 'GET_ANALYZE_RESPONSE';
@@ -14,10 +20,3 @@ export const GET_EDITOR_RESPONSE = 'GET_EDITOR_RESPONSE';
 export const START_FETCHING = 'START_FETCHING';
 export const END_FETCHING = 'END_FETCHING';
 export const SELECT_OPTION_RESPONSE = 'SELECT_OPTION_RESPONSE';
-export const SET_JSON_DATA = 'SET_JSON_DATA'
-export const CHANGE_ATTRIBUTES = 'CHANGE_ATTRIBUTES'
-export const CHANGE_RELATIONSHIP = 'CHANGE_RELATIONSHIP'
-export const CHANGE_ACTIONS = 'CHANGE_ACTIONS'
-export const CHANGE_OTHER = 'CHANGE_OTHER'
-export const SET_RELATIONSHIP_DATA_JSON = 'SET_RELATIONSHIP_DATA_JSON'
-

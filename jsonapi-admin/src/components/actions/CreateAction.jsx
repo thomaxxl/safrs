@@ -6,7 +6,7 @@ import { bindActionCreators } from 'redux'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 import Field from '../fields/Field';
 import { Form } from 'reactstrap';
-import {APP} from '../../Config'
+import {APP} from '../../Config.jsx'
 import toastr from 'toastr'
 import * as ObjectAction from '../../action/ObjectAction'
 import * as ModalAction from '../../action/ModalAction'
@@ -45,6 +45,7 @@ class CreateModal extends React.Component {
         var limit = this.props.datas[this.props.objectKey].limit;
 
         this.props.action.saveAction(this.props.objectKey, post, offset, limit)
+            .then(()=> this.props.action.getAction(this.props.objectKey, offset, limit) )
             .then(()=>{
                 toastr.success('Saved', '', {positionClass: "toast-top-center"});
             });
@@ -61,8 +62,8 @@ class CreateModal extends React.Component {
         return <Form>
                     { APP[this.props.objectKey].column.map(function(column, index) {
                             if(column.readonly || column.relationship){
-                                return <div>{column.text}</div>
-                                // return <div/>
+                                //return <div>{column.text}</div>
+                                return <div/>
                             }
                             return (<Field 
                                     key={index} 
@@ -85,7 +86,7 @@ class CreateModal extends React.Component {
                     </ModalBody>
                     <ModalFooter>
                         <Button color="primary" onClick={this.create}>Create</Button>
-                        <Button color="secondary" onClick={this.toggle}>Cancel</Button>
+                        
                     </ModalFooter>
                 </Modal>
     }

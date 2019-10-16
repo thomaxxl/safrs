@@ -22,7 +22,7 @@ class DeleteAction extends BaseAction{
             var limit = this.props.datas[this.props.objectKey].limit;
             parent.props.action.deleteAction(parent.props.objectKey, parent.state.selectedIds, offset, limit)
                 .then(()=>{
-                    toastr.warning('Deleted', '', {positionClass: "toast-top-center"});
+                    toastr.info('Deleted', '', {positionClass: "toast-top-center"});
                 });
                 parent.state.selectedIds = [];
         }

@@ -9,7 +9,7 @@ import Field from '../fields/Field';
 import { faCog, faTrashAlt, faCoffee, faBullseye, faPlay, faSearchEngin, faEdit, faInfo  } from '@fortawesome/fontawesome-free-solid'
 import FontAwesomeIcon from '@fortawesome/react-fontawesome'
 import toastr from 'toastr'
-import Config from '../../Config'
+import {Config} from '../../Config.jsx'
 
 class CustomModal extends React.Component {    
     

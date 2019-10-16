@@ -6,7 +6,7 @@ import BaseAction from './BaseAction'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 import Field from '../fields/Field';
 import { Form } from 'reactstrap';
-import { APP } from '../../Config'
+import { APP } from '../../Config.jsx'
 import toastr from 'toastr'
 import { faPencilAlt  } from '@fortawesome/fontawesome-free-solid'
 import FontAwesomeIcon from '@fortawesome/react-fontawesome'
@@ -59,6 +59,7 @@ class EditModal extends React.Component {
 
     renderAttributes(){
         let data = this.props.formdata.attributes
+        console.log(APP)
         return <Form>
                     { APP[this.props.objectKey].column.map(function(item, index) {
                             if( !data || item.dataField === undefined ){
