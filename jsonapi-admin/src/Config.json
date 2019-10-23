@@ -1,71 +1,45 @@
-# jsonapi-admin
-
-[LIVE DEMO](http://thomaxxl.pythonanywhere.com/ja/index.html#/)
-
-(beta) reactjs+redux CRUD frontend for [jsonapi](http://jsonapi.org) backend
-
-## Installation
-
-```
-git clone https://github.com/thomaxxl/jsonapi-admin
-cd jsonapi-admin
-npm install
-npm start
-```
-
-## Configuration
-
-Interface configuration is declared in [src/Config.js](src/Config.js) (Modify this file to customize the app)
-
-```javascript
-const BaseUrl = 'http://thomaxxl.pythonanywhere.com'
-```
-
-and [src/Config.json](src/Config.json)
-
-```javascript
 {
   "People": {
     "column": [
       {
         "text": "Name",
         "dataField": "name",
-        "type": "text",
-        "plaintext": "Name"
+        "type": "text"
       },
       {
         "text": "Email",
-        "dataField": "email",
-        "plaintext": "Email"
+        "dataField" : "email"
       },
       {
         "text": "Comment",
-        "dataField": "comment",
-        "plaintext": "Comment"
+        "dataField": "comment"
       },
       {
-        "text": "Books_read",
-        "dataField": "books_read",
+        "text":"Books_read",
+        "dataField":"books_read",
         "relation_url": "books_read",
-        "type": "text",
-        "relationship": "Books",
-        "plaintext": "Books_read"
+        "type":"text",
+        "formatter" : "toManyFormatter",
+        "relationship" : "Books",
+        "editorRenderer" : "ToManyRelationshipEditor"
       },
       {
-        "text": "Books_written",
-        "dataField": "books_written",
+        "text":"Books_written",
+        "dataField":"books_written",
         "relation_url": "books_written",
-        "type": "text",
-        "relationship": "books_written",
-        "plaintext": "Books_written"
+        "type":"text",
+        "formatter" : "toManyFormatter",
+        "relationship" : "books_written",
+        "editorRenderer" : "ToManyRelationshipEditor"
       },
       {
-        "text": "Reviews",
-        "dataField": "reviews",
+        "text":"Reviews",
+        "dataField":"reviews",
         "relation_url": "reviews",
-        "type": "text",
-        "relationship": "Reviews",
-        "plaintext": "Reviews"
+        "type":"text",
+        "formatter" : "toManyFormatter",
+        "relationship" : "Reviews",
+        "editorRenderer" : "ToManyRelationshipEditor"
       }
     ],
     "actions": [
@@ -74,16 +48,13 @@ and [src/Config.json](src/Config.json)
       "DeleteAction",
       "CustomAction"
     ],
+    "main_show":"name",
+    "path": "/people",
     "API": "People",
     "API_TYPE": "User",
-    "path": "/people",
     "menu": "People",
     "Title": "People",
-    "main_show": "name",
-    "request_args": {
-      "include": "books_read,books_written,reviews",
-      "sort": "name"
-    }
+    "request_args" : { "include" : "books_read,books_written,reviews", "sort" : "name" }
   },
   "Books": {
     "column": [
@@ -92,40 +63,43 @@ and [src/Config.json](src/Config.json)
         "dataField": "title",
         "type": "text",
         "placeholder": "Title name.",
-        "sort": true,
-        "plaintext": "Title"
+        "sort": true
       },
       {
         "text": "Author",
         "dataField": "author_id",
         "relation_url": "author",
         "type": "text",
-        "relationship": "People",
-        "plaintext": "Author"
+        "formatter" : "toOneFormatter",
+        "relationship" : "People",
+        "editorRenderer" : "toOneEditor"
       },
       {
         "text": "Publisher",
         "dataField": "publisher_id",
         "relation_url": "publisher",
         "type": "text",
-        "relationship": "Publishers",
-        "plaintext": "Publisher"
+        "formatter" : "toOneFormatter",
+        "relationship" : "Publishers",
+        "editorRenderer" : "toOneEditor"
       },
       {
         "text": "Reader",
         "dataField": "reader_id",
         "relation_url": "reader",
         "type": "text",
-        "relationship": "People",
-        "plaintext": "Reader"
+        "formatter" : "toOneFormatter",
+        "relationship" : "People",
+        "editorRenderer" : "toOneEditor"
       },
       {
-        "text": "Reviews",
-        "dataField": "reviews",
+        "text":"Reviews",
+        "dataField":"reviews",
         "relation_url": "reviews",
-        "type": "text",
-        "relationship": "Reviews",
-        "plaintext": "Reviews"
+        "type":"text",
+        "formatter" : "toManyFormatter",
+        "relationship" : "Reviews",
+        "editorRenderer" : "ToManyRelationshipEditor"
       }
     ],
     "actions": [
@@ -134,15 +108,13 @@ and [src/Config.json](src/Config.json)
       "DeleteAction",
       "InfoAction"
     ],
+    "main_show":"title",
+    "path": "/books",
     "API": "Books",
     "API_TYPE": "Book",
-    "path": "/books",
     "menu": "Books",
     "Title": "Books",
-    "main_show": "title",
-    "request_args": {
-      "include": "reader,author,publisher,reviews"
-    }
+    "request_args" : { "include" : "reader,author,publisher,reviews" }
   },
   "Reviews": {
     "column": [
@@ -151,24 +123,25 @@ and [src/Config.json](src/Config.json)
         "dataField": "review",
         "type": "text",
         "placeholder": "Type review.",
-        "sort": true,
-        "plaintext": "Review"
+        "sort": true
       },
       {
         "text": "Person",
         "dataField": "reader_id",
         "relation_url": "person",
         "type": "text",
-        "relationship": "People",
-        "plaintext": "Person"
+        "formatter" : "toOneFormatter",
+        "relationship" : "People",
+        "editorRenderer" : "toOneEditor"
       },
       {
         "text": "Book",
         "dataField": "book_id",
         "relation_url": "book",
         "type": "text",
-        "relationship": "Books",
-        "plaintext": "Book"
+        "formatter" : "toOneFormatter",
+        "relationship" : "Books",
+        "editorRenderer" : "toOneEditor"
       }
     ],
     "actions": [
@@ -177,33 +150,31 @@ and [src/Config.json](src/Config.json)
       "DeleteAction",
       "InfoAction"
     ],
+    "main_show":"review",
+    "path": "/reviews",
     "API": "Reviews",
     "API_TYPE": "Review",
-    "path": "/reviews",
     "menu": "Reviews",
     "Title": "Reviews",
-    "main_show": "review",
-    "request_args": {
-      "include": "person,book"
-    }
+    "request_args" : { "include" : "person,book" }
   },
-  "Publishers": {
+  "Publishers":{
     "column": [
       {
         "text": "Name",
         "dataField": "name",
         "type": "text",
         "placeholder": "Type name.",
-        "sort": true,
-        "plaintext": "Name"
+        "sort": true
       },
       {
-        "text": "Books",
-        "dataField": "books",
+        "text":"Books",
+        "dataField":"books",
         "relation_url": "books",
-        "type": "text",
-        "relationship": "Books",
-        "plaintext": "Books"
+        "type":"text",
+        "formatter" : "toManyFormatter",
+        "relationship" : "Books",
+        "editorRenderer" : "ToManyRelationshipEditor"
       }
     ],
     "actions": [
@@ -212,15 +183,12 @@ and [src/Config.json](src/Config.json)
       "DeleteAction",
       "InfoAction"
     ],
+    "main_show":"name",
+    "path": "/publishers",
     "API": "Publishers",
     "API_TYPE": "Publisher",
-    "path": "/publishers",
     "menu": "Publishers",
     "Title": "Publishers",
-    "main_show": "name",
-    "request_args": {
-      "include": "books"
-    }
+    "request_args" : { "include" : "books" }
   }
 }
-```
