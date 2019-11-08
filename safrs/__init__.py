@@ -25,7 +25,6 @@ from .errors import ValidationError, GenericError
 
 DB = SQLAlchemy()
 
-
 def test_decorator(func):
     """ Example flask-restful decorator that can be used in the "decorators" Api argument
         cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
