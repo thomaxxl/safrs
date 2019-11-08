@@ -1,3 +1,0 @@
-jsonapi_requests
-pytest
-flask-admin
