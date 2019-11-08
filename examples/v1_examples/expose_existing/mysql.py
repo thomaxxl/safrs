@@ -106,9 +106,7 @@ class EngineCost(SAFRSBase, Base):
     device_type = Column(INTEGER(11), primary_key=True, nullable=False)
     cost_name = Column(String(64), primary_key=True, nullable=False)
     cost_value = Column(Float)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
     comment = Column(String(1024))
 
 
@@ -177,12 +175,7 @@ t_general_log = Table(
     # Column('event_time', TIMESTAMP(fsp=6), nullable=False, server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)")),
     #
     # MANUAL EDIT:
-    Column(
-        "event_time",
-        TIMESTAMP,
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)"),
-    ),
+    Column("event_time", TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)")),
     Column("user_host", MEDIUMTEXT, nullable=False),
     Column("thread_id", BIGINT(21), nullable=False),
     Column("server_id", INTEGER(10), nullable=False),
@@ -239,9 +232,7 @@ class InnodbIndexStat(SAFRSBase, Base):
     database_name = Column(String(64, "utf8_bin"), primary_key=True, nullable=False)
     table_name = Column(String(64, "utf8_bin"), primary_key=True, nullable=False)
     index_name = Column(String(64, "utf8_bin"), primary_key=True, nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
     stat_name = Column(String(64, "utf8_bin"), primary_key=True, nullable=False)
     stat_value = Column(BIGINT(20), nullable=False)
     sample_size = Column(BIGINT(20))
@@ -253,9 +244,7 @@ class InnodbTableStat(SAFRSBase, Base):
 
     database_name = Column(String(64, "utf8_bin"), primary_key=True, nullable=False)
     table_name = Column(String(64, "utf8_bin"), primary_key=True, nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
     n_rows = Column(BIGINT(20), nullable=False)
     clustered_index_size = Column(BIGINT(20), nullable=False)
     sum_of_other_index_sizes = Column(BIGINT(20), nullable=False)
@@ -294,9 +283,7 @@ class Proc(SAFRSBase, Base):
     specific_name = Column(CHAR(64), nullable=False, server_default=text("''"))
     language = Column(Enum("SQL"), nullable=False, server_default=text("'SQL'"))
     sql_data_access = Column(
-        Enum("CONTAINS_SQL", "NO_SQL", "READS_SQL_DATA", "MODIFIES_SQL_DATA"),
-        nullable=False,
-        server_default=text("'CONTAINS_SQL'"),
+        Enum("CONTAINS_SQL", "NO_SQL", "READS_SQL_DATA", "MODIFIES_SQL_DATA"), nullable=False, server_default=text("'CONTAINS_SQL'")
     )
     is_deterministic = Column(Enum("YES", "NO"), nullable=False, server_default=text("'NO'"))
     security_type = Column(Enum("INVOKER", "DEFINER"), nullable=False, server_default=text("'DEFINER'"))
@@ -344,9 +331,7 @@ class ServerCost(SAFRSBase, Base):
 
     cost_name = Column(String(64), primary_key=True)
     cost_value = Column(Float)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
     comment = Column(String(1024))
 
 
@@ -432,12 +417,7 @@ t_slow_log = Table(
     # Column('start_time', TIMESTAMP(fsp=6), nullable=False, server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)")),
     #
     # Manual Edit:
-    Column(
-        "start_time",
-        TIMESTAMP,
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)"),
-    ),
+    Column("start_time", TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)")),
     Column("user_host", MEDIUMTEXT, nullable=False),
     Column("query_time", TIME(fsp=6), nullable=False),
     Column("lock_time", TIME(fsp=6), nullable=False),

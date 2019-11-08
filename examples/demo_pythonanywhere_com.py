@@ -76,7 +76,7 @@ class Person(SAFRSBase, db.Model):
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
-    
+
     password = db.Column(db.Text, default="")
     exclude_attrs = ["password"]
 
@@ -218,16 +218,9 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 OAS_PREFIX = "/api"  # swagger location
 app = Flask("SAFRS Demo App", template_folder="/home/thomaxxl/mysite/templates")
 app.secret_key = "not so secret"
-CORS(
-    app,
-    origins="*",
-    allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-    supports_credentials=True,
-)
+CORS(app, origins="*", allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"], supports_credentials=True)
 
-app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True
-)  # DEBUG will also show safrs log messages + exception messages
+app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
 
 
 @app.route("/ja")  # React jsonapi frontend

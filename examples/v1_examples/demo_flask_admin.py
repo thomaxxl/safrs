@@ -82,12 +82,7 @@ if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
     PORT = 5000
     app = Flask("SAFRS Demo Application")
-    CORS(
-        app,
-        origins="*",
-        allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-        supports_credentials=True,
-    )
+    CORS(app, origins="*", allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"], supports_credentials=True)
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True, SECRET_KEY="secret")
     db.init_app(app)
     db.app = app

@@ -52,11 +52,11 @@ class Book(SAFRSBase, db.Model):
 from safrs.util import classproperty
 from collections import namedtuple
 
-class TestID:
 
+class TestID:
     @classmethod
     def get_pks(self, *args):
-        return {"PK" : "pk_val"}
+        return {"PK": "pk_val"}
 
     @classproperty
     def column_names(cls):
@@ -67,9 +67,8 @@ class TestID:
 
 
 class TestQuery:
-
     def first(cls):
-        return Test(name = "name 0")
+        return Test(name="name 0")
 
     def filter_by(cls, *args, **kwargs):
         return cls
@@ -84,21 +83,25 @@ class TestQuery:
         return cls
 
     def all(cls):
-        return [Test(name = "name")]
+        return [Test(name="name")]
 
     def order_by(cls, attr_name):
         return cls
 
+
 from sqlalchemy.ext.hybrid import hybrid_property
+
+
 class Test(SAFRSBase):
     """
         description: Book description
     """
+
     id_type = TestID
     ja_type = "TestType"
-    name = 'None'
+    name = "None"
     my_custom_field = ""
-    
+
     def __new__(cls, *args, **kwargs):
         """
             override SAFRSBase.__new__
@@ -134,8 +137,8 @@ class Test(SAFRSBase):
         """
             return the attributes kv pairs
         """
-        return {"name" : self.name , "my_custom_field" : self.my_custom_field}
-    
+        return {"name": self.name, "my_custom_field": self.my_custom_field}
+
     @classproperty
     def _s_jsonapi_attrs(cls):
         """
@@ -149,7 +152,7 @@ class Test(SAFRSBase):
             
         """
         return "http://tmp"
-    
+
     @classmethod
     def get_instance(cls, id, failsafe=False):
         """
@@ -165,8 +168,6 @@ class Test(SAFRSBase):
         """
         return []
 
-    
-
 
 if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
@@ -181,7 +182,7 @@ if __name__ == "__main__":
 
     with app.app_context():
         # Create a user and a book and add the book to the user.books relationship
-        
+
         user = User(name="thomas", email="em@il")
         book = Book(name="test_book")
         user.books.append(book)

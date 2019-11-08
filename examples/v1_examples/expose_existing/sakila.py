@@ -47,9 +47,7 @@ class Actor(SAFRSBase, Base):
     actor_id = Column(SMALLINT(5), primary_key=True)
     first_name = Column(String(45), nullable=False)
     last_name = Column(String(45), nullable=False, index=True)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
 
 t_actor_info = Table(
@@ -73,9 +71,7 @@ class Addres(SAFRSBase, Base):
     postal_code = Column(String(10))
     phone = Column(String(20), nullable=False)
     location = Column(NullType, nullable=False, index=True)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     city = relationship("City")
 
@@ -85,9 +81,7 @@ class Category(SAFRSBase, Base):
 
     category_id = Column(TINYINT(3), primary_key=True)
     name = Column(String(25), nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
 
 class City(SAFRSBase, Base):
@@ -96,9 +90,7 @@ class City(SAFRSBase, Base):
     city_id = Column(SMALLINT(5), primary_key=True)
     city = Column(String(50), nullable=False)
     country_id = Column(ForeignKey("country.country_id", onupdate="CASCADE"), nullable=False, index=True)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     country = relationship("Country")
 
@@ -108,9 +100,7 @@ class Country(SAFRSBase, Base):
 
     country_id = Column(SMALLINT(5), primary_key=True)
     country = Column(String(50), nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
 
 class Customer(SAFRSBase, Base):
@@ -124,9 +114,7 @@ class Customer(SAFRSBase, Base):
     address_id = Column(ForeignKey("address.address_id", onupdate="CASCADE"), nullable=False, index=True)
     active = Column(TINYINT(1), nullable=False, server_default=text("'1'"))
     create_date = Column(DateTime, nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     address = relationship("Addres")
     store = relationship("Store")
@@ -162,9 +150,7 @@ class Film(SAFRSBase, Base):
     replacement_cost = Column(DECIMAL(5, 2), nullable=False, server_default=text("'19.99'"))
     rating = Column(Enum("G", "PG", "PG-13", "R", "NC-17"), server_default=text("'G'"))
     special_features = Column(SET)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     language = relationship("Language", primaryjoin="Film.language_id == Language.language_id")
     original_language = relationship("Language", primaryjoin="Film.original_language_id == Language.language_id")
@@ -175,9 +161,7 @@ class FilmActor(SAFRSBase, Base):
 
     actor_id = Column(ForeignKey("actor.actor_id", onupdate="CASCADE"), primary_key=True, nullable=False)
     film_id = Column(ForeignKey("film.film_id", onupdate="CASCADE"), primary_key=True, nullable=False, index=True)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     actor = relationship("Actor")
     film = relationship("Film")
@@ -187,12 +171,8 @@ class FilmCategory(SAFRSBase, Base):
     __tablename__ = "film_category"
 
     film_id = Column(ForeignKey("film.film_id", onupdate="CASCADE"), primary_key=True, nullable=False)
-    category_id = Column(
-        ForeignKey("category.category_id", onupdate="CASCADE"), primary_key=True, nullable=False, index=True
-    )
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    category_id = Column(ForeignKey("category.category_id", onupdate="CASCADE"), primary_key=True, nullable=False, index=True)
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     category = relationship("Category")
     film = relationship("Film")
@@ -228,9 +208,7 @@ class Inventory(SAFRSBase, Base):
     inventory_id = Column(MEDIUMINT(8), primary_key=True)
     film_id = Column(ForeignKey("film.film_id", onupdate="CASCADE"), nullable=False, index=True)
     store_id = Column(ForeignKey("store.store_id", onupdate="CASCADE"), nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     film = relationship("Film")
     store = relationship("Store")
@@ -241,9 +219,7 @@ class Language(SAFRSBase, Base):
 
     language_id = Column(TINYINT(3), primary_key=True)
     name = Column(CHAR(20), nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
 
 t_nicer_but_slower_film_list = Table(
@@ -269,9 +245,7 @@ class Payment(SAFRSBase, Base):
     rental_id = Column(ForeignKey("rental.rental_id", ondelete="SET NULL", onupdate="CASCADE"), index=True)
     amount = Column(DECIMAL(5, 2), nullable=False)
     payment_date = Column(DateTime, nullable=False)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     customer = relationship("Customer")
     rental = relationship("Rental")
@@ -288,26 +262,18 @@ class Rental(SAFRSBase, Base):
     customer_id = Column(ForeignKey("customer.customer_id", onupdate="CASCADE"), nullable=False, index=True)
     return_date = Column(DateTime)
     staff_id = Column(ForeignKey("staff.staff_id", onupdate="CASCADE"), nullable=False, index=True)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     customer = relationship("Customer")
     inventory = relationship("Inventory")
     staff = relationship("Staff")
 
 
-t_sales_by_film_category = Table(
-    "sales_by_film_category", metadata, Column("category", String(25)), Column("total_sales", DECIMAL(27, 2))
-)
+t_sales_by_film_category = Table("sales_by_film_category", metadata, Column("category", String(25)), Column("total_sales", DECIMAL(27, 2)))
 
 
 t_sales_by_store = Table(
-    "sales_by_store",
-    metadata,
-    Column("store", String(101)),
-    Column("manager", String(91)),
-    Column("total_sales", DECIMAL(27, 2)),
+    "sales_by_store", metadata, Column("store", String(101)), Column("manager", String(91)), Column("total_sales", DECIMAL(27, 2))
 )
 
 
@@ -324,9 +290,7 @@ class Staff(SAFRSBase, Base):
     active = Column(TINYINT(1), nullable=False, server_default=text("'1'"))
     username = Column(String(16), nullable=False)
     password = Column(VARCHAR(40))
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     address = relationship("Addres")
     store = relationship("Store", primaryjoin="Staff.store_id == Store.store_id")
@@ -352,9 +316,7 @@ class Store(SAFRSBase, Base):
     store_id = Column(TINYINT(3), primary_key=True)
     manager_staff_id = Column(ForeignKey("staff.staff_id", onupdate="CASCADE"), nullable=False, unique=True)
     address_id = Column(ForeignKey("address.address_id", onupdate="CASCADE"), nullable=False, index=True)
-    last_update = Column(
-        TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    )
+    last_update = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     address = relationship("Addres")
     manager_staff = relationship("Staff", primaryjoin="Store.manager_staff_id == Staff.staff_id")

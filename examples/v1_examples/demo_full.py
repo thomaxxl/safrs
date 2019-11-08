@@ -40,12 +40,7 @@ SAFRSBase.startswith = startswith
 
 app = Flask("SAFRS Demo App", template_folder="examples/templates")
 app.secret_key = "not so secret"
-CORS(
-    app,
-    origins="*",
-    allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-    supports_credentials=True,
-)
+CORS(app, origins="*", allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"], supports_credentials=True)
 
 app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True, CSRF_SECRET_KEY=b"qsdffrhovdbjkxcwbuisidf")
 app.url_map.strict_slashes = False
@@ -316,9 +311,7 @@ def start_api(HOST="0.0.0.0", PORT=80):
         db.session.add(user)
         db.session.commit()
 
-        api = Api(
-            app, api_spec_url="/api/swagger", host="{}:{}".format(HOST, PORT), schemes=["http"], description=description
-        )
+        api = Api(app, api_spec_url="/api/swagger", host="{}:{}".format(HOST, PORT), schemes=["http"], description=description)
 
         # Flask-Admin Config
         admin = Admin(app, url="/admin", index_view=MyAdminIndexView(), base_template="my_master.html")

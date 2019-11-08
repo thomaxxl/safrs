@@ -15,6 +15,7 @@ class User(SAFRSBase, db.Model):
     """
         description: User description
     """
+
     __tablename__ = "Users"
     http_methods = ["get"]
     exclude_rels = ["books"]

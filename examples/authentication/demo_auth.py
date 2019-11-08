@@ -84,9 +84,7 @@ class User(SAFRSBase, db.Model):
 def start_app(app):
 
     OAS_PREFIX = "/api"  # swagger location
-    api = SAFRSAPI(
-        app, host="{}:{}".format(HOST, PORT), schemes=["http"], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX + "/swagger"
-    )
+    api = SAFRSAPI(app, host="{}:{}".format(HOST, PORT), schemes=["http"], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX + "/swagger")
 
     api.expose_object(Item)
     api.expose_object(User)

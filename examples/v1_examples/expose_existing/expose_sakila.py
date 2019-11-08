@@ -4,21 +4,7 @@
 # The db models are described in sakila.py
 #
 import sys, logging, inspect, builtins
-from sqlalchemy import (
-    CHAR,
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    TIMESTAMP,
-    Table,
-    Text,
-    UniqueConstraint,
-    text,
-)
+from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
