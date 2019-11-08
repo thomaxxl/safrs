@@ -304,13 +304,7 @@ def swagger_doc(cls, tags=None):
         collection_name = cls._s_collection_name
         http_method = func.__name__.lower()
         parameters = [
-            {
-                "name": cls.object_id,  # parameter id, e.g. UserId
-                "in": "path",
-                "type": "string",
-                "default": default_id,
-                "required": True,
-            },
+            {"name": cls.object_id, "in": "path", "type": "string", "default": default_id, "required": True},  # parameter id, e.g. UserId
             {
                 "name": "Content-Type",  # parameter id, e.g. UserId
                 "in": "header",
@@ -568,26 +562,16 @@ def swagger_method_doc(cls, method_name, tags=None):
                 ]
         else:
             # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
-            parameters, fields, description, method = get_swagger_doc_arguments(
-                cls, method_name, http_method=func.__name__
-            )
+            parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
             model_name = "{}_{}_{}".format(func.__name__, cls.__name__, method_name)
             param_model = SchemaClassFactory(model_name, fields)
 
-            parameters.append(
-                {"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True}
-            )
+            parameters.append({"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True})
 
         # URL Path Parameter
         default_id = cls._s_sample_id()
         parameters.append(
-            {
-                "name": cls.object_id,  # parameter id, e.g. UserId
-                "in": "path",
-                "type": "string",
-                "default": default_id,
-                "required": True,
-            }
+            {"name": cls.object_id, "in": "path", "type": "string", "default": default_id, "required": True}  # parameter id, e.g. UserId
         )
         doc["parameters"] = parameters
         doc["produces"] = ["application/vnd.api+json"]

@@ -101,9 +101,7 @@ class SAFRS:
     CLASSMETHOD_URL_FMT = None
     RELATIONSHIP_URL_FMT = None
     ENDPOINT_FMT = None
-    MAX_TABLE_COUNT = (
-        10 ** 7
-    )  # table counts will become really slow for large tables, inform the user about it using this
+    MAX_TABLE_COUNT = 10 ** 7  # table counts will become really slow for large tables, inform the user about it using this
 
     #
     config = {}
@@ -127,9 +125,7 @@ class SAFRS:
         swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
         if swaggerui_blueprint is None:
             swaggerui_blueprint = get_swaggerui_blueprint(
-                prefix,
-                "{}/swagger.json".format(prefix),
-                config={"docExpansion": "none", "defaultModelsExpandDepth": -1},
+                prefix, "{}/swagger.json".format(prefix), config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder

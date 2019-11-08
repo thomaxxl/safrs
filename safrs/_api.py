@@ -107,9 +107,7 @@ class Api(FRSApiBase):
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
         # Expose the instances
-        safrs.log.info(
-            "Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint)
-        )
+        safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint)
 
         object_doc = parse_object_doc(safrs_object)
@@ -142,9 +140,7 @@ class Api(FRSApiBase):
             else:
                 # expose the method at the instance level
                 INSTANCEMETHOD_URL_FMT = get_config("INSTANCEMETHOD_URL_FMT")
-                url = INSTANCEMETHOD_URL_FMT.format(
-                    url_prefix, safrs_object._s_collection_name, safrs_object.object_id, method_name
-                )
+                url = INSTANCEMETHOD_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.object_id, method_name)
 
             ENDPOINT_FMT = get_config("ENDPOINT_FMT")
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
@@ -241,12 +237,7 @@ class Api(FRSApiBase):
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
 
         self.add_resource(
-            api_class,
-            url,
-            relationship=rel_object.relationship,
-            endpoint=endpoint,
-            methods=["GET", "DELETE"],
-            deprecated=True,
+            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True
         )
 
     @staticmethod
@@ -359,10 +350,7 @@ class Api(FRSApiBase):
 
                             parameters += list(resource.get_swagger_filters())
 
-                        if (
-                            not (parameter.get("in") == "path" and not object_id in swagger_url)
-                            and parameter not in parameters
-                        ):
+                        if not (parameter.get("in") == "path" and not object_id in swagger_url) and parameter not in parameters:
                             # Only if a path param is in path url then we add the param
                             parameters.append(parameter)
 
@@ -378,9 +366,7 @@ class Api(FRSApiBase):
                         # If no {id} was provided, we return a list of all the objects
                         # pylint: disable=bad-format-string
                         try:
-                            method_doc["description"] += " list (See GET /{{} for details)".format(
-                                SAFRS_INSTANCE_SUFFIX
-                            )
+                            method_doc["description"] += " list (See GET /{{} for details)".format(SAFRS_INSTANCE_SUFFIX)
                             method_doc["responses"]["200"]["schema"] = ""
                         except:
                             pass
@@ -420,9 +406,7 @@ def api_decorator(cls, swagger_decorator):
     """
 
     cors_domain = get_config("cors_domain")
-    cls.http_methods = (
-        {}
-    )  # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
+    cls.http_methods = {}  # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
     for method_name in ["get", "post", "delete", "patch", "put", "options"]:  # HTTP methods
         method = getattr(cls, method_name, None)
         if not method:
@@ -444,9 +428,7 @@ def api_decorator(cls, swagger_decorator):
             decorated_method = swagger_decorator(decorated_method)
         except RecursionError:
             # Got this error when exposing WP DB, TODO: investigate where it comes from
-            safrs.log.error(
-                "Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method)
-            )
+            safrs.log.error("Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method))
         # pylint: disable=broad-except
         except Exception as exc:
             safrs.log.exception(exc)

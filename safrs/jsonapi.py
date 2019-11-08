@@ -150,8 +150,7 @@ def paginate(object_query, SAFRSObject=None):
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ""
         result += "?" + "&".join(
-            ["{}={}".format(k, v) for k, v in request.args.items()]
-            + ["page[offset]={}&page[limit]={}".format(count, limit)]
+            ["{}={}".format(k, v) for k, v in request.args.items()] + ["page[offset]={}&page[limit]={}".format(count, limit)]
         )
         return result
 
@@ -277,9 +276,7 @@ def get_included(data, limit, include="", level=0):
                 result = result.union(included)
             except Exception as exc:
                 safrs.log.critical(
-                    "Failed to add included for {} (included: {} - {}): {}".format(
-                        relationship, type(included), included, exc
-                    )
+                    "Failed to add included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc)
                 )
                 result.add(included)
 
@@ -356,9 +353,7 @@ class Resource(FRSResource):
         if not child_type:
             raise ValidationError("Invalid type in data", HTTPStatus.FORBIDDEN)
         if child_type != self.target._s_type:
-            raise ValidationError(
-                "Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN
-            )
+            raise ValidationError("Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN)
         child = self.target.get_instance(child_id)
         if not child:
             raise ValidationError("invalid child id {}".format(child_id))
@@ -673,9 +668,7 @@ class SAFRSRestAPI(Resource):
         id = kwargs.get(self.object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
-            raise ValidationError(
-                "POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED
-            )
+            raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
@@ -696,9 +689,7 @@ class SAFRSRestAPI(Resource):
 
         # remove attributes that have relationship names
         attributes = {
-            attr_name: attributes[attr_name]
-            for attr_name in attributes
-            if attr_name not in self.SAFRSObject._s_relationship_names
+            attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in self.SAFRSObject._s_relationship_names
         }
 
         if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
@@ -990,9 +981,7 @@ class SAFRSRestRelationshipAPI(Resource):
             setattr(parent, self.rel_name, None)
         else:
             raise ValidationError(
-                'Invalid data object type "{}" for this "{}"" relationship'.format(
-                    type(data), self.SAFRSObject.relationship.direction
-                )
+                'Invalid data object type "{}" for this "{}"" relationship'.format(type(data), self.SAFRSObject.relationship.direction)
             )
 
         if data is None:

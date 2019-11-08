@@ -21,12 +21,10 @@ def search(cls, **kwargs):
     response = SAFRSFormattedResponse()
     if ":" in query:
         column_name, value = query.split(":")
-        result = cls.query.filter(
-            or_(column.like("%" + value + "%") for column in cls._s_columns if column.name == column_name)
-        )
+        result = cls.query.filter(or_(column.like("%" + value + "%") for column in cls._s_columns if column.name == column_name))
     else:
         result = cls.query.filter(or_(column.like("%" + query + "%") for column in cls._s_columns))
-    instances = jsonapi_sort(result,cls)
+    instances = jsonapi_sort(result, cls)
     links, instances, count = paginate(instances)
     data = [item for item in instances]
     meta = {}

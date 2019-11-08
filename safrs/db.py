@@ -382,8 +382,8 @@ class SAFRSBase(Model):
             we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
             This may cause other errors too, for ex when sorting
         """
-        
-        #safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
+
+        # safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
@@ -546,9 +546,7 @@ class SAFRSBase(Model):
                             count = rel_query.count()
                             rel_query = rel_query.limit(limit)
                             if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
-                                warning = 'Truncated result for relationship "{}",consider paginating this request'.format(
-                                    rel_name
-                                )
+                                warning = 'Truncated result for relationship "{}",consider paginating this request'.format(rel_name)
                                 safrs.log.warning(warning)
                                 meta["warning"] = warning
                             items = rel_query.all()
@@ -559,11 +557,7 @@ class SAFRSBase(Model):
                         meta["limit"] = limit
                         data = [{"id": i.jsonapi_id, "type": i._s_type} for i in items]
                 else:  # shouldn't happen!!
-                    safrs.log.error(
-                        "Unknown relationship direction for relationship {}: {}".format(
-                            rel_name, relationship.direction
-                        )
-                    )
+                    safrs.log.error("Unknown relationship direction for relationship {}: {}".format(rel_name, relationship.direction))
                 # add the relationship direction, for debugging purposes.
                 if safrs.log.getEffectiveLevel() < logging.INFO:
                     # meta["direction"] = relationship.direction.name
@@ -588,13 +582,7 @@ class SAFRSBase(Model):
             for unwanted_key in unwanted:
                 attributes.pop(unwanted_key, None)
 
-        data = dict(
-            attributes=attributes,
-            id=self.jsonapi_id,
-            links={"self": self_link},
-            type=self._s_type,
-            relationships=relationships,
-        )
+        data = dict(attributes=attributes, id=self.jsonapi_id, links={"self": self_link}, type=self._s_type, relationships=relationships)
 
         return data
 
