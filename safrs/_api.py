@@ -476,7 +476,7 @@ def http_method_decorator(fun):
         except Exception as exc:
             status_code = getattr(exc, "status_code", 500)
             traceback.print_exc()
-            safrs.log.error(exc.message)
+            safrs.log.error(exc)
             if safrs.log.getEffectiveLevel() > logging.DEBUG:
                 message = "Logging Disabled"
             else:
