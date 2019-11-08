@@ -3,7 +3,7 @@
 """
 from sqlalchemy import or_
 import safrs
-from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response
+from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_format_response, jsonapi_sort
 from .swagger_doc import jsonapi_rpc
 from .errors import GenericError, ValidationError
 
@@ -26,7 +26,7 @@ def search(cls, **kwargs):
         )
     else:
         result = cls.query.filter(or_(column.like("%" + query + "%") for column in cls._s_columns))
-    instances = result
+    instances = jsonapi_sort(result,cls)
     links, instances, count = paginate(instances)
     data = [item for item in instances]
     meta = {}

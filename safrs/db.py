@@ -382,8 +382,8 @@ class SAFRSBase(Model):
             we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
             This may cause other errors too, for ex when sorting
         """
-
-        safrs.log.warning('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
+        
+        #safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter

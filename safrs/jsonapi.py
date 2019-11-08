@@ -110,9 +110,7 @@ def jsonapi_sort(object_query, safrs_object):
                 safrs.log.error("Invalid sort column {}".format(sort_attr))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-                object_query = sorted(
-                    list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-")
-                )
+                object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-"))
             else:
                 object_query = object_query.order_by(attr)
 
@@ -121,6 +119,8 @@ def jsonapi_sort(object_query, safrs_object):
 
 def paginate(object_query, SAFRSObject=None):
     """
+        this is where the query is executed, hence it's the bottleneck of the queries
+
         http://jsonapi.org/format/#fetching-pagination
 
         A server MAY choose to limit the number of resources returned
@@ -217,6 +217,11 @@ def paginate(object_query, SAFRSObject=None):
 
 def get_included(data, limit, include="", level=0):
     """
+        :param data:
+        :param limit:
+        :param include: csv string with the items to include
+        :param level:
+        :return:
         return a set of included items
 
         http://jsonapi.org/format/#fetching-includes
@@ -290,7 +295,7 @@ def get_included(data, limit, include="", level=0):
     return result
 
 
-def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count=None):
+def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count=None, include=None):
     """
     Create a response dict according to the json:api schema spec
     :param data : the objects that will be serialized
@@ -304,11 +309,14 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     if meta is None:
         meta = {}
 
+    if include is None:
+        include = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+
     meta["limit"] = limit
     meta["count"] = count
 
     jsonapi = dict(version="1.0")
-    included = list(get_included(data, limit, include=request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)))
+    included = list(get_included(data, limit, include=include))
     """if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)"""
     result = dict(data=data)
@@ -343,10 +351,14 @@ class Resource(FRSResource):
         if child_id is None:
             raise ValidationError("no child id {}".format(child_data))
         child_type = child_data.get("type")
-        if not child_id or not child_type:
-            raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
+        if not child_id:
+            raise ValidationError("Invalid id in data", HTTPStatus.FORBIDDEN)
+        if not child_type:
+            raise ValidationError("Invalid type in data", HTTPStatus.FORBIDDEN)
         if child_type != self.target._s_type:
-            raise ValidationError("Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN)
+            raise ValidationError(
+                "Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN
+            )
         child = self.target.get_instance(child_id)
         if not child:
             raise ValidationError("invalid child id {}".format(child_id))
