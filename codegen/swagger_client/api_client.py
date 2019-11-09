@@ -369,32 +369,16 @@ class ApiClient(object):
         return thread
 
     def request(
-        self,
-        method,
-        url,
-        query_params=None,
-        headers=None,
-        post_params=None,
-        body=None,
-        _preload_content=True,
-        _request_timeout=None,
+        self, method, url, query_params=None, headers=None, post_params=None, body=None, _preload_content=True, _request_timeout=None
     ):
         """Makes the HTTP request using RESTClient."""
         if method == "GET":
             return self.rest_client.GET(
-                url,
-                query_params=query_params,
-                _preload_content=_preload_content,
-                _request_timeout=_request_timeout,
-                headers=headers,
+                url, query_params=query_params, _preload_content=_preload_content, _request_timeout=_request_timeout, headers=headers
             )
         elif method == "HEAD":
             return self.rest_client.HEAD(
-                url,
-                query_params=query_params,
-                _preload_content=_preload_content,
-                _request_timeout=_request_timeout,
-                headers=headers,
+                url, query_params=query_params, _preload_content=_preload_content, _request_timeout=_request_timeout, headers=headers
             )
         elif method == "OPTIONS":
             return self.rest_client.OPTIONS(

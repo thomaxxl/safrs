@@ -85,9 +85,7 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'post_body' is set
         if "post_body" not in params or params["post_body"] is None:
-            raise ValueError(
-                "Missing the required parameter `post_body` when calling `createa_userobject0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `post_body` when calling `createa_userobject0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -181,14 +179,10 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `createa_userobject1`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `createa_userobject1`")  # noqa: E501
         # verify the required parameter 'post_body' is set
         if "post_body" not in params or params["post_body"] is None:
-            raise ValueError(
-                "Missing the required parameter `post_body` when calling `createa_userobject1`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `post_body` when calling `createa_userobject1`")  # noqa: E501
 
         collection_formats = {}
 
@@ -282,9 +276,7 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `deletea_userobject0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `deletea_userobject0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -378,14 +370,10 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `deletefrom_userbooks0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `deletefrom_userbooks0`")  # noqa: E501
         # verify the required parameter 'book_id' is set
         if "book_id" not in params or params["book_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `book_id` when calling `deletefrom_userbooks0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `book_id` when calling `deletefrom_userbooks0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -476,9 +464,7 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'post_user_get_list' is set
         if "post_user_get_list" not in params or params["post_user_get_list"] is None:
-            raise ValueError(
-                "Missing the required parameter `post_user_get_list` when calling `invoke_usergetlist0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `post_user_get_list` when calling `invoke_usergetlist0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -568,15 +554,7 @@ class UsersApi(object):
                  returns the request thread.
         """
 
-        all_params = [
-            "page_offset",
-            "page_limit",
-            "include",
-            "fields_users",
-            "sort",
-            "filter_name",
-            "filter_email",
-        ]  # noqa: E501
+        all_params = ["page_offset", "page_limit", "include", "fields_users", "sort", "filter_name", "filter_email"]  # noqa: E501
         all_params.append("async")
         all_params.append("_return_http_data_only")
         all_params.append("_preload_content")
@@ -714,9 +692,7 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `retrievea_userobject1`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `retrievea_userobject1`")  # noqa: E501
 
         collection_formats = {}
 
@@ -845,9 +821,7 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `retrieveabooksobject0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `retrieveabooksobject0`")  # noqa: E501
 
         collection_formats = {}
 
@@ -952,14 +926,10 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `retrieveabooksobject1`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `retrieveabooksobject1`")  # noqa: E501
         # verify the required parameter 'book_id' is set
         if "book_id" not in params or params["book_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `book_id` when calling `retrieveabooksobject1`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `book_id` when calling `retrieveabooksobject1`")  # noqa: E501
 
         collection_formats = {}
 
@@ -1052,14 +1022,10 @@ class UsersApi(object):
         del params["kwargs"]
         # verify the required parameter 'user_id' is set
         if "user_id" not in params or params["user_id"] is None:
-            raise ValueError(
-                "Missing the required parameter `user_id` when calling `updatea_userobject0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `user_id` when calling `updatea_userobject0`")  # noqa: E501
         # verify the required parameter 'post_body' is set
         if "post_body" not in params or params["post_body"] is None:
-            raise ValueError(
-                "Missing the required parameter `post_body` when calling `updatea_userobject0`"
-            )  # noqa: E501
+            raise ValueError("Missing the required parameter `post_body` when calling `updatea_userobject0`")  # noqa: E501
 
         collection_formats = {}
 

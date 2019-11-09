@@ -105,15 +105,7 @@ class RESTClientObject(object):
             )
 
     def request(
-        self,
-        method,
-        url,
-        query_params=None,
-        headers=None,
-        body=None,
-        post_params=None,
-        _preload_content=True,
-        _request_timeout=None,
+        self, method, url, query_params=None, headers=None, body=None, post_params=None, _preload_content=True, _request_timeout=None
     ):
         """Perform requests.
 
@@ -162,12 +154,7 @@ class RESTClientObject(object):
                     if body is not None:
                         request_body = json.dumps(body)
                     r = self.pool_manager.request(
-                        method,
-                        url,
-                        body=request_body,
-                        preload_content=_preload_content,
-                        timeout=timeout,
-                        headers=headers,
+                        method, url, body=request_body, preload_content=_preload_content, timeout=timeout, headers=headers
                     )
                 elif headers["Content-Type"] == "application/x-www-form-urlencoded":  # noqa: E501
                     r = self.pool_manager.request(
@@ -199,12 +186,7 @@ class RESTClientObject(object):
                 elif isinstance(body, str):
                     request_body = body
                     r = self.pool_manager.request(
-                        method,
-                        url,
-                        body=request_body,
-                        preload_content=_preload_content,
-                        timeout=timeout,
-                        headers=headers,
+                        method, url, body=request_body, preload_content=_preload_content, timeout=timeout, headers=headers
                     )
                 else:
                     # Cannot generate the request from given parameters
@@ -239,34 +221,15 @@ class RESTClientObject(object):
 
     def GET(self, url, headers=None, query_params=None, _preload_content=True, _request_timeout=None):
         return self.request(
-            "GET",
-            url,
-            headers=headers,
-            _preload_content=_preload_content,
-            _request_timeout=_request_timeout,
-            query_params=query_params,
+            "GET", url, headers=headers, _preload_content=_preload_content, _request_timeout=_request_timeout, query_params=query_params
         )
 
     def HEAD(self, url, headers=None, query_params=None, _preload_content=True, _request_timeout=None):
         return self.request(
-            "HEAD",
-            url,
-            headers=headers,
-            _preload_content=_preload_content,
-            _request_timeout=_request_timeout,
-            query_params=query_params,
+            "HEAD", url, headers=headers, _preload_content=_preload_content, _request_timeout=_request_timeout, query_params=query_params
         )
 
-    def OPTIONS(
-        self,
-        url,
-        headers=None,
-        query_params=None,
-        post_params=None,
-        body=None,
-        _preload_content=True,
-        _request_timeout=None,
-    ):
+    def OPTIONS(self, url, headers=None, query_params=None, post_params=None, body=None, _preload_content=True, _request_timeout=None):
         return self.request(
             "OPTIONS",
             url,
@@ -289,16 +252,7 @@ class RESTClientObject(object):
             body=body,
         )
 
-    def POST(
-        self,
-        url,
-        headers=None,
-        query_params=None,
-        post_params=None,
-        body=None,
-        _preload_content=True,
-        _request_timeout=None,
-    ):
+    def POST(self, url, headers=None, query_params=None, post_params=None, body=None, _preload_content=True, _request_timeout=None):
         return self.request(
             "POST",
             url,
@@ -310,16 +264,7 @@ class RESTClientObject(object):
             body=body,
         )
 
-    def PUT(
-        self,
-        url,
-        headers=None,
-        query_params=None,
-        post_params=None,
-        body=None,
-        _preload_content=True,
-        _request_timeout=None,
-    ):
+    def PUT(self, url, headers=None, query_params=None, post_params=None, body=None, _preload_content=True, _request_timeout=None):
         return self.request(
             "PUT",
             url,
@@ -331,16 +276,7 @@ class RESTClientObject(object):
             body=body,
         )
 
-    def PATCH(
-        self,
-        url,
-        headers=None,
-        query_params=None,
-        post_params=None,
-        body=None,
-        _preload_content=True,
-        _request_timeout=None,
-    ):
+    def PATCH(self, url, headers=None, query_params=None, post_params=None, body=None, _preload_content=True, _request_timeout=None):
         return self.request(
             "PATCH",
             url,
