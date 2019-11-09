@@ -129,10 +129,7 @@ class Api(FRSApiBase):
         for api_method in api_methods:
             method_name = api_method.__name__
             api_method_class_name = "method_{}_{}".format(safrs_object._s_class_name, method_name)
-            if (
-                isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod))
-                or getattr(api_method, "__self__", None) is safrs_object
-            ):
+            if isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod)) or getattr(api_method, "__self__", None) is safrs_object:
                 # method is a classmethod or static method, make it available at the class level
                 CLASSMETHOD_URL_FMT = get_config("CLASSMETHOD_URL_FMT")
                 url = CLASSMETHOD_URL_FMT.format(url_prefix, safrs_object._s_collection_name, method_name)
@@ -235,9 +232,7 @@ class Api(FRSApiBase):
 
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
 
-        self.add_resource(
-            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True
-        )
+        self.add_resource(api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True)
 
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
@@ -251,7 +246,7 @@ class Api(FRSApiBase):
         safrs_object = getattr(resource, "SAFRSObject", None)
         if safrs_object:
             om = [m.upper() for m in safrs_object.http_methods if m.upper() in ordered_methods]
-        
+
         resource_methods = [m.lower() for m in ordered_methods if m in resource.methods and m.upper() in om]
         return resource_methods
 

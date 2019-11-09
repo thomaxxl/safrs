@@ -14,8 +14,9 @@ def get_config(option):
         Retrieve a configuration parameter from the app
         :param option: configuration parameter
         :return: configuration value
+        :rtype: string
     """
-    # pylint: disable=invalid-name
+    # pylint: disable=invalid-name, unused-variable, pointless-string-statement
     #
     # Legacy configuration, this will be removed in the future
     #

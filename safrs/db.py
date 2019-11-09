@@ -696,7 +696,7 @@ class SAFRSBase(Model):
 
             if http_method == "get":
                 body = object_model
-            
+
             if http_method in ("post", "patch"):
                 # body = cls.get_swagger_doc_post_parameters()
                 responses = {
@@ -741,9 +741,7 @@ class SAFRSBase(Model):
             swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type, None)
             if swagger_type is None:
                 safrs.log.warning(
-                    'Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(
-                        column_type, cls.__tablename__, column.name
-                    )
+                    'Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name)
                 )
                 swagger_type = "string"
             default = getattr(sample_instance, column.name, None)

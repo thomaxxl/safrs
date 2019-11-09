@@ -24,6 +24,7 @@ from .errors import ValidationError, GenericError
 
 DB = SQLAlchemy()
 
+
 def test_decorator(func):
     """ Example flask-restful decorator that can be used in the "decorators" Api argument
         cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
@@ -60,14 +61,7 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     if port:
         host = "%s:%s" % (host, port)
     api = Api(
-        app,
-        api_spec_url="/swagger",
-        host=host,
-        custom_swagger=custom_swagger,
-        description=description,
-        decorators=decorators,
-        prefix=prefix,
-        base_path=prefix,
+        app, api_spec_url="/swagger", host=host, custom_swagger=custom_swagger, description=description, decorators=decorators, prefix=prefix, base_path=prefix
     )
 
     @app.before_request

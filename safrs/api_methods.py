@@ -66,7 +66,7 @@ def lookup_re_mysql(cls, **kwargs):
             raise ValidationError('Invalid Column "{}"'.format(key))
         try:
             result = result.query.filter(column.op("regexp")(value))
-            
+
         except Exception as exc:
             raise GenericError("Failed to execute query {}".format(exc))
 

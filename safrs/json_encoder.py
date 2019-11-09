@@ -54,8 +54,9 @@ class SAFRSJSONEncoder(JSONEncoder):
         Encodes safrs objs (SAFRSBase subclasses)
     """
 
-    # pylint: disable=too-many-return-statements,logging-format-interpolation,protected-access,method-hidden
-    def default(self, obj):
+    # pylint: disable=too-many-return-statements,logging-format-interpolation
+    # pylint: disable=arguments-differ,protected-access,method-hidden
+    def default(self, obj, **kwargs):
         """
             override the default json encoding
             :param obj: object to be encoded

@@ -108,8 +108,8 @@ class UUIDType(TypeDecorator):
 
         try:
             uuid.UUID(value, version=4)
-        except:
-            raise ValidationError("UUID Validation Error {}".format(value))
+        except Exception as exc:
+            raise ValidationError("UUID Validation Error {} ({})".format(value, exc))
 
         return value
 
