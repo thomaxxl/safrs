@@ -25,7 +25,6 @@
 # - expose canonical endpoints
 # - move all swagger formatting to swagger_doc
 #
-import logging
 from http import HTTPStatus
 import sqlalchemy
 import sqlalchemy.orm.dynamic
@@ -261,7 +260,7 @@ def get_included(data, limit, include="", level=0):
             included = getattr(instance, relationship)
 
             # relationship direction in (ONETOMANY, MANYTOMANY):
-            if included and isinstance(included, SAFRSBase) and not included in result:
+            if included and isinstance(included, SAFRSBase) and included not in result:
                 # convert single instance to a list so we can generically add the includes
                 included = [included]
             elif isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
@@ -1003,10 +1002,12 @@ class SAFRSRestRelationshipAPI(Resource):
             ---
             Add a child to a relationship
             202 Accepted
-            If a relationship update request has been accepted for processing, but the processing has not been completed by the time the server responds, the server MUST return a 202 Accepted status code.
+            If a relationship update request has been accepted for processing, but the processing has not
+            been completed by the time the server responds, the server MUST return a 202 Accepted status code.
 
             204 No Content
-            A server MUST return a 204 No Content status code if an update is successful and the representation of the resource in the request matches the result.
+            A server MUST return a 204 No Content status code if an update is successful and the representation
+            of the resource in the request matches the result.
         """
         kwargs["require_child"] = True
         parent, relation = self.parse_args(**kwargs)
@@ -1022,22 +1023,23 @@ class SAFRSRestRelationshipAPI(Resource):
             if isinstance(child_data, list):
                 raise ValidationError(
                     """
-                            Invalid data payload: MANYTOONE relationship can only hold a single item,
-                            please provide a dictionary object
-                            """,
+                    Invalid data payload: MANYTOONE relationship can only hold a single item,
+                    please provide a dictionary object
+                    """,
                     HTTPStatus.FORBIDDEN,
                 )
             if child_data:
                 child = self._parse_target_data(child_data)
-                result = [child]
+                # result = [child]
 
         else:  # direction is TOMANY => append the items to the relationship
             for child_data in data:
                 child = self._parse_target_data(child_data)
                 if not child in relation:
                     relation.append(child)
-            result = [child for child in relation]
+            # result = [child for child in relation]
 
+        # we can return result too but it's not necessary per the spec
         return {}, 204
 
     def delete(self, **kwargs):

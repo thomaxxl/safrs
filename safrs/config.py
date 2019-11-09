@@ -5,6 +5,7 @@ The get_config function handles the current config while remaining backwards com
 
 """
 import os
+import logging
 from flask import current_app, request
 import safrs
 
@@ -95,6 +96,7 @@ def get_legacy(param, default=0):
         :param param: parameter to retrieve
         :param default:
         :return: prequest parameter or None
+        :rtype: Boolean
     """
     result = getattr(request, param, None)
     if result is None:
@@ -102,5 +104,11 @@ def get_legacy(param, default=0):
         result = default
     return result
 
+def is_debug():
+    """
+        :return: whether the app is in debug mode
+        :rtype: Boolean
+    """
+    return safrs.log.getEffectiveLevel() < logging.INFO
 
 get_request_param = get_legacy

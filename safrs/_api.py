@@ -363,7 +363,7 @@ class Api(FRSApiBase):
         # disable API methods that were not set by the SAFRSObject
         for http_method in HTTP_METHODS:
             hm = http_method.lower()
-            if not hm in self.get_resource_methods(resource):
+            if hm not in self.get_resource_methods(resource):
                 setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
 
         # pylint: disable=bad-super-call

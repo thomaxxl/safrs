@@ -7,7 +7,6 @@
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
 import inspect
 import datetime
-import logging
 from http import HTTPStatus
 from urllib.parse import urljoin
 from flask import request, url_for
@@ -24,7 +23,7 @@ from .swagger_doc import SchemaClassFactory, get_doc
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
-from .config import get_config
+from .config import get_config, is_debug
 
 #
 # Map SQLA types to swagger2 json types
@@ -445,7 +444,7 @@ class SAFRSBase(Model):
 
         # filter the relationships, id & type from the data
         for attr in self._s_jsonapi_attrs:
-            if not attr in fields:
+            if attr not in fields:
                 continue
             try:
                 result[attr] = getattr(self, attr)
@@ -559,7 +558,7 @@ class SAFRSBase(Model):
                 else:  # shouldn't happen!!
                     safrs.log.error("Unknown relationship direction for relationship {}: {}".format(rel_name, relationship.direction))
                 # add the relationship direction, for debugging purposes.
-                if safrs.log.getEffectiveLevel() < logging.INFO:
+                if is_debug():
                     # meta["direction"] = relationship.direction.name
                     pass
 

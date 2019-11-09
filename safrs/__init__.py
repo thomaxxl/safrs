@@ -12,9 +12,8 @@ safrs __init__.py
 import logging
 import os
 import sys
-import pprint
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, url_for, current_app
+from flask import Flask, url_for
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .__about__ import __version__, __description__

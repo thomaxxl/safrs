@@ -2,7 +2,6 @@
 safrs to json encoding
 """
 import datetime
-import logging
 import decimal
 import json
 from flask.json import JSONEncoder
