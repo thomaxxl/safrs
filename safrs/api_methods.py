@@ -66,11 +66,7 @@ def lookup_re_mysql(cls, **kwargs):
             raise ValidationError('Invalid Column "{}"'.format(key))
         try:
             result = result.query.filter(column.op("regexp")(value))
-            instances = result
-            links, instances, _ = paginate(instances)
-            data = [item for item in instances]
-            meta = {}
-
+            
         except Exception as exc:
             raise GenericError("Failed to execute query {}".format(exc))
 
