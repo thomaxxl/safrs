@@ -102,7 +102,8 @@ class UUIDType(TypeDecorator):
 
         super(UUIDType, self).__init__(*args, **kwargs)
 
-    def process_bind_param(self, value, dialect):
+    @staticmethod
+    def process_bind_param(value, dialect):
 
         try:
             uuid.UUID(value, version=4)

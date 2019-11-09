@@ -411,7 +411,6 @@ def swagger_relationship_doc(cls, tags=None):
         parent_class = cls.relationship.parent.class_
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
-        table_name = cls._s_type
         type = cls._s_type
         http_method = func.__name__.lower()
         #######################################################################

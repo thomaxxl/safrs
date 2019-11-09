@@ -209,7 +209,7 @@ def paginate(object_query, SAFRSObject=None):
         except OverflowError:
             raise ValidationError("Pagination Overflow Error")
         except Exception as exc:
-            raise GenericError("Pagination Error")
+            raise GenericError(f"Pagination Error {exc}")
 
     return links, instances, count
 

@@ -16,7 +16,6 @@ from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor
 from functools import wraps
 import collections
-import json
 import safrs
 
 # Import here in order to avoid circular dependencies, (todo: fix)
@@ -241,10 +240,12 @@ class Api(FRSApiBase):
         )
 
     @staticmethod
-    def get_resource_methods(resource, ordered_methods=HTTP_METHODS):
+    def get_resource_methods(resource, ordered_methods=None):
         """
             :return: the http methods from the SwaggerEndpoint and SAFRS Resources, in the order specified by ordered_methods
         """
+        if ordered_methods is None:
+            ordered_methods = HTTP_METHODS
         om = ordered_methods
         try:
             om = [m.upper() for m in resource.SAFRSObject.http_methods if m.upper() in ordered_methods]
@@ -362,15 +363,6 @@ class Api(FRSApiBase):
                     path_item[method] = method_doc
                     validate_path_item_object(path_item)
 
-                    if method == "get" and not exposing_instance:
-                        # If no {id} was provided, we return a list of all the objects
-                        # pylint: disable=bad-format-string
-                        try:
-                            method_doc["description"] += " list (See GET /{{} for details)".format(SAFRS_INSTANCE_SUFFIX)
-                            method_doc["responses"]["200"]["schema"] = ""
-                        except:
-                            pass
-
                 self._swagger_object["paths"][swagger_url] = path_item
 
         # disable API methods that were not set by the SAFRSObject
@@ -379,6 +371,7 @@ class Api(FRSApiBase):
             if not hm in self.get_resource_methods(resource):
                 setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
 
+        # pylint: disable=bad-super-call
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
     @classmethod

@@ -67,10 +67,9 @@ def lookup_re_mysql(cls, **kwargs):
         try:
             result = result.query.filter(column.op("regexp")(value))
             instances = result
-            links, instances, count = paginate(instances)
+            links, instances, _ = paginate(instances)
             data = [item for item in instances]
             meta = {}
-            errors = None
 
         except Exception as exc:
             raise GenericError("Failed to execute query {}".format(exc))

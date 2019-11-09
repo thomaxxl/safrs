@@ -688,7 +688,6 @@ class SAFRSBase(Model):
         responses = {}
 
         if http_method in cls.http_methods:
-            object_name = cls.__name__
             object_model = cls._get_swagger_doc_object_model()
             responses = {
                 HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
@@ -697,8 +696,7 @@ class SAFRSBase(Model):
 
             if http_method == "get":
                 body = object_model
-                # responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
-
+            
             if http_method in ("post", "patch"):
                 # body = cls.get_swagger_doc_post_parameters()
                 responses = {
