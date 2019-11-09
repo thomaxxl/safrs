@@ -37,13 +37,13 @@ class SAFRSFormattedResponse:
         """
             create a dictionary
         """
-        if not self.response is None:
+        if self.response is not None:
             return self.response
 
-        if not self.meta is None:
+        if self.meta is not None:
             return self.meta
 
-        if not self.result is None:
+        if self.result is not None:
             return {"meta": {"result": self.result}}
 
         return None
