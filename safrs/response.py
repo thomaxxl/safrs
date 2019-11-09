@@ -1,8 +1,7 @@
 """
 safrs response
 """
-from flask import Response, request
-
+from flask import response
 
 class SAFRSResponse(Response):
     """
