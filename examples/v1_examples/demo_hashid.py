@@ -17,11 +17,10 @@ import sys
 
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, String
 from safrs.db import SAFRSBase, documented_api_method, SAFRSSHA256HashID
 from safrs.jsonapi import SAFRSRestAPI, SAFRSJSONEncoder, Api
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask_marshmallow import Marshmallow
 
 
 app = Flask("demo_app")
