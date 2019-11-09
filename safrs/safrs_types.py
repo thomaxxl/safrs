@@ -17,7 +17,8 @@ if sys.version_info[0] == 3:
     unicode = str
 try:
     from validate_email import validate_email
-except:
+except ModuleNotFoundError as exc:
+    safrs.log.warning("validate_email module not imported {}".format(exc))
     pass
 
 
