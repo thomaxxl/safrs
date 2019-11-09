@@ -242,16 +242,16 @@ class Api(FRSApiBase):
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
         """
-            :return: the http methods from the SwaggerEndpoint and SAFRS Resources, in the order specified by ordered_methods
+            :return: the http methods from the SwaggerEndpoint and SAFRS Resources,
+            in the order specified by ordered_methods
         """
         if ordered_methods is None:
             ordered_methods = HTTP_METHODS
         om = ordered_methods
-        try:
-            om = [m.upper() for m in resource.SAFRSObject.http_methods if m.upper() in ordered_methods]
-        except:
-            pass
-
+        safrs_object = getattr(resource, "SAFRSObject", None)
+        if safrs_object:
+            om = [m.upper() for m in safrs_object.http_methods if m.upper() in ordered_methods]
+        
         resource_methods = [m.lower() for m in ordered_methods if m in resource.methods and m.upper() in om]
         return resource_methods
 
@@ -491,6 +491,7 @@ class SAFRSRelationshipObject:
 
     _s_class_name = None
     __name__ = "name"
+    http_methods = {"GET", "POST", "PATCH", "DELETE"}
 
     @classmethod
     def get_swagger_doc(cls, http_method):
