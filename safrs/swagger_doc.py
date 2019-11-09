@@ -31,7 +31,7 @@ def parse_object_doc(object):
     yaml_doc = None
 
     try:
-        yaml_doc = yaml.load(raw_doc, Loader=yaml.FullLoader)
+        yaml_doc = yaml.safe_load(raw_doc)
     except (SyntaxError, yaml.scanner.ScannerError) as exc:
         safrs.log.error("Failed to parse documentation {} ({})".format(raw_doc, exc))
         yaml_doc = {"description": raw_doc}
