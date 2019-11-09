@@ -15,11 +15,6 @@
 
 import sys
 
-if sys.version_info[0] == 3:
-    import builtins as __builtin__
-else:
-    import __builtin__
-
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
