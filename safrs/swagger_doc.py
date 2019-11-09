@@ -150,7 +150,7 @@ def encode_schema(obj):
         result = []
         for i in obj:
             encoded = encode_schema(i)
-            if not encoded is None:
+            if encoded is not None:
                 result.append(encoded)
 
         return result
@@ -272,7 +272,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                 f_args = f_args[1:]
             args = dict(zip(f_args, f_defaults))
             model_name = "{}_{}".format(cls.__name__, method_name)
-            model = SchemaClassFactory(model_name, [])
+            # model = SchemaClassFactory(model_name, [])
             # arg_field = {"schema": model, "type": "string"} # tbd?
             method_field = {"method": method_name, "args": args}
             fields["meta"] = schema_from_object(model_name, method_field)
@@ -441,11 +441,6 @@ def swagger_relationship_doc(cls, tags=None):
             _, responses = cls.get_swagger_doc(http_method)
         elif http_method in ("post", "patch"):
             _, responses = cls.get_swagger_doc(http_method)
-            sample_attrs = {}
-            sample = getattr(cls, "sample", lambda: None)()
-            if sample:
-                sample_attrs = sample._s_sample_dict()
-
             child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class.get_swagger_doc("patch")
@@ -568,7 +563,15 @@ def default_paging_parameters():
     }
     parameters.append(param)
 
-    param = {"default": 10, "type": "integer", "name": "page[limit]", "in": "query", "format": "int64", "required": False, "description": "Max number of items"}
+    param = {
+        "default": 10,
+        "type": "integer",
+        "name": "page[limit]",
+        "in": "query",
+        "format": "int64",
+        "required": False,
+        "description": "Max number of items",
+    }
     parameters.append(param)
     return parameters
 

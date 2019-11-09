@@ -246,7 +246,7 @@ class SAFRSBase(Model):
             safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
             return instance  # instance is None!
 
-        if not id is None or not failsafe:
+        if id is not None or not failsafe:
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
             except Exception as exc:
@@ -432,7 +432,8 @@ class SAFRSBase(Model):
             https://jsonapi.org/format/#fetching-sparse-fieldsets:
               client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
               The value of the fields parameter MUST be a comma-separated (U+002C COMMA, “,”) list that refers to the name(s) of the fields to be returned.
-              If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects of that type in its response.
+              If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects
+              of that type in its response.
         """
         result = {}
         if fields is None:

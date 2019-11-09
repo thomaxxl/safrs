@@ -7,6 +7,7 @@ import json
 from flask.json import JSONEncoder
 from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
+from .config import is_debug
 from .db import SAFRSBase, SAFRSDummy
 
 
@@ -83,7 +84,7 @@ class SAFRSJSONEncoder(JSONEncoder):
 
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        if safrs.log.getEffectiveLevel() >= logging.INFO:
+        if not is_debug():
             # only continue if in debug mode
             safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
             return {"error": "invalid object"}

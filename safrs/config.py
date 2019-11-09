@@ -104,11 +104,13 @@ def get_legacy(param, default=0):
         result = default
     return result
 
+
 def is_debug():
     """
         :return: whether the app is in debug mode
         :rtype: Boolean
     """
     return safrs.log.getEffectiveLevel() < logging.INFO
+
 
 get_request_param = get_legacy

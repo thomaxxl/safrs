@@ -93,7 +93,7 @@ def jsonapi_sort(object_query, safrs_object):
         :return: sqla query object
     """
     sort_attrs = request.args.get("sort", None)
-    if not sort_attrs is None:
+    if sort_attrs is not None:
         for sort_attr in sort_attrs.split(","):
             if sort_attr.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
@@ -101,7 +101,7 @@ def jsonapi_sort(object_query, safrs_object):
                 # with a minus, in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
                 attr = getattr(safrs_object, sort_attr, None)
-                if not attr is None:
+                if attr is not None:
                     attr = attr.desc()
             else:
                 attr = getattr(safrs_object, sort_attr, None)
@@ -1035,7 +1035,7 @@ class SAFRSRestRelationshipAPI(Resource):
         else:  # direction is TOMANY => append the items to the relationship
             for child_data in data:
                 child = self._parse_target_data(child_data)
-                if not child in relation:
+                if child not in relation:
                     relation.append(child)
             # result = [child for child in relation]
 
