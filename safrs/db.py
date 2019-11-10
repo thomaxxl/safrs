@@ -84,8 +84,8 @@ class SAFRSBase(Model):
     url_prefix = ""
     allow_client_generated_ids = False
 
-    exclude_attrs = []
-    exclude_rels = []
+    exclude_attrs = [] # list of attribute names that should not be serialized
+    exclude_rels = [] # list of relationship names that should not be serialized
 
     def __new__(cls, **kwargs):
         """

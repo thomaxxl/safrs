@@ -35,7 +35,8 @@ class SAFRSFormattedResponse:
 
     def to_dict(self):
         """
-            create a dictionary
+            create the response payload that will be sent to the browser
+            :return: dict or None
         """
         if self.response is not None:
             return self.response

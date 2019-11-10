@@ -11,23 +11,17 @@ import safrs
 
 
 def get_config(option):
-    """
-        Retrieve a configuration parameter from the app
+    """ Retrieve a configuration parameter from the app
         :param option: configuration parameter
         :return: configuration value
         :rtype: string
     """
     # pylint: disable=invalid-name, unused-variable, pointless-string-statement
-    #
-    # Legacy configuration, this will be removed in the future
-    #
-
     # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
     OBJECT_ID_SUFFIX = os.environ.get("OBJECT_ID_SUFFIX", safrs.SAFRS.OBJECT_ID_SUFFIX)
     if not OBJECT_ID_SUFFIX:
         OBJECT_ID_SUFFIX = "Id"
 
-    #
     # The following URL fromatters determine the urls of the API resource objects
     #
     # first argument will be is the url prefix (eg. /api/v1/ )
@@ -60,7 +54,7 @@ def get_config(option):
     ENDPOINT_FMT = "{}api.{}"
 
     # UNLIMITED = int(os.environ.get('safrs.SAFRS_UNLIMITED', 1<<32))
-    UNLIMITED = int(os.environ.get("SAFRS_UNLIMITED", safrs.SAFRS.SAFRS_UNLIMITED))
+    UNLIMITED = int(os.environ.get("SAFRS_UNLIMITED", safrs.SAFRS.MAX_PAGE_LIMIT))
     MAX_PAGE_LIMIT = int(os.environ.get("MAX_PAGE_LIMIT", safrs.SAFRS.MAX_PAGE_LIMIT))
     # This is the default query limit
     # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
@@ -83,15 +77,14 @@ def get_config(option):
         if result is None:
             result = locals().get(option)
     except Exception as exc:
-        safrs.LOGGER.exception(exc)
+        safrs.log.exception(exc)
         raise
 
     return result
 
 
 def get_legacy(param, default=0):
-    """
-        retrieve request parameters
+    """ Retrieve request parameters
         Used for backwards compatibility (with safrs < 2.x)
         :param param: parameter to retrieve
         :param default:

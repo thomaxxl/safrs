@@ -1,10 +1,4 @@
-"""
-safrs __init__.py
-"""
 # -*- coding: utf-8 -*-
-#
-# pylint: disable=line-too-long
-# use max-line-length=120 in .pylintrc
 #
 # The code implements some seemingly awkward constructs and redundant functionality
 # This is however required for backwards compatibility, we'll get rid of it eventually
@@ -23,12 +17,10 @@ from .errors import ValidationError, GenericError
 
 DB = SQLAlchemy()
 
-
 def test_decorator(func):
     """ Example flask-restful decorator that can be used in the "decorators" Api argument
         cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     """
-
     def api_wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
@@ -45,7 +37,7 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
         :param port: the port used in the swagger doc
         :param prefix: the Swagger url prefix (not the api prefix)
         :param description: the swagger description
-
+        :return: SAFRSAPI object
         API factory method:
             * configure SAFRS
             * create API
@@ -73,15 +65,15 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
 
 # pylint: enable=invalid-name
 class SAFRS:
-    """This class configures the Flask application to serve SAFRSBase instances
+    """ This class configures the Flask application to serve SAFRSBase instances
     :param app: a Flask application.
     :param prefix: URL prefix where the swagger should be hosted. Default is '/api'
     :param LOGLEVEL: loglevel configuration variable, values from logging module (0: trace, .. 50: critical)
     """
 
-    # Config settings
-    MAX_PAGE_LIMIT = SAFRS_UNLIMITED = 250  # SAFRS_UNLIMITED is deprecated
-    ENABLE_RELATIONSHIPS = None
+    # Configuration settings, these can be overridden in config.py
+    MAX_PAGE_LIMIT = 250
+    ENABLE_RELATIONSHIPS = False
     LOGLEVEL = logging.WARNING
     OBJECT_ID_SUFFIX = None
     DEFAULT_INCLUDED = ""  # change to +all to include everything (slower because relationships will be fetched)
@@ -110,7 +102,7 @@ class SAFRS:
         app.url_map.strict_slashes = False
 
         if app.config.get("DEBUG", False):
-            LOGGER.setLevel(logging.DEBUG)
+            log.setLevel(logging.DEBUG)
 
         # Register the API blueprint
         swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
@@ -154,14 +146,13 @@ class SAFRS:
 
 
 def dict_merge(dct, merge_dct):
-    """ 
-    Recursive dict merge used for creating the swagger spec.
-    Inspired by :meth:``dict.update()``, instead of updating only
-    top-level keys, dict_merge recurses down into dicts nested
-    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into ``dct``.
-    :param dct: dict onto which the merge is executed
-    :param merge_dct: dct merged into dct
-    :return: None
+    """ Recursive dict merge used for creating the swagger spec.
+        Inspired by :meth:``dict.update()``, instead of updating only
+        top-level keys, dict_merge recurses down into dicts nested
+        to an arbitrary depth, updating keys. The ``merge_dct`` is merged into ``dct``.
+        :param dct: dict onto which the merge is executed
+        :param merge_dct: dct merged into dct
+        :return: None
     """
     for k in merge_dct:
         if k in dct and isinstance(dct[k], dict):
@@ -178,9 +169,8 @@ except ValueError:
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
     LOGLEVEL = logging.WARNING
 
-log = LOGGER = SAFRS.init_logging(LOGLEVEL)
+log = SAFRS.init_logging(LOGLEVEL)
 
-#
 # Following objects will be exported by safrs
 #
 # We put them at the bottom to avoid circular dependencies
@@ -192,7 +182,6 @@ from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
 from .json_encoder import SAFRSJSONEncoder
 from .api_methods import search, startswith
 from .swagger_doc import jsonapi_rpc
-
 
 __all__ = (
     "__version__",
