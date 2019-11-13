@@ -25,6 +25,7 @@
 # - expose canonical endpoints
 # - move all swagger formatting to swagger_doc
 #
+import logging
 from http import HTTPStatus
 import sqlalchemy
 import sqlalchemy.orm.dynamic
@@ -93,7 +94,7 @@ def jsonapi_sort(object_query, safrs_object):
         :return: sqla query object
     """
     sort_attrs = request.args.get("sort", None)
-    if sort_attrs is not None:
+    if not sort_attrs is None:
         for sort_attr in sort_attrs.split(","):
             if sort_attr.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
@@ -101,17 +102,24 @@ def jsonapi_sort(object_query, safrs_object):
                 # with a minus, in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
                 attr = getattr(safrs_object, sort_attr, None)
-                if attr is not None:
+                if not attr is None:
                     attr = attr.desc()
             else:
                 attr = getattr(safrs_object, sort_attr, None)
             if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
-                safrs.log.error("Invalid sort column {}".format(sort_attr))
+                safrs.log.error("lumn {}".format(sort_attr))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
                 object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-"))
             else:
-                object_query = object_query.order_by(attr)
+                try:
+                    # This may fail on non-sqla objects, eg. properties
+                    object_query = object_query.order_by(attr)
+                except sqlalchemy.exc.ArgumentError as exc:
+                    safrs.log.warning("Sort failed for {}.{}: {}".format(safrs_object, sort_attr, exc))
+                except Exception as exc:
+                    safrs.log.warning("Sort failed for {}.{}: {}".format(safrs_object, sort_attr, exc))
+
 
     return object_query
 
