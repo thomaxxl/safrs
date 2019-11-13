@@ -73,7 +73,8 @@ class SAFRS:
 
     # Configuration settings, these can be overridden in config.py
     MAX_PAGE_LIMIT = 250
-    ENABLE_RELATIONSHIPS = False
+    ENABLE_RELATIONSHIPS = True
+    ENABLE_METHODS = True
     LOGLEVEL = logging.WARNING
     OBJECT_ID_SUFFIX = None
     DEFAULT_INCLUDED = ""  # change to +all to include everything (slower because relationships will be fetched)
