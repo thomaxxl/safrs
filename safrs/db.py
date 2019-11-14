@@ -719,10 +719,10 @@ class SAFRSBase(Model):
             cls_members = inspect.getmembers(cls)
         except sqlalchemy.exc.InvalidRequestError as exc:
             # This may happen if there's no sqlalchemy superclass
-            safrs.log.warning("Member inspection failed for {}".format(cls))
+            safrs.log.warning("Member inspection failed for {}: {}".format(cls, exc))
             return result
 
-        for name, method in cls_members:
+        for _, method in cls_members: # [(name, method),..]
             rest_doc = get_doc(method)
             if rest_doc is not None:
                 result.append(method)

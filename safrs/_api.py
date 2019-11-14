@@ -176,7 +176,7 @@ class Api(FRSApiBase):
 
         parent_class = relationship.parent.class_
         parent_name = parent_class.__name__
-        
+
         # Name of the endpoint class
         RELATIONSHIP_URL_FMT = get_config("RELATIONSHIP_URL_FMT")
         api_class_name = API_CLASSNAME_FMT.format(parent_name, rel_name)
