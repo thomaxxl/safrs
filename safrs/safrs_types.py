@@ -124,7 +124,7 @@ class SAFRSID:
         If you want to create a custom id_type, you can subclass SAFRSID
     """
 
-    primary_keys = None
+    primary_keys = ["id"]
     columns = None
     delimiter = "_"
 
@@ -141,7 +141,7 @@ class SAFRSID:
             Generate a jsonapi id
         """
         # This is the case if an autoincrement id is expected:
-        if len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
+        if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return None
 
         # Some dialects support UUID
@@ -175,15 +175,15 @@ class SAFRSID:
         return self.delimiter.join(self.primary_keys)
 
     @classmethod
-    def get_id(self, obj):
+    def get_id(cls, obj):
         """
             Retrieve the id string derived from the pks of obj
         """
-        if len(self.columns) > 1:
-            values = [str(getattr(obj, pk.name)) for pk in self.columns]
-            return self.delimiter.join(values)
+        if cls.columns and len(cls.columns) > 1:
+            values = [str(getattr(obj, pk.name)) for pk in cls.columns]
+            return cls.delimiter.join(values)
 
-        return getattr(obj, self.primary_keys[0])
+        return getattr(obj, cls.primary_keys[0])
 
     @classmethod
     def get_pks(cls, id):

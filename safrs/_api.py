@@ -169,12 +169,14 @@ class Api(FRSApiBase):
         API_CLASSNAME_FMT = "{}_X_{}_API"
 
         properties = {}
+        # if the relationship is not an sql sqlalchemy.orm.relationships.RelationshipProperty instance
+        # then we should have defined the _target
         safrs_object = relationship.mapper.class_
         rel_name = relationship.key
 
         parent_class = relationship.parent.class_
         parent_name = parent_class.__name__
-
+        
         # Name of the endpoint class
         RELATIONSHIP_URL_FMT = get_config("RELATIONSHIP_URL_FMT")
         api_class_name = API_CLASSNAME_FMT.format(parent_name, rel_name)

@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
+#
+# This example shows how you can implement a SAFRSBase object (the Test class)
+# without a SQLAlchemy model
+# It does require you to implement some attributes and methods yourself
+#
 import sys
 import logging
-import builtins
-from flask import Flask, redirect
+from flask import Flask, redirect, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
 from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+from safrs.safrs_types import SAFRSID
+from safrs.util import classproperty
+from collections import namedtuple
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
+import pdb
 
 db = SQLAlchemy()
 
-# Example sqla database object
 class User(SAFRSBase, db.Model):
     """
         description: User description
@@ -21,20 +30,6 @@ class User(SAFRSBase, db.Model):
     name = db.Column(db.String, default="")
     email = db.Column(db.String, default="")
     books = db.relationship("Book", back_populates="user", lazy="dynamic")
-
-    # Following method is exposed through the REST API
-    # This means it can be invoked with a HTTP POST
-    @classmethod
-    @jsonapi_rpc(http_methods=["POST"])
-    def send_mail(self, **args):
-        """
-        description : Send an email
-        args:
-            email:
-                type : string
-                example : test email
-        """
-        return {"result": args}
 
 
 class Book(SAFRSBase, db.Model):
@@ -48,25 +43,16 @@ class Book(SAFRSBase, db.Model):
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
 
-
-from safrs.util import classproperty
-from collections import namedtuple
-
-
-class TestID:
-    @classmethod
-    def get_pks(self, *args):
-        return {"PK": "pk_val"}
-
-    @classproperty
-    def column_names(cls):
-        return ["id"]
-
-    def get_id(self):
-        return "tmpid"
+#
+#
+#
 
 
 class TestQuery:
+    """
+        The safrs sqla serialization calls some sqlalchemy methods
+        We emulate them here
+    """
     def first(cls):
         return Test(name="name 0")
 
@@ -89,7 +75,25 @@ class TestQuery:
         return cls
 
 
-from sqlalchemy.ext.hybrid import hybrid_property
+class Mapper:
+    class_ = Book
+
+
+class TestBookRelationship:
+    key = "books"
+    direction = ONETOMANY
+    mapper = Mapper
+    _target = [Book]
+
+    def __init__(self, parent):
+        self.parent = parent
+        
+    def __iter__(self):
+        """
+            yield items from the collection that should be in the relationship
+        """
+        for book in Book.query.all():
+            yield book
 
 
 class Test(SAFRSBase):
@@ -97,10 +101,11 @@ class Test(SAFRSBase):
         description: Book description
     """
 
-    id_type = TestID
+    id = 1
+    id_type = SAFRSID
     ja_type = "TestType"
-    name = "None"
     my_custom_field = ""
+    books = TestBookRelationship
 
     def __new__(cls, *args, **kwargs):
         """
@@ -109,6 +114,10 @@ class Test(SAFRSBase):
         return object.__new__(cls)
 
     def __init__(self, *args, **kwargs):
+        """
+            Constructor
+        """
+        self.books = TestBookRelationship(self)
         self.name = kwargs.get("name")
 
     @classproperty
@@ -128,9 +137,9 @@ class Test(SAFRSBase):
     @classproperty
     def _s_relationships(cls):
         """
-            return the the relationships
+            return the included relationships
         """
-        return {}
+        return [cls.books]
 
     @property
     def _s_jsonapi_attrs(self):
@@ -144,14 +153,14 @@ class Test(SAFRSBase):
         """
             return the attribute names used to generate the swagger
         """
-        return ["name", "my_custom_field"]
+        return ["id", "name", "my_custom_field"]
 
     @classproperty
     def _s_url(self):
         """
-            
+            The URL to return in the jsonapi "links" parameter
         """
-        return "http://tmp"
+        return "http://safrs-example.com/api/Test"
 
     @classmethod
     def get_instance(cls, id, failsafe=False):
@@ -161,19 +170,19 @@ class Test(SAFRSBase):
         result = Test()
         return result
 
-    @classmethod
-    def _s_get_jsonapi_rpc_methods(cls):
-        """
-            
-        """
-        return []
+    @classproperty
+    def class_(cls):
+        return cls
+
+
+TestBookRelationship.parent = Test
 
 
 if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
     PORT = 5000
     app = Flask("SAFRS Demo Application")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)
     db.init_app(app)
     db.app = app
     # Create the database

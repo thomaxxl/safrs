@@ -333,9 +333,7 @@ def swagger_doc(cls, tags=None):
             _, responses = cls.get_swagger_doc(http_method)
             doc["summary"] = "Create a {} object".format(class_name)
 
-            #
             # Create the default POST body schema
-            #
             sample_dict = cls._s_sample_dict()
             sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
             parameters.append({"name": "POST body", "in": "body", "description": "{} attributes".format(class_name), "schema": sample_data, "required": True})
@@ -349,9 +347,11 @@ def swagger_doc(cls, tags=None):
             else:
                 sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}})
             parameters.append({"name": "POST body", "in": "body", "description": "{} attributes".format(class_name), "schema": sample_data, "required": True})
+        elif http_method == "delete":
+            pass
         else:
-            # one of 'options', 'head', 'patch'
-            safrs.log.debug('no documentation for "%s" ', func)
+            # one of 'options', 'head', 'delete'
+            safrs.log.debug('no additional documentation for "%s" ', func)
 
         doc["parameters"] = parameters
         doc["responses"] = responses

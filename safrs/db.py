@@ -670,7 +670,8 @@ class SAFRSBase(Model):
     @classproperty
     def object_id(cls):
         """
-            Returns the Flask url parameter name of the object, e.g. UserId
+            :return: the Flask url parameter name of the object, e.g. UserId
+            :rtype: string
         """
         # pylint: disable=no-member
         return cls.__name__ + get_config("OBJECT_ID_SUFFIX")
@@ -681,6 +682,7 @@ class SAFRSBase(Model):
         """
             :param http_method: the http method for which to retrieve the documentation
             :return: swagger `body` and `response` dictionaries
+            :rtype: tuple
 
             Create a swagger api model based on the sqlalchemy schema.
         """
@@ -710,10 +712,17 @@ class SAFRSBase(Model):
     def _s_get_jsonapi_rpc_methods(cls):
         """
             :return: a list of jsonapi_rpc methods for this class
+            :rtype: list
         """
         result = []
-        # pylint: disable=unused-variable
-        for name, method in inspect.getmembers(cls):
+        try:
+            cls_members = inspect.getmembers(cls)
+        except sqlalchemy.exc.InvalidRequestError as exc:
+            # This may happen if there's no sqlalchemy superclass
+            safrs.log.warning("Member inspection failed for {}".format(cls))
+            return result
+
+        for name, method in cls_members:
             rest_doc = get_doc(method)
             if rest_doc is not None:
                 result.append(method)

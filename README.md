@@ -30,6 +30,7 @@
     - [Custom Decorators](#custom-decorators)
     - [API Methods](#api-methods)
     - [Custom Swagger](#custom-swagger)
+    - [Classes Without SQLAlchemy Models](#Classes-Without-Models)
 - [Limitations & TODOs](#limitations--todos)
 - [References](#references)
 - [Thanks](#thanks)
@@ -355,6 +356,11 @@ custom_swagger = {"info": {"title" : "New Title" }} # Customized swagger title w
 api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger',
                custom_swagger=custom_swagger, schemes=['http', 'https'], description=description)
 ```
+
+<a class="mk-toclify" id="Classes-Without-Models"></a>
+### Classes Without SQLAlchemy Models
+You can implement a serializable class without a model but this requires some extra work because safrs needs to know which attributes and relationships to serialize. An example is implemented [here](examples/demo_stateless.py)
+
 
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs

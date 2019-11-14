@@ -107,7 +107,7 @@ def jsonapi_sort(object_query, safrs_object):
             else:
                 attr = getattr(safrs_object, sort_attr, None)
             if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
-                safrs.log.error("lumn {}".format(sort_attr))
+                safrs.log.error("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
                 object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-"))
@@ -278,9 +278,13 @@ def get_included(data, limit, include="", level=0):
             try:
                 # This works on sqlalchemy.orm.dynamic.AppenderBaseQuery
                 included = included[:limit]
+            except Exception as exc:
+                safrs.log.debug("Failed to add included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc))
+
+            try:
                 result = result.union(included)
             except Exception as exc:
-                safrs.log.critical("Failed to add included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc))
+                safrs.log.warning("Failed to unionize included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc))
                 result.add(included)
 
         if INCLUDE_ALL in includes:
@@ -507,6 +511,8 @@ class SAFRSRestAPI(Resource):
             summary : Retrieve a {class_name} object
             description : Retrieve {class_name} from {collection_name}
             responses :
+                200 :
+                    description : Request fulfilled, document follows
                 403 :
                     description : Forbidden
                 404 :
