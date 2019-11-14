@@ -84,8 +84,8 @@ class SAFRSBase(Model):
     url_prefix = ""
     allow_client_generated_ids = False
 
-    exclude_attrs = [] # list of attribute names that should not be serialized
-    exclude_rels = [] # list of relationship names that should not be serialized
+    exclude_attrs = []  # list of attribute names that should not be serialized
+    exclude_rels = []  # list of relationship names that should not be serialized
 
     def __new__(cls, **kwargs):
         """
@@ -722,7 +722,7 @@ class SAFRSBase(Model):
             safrs.log.warning("Member inspection failed for {}: {}".format(cls, exc))
             return result
 
-        for _, method in cls_members: # [(name, method),..]
+        for _, method in cls_members:  # [(name, method),..]
             rest_doc = get_doc(method)
             if rest_doc is not None:
                 result.append(method)
@@ -750,7 +750,9 @@ class SAFRSBase(Model):
             swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type, None)
             if swagger_type is None:
                 safrs.log.warning(
-                    'Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(column_type, cls.__tablename__, column.name)
+                    'Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(
+                        column_type, cls.__tablename__, column.name
+                    )
                 )
                 swagger_type = "string"
             default = getattr(sample_instance, column.name, None)

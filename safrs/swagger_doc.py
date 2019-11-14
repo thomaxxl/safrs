@@ -336,17 +336,37 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             sample_dict = cls._s_sample_dict()
             sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
-            parameters.append({"name": "POST body", "in": "body", "description": "{} attributes".format(class_name), "schema": sample_data, "required": True})
+            parameters.append(
+                {
+                    "name": "POST body",
+                    "in": "body",
+                    "description": "{} attributes".format(class_name),
+                    "schema": sample_data,
+                    "required": True,
+                }
+            )
 
         elif http_method == "patch":
             post_model, responses = cls.get_swagger_doc("patch")
             sample = cls._s_sample_dict()
             sample_dict = cls._s_sample_dict()
             if sample:
-                sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}})
+                sample_data = schema_from_object(
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}}
+                )
             else:
-                sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}})
-            parameters.append({"name": "POST body", "in": "body", "description": "{} attributes".format(class_name), "schema": sample_data, "required": True})
+                sample_data = schema_from_object(
+                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}}
+                )
+            parameters.append(
+                {
+                    "name": "POST body",
+                    "in": "body",
+                    "description": "{} attributes".format(class_name),
+                    "schema": sample_data,
+                    "required": True,
+                }
+            )
         elif http_method == "delete":
             pass
         else:
@@ -525,7 +545,15 @@ def swagger_method_doc(cls, method_name, tags=None):
 
         if func.__name__ == "get":
             if not parameters:
-                parameters = [{"name": "varargs", "in": "query", "description": "{} arguments".format(method_name), "required": False, "type": "string"}]
+                parameters = [
+                    {
+                        "name": "varargs",
+                        "in": "query",
+                        "description": "{} arguments".format(method_name),
+                        "required": False,
+                        "type": "string",
+                    }
+                ]
         else:
             # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
             parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
@@ -536,7 +564,9 @@ def swagger_method_doc(cls, method_name, tags=None):
 
         # URL Path Parameter
         default_id = cls._s_sample_id()
-        parameters.append({"name": cls.object_id, "in": "path", "type": "string", "default": default_id, "required": True})  # parameter id, e.g. UserId
+        parameters.append(
+            {"name": cls.object_id, "in": "path", "type": "string", "default": default_id, "required": True}
+        )  # parameter id, e.g. UserId
         doc["parameters"] = parameters
         doc["produces"] = ["application/vnd.api+json"]
 

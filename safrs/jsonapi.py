@@ -120,7 +120,6 @@ def jsonapi_sort(object_query, safrs_object):
                 except Exception as exc:
                     safrs.log.warning("Sort failed for {}.{}: {}".format(safrs_object, sort_attr, exc))
 
-
     return object_query
 
 
@@ -156,7 +155,9 @@ def paginate(object_query, SAFRSObject=None):
 
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ""
-        result += "?" + "&".join(["{}={}".format(k, v) for k, v in request.args.items()] + ["page[offset]={}&page[limit]={}".format(count, limit)])
+        result += "?" + "&".join(
+            ["{}={}".format(k, v) for k, v in request.args.items()] + ["page[offset]={}&page[limit]={}".format(count, limit)]
+        )
         return result
 
     try:
@@ -284,7 +285,9 @@ def get_included(data, limit, include="", level=0):
             try:
                 result = result.union(included)
             except Exception as exc:
-                safrs.log.warning("Failed to unionize included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc))
+                safrs.log.warning(
+                    "Failed to unionize included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc)
+                )
                 result.add(included)
 
         if INCLUDE_ALL in includes:
@@ -697,7 +700,9 @@ class SAFRSRestAPI(Resource):
             attributes.pop(col_name, None)
 
         # remove attributes that have relationship names
-        attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in self.SAFRSObject._s_relationship_names}
+        attributes = {
+            attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in self.SAFRSObject._s_relationship_names
+        }
 
         if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
             # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
@@ -987,7 +992,9 @@ class SAFRSRestRelationshipAPI(Resource):
                 pass
             setattr(parent, self.rel_name, None)
         else:
-            raise ValidationError('Invalid data object type "{}" for this "{}"" relationship'.format(type(data), self.SAFRSObject.relationship.direction))
+            raise ValidationError(
+                'Invalid data object type "{}" for this "{}"" relationship'.format(type(data), self.SAFRSObject.relationship.direction)
+            )
 
         if data is None:
             # item removed from relationship => 202 accepted
