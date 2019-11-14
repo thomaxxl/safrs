@@ -27,6 +27,7 @@
 - [More Examples and Use Cases](#more-examples-and-use-cases)
 - [Advanced Usage](#advanced-usage)
     - [Custom Serialization](#custom-serialization)
+    - [Excluding Attributes and Relationships](#excluding-attrs-rels)
     - [Custom Decorators](#custom-decorators)
     - [API Methods](#api-methods)
     - [Custom Swagger](#custom-swagger)
@@ -339,10 +340,20 @@ This will add the `custom_field` attribute to the result attributes:
 }
 ```
 
+<a class="mk-toclify" id="excluding-attrs-rels"></a>
+### Excluding Attributes and Relationships
+It is possible to specify attributes and relationships that should not be serialized by specifying the respective `exclude_attrs` and èxclude_rels` class attributes in your SAFRSBase instances.
+Examples can be found [here](examples/demo_pythonanywhere_com.py#L81) and [here](examples/demo_http_get.py#L21)
+
+<a class="mk-toclify" id="limit-http-verbs"></a>
+### Limiting HTTP Verbs
+It is possible to limit the HTTP methods that are allowed by overriding the `http_methods` class attribute. An example can be found [here](examples/demo_http_get.py#L20)
+
 <a class="mk-toclify" id="custom-decorators"></a>
 ### Custom Decorators
 The `custom_decorators` class attribute list can be used to add custom decorators to the instance HTTP endpoint. An example of this functionality is implemented
 in the [authentication examples](examples/authentication).
+
 
 <a class="mk-toclify" id="api-methods"></a>
 ### API Methods
