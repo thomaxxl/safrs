@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# db.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
+# base.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
 #
 # SQLAlchemy database schemas
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
