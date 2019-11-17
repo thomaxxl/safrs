@@ -11,8 +11,6 @@
   - pagination: paginate
   - retrieve included resources: get_included
 """
-
-#
 #
 # Some linting errors to ignore
 # pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
@@ -690,8 +688,8 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("Data is not a dict object")
 
         obj_type = data.get("type", None)
-        if not obj_type:  # or type..
-            raise ValidationError("Invalid type member")
+        if not obj_type or not obj_type == self.SAFRSObject._s_type:
+            raise ValidationError("Invalid type member: {} != {}".format(obj_type, self.SAFRSObject ._s_type))
 
         attributes = data.get("attributes", {})
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
@@ -714,7 +712,7 @@ class SAFRSRestAPI(Resource):
         # pylint: disable=not-callable
         instance = self.SAFRSObject(**attributes)
 
-        if not instance.auto_commit:
+        if not instance._s_auto_commit:
             #
             # The item has not yet been added/commited by the SAFRSBase,
             # in that case we have to do it ourselves

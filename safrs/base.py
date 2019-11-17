@@ -76,7 +76,7 @@ class SAFRSBase(Model):
         (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
     query_limit = 50
-    db_commit = True  # commit instances automatically, see also auto_commit
+    db_commit = True  # commit instances automatically, see also _s_auto_commit property below
     http_methods = {"GET", "POST", "PATCH", "DELETE", "PUT"}  # http methods, used in case of override
     url_prefix = ""
     allow_client_generated_ids = False # Indicates whether the client is allowed to create the id
@@ -140,7 +140,7 @@ class SAFRSBase(Model):
             safrs.log.exception(exc)
             safrs.DB.Model.__init__(self)
 
-        if self.auto_commit:
+        if self._s_auto_commit:
             # Add the object to the database if specified by the class parameters
             safrs.DB.session.add(self)
             try:
@@ -148,20 +148,6 @@ class SAFRSBase(Model):
             except sqlalchemy.exc.SQLAlchemyError as exc:
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
-
-    @classproperty
-    def auto_commit(self):
-        """
-            fka db_commit
-        """
-        return self.db_commit
-
-    @auto_commit.setter
-    def auto_commit(self, value):
-        """
-            autom_commit setter
-        """
-        self.db_commit = value
 
     def _s_parse_attr_value(self, kwargs, column):
         """
@@ -379,8 +365,7 @@ class SAFRSBase(Model):
             This may cause other errors too, for ex when sorting
             :return: renamed type
         """
-
-        # safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
+        safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
 
     @Type.setter
@@ -392,6 +377,23 @@ class SAFRSBase(Model):
         if not self.Type == value:
             self.Type = value
         self.type = value
+
+    @classproperty
+    def _s_auto_commit(self):
+        """
+            :return: whether the instance should be automatically commited.
+            :rtype: boolen
+            fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
+        """
+        return self.db_commit
+
+    @_s_auto_commit.setter
+    def _s_auto_commit(self, value):
+        """ 
+            :param value:
+            auto_commit setter
+        """
+        self.db_commit = value
 
     def _s_patch(self, **attributes):
         """
@@ -667,10 +669,7 @@ class SAFRSBase(Model):
     def object_id(cls):
         """
             :return: the Flask url parameter name of the object, e.g. UserId
-<<<<<<< Updated upstream
             :rtype: string
-=======
->>>>>>> Stashed changes
         """
         # pylint: disable=no-member
         return cls.__name__ + get_config("OBJECT_ID_SUFFIX")
