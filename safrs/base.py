@@ -220,7 +220,9 @@ class SAFRSBase(Model):
         # pylint: disable=invalid-name,redefined-builtin
         if isinstance(item, dict):
             id = item.get("id", None)
-            if item.get("type") != cls._s_type or id is None:
+            if id is None:
+                raise ValidationError("Invalid id")
+            if item.get("type") != cls._s_type:
                 raise ValidationError("Invalid item type")
         else:
             id = item
@@ -236,7 +238,7 @@ class SAFRSBase(Model):
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
             except Exception as exc:
-                safrs.log.error("get_instance : %s", str(exc))
+                safrs.log.error("get_instance : {}".format(exc))
 
             if not instance and not failsafe:
                 raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
@@ -412,16 +414,19 @@ class SAFRSBase(Model):
     def _s_clone(self, **kwargs):
         """
             Clone an object: copy the parameters and create a new id
-            :param *kwargs: 
+            :param *kwargs: TBD
         """
         make_transient(self)
         # pylint: disable=attribute-defined-outside-init
         self.id = self.id_type()
-        for parameter in self._s_column_names:
+        for parameter in self._s_jsonapi_attrs:
             value = kwargs.get(parameter, None)
             if value is not None:
                 setattr(self, parameter, value)
         safrs.DB.session.add(self)
+        if self._s_auto_commit:
+            safrs.DB.session.commit()
+        return self
 
     def to_dict(self, fields=None):
         """
@@ -441,10 +446,9 @@ class SAFRSBase(Model):
         result = {}
         if fields is None:
             # Check if fields have been provided in the request
+            fields = self._s_jsonapi_attrs
             if request:
-                fields = request.fields.get(self._s_class_name, self._s_jsonapi_attrs)
-            else:
-                fields = self._s_jsonapi_attrs
+                fields = request.fields.get(self._s_class_name, fields)
 
         # filter the relationships, id & type from the data
         for attr in self._s_jsonapi_attrs:
@@ -454,7 +458,7 @@ class SAFRSBase(Model):
                 result[attr] = getattr(self, attr)
             except:
                 safrs.log.warning("Failed to fetch {}".format(attr))
-                result[attr] = getattr(self, attr.lower())
+                # result[attr] = getattr(self, attr.lower())
         return result
 
     @classmethod
