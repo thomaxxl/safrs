@@ -187,7 +187,7 @@ log = SAFRS.init_logging(LOGLEVEL)
 # introduced by .config, though we keep it for backwards compatibility
 # pylint: disable=wrong-import-position
 from ._api import Api
-from .db import SAFRSBase
+from .base import SAFRSBase
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
 from .json_encoder import SAFRSJSONEncoder
 from .api_methods import search, startswith

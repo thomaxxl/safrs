@@ -8,7 +8,7 @@ from flask.json import JSONEncoder
 from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
 from .config import is_debug
-from .db import SAFRSBase, SAFRSDummy
+from .base import SAFRSBase, SAFRSDummy
 
 
 class SAFRSFormattedResponse:

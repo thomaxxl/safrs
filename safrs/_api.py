@@ -17,8 +17,6 @@ from flask_restful_swagger_2 import extract_swagger_path, Extractor
 from functools import wraps
 import collections
 import safrs
-
-# Import here in order to avoid circular dependencies, (todo: fix)
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import ValidationError, GenericError, NotFoundError
@@ -41,7 +39,7 @@ class Api(FRSApiBase):
     _operation_ids = {}
 
     def __init__(self, *args, **kwargs):
-        """
+        """ 
             http://jsonapi.org/format/#content-negotiation-servers
             Servers MUST send all JSON:API data in response documents with
             the header Content-Type: application/vnd.api+json without any media type parameters.
@@ -62,8 +60,7 @@ class Api(FRSApiBase):
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
 
     def expose_object(self, safrs_object, url_prefix="", **properties):
-        """
-            This methods creates the API url endpoints for the SAFRObjects
+        """ This methods creates the API url endpoints for the SAFRObjects
             :param safrs_object: SAFSBase subclass that we would like to expose
 
             creates a class of the form
@@ -117,8 +114,7 @@ class Api(FRSApiBase):
             self.expose_relationship(relationship, url, tags=tags)
 
     def expose_methods(self, url_prefix, tags):
-        """
-            Expose the safrs "documented_api_method" decorated methods
+        """ Expose the safrs "documented_api_method" decorated methods
             :param url_prefix: api url prefix
             :param tags: swagger tags
             :return: None
@@ -214,7 +210,6 @@ class Api(FRSApiBase):
         safrs.log.info("Exposing relationship {} on {}, endpoint: {}".format(rel_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST", "PATCH", "DELETE"])
 
-        #
         try:
             child_object_id = safrs_object.object_id
         except Exception as exc:
@@ -243,7 +238,7 @@ class Api(FRSApiBase):
 
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
-        """
+        """ :param ordered_methods:
             :return: the http methods from the SwaggerEndpoint and SAFRS Resources,
             in the order specified by ordered_methods
         """
@@ -390,8 +385,7 @@ class Api(FRSApiBase):
 
 
 def api_decorator(cls, swagger_decorator):
-    """
-        Decorator for the API views:
+    """ Decorator for the API views:
             - add swagger documentation ( swagger_decorator )
             - add cors
             - add generic exception handling
@@ -444,16 +438,22 @@ def api_decorator(cls, swagger_decorator):
 
 
 def http_method_decorator(fun):
-    """
-        Decorator for the REST methods
+    """ Decorator for the REST methods
         - commit the database
         - convert all exceptions to a JSON serializable GenericError
 
         This method will be called for all requests
+        :param fun:
+        :return: wrapped fun
     """
 
     @wraps(fun)
     def method_wrapper(*args, **kwargs):
+        """ Wrap the method and perform error handling
+            :param *args:
+            :param **kwargs:
+            :return: result of the wrapped method
+        """
         try:
             result = fun(*args, **kwargs)
             safrs.DB.session.commit()
@@ -497,9 +497,10 @@ class SAFRSRelationshipObject:
 
     @classmethod
     def get_swagger_doc(cls, http_method):
-        """
-            Create a swagger api model based on the sqlalchemy schema
+        """ Create a swagger api model based on the sqlalchemy schema
             if an instance exists in the DB, the first entry is used as example
+            :param http_method: HTTP method for which to generate the doc
+            :return: swagger body, responses
         """
         body = {}
         responses = {}
@@ -518,20 +519,36 @@ class SAFRSRelationshipObject:
 
     @classproperty
     def _s_relationship_names(cls):
+        """
+            :return: The relationship names of the target
+        """
         return cls._target._s_relationship_names
 
     @classproperty
     def _s_jsonapi_attrs(cls):
-        return cls._target._s_relationship_names
+        """
+            dummy
+            :return: JSON:API attributes
+        """
+        return []
 
     @classproperty
     def _s_type(cls):
+        """
+            :return: JSON:API type
+        """
         return cls._target._s_type
 
     @classproperty
     def _s_column_names(cls):
+        """
+
+        """
         return cls._target._s_column_names
 
     @classproperty
     def _s_class_name(cls):
+        """
+
+        """
         return cls._target.__name__

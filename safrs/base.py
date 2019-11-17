@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
-"""
-    db.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
-"""
+# db.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
 #
 # SQLAlchemy database schemas
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
 import inspect
 import datetime
+import sqlalchemy
 from http import HTTPStatus
 from urllib.parse import urljoin
 from flask import request, url_for
 from flask_sqlalchemy import Model
-import sqlalchemy
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
@@ -67,22 +65,21 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 # SAFRSBase superclass
 #
 class SAFRSBase(Model):
-    """
-        This SQLAlchemy mixin implements Json Serialization for SAFRS SQLalchemy Persistent Objects
+    """ This SQLAlchemy mixin implements Json Serialization for SAFRS SQLalchemy Persistent Objects
         Serialization itself is performed by the ``to_dict`` method
         Initialization and instantiation are quite complex because we rely on the DB schema
 
         The jsonapi id is generated from the primary keys of the columns
 
-        The object attributes should not match column names,
-        this is why most of the methods & properties have the '_s_' prefix!
+        This class is mostly used as a sqla model mixin therefore the object attributes should not
+        match column names or sqla attribute names, this is why most of the methods & properties have
+        (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
-
     query_limit = 50
     db_commit = True  # commit instances automatically, see also auto_commit
     http_methods = {"GET", "POST", "PATCH", "DELETE", "PUT"}  # http methods, used in case of override
     url_prefix = ""
-    allow_client_generated_ids = False
+    allow_client_generated_ids = False # Indicates whether the client is allowed to create the id
 
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
@@ -356,14 +353,14 @@ class SAFRSBase(Model):
     @classproperty
     def _s_class_name(cls):
         """
-            The name of the instances
+            :return: the name of the instances
         """
         return cls.__name__
 
     @classproperty
     def _s_collection_name(cls):
         """
-            The name of the collection
+            :return: the name of the collection
         """
         return getattr(cls, "__tablename__", cls.__name__)
 
@@ -380,6 +377,7 @@ class SAFRSBase(Model):
             jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
             we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
             This may cause other errors too, for ex when sorting
+            :return: renamed type
         """
 
         # safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
@@ -603,7 +601,6 @@ class SAFRSBase(Model):
     #
     # Following methods are used to create the swagger2 API documentation
     #
-    # pylint: disable=
     @classmethod
     def _s_sample_id(cls):
         """
@@ -616,7 +613,6 @@ class SAFRSBase(Model):
             j_id = ""
         return j_id
 
-    # pylint: disable=
     @classmethod
     def _s_sample(cls):
         """
@@ -671,7 +667,10 @@ class SAFRSBase(Model):
     def object_id(cls):
         """
             :return: the Flask url parameter name of the object, e.g. UserId
+<<<<<<< Updated upstream
             :rtype: string
+=======
+>>>>>>> Stashed changes
         """
         # pylint: disable=no-member
         return cls.__name__ + get_config("OBJECT_ID_SUFFIX")

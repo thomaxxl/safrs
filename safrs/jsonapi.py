@@ -35,7 +35,7 @@ from flask import make_response, url_for
 from flask import jsonify, request
 from flask_restful_swagger_2 import Resource as FRSResource
 import safrs
-from .db import SAFRSBase
+from .base import SAFRSBase
 from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config, get_request_param
