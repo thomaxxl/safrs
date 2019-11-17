@@ -167,12 +167,15 @@ class SAFRSBase(Model):
 
         try:
             column.type.python_type
-        except NotImplementedError:
+        except NotImplementedError as exc:
             """
+                This happens when a custom type has been implemented, in which case the user/dev should know how to handle it:
+                override this method and implement the parsing
                 https://docs.python.org/2/library/exceptions.html#exceptions.NotImplementedError :
                 In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
                 => simply return the attr_val for user-defined classes
             """
+            log.debug(exc)
             return attr_val
 
         """
@@ -681,7 +684,6 @@ class SAFRSBase(Model):
             :param http_method: the http method for which to retrieve the documentation
             :return: swagger `body` and `response` dictionaries
             :rtype: tuple
-
             Create a swagger api model based on the sqlalchemy schema.
         """
         body = {}
