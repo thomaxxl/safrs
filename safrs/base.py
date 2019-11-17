@@ -175,7 +175,7 @@ class SAFRSBase(Model):
                 In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
                 => simply return the attr_val for user-defined classes
             """
-            log.debug(exc)
+            safrs.log.debug(exc)
             return attr_val
 
         """
