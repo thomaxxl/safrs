@@ -104,7 +104,11 @@ def jsonapi_sort(object_query, safrs_object):
                     attr = attr.desc()
             else:
                 attr = getattr(safrs_object, sort_attr, None)
-            if attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
+            if sort_attr == "id":
+                if attr is None:
+                    # => todo: parse the id
+                    continue
+            elif attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
                 safrs.log.error("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
@@ -689,7 +693,7 @@ class SAFRSRestAPI(Resource):
 
         obj_type = data.get("type", None)
         if not obj_type or not obj_type == self.SAFRSObject._s_type:
-            raise ValidationError("Invalid type member: {} != {}".format(obj_type, self.SAFRSObject ._s_type))
+            raise ValidationError("Invalid type member: {} != {}".format(obj_type, self.SAFRSObject._s_type))
 
         attributes = data.get("attributes", {})
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
