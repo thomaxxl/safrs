@@ -695,7 +695,7 @@ class SAFRSRestAPI(Resource):
             resp_data = {}
             location = None
         else:
-            instance = self._create_instance(data)            
+            instance = self._create_instance(data)
             # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
             obj_args = {instance.object_id: instance.jsonapi_id}
             # Retrieve the object json and return it to the client
@@ -753,7 +753,6 @@ class SAFRSRestAPI(Resource):
                 raise GenericError(str(exc))
 
         return instance
-
 
     def delete(self, **kwargs):
         """
