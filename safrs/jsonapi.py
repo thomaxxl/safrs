@@ -108,7 +108,7 @@ def jsonapi_sort(object_query, safrs_object):
                 if attr is None:
                     # => todo: parse the id
                     continue
-            elif attr is None or not sort_attr in safrs_object._s_jsonapi_attrs:
+            elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
                 safrs.log.error("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
@@ -688,7 +688,27 @@ class SAFRSRestAPI(Resource):
         data = payload.get("data")
         if data is None:
             raise ValidationError("Request contains no data")
+        if isinstance(data, list):
+            # http://springbot.github.io/json-api/extensions/bulk/
+            for item in data:
+                instance = self._create_instance(item)
+        else:
+            instance = self._create_instance(data)            
+
+        #instance = self._create_instance(data)
+        # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+        obj_args = {instance.object_id: instance.jsonapi_id}
+        # Retrieve the object json and return it to the client
+        obj_data = self.get(**obj_args)
+        response = make_response(obj_data, HTTPStatus.CREATED)
+        # Set the Location header to the newly created object
+        response.headers["Location"] = url_for(self.endpoint, **obj_args)
+
+        return response
+
+    def _create_instance(self, data):
         if not isinstance(data, dict):
+            safrs.log.error(data)
             raise ValidationError("Data is not a dict object")
 
         obj_type = data.get("type", None)
@@ -730,15 +750,8 @@ class SAFRSRestAPI(Resource):
                 safrs.log.warning(str(exc))
                 raise GenericError(str(exc))
 
-        # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-        obj_args = {instance.object_id: instance.jsonapi_id}
-        # Retrieve the object json and return it to the client
-        obj_data = self.get(**obj_args)
-        response = make_response(obj_data, HTTPStatus.CREATED)
-        # Set the Location header to the newly created object
-        response.headers["Location"] = url_for(self.endpoint, **obj_args)
+        return instance
 
-        return response
 
     def delete(self, **kwargs):
         """
