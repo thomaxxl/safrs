@@ -708,7 +708,6 @@ class SAFRSRestAPI(Resource):
 
     def _create_instance(self, data):
         if not isinstance(data, dict):
-            safrs.log.error(data)
             raise ValidationError("Data is not a dict object")
 
         obj_type = data.get("type", None)
