@@ -692,17 +692,20 @@ class SAFRSRestAPI(Resource):
             # http://springbot.github.io/json-api/extensions/bulk/
             for item in data:
                 instance = self._create_instance(item)
+            resp_data = {}
+            location = None
         else:
             instance = self._create_instance(data)            
+            # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+            obj_args = {instance.object_id: instance.jsonapi_id}
+            # Retrieve the object json and return it to the client
+            resp_data = self.get(**obj_args)
+            location = url_for(self.endpoint, **obj_args)
 
-        #instance = self._create_instance(data)
-        # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-        obj_args = {instance.object_id: instance.jsonapi_id}
-        # Retrieve the object json and return it to the client
-        obj_data = self.get(**obj_args)
-        response = make_response(obj_data, HTTPStatus.CREATED)
-        # Set the Location header to the newly created object
-        response.headers["Location"] = url_for(self.endpoint, **obj_args)
+        response = make_response(resp_data, HTTPStatus.CREATED)
+        # Set the Location header to the newly created object(s)
+        if location:
+            response.headers["Location"] = location
 
         return response
 
