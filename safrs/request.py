@@ -29,7 +29,8 @@ class SAFRSRequest(Request):
     jsonapi_content_types = ["application/json", "application/vnd.api+json"]
     page_offset = 0
     page_limit = 100
-    is_jsonapi = False
+    is_jsonapi = False  # indicates whether this is a jsonapi request
+    _extensions = set()
     filters = {}
     filter = ""  # filter is the custom filter, used as an argument by _s_filter
 
@@ -38,11 +39,35 @@ class SAFRSRequest(Request):
             constructor
         """
         super().__init__(*args, **kwargs)
-        if self.content_type in self.jsonapi_content_types:
-            self.is_jsonapi = True
-            self.parameter_storage_class = TypeConversionDict
-
+        self.parse_content_type()
         self.parse_jsonapi_args()
+
+    def parse_content_type(self):
+        """
+            Check if the request content type is jsonapi and any requested extensions
+        """
+        if not isinstance(self.content_type, str):
+            return
+        content_type = self.content_type.split(";")
+        if not content_type in self.jsonapi_content_types:
+            return
+
+        self.is_jsonapi = True
+        self.parameter_storage_class = TypeConversionDict
+
+        extensions = self.content_type.split(";")[1:]
+        for ext in extensions:
+            ext = ext.strip().split("=")
+            if ext[0] == "ext" and ext[1:]:
+                ext_name = ext[1]
+                self._extensions.add(ext[1])
+
+    @property
+    def is_bulk(self):
+        """
+            jsonapi bulk extension, http://springbot.github.io/json-api/extensions/bulk/
+        """
+        return "bulk" in self._extensions
 
     def get_jsonapi_payload(self):
         """

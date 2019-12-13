@@ -592,7 +592,7 @@ class SAFRSRestAPI(Resource):
             Update the object with the specified id
         """
         id = kwargs.get(self.object_id, None)
-        if not id:
+        if id is None:
             raise ValidationError("Invalid ID")
 
         payload = request.get_jsonapi_payload()
@@ -690,6 +690,8 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
             # http://springbot.github.io/json-api/extensions/bulk/
+            if not request.is_bulk:
+                safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
             for item in data:
                 instance = self._create_instance(item)
             resp_data = {}
@@ -710,6 +712,11 @@ class SAFRSRestAPI(Resource):
         return response
 
     def _create_instance(self, data):
+        """
+            Create an instance with the 
+            :param data: dictionary with {"type": ... , "attributes": ...}
+            :return: created instance
+        """
         if not isinstance(data, dict):
             raise ValidationError("Data is not a dict object")
 
