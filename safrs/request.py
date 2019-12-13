@@ -49,7 +49,7 @@ class SAFRSRequest(Request):
         if not isinstance(self.content_type, str):
             return
         content_type = self.content_type.split(";")
-        if not content_type in self.jsonapi_content_types:
+        if content_type not in self.jsonapi_content_types:
             return
 
         self.is_jsonapi = True
@@ -60,7 +60,7 @@ class SAFRSRequest(Request):
             ext = ext.strip().split("=")
             if ext[0] == "ext" and ext[1:]:
                 ext_name = ext[1]
-                self._extensions.add(ext[1])
+                self._extensions.add(ext_name)
 
     @property
     def is_bulk(self):

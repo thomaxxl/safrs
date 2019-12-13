@@ -713,7 +713,7 @@ class SAFRSRestAPI(Resource):
 
     def _create_instance(self, data):
         """
-            Create an instance with the 
+            Create an instance with the
             :param data: dictionary with {"type": ... , "attributes": ...}
             :return: created instance
         """
