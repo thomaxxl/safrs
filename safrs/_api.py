@@ -14,6 +14,7 @@ from flask_restful_swagger_2 import Api as FRSApiBase
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
 from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor
+from flask import request
 from functools import wraps
 import collections
 import safrs
@@ -455,6 +456,8 @@ def http_method_decorator(fun):
             :return: result of the wrapped method
         """
         try:
+            if not request.is_jsonapi:
+                raise GenericError('Unsupported Media Type', 415)
             result = fun(*args, **kwargs)
             safrs.DB.session.commit()
             return result

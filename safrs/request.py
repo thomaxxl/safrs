@@ -14,7 +14,7 @@ from flask import Request, abort
 from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
-from .errors import ValidationError
+from .errors import ValidationError, GenericError
 from ._api import HTTP_METHODS
 
 # pylint: disable=too-many-ancestors, logging-format-interpolation
@@ -40,7 +40,8 @@ class SAFRSRequest(Request):
         """
         super().__init__(*args, **kwargs)
         self.parse_content_type()
-        self.parse_jsonapi_args()
+        if self.is_jsonapi:
+            self.parse_jsonapi_args()
 
     def parse_content_type(self):
         """
@@ -48,7 +49,8 @@ class SAFRSRequest(Request):
         """
         if not isinstance(self.content_type, str):
             return
-        content_type = self.content_type.split(";")
+
+        content_type = self.content_type.split(";")[0]
         if content_type not in self.jsonapi_content_types:
             return
 
@@ -75,7 +77,7 @@ class SAFRSRequest(Request):
         """
         if not self.is_jsonapi:
             safrs.log.warning('Invalid Media Type! "{}"'.format(self.content_type))
-            # raise('Unsupported Media Type', 415)
+            raise GenericError('Unsupported Media Type', 415)
         if self.method == "OPTIONS":
             return None
         if self.method not in HTTP_METHODS:
