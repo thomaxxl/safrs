@@ -456,8 +456,9 @@ def http_method_decorator(fun):
             :return: result of the wrapped method
         """
         try:
-            if not request.is_jsonapi:
-                raise GenericError('Unsupported Media Type', 415)
+            if not request.is_jsonapi and fun.__name__ not in ["get"]:
+                # reuire jsonapi content type for requests to these routes
+                raise GenericError('Unsupported Content-Type', 415)
             result = fun(*args, **kwargs)
             safrs.DB.session.commit()
             return result

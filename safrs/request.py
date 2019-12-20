@@ -40,8 +40,7 @@ class SAFRSRequest(Request):
         """
         super().__init__(*args, **kwargs)
         self.parse_content_type()
-        if self.is_jsonapi:
-            self.parse_jsonapi_args()
+        self.parse_jsonapi_args()
 
     def parse_content_type(self):
         """
@@ -77,7 +76,7 @@ class SAFRSRequest(Request):
         """
         if not self.is_jsonapi:
             safrs.log.warning('Invalid Media Type! "{}"'.format(self.content_type))
-            raise GenericError('Unsupported Media Type', 415)
+            #raise GenericError('Unsupported Media Type', 415)
         if self.method == "OPTIONS":
             return None
         if self.method not in HTTP_METHODS:
