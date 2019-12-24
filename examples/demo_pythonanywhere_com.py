@@ -46,8 +46,10 @@ SAFRSBase.startswith = startswith
 # Needed because we don't want to implicitly commit when using flask-admin
 SAFRSBase.db_commit = False
 
+class BaseModel(SAFRSBase, db.Model):
+    __abstract__ = True
 
-class Book(SAFRSBase, db.Model):
+class Book(BaseModel):
     """
         description: My book description
     """
@@ -62,7 +64,7 @@ class Book(SAFRSBase, db.Model):
     reviews = db.relationship("Review", backref="book", cascade="save-update, delete")
 
 
-class Person(SAFRSBase, db.Model):
+class Person(BaseModel):
     """
         description: My person description
     """
@@ -125,7 +127,7 @@ class Person(SAFRSBase, db.Model):
         return response
 
 
-class Publisher(SAFRSBase, db.Model):
+class Publisher(BaseModel):
     """
         description: My publisher description
         ---
@@ -156,7 +158,7 @@ class Publisher(SAFRSBase, db.Model):
         return cls.query.filter_by(name=arg)
 
 
-class Review(SAFRSBase, db.Model):
+class Review(BaseModel):
     """
         description: Review description
     """
