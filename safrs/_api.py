@@ -91,19 +91,22 @@ class Api(FRSApiBase):
 
         properties["SAFRSObject"] = safrs_object
         properties["http_methods"] = safrs_object.http_methods
+        
+        # Expose the collection: Create the class and decorate it
         swagger_decorator = swagger_doc(safrs_object)
-
-        # Create the class and decorate it
         api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
 
-        # Expose the collection
         safrs.log.info("Exposing {} on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
+        
         # Expose the instances
+        swagger_decorator = swagger_doc(safrs_object)
+        # api_class = api_decorator(type(f"{api_class_name}_instance", (SAFRSRestAPI,), properties), swagger_decorator)
+        
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint)
 
@@ -393,6 +396,10 @@ def api_decorator(cls, swagger_decorator):
 
         We couldn't use inheritance because the rest method decorator
         references the cls.SAFRSObject which isn't known
+
+        :param cls: The class that will be decorated
+        :param swagger_decorator: function that will generate the swagger
+        :return: decorated class
     """
 
     cors_domain = get_config("cors_domain")
@@ -431,6 +438,7 @@ def api_decorator(cls, swagger_decorator):
         decorated_method = http_method_decorator(decorated_method)
 
         setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
+        # The user can add custom decorators
         for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []):
             decorated_method = custom_decorator(decorated_method)
 

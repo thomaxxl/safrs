@@ -347,12 +347,13 @@ def swagger_doc(cls, tags=None):
             )
 
         elif http_method == "patch":
+            print(cls, func)
             post_model, responses = cls.get_swagger_doc("patch")
             sample = cls._s_sample_dict()
             sample_dict = cls._s_sample_dict()
             if sample:
                 sample_data = schema_from_object(
-                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}}
+                    model_name, {"data": [{"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}]}
                 )
             else:
                 sample_data = schema_from_object(
@@ -360,7 +361,7 @@ def swagger_doc(cls, tags=None):
                 )
             parameters.append(
                 {
-                    "name": "POST body",
+                    "name": "PATCH body",
                     "in": "body",
                     "description": "{} attributes".format(class_name),
                     "schema": sample_data,

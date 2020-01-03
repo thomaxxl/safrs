@@ -579,7 +579,7 @@ class SAFRSRestAPI(Resource):
                 200 :
                     description : Accepted
                 201 :
-                    description: Created
+                    description : Created
                 204 :
                     description : No Content
                 403:
@@ -592,24 +592,58 @@ class SAFRSRestAPI(Resource):
             Update the object with the specified id
         """
         id = kwargs.get(self.object_id, None)
-        if id is None:
-            raise ValidationError("Invalid ID")
-
+        
         payload = request.get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
 
         data = payload.get("data")
-        if not data or not isinstance(data, dict):
-            raise ValidationError("Invalid Data Object")
+        if id is None and isinstance(data, list):
+            # Bulk patch request
+            for item in data:
+                if not isinstance(item, dict):
+                    raise ValidationError("Invalid Data Object")
+                instance = self._patch_instance(item)
+            response = make_response({}, HTTPStatus.CREATED)
 
+        elif not data or not isinstance(data, dict):
+            raise ValidationError("Invalid Data Object")
+        elif id is None:
+            raise ValidationError("Invalid ID")
+        else:
+            path_id = self.SAFRSObject.id_type.validate_id(id)
+            instance = self._patch_instance(data, path_id)
+            """
+            attributes = data.get("attributes", {})
+            attributes["id"] = body_id
+            # Create the object instance with the specified id and json data
+            # If the instance (id) already exists, it will be updated with the data
+            instance = self._parse_target_data(data)
+            if not instance:
+                raise ValidationError("No instance with ID")
+            instance._s_patch(**attributes)
+            """
+
+            # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+            obj_args = {instance.object_id: instance.jsonapi_id}
+            # Retrieve the object json and return it to the client
+            obj_data = self.get(**obj_args)
+            response = make_response(obj_data, HTTPStatus.CREATED)
+            # Set the Location header to the newly created object
+            response.headers["Location"] = url_for(self.endpoint, **obj_args)
+        return response
+
+    def _patch_instance(self, data, path_id=None):
+        """
+        
+        """
         # Check that the id in the body is equal to the id in the url
         body_id = data.get("id", None)
         if body_id is None:
             raise ValidationError("No ID in body")
-        path_id = self.SAFRSObject.id_type.validate_id(id)
+        
         body_id = self.SAFRSObject.id_type.validate_id(body_id)
-        if path_id != body_id:
+        if path_id is not None and path_id != body_id:
             raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id, type(body_id), body_id))
 
         attributes = data.get("attributes", {})
@@ -621,14 +655,7 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("No instance with ID")
         instance._s_patch(**attributes)
 
-        # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-        obj_args = {instance.object_id: instance.jsonapi_id}
-        # Retrieve the object json and return it to the client
-        obj_data = self.get(**obj_args)
-        response = make_response(obj_data, HTTPStatus.CREATED)
-        # Set the Location header to the newly created object
-        response.headers["Location"] = url_for(self.endpoint, **obj_args)
-        return response
+        return instance
 
     def post(self, **kwargs):
         """
@@ -690,6 +717,8 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
             # http://springbot.github.io/json-api/extensions/bulk/
+            # We should verify that the bulk extension is requested
+            # Accept it by default now
             if not request.is_bulk:
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
             for item in data:
