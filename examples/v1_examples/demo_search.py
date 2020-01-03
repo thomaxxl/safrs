@@ -14,8 +14,8 @@
 import sys
 from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, jsonapi_rpc, SAFRS, Api, SAFRSJSONEncoder
+from sqlalchemy import Column, String
+from safrs import SAFRSBase, SAFRS, Api, SAFRSJSONEncoder
 from safrs.api_methods import search
 from flask_swagger_ui import get_swaggerui_blueprint
 
