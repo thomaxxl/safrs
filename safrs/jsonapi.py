@@ -592,7 +592,7 @@ class SAFRSRestAPI(Resource):
             Update the object with the specified id
         """
         id = kwargs.get(self.object_id, None)
-        
+
         payload = request.get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
@@ -641,7 +641,7 @@ class SAFRSRestAPI(Resource):
         body_id = data.get("id", None)
         if body_id is None:
             raise ValidationError("No ID in body")
-        
+
         body_id = self.SAFRSObject.id_type.validate_id(body_id)
         if path_id is not None and path_id != body_id:
             raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id, type(body_id), body_id))

@@ -91,7 +91,7 @@ class Api(FRSApiBase):
 
         properties["SAFRSObject"] = safrs_object
         properties["http_methods"] = safrs_object.http_methods
-        
+
         # Expose the collection: Create the class and decorate it
         swagger_decorator = swagger_doc(safrs_object)
         api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
@@ -102,11 +102,11 @@ class Api(FRSApiBase):
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
-        
+
         # Expose the instances
         swagger_decorator = swagger_doc(safrs_object)
         # api_class = api_decorator(type(f"{api_class_name}_instance", (SAFRSRestAPI,), properties), swagger_decorator)
-        
+
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint)
 
@@ -466,7 +466,7 @@ def http_method_decorator(fun):
         try:
             if not request.is_jsonapi and fun.__name__ not in ["get"]:
                 # reuire jsonapi content type for requests to these routes
-                raise GenericError('Unsupported Content-Type', 415)
+                raise GenericError("Unsupported Content-Type", 415)
             result = fun(*args, **kwargs)
             safrs.DB.session.commit()
             return result
