@@ -1,12 +1,15 @@
 ## Basic Use Case
-[demo.py](demo.py) : a small sample application
+[mini_app.py](mini_app.py) : a small sample application
 example use:
 ```bash
 PYTHONPATH=$PWD python3 examples/demo.py 10.0.0.9
 ```
 
 ## Relationships
-[demo_relationship.py](demo_relationship.py) : an extension of the demo.py to demonstrate relationship functionality
+[demo_relationship.py](demo_relationship.py) : an extension of the mini_app.py to demonstrate relationship functionality
+
+## Bigger Example
+The [demo_pythonanywhere_com.py](demo_pythonanywhere_com.py) example is deployed [here](http://thomaxxl.pythonanywhere.com/). It demonstrates different functionalities that can be used.
 
 ## Expose Existing Databases:
 
