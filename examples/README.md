@@ -1,8 +1,8 @@
 ## Basic Use Case
 [mini_app.py](mini_app.py) : a small sample application
-example use:
+The example can be started with
 ```bash
-PYTHONPATH=$PWD python3 examples/demo.py 10.0.0.9
+FLASK_APP=mini_app flask run
 ```
 
 ## Relationships
