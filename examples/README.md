@@ -2,7 +2,7 @@
 [mini_app.py](mini_app.py) : a small sample application
 The example can be started with
 ```bash
-FLASK_APP=mini_app flask run
+PYTHONPATH=. FLASK_APP=mini_app flask run
 ```
 
 ## Relationships
