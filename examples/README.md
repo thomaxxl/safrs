@@ -7,9 +7,15 @@ PYTHONPATH=. FLASK_APP=mini_app flask run
 
 ## Relationships
 [demo_relationship.py](demo_relationship.py) : an extension of the mini_app.py to demonstrate relationship functionality
+```bash
+python3 demo_relationship.py 172.16.17.12
+```
 
 ## Bigger Example
 The [demo_pythonanywhere_com.py](demo_pythonanywhere_com.py) example is deployed [here](http://thomaxxl.pythonanywhere.com/). It demonstrates different functionalities that can be used.
+```bash
+python3 demo_pythonanywhere_com.py 172.16.17.12
+```
 
 ## Expose Existing Databases:
 
