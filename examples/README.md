@@ -17,6 +17,9 @@ The [demo_pythonanywhere_com.py](demo_pythonanywhere_com.py) example is deployed
 python3 demo_pythonanywhere_com.py 172.16.9.12
 ```
 
+## Example without SQLAlchemy Model
+The [demo_stateless.py](demo_stateless.py) example demonstrates how to create an exposed object that is not based on an SQLAlchemy instance.
+
 ## Expose Existing Databases:
 
 It is possible to expose existing databases, as an example I implemented the [employees](https://github.com/datacharmer/test_db) and [sakila](https://github.com/datacharmer/test_db/sakila) MuySQL test databases with safrs.
