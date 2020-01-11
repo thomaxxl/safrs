@@ -17,7 +17,7 @@ install_requires = [
 setup(
     name="safrs",
     packages=["safrs"],
-    version="2.6.0",
+    version="2.6.1",
     license="MIT",
     description="safrs : SqlAlchemy Flask-Restful Swagger2",
     long_description=open("README.rst").read(),
