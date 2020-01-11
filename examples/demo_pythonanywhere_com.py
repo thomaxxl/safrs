@@ -200,8 +200,8 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             app,
             host=swagger_host,
             port=PORT,
-            prefix=OAS_PREFIX,
-            api_spec_url=OAS_PREFIX + "/swagger",
+            prefix=API_PREFIX,
+            api_spec_url=API_PREFIX + "/swagger",
             custom_swagger=custom_swagger,
             schemes=["http", "https"],
             description=description,
@@ -217,7 +217,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             api.expose_object(model)
 
 
-OAS_PREFIX = "/api"  # swagger location
+API_PREFIX = "/api"  # swagger location
 app = Flask("SAFRS Demo App", template_folder="/home/thomaxxl/mysite/templates")
 app.secret_key = "not so secret"
 CORS(app, origins="*", allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"], supports_credentials=True)

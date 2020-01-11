@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 """
-  This demo application demonstrates the functionality of the safrs documented REST API
-  After installing safrs with pip, you can run this app standalone:
-  $ python3 demo_relationship.py [Listener-IP]
-
-  This will run the example on http://Listener-Ip:5000
-
-  - A database is created and a user is added
-  - A rest api is available
-  - swagger documentation is generated
+  This demo application demonstrates how the generated swagger can be customized
 
 """
 import sys
@@ -21,7 +13,6 @@ from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
 
 db = SQLAlchemy()
 
-# Example sqla database object
 class User(SAFRSBase, db.Model):
     """
         description: User description
@@ -70,13 +61,29 @@ if __name__ == "__main__":
     # Create the database
     db.create_all()
     API_PREFIX = ""
+    swagger_host = HOST
 
     with app.app_context():
         # Create a user and a book and add the book to the user.books relationship
         user = User(name="thomas", email="em@il")
         book = Book(name="test_book")
         user.books.append(book)
-        api = SAFRSAPI(app, host="{}".format(HOST), port=PORT, prefix=API_PREFIX)
+        custom_swagger = {
+            "info": {"title": "New Title", 
+                     "description" : "new description"},
+            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}}
+        }  # Customized swagger will be merged
+
+        api = SAFRSAPI(
+            app,
+            host=swagger_host,
+            port=PORT,
+            prefix=API_PREFIX,
+            api_spec_url=API_PREFIX + "/swagger",
+            custom_swagger=custom_swagger,
+            schemes=["http", "https"]
+        )
+
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
