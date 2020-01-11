@@ -238,7 +238,7 @@ def send_swagger_editor(path="index.html"):
 
 @app.route("/")
 def goto_api():
-    return redirect(OAS_PREFIX)
+    return redirect(API_PREFIX)
 
 
 @app.route("/sd")
