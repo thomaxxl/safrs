@@ -654,7 +654,7 @@ class SAFRSBase(Model):
             if column.default:
                 if callable(column.default.arg):
                     # todo: check how to display the default args
-                    log.warning("Not implemented: {}".format(column.default.arg))
+                    safrs.log.warning("Not implemented: {}".format(column.default.arg))
                     continue
                 else:
                     python_type = SWAGGER2_TYPE_CAST.get(column.type, str)
