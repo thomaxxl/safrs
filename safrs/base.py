@@ -61,6 +61,8 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     "MEDIUMTEXT": "string",
     "UUID": "string",
 }
+# casting of swagger types to python types
+SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": int, "boolean": bool}
 #
 # SAFRSBase superclass
 #
@@ -652,23 +654,27 @@ class SAFRSBase(Model):
             if column.default:
                 if callable(column.default.arg):
                     # todo: check how to display the default args
+                    log.warning("Not implemented: {}".format(column.default.arg))
                     continue
                 else:
-                    arg = column.default.arg
-            try:
-                if column.type.python_type == int:
-                    arg = 0
-                if column.type.python_type == datetime.datetime:
-                    arg = str(datetime.datetime.now())
-                elif column.type.python_type == datetime.date:
-                    arg = str(datetime.date.today())
-                else:
-                    arg = column.type.python_type()
-            except NotImplementedError:
-                safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
-                arg = None
-            except Exception as exc:
-                safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
+                    python_type = SWAGGER2_TYPE_CAST.get(column.type, str)
+                    arg = python_type(column.default.arg)
+            else:
+                # No default column value speciefd => infer one by type
+                try:
+                    if column.type.python_type == int:
+                        arg = 0
+                    if column.type.python_type == datetime.datetime:
+                        arg = str(datetime.datetime.now())
+                    elif column.type.python_type == datetime.date:
+                        arg = str(datetime.date.today())
+                    else:
+                        arg = column.type.python_type()
+                except NotImplementedError:
+                    safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
+                    arg = None
+                except Exception as exc:
+                    safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
             sample[column.name] = arg
 
         return sample
