@@ -431,18 +431,42 @@ class Resource(FRSResource):
         """
             :return: JSON:API filters swagger spec
             create the filter[] swagger doc for all jsonapi attributes + the id
+
+            the columns may have attributes defined that are used for custom formatting:
+            - description
+            - filterable
+            - type
+            - format
         """
         attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ["id"]
 
-        for column_name in attr_list:
+        for attr_name in attr_list:
+            # (Customizable swagger specs):
+            default = ""
+            description = "{} attribute filter.. (csv)"
+            swagger_type = "string"
+            swagger_format = "string"
+            name_format = "filter[{}]"
+            required = False
+
+            column = getattr(cls.SAFRSObject, "_s_column_dict", {}).get(attr_name, None)
+            if not column is None:
+                if not getattr(column, "filterable", True):
+                    continue
+                description = getattr(column, "description", description)
+                swagger_type = getattr(column, "swagger_type", swagger_type)
+                swagger_format = getattr(column, "format", swagger_format)
+                name_format = getattr(column, "name_format", name_format)
+                required = getattr(column, "required", required)
+
             param = {
                 "default": "",
-                "type": "string",
-                "name": "filter[{}]".format(column_name),
+                "type": swagger_type,
+                "name": name_format.format(attr_name),
                 "in": "query",
-                "format": "string",
-                "required": False,
-                "description": "{} attribute filter (csv)".format(column_name),
+                "format": swagger_format,
+                "required": required,
+                "description": description,
             }
             yield param
 

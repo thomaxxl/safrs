@@ -1,5 +1,7 @@
 """
 Functions for api documentation: these decorators generate the swagger schemas
+
+This should evolve to a more declarative version in the future with templates
 """
 import inspect
 import datetime
@@ -37,7 +39,6 @@ def parse_object_doc(object):
         yaml_doc = {"description": raw_doc}
 
     except Exception as exc:
-
         raise ValidationError("Failed to parse api doc")
 
     if isinstance(yaml_doc, dict):
@@ -252,17 +253,22 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             if rest_doc.get(PAGEABLE):
                 parameters += default_paging_parameters()
             if rest_doc.get(FILTERABLE):
-                for column_name in cls._s_column_names:
-                    param = {
-                        "default": "",
-                        "type": "string",
-                        "name": "filter[{}]".format(column_name),
-                        "in": "query",
-                        "format": "string",
-                        "required": False,
-                        "description": "{} attribute filter (csv)".format(column_name),
-                    }
-                    parameters += param
+                for column_name, column in cls._s_column_dict.items():
+                    # Expose a column if it doesn't have the "expose" attribute
+                    # Standard SQLA columns don't have this attibute
+                    # but this may have been customized by a subclass
+                    if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
+                        description = getattr(column, "description", "{} attribute filter.. (csv)".format(column_name))
+                        param = {
+                            "default": "",
+                            "type": "string",
+                            "name": "filter[{}]".format(column_name),
+                            "in": "query",
+                            "format": "string",
+                            "required": False,
+                            "description": description,
+                        }
+                        parameters += param
         else:
             safrs.log.warning('No documentation for method "{}"'.format(method_name))
             # jsonapi_rpc method has no documentation, generate it w/ inspect

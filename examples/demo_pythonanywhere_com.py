@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # This script is deployed on thomaxxl.pythonanywhere.com
 #
-# This is a demo application to demonstrate the functionality of the safrs_rest REST API
+# This is a demo application to demonstrate the functionality of the safrs REST API
 #
 # It can be ran standalone like this:
 # python demo_relationship.py [Listener-IP]
@@ -23,16 +23,17 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_admin import Admin
 from flask_admin.contrib import sqla
-from safrs import SAFRSAPI  # api factory
+from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate, ValidationError
 from safrs import jsonapi_rpc  # rpc decorator
-from safrs import search, startswith  # rpc methods
+from safrs.api_methods import search, startswith, duplicate  # rpc methods
 from flask import url_for, jsonify
 
+# This html will be rendered in the swagger UI
 description = """
-<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
-- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> (less than 200 lines!)<br/>
+<a href=http://jsonapi.org>Json:API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
+- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a><br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
 - Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
@@ -40,14 +41,30 @@ description = """
 """
 
 db = SQLAlchemy()
-# Add search and startswith methods so we can perform lookups from the frontend
-SAFRSBase.search = search
-SAFRSBase.startswith = startswith
-# Needed because we don't want to implicitly commit when using flask-admin
-SAFRSBase.db_commit = False
 
+# Superclass with multiple inheritance
 class BaseModel(SAFRSBase, db.Model):
     __abstract__ = True
+
+
+# Some customized columns
+class HiddenColumn(db.Column):
+    """
+        The "expose" attribute indicates that the column shouldn't be exposed
+    """
+    expose = False
+
+
+class DocumentedColumn(db.Column):
+    """
+        The class attributes are used for the swagger
+    """
+    description = "My custom column description"
+    swagger_type = "string"
+    swagger_format = "string"
+    name_format = "filter[{}]" # Format string with the column name as argument
+    required = False
+
 
 class Book(BaseModel):
     """
@@ -73,15 +90,13 @@ class Person(BaseModel):
     id = db.Column(db.String, primary_key=True)
     name = db.Column(db.String, default="")
     email = db.Column(db.String, default="")
-    comment = db.Column(db.Text, default="")
+    comment = DocumentedColumn(db.Text, default="comment")
     dob = db.Column(db.Date)
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
-
-    password = db.Column(db.Text, default="")
-    exclude_attrs = ["password"]
-
+    password = HiddenColumn(db.String, default="")
+    
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
@@ -110,6 +125,7 @@ class Person(BaseModel):
             args:
                 email: test email
         """
+
         print(args)
         print(kwargs)
         result = cls
@@ -162,21 +178,33 @@ class Review(BaseModel):
     """
         description: Review description
     """
-
     __tablename__ = "Reviews"
     reader_id = db.Column(db.String, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True)
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
     review = db.Column(db.String, default="")
     created = db.Column(db.DateTime, default=datetime.datetime.now())
+    http_methods = {"GET", "POST"}  # only allow GET and POST
+
+    def get(self, *args, **kwargs):
+        """
+            description: My Custom Review HTTP GET Swagger Description
+        """
+        return SAFRSRestAPI.get(self, *args, **kwargs)
 
 
 def start_api(swagger_host="0.0.0.0", PORT=None):
+
+    # Add startswith methods so we can perform lookups from the frontend
+    SAFRSBase.startswith = startswith
+    # Needed because we don't want to implicitly commit when using flask-admin
+    SAFRSBase.db_commit = False
 
     with app.app_context():
         db.init_app(app)
         db.create_all()
         # populate the database
-        for i in range(300):
+        NR_INSTANCES = 20
+        for i in range(NR_INSTANCES):
             secret = hashlib.sha256(bytes(i)).hexdigest()
             reader = Person(name="Reader " + str(i), email="reader_email" + str(i), password=secret)
             author = Person(name="Author " + str(i), email="author_email" + str(i))
@@ -194,7 +222,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         custom_swagger = {
             "info": {"title": "New Title"},
             "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
-        }  # Customized swagger will be merged
+        } # Customized swagger will be merged
 
         api = SAFRSAPI(
             app,

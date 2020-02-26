@@ -290,12 +290,22 @@ class SAFRSBase(Model):
     @classproperty
     def _s_columns(cls):
         """
-            :return: list of columns
+            :return: list of columns that are exposed by the api
         """
         mapper = getattr(cls, "__mapper__", None)
         if mapper is None:
             return []
-        return list(cls.__mapper__.columns)
+
+        # Only return column where the "expose" attribute is set on the db.Column instance
+        result = [c for c in cls.__mapper__.columns if getattr(c, "expose", True)]
+        return result
+
+    @classproperty
+    def _s_column_dict(cls):
+        """
+            :return: dict of column_name : column
+        """
+        return {c.name: c for c in cls._s_columns}
 
     @hybrid_property
     def _s_relationships(self):
@@ -330,17 +340,17 @@ class SAFRSBase(Model):
             the cls.__mapper__._polymorphic_properties instead
         """
         result = []
-        for attr in cls._s_column_names:
+        for attr_name, column in cls._s_column_dict.items():
             # Ignore the exclude_attrs for serialization/deserialization
-            if attr in cls.exclude_attrs:
+            if attr_name in cls.exclude_attrs:
                 continue
             # jsonapi schema prohibits the use of the fields 'id' and 'type' in the attributes
             # http://jsonapi.org/format/#document-resource-object-fields
-            if attr == "type":
+            if attr_name == "type":
                 # translate type to Type
                 result.append("Type")
-            elif not attr == "id":
-                result.append(attr)
+            elif not attr_name == "id":
+                result.append(attr_name)
 
         return result
 
@@ -408,7 +418,7 @@ class SAFRSBase(Model):
             update the object attributes 
             :param **attributes:
         """
-        columns = {col.name: col for col in self._s_columns}
+        columns = self._s_column_dict
         for attr, value in attributes.items():
             if attr in columns and attr in self._s_jsonapi_attrs:
                 value = self._s_parse_attr_value(attributes, columns[attr])

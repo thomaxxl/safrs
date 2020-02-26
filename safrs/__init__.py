@@ -186,7 +186,7 @@ log = SAFRS.init_logging(LOGLEVEL)
 # We put them at the bottom to avoid circular dependencies
 # introduced by .config, though we keep it for backwards compatibility
 # pylint: disable=wrong-import-position
-from ._api import Api
+from ._api import Api, SAFRSRestAPI
 from .base import SAFRSBase
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
 from .json_encoder import SAFRSJSONEncoder
@@ -198,6 +198,7 @@ __all__ = (
     "__description__",
     #
     "SAFRSAPI",
+    "SAFRSRestAPI",
     # db:
     "SAFRSBase",
     "jsonapi_rpc",
