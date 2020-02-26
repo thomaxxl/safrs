@@ -42,12 +42,14 @@ description = """
 
 db = SQLAlchemy()
 
-# Superclass with multiple inheritance
+# SQLAlchemy Mixin Superclass with multiple inheritance
+
 class BaseModel(SAFRSBase, db.Model):
     __abstract__ = True
 
 
 # Some customized columns
+
 class HiddenColumn(db.Column):
     """
         The "expose" attribute indicates that the column shouldn't be exposed
@@ -64,7 +66,9 @@ class DocumentedColumn(db.Column):
     swagger_format = "string"
     name_format = "filter[{}]" # Format string with the column name as argument
     required = False
+    default_filter = ""
 
+# SQLA objects that will be exposed
 
 class Book(BaseModel):
     """
@@ -188,9 +192,15 @@ class Review(BaseModel):
     def get(self, *args, **kwargs):
         """
             description: My Custom Review HTTP GET Swagger Description
+            responses :
+                200 :
+                    description : Request fulfilled, document follows
         """
         return SAFRSRestAPI.get(self, *args, **kwargs)
 
+
+# API app initialization:
+# Create the instances and exposes the classes
 
 def start_api(swagger_host="0.0.0.0", PORT=None):
 
@@ -203,7 +213,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         db.init_app(app)
         db.create_all()
         # populate the database
-        NR_INSTANCES = 20
+        NR_INSTANCES = 200
         for i in range(NR_INSTANCES):
             secret = hashlib.sha256(bytes(i)).hexdigest()
             reader = Person(name="Reader " + str(i), email="reader_email" + str(i), password=secret)
