@@ -309,7 +309,7 @@ A docker image can be found here:
 <a class="mk-toclify" id="advanced-usage"></a>
 ## Advanced Usage
 
-<a class="mk-toclify" id="custom-serialization"></a>
+a class="mk-toclify" id="custom-serialization"></a>
 ### Custom Serialization
 Serialization and deserialization are implemented by the SAFRSBase `to_dict` and `__init__` : you can extend these methods as usual.
 For example, if you would like to add some attributes to the json payload of the User object, you can override the to_dict method:
@@ -346,7 +346,7 @@ It is possible to specify attributes and relationships that should not be serial
 Examples can be found [here](examples/demo_pythonanywhere_com.py#L81) and [here](examples/demo_http_get.py#L21)
 
 <a class="mk-toclify" id="limit-http-verbs"></a>
-### Limiting HTTP Verbs
+### Limiting HTTP Methods
 It is possible to limit the HTTP methods that are allowed by overriding the `http_methods` class attribute. An example can be found [here](examples/demo_http_get.py#L20)
 
 <a class="mk-toclify" id="custom-decorators"></a>
@@ -372,6 +372,8 @@ api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_ur
 ### Classes Without SQLAlchemy Models
 You can implement a serializable class without a model but this requires some extra work because safrs needs to know which attributes and relationships to serialize. An example is implemented [here](examples/demo_stateless.py)
 
+### More Customization
+The documentation is being moved to the [wiki](https://github.com/thomaxxl/safrs/wiki)
 
 <a class="mk-toclify" id="limitations--todos"></a>
 ## Limitations & TODOs
