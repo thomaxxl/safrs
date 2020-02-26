@@ -442,7 +442,7 @@ class Resource(FRSResource):
 
         for attr_name in attr_list:
             # (Customizable swagger specs):
-            default = ""
+            default_filter = ""
             description = "{} attribute filter.. (csv)"
             swagger_type = "string"
             swagger_format = "string"
@@ -458,9 +458,10 @@ class Resource(FRSResource):
                 swagger_format = getattr(column, "format", swagger_format)
                 name_format = getattr(column, "name_format", name_format)
                 required = getattr(column, "required", required)
+                default_filter = getattr(column, "default_filter", default_filter)
 
             param = {
-                "default": "",
+                "default": default_filter,
                 "type": swagger_type,
                 "name": name_format.format(attr_name),
                 "in": "query",
