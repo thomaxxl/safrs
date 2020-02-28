@@ -78,7 +78,7 @@ def lookup_re_mysql(cls, **kwargs):
 def startswith(cls, **kwargs):
     """
         pageable: True
-        description : lookup column names
+        summary : lookup column names
         args:
             column: value
     """

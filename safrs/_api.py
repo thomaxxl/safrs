@@ -57,9 +57,15 @@ class Api(FRSApiBase):
         custom_swagger = kwargs.pop("custom_swagger", {})
         kwargs["default_mediatype"] = "application/vnd.api+json"
         super(Api, self).__init__(*args, **kwargs)
+        self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
+        self.update_spec(custom_swagger)
+
+    def update_spec(self, custom_swagger):
+        """
+            :param custom_swagger: swagger spec to be added to the swagger.json
+        """
         _swagger_doc = self.get_swagger_doc()
         safrs.dict_merge(_swagger_doc, custom_swagger)
-        self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
 
     def expose_object(self, safrs_object, url_prefix="", **properties):
         """ This methods creates the API url endpoints for the SAFRObjects
@@ -361,7 +367,12 @@ class Api(FRSApiBase):
                     method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
 
-                
+                    instance_schema = method_doc.get("responses", {}).get("200", {})
+                    if instance_schema and exposing_instance and method_doc["responses"]["200"].get("schema", None):
+                        method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
+                        # add this later
+                        method_doc["responses"]["200"]["schema"] = {}
+
                     validate_path_item_object(path_item)
 
                 self._swagger_object["paths"][swagger_url] = path_item

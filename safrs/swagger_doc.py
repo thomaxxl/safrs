@@ -118,7 +118,7 @@ def SchemaClassFactory(name, properties):
         name = name + str(idx)
     # name = urllib.parse.quote(name)
     Schema._reference_count.append(name)
-    
+
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             # here, the properties variable is the one passed to the
@@ -131,9 +131,11 @@ def SchemaClassFactory(name, properties):
     Schema._references[name] = new_schema_cls
     return new_schema_cls
 
+
 # List to generate the swagger references / definitions unique name
 Schema._reference_count = []
 Schema._references = {}
+
 
 def encode_schema(obj):
     """
@@ -203,7 +205,7 @@ def schema_from_object(name, object):
         raise ValidationError("Invalid schema object type {}".format(type(object)))
 
     schema = SchemaClassFactory(name, properties)
-    
+
     return schema
 
 
