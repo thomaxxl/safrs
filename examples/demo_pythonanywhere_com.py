@@ -151,7 +151,7 @@ class Person(BaseModel):
         return {"result": "sent {}".format(content)}
 
     @classmethod
-    @jsonapi_rpc(http_methods=["GET", "POST"])
+    @jsonapi_rpc(http_methods=["POST"])
     def my_rpc(cls, *args, **kwargs):
         """
             description : Generate and return a jsonapi-formatted response
@@ -222,17 +222,7 @@ class Review(BaseModel):
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
     review = db.Column(db.String, default="")
     created = db.Column(db.DateTime, default=datetime.datetime.now())
-    http_methods = {"GET", "POST"}  # only allow GET and POST
-
-    def get(self, *args, **kwargs):
-        """
-            description: My Custom Review HTTP GET Swagger Description
-            responses :
-                200 :
-                    description : Request fulfilled, document follows
-        """
-        return SAFRSRestAPI.get(self, *args, **kwargs)
-
+    #http_methods = {"GET", "POST"}  # only allow GET and POST
 
 # API app initialization:
 # Create the instances and exposes the classes
