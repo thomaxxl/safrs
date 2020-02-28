@@ -112,6 +112,13 @@ def SchemaClassFactory(name, properties):
         :return: class
     """
 
+    # generate a unique name to be used as a reference
+    idx = Schema._reference_count.count(name)
+    if idx:
+        name = name + str(idx)
+    # name = urllib.parse.quote(name)
+    Schema._reference_count.append(name)
+    
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             # here, the properties variable is the one passed to the
@@ -120,13 +127,13 @@ def SchemaClassFactory(name, properties):
                 raise ValidationError("Argument {} not valid for {}".format(key, self.__class__.__name__))
             setattr(self, key, value)
 
-    newclass = type(name, (Schema,), {"__init__": __init__, "properties": properties})
+    new_schema_cls = type(name, (Schema,), {"__init__": __init__, "properties": properties})
+    Schema._references[name] = new_schema_cls
+    return new_schema_cls
 
-    return newclass
-
-
-_references = []
-
+# List to generate the swagger references / definitions unique name
+Schema._reference_count = []
+Schema._references = {}
 
 def encode_schema(obj):
     """
@@ -195,13 +202,9 @@ def schema_from_object(name, object):
     else:
         raise ValidationError("Invalid schema object type {}".format(type(object)))
 
-    # generate a unique name to be used as a reference
-    idx = _references.count(name)
-    if idx:
-        name = name + str(idx)
-    # name = urllib.parse.quote(name)
-    _references.append(name)
-    return SchemaClassFactory(name, properties)
+    schema = SchemaClassFactory(name, properties)
+    
+    return schema
 
 
 def get_swagger_doc_arguments(cls, method_name, http_method):
@@ -356,7 +359,7 @@ def swagger_doc(cls, tags=None):
 
         elif http_method == "patch":
             post_model, responses = cls.get_swagger_doc("patch")
-            
+
             parameters.append(
                 {
                     "name": "PATCH body",

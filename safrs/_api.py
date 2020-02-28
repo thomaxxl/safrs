@@ -14,6 +14,7 @@ from flask_restful_swagger_2 import Api as FRSApiBase
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
 from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor
+from flask_restful_swagger_2 import Schema
 from flask import request
 from functools import wraps
 import collections
@@ -360,11 +361,7 @@ class Api(FRSApiBase):
                     method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
 
-                    if method == "get" and exposing_instance:
-                        instance_schema = method_doc.get("responses", {}).get("200", {})
-                        if instance_schema:
-                            method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-
+                
                     validate_path_item_object(path_item)
 
                 self._swagger_object["paths"][swagger_url] = path_item
@@ -407,7 +404,7 @@ def api_decorator(cls, swagger_decorator):
 
     cors_domain = get_config("cors_domain")
     cls.http_methods = {}  # holds overridden http methods, note: cls also has the "methods" set, but it's not related to this
-    for method_name in ["get", "post", "delete", "patch", "put", "options"]:  # HTTP methods
+    for method_name in ["patch", "post", "delete", "get", "put", "options"]:  # HTTP methods
         method = getattr(cls, method_name, None)
         if not method:
             continue

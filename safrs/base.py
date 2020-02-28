@@ -703,39 +703,6 @@ class SAFRSBase(Model):
         # pylint: disable=no-member
         return cls.__name__ + get_config("OBJECT_ID_SUFFIX")
 
-    # pylint: disable=
-    @classmethod
-    def get_swagger_doc(cls, http_method):
-        """
-            :param http_method: the http method for which to retrieve the documentation
-            :return: swagger `body` and `response` dictionaries
-            :rtype: tuple
-            Create a swagger api model based on the sqlalchemy schema.
-        """
-        body = {}
-        responses = {}
-
-        if http_method in cls.http_methods:
-            object_model = cls._get_swagger_doc_object_model()
-            responses = {
-                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
-                HTTPStatus.NOT_FOUND.value: {
-                    "description": HTTPStatus.NOT_FOUND.description
-                }
-            }
-
-            if http_method == "get":
-                body = object_model
-
-            if http_method in ("post", "patch"):
-                # body = cls.get_swagger_doc_post_parameters()
-                responses = {
-                    HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
-                    HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
-                }
-
-        return body, responses
-
     @classmethod
     def _s_get_jsonapi_rpc_methods(cls):
         """
@@ -755,6 +722,36 @@ class SAFRSBase(Model):
             if rest_doc is not None:
                 result.append(method)
         return result
+
+    # pylint: disable=
+    @classmethod
+    def get_swagger_doc(cls, http_method):
+        """
+            :param http_method: the http method for which to retrieve the documentation
+            :return: swagger `body` and `response` dictionaries
+            :rtype: tuple
+            Create a swagger api model based on the sqlalchemy schema.
+        """
+        body = {}
+        responses = {}
+
+        if http_method in cls.http_methods:
+            object_model = cls._get_swagger_doc_object_model()
+            responses = {
+                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
+                HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
+            }
+
+            if http_method == "get":
+                body = object_model
+
+            if http_method in ("post", "patch"):
+                responses = {
+                    HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
+                    HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
+                }
+
+        return body, responses
 
     @classmethod
     def _get_swagger_doc_object_model(cls):
