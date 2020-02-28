@@ -333,7 +333,13 @@ def swagger_doc(cls, tags=None):
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)
             doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
-            _, responses = cls.get_swagger_doc(http_method)
+            body, responses = cls.get_swagger_doc(http_method)
+            
+            sample_dict = cls._s_sample_dict()
+            sample_data = schema_from_object(model_name, {"data": [{"attributes": sample_dict, "type": cls._s_type, "type" : cls._s_sample_id() }]})
+            print(func)
+            responses[HTTPStatus.OK.value] = {"schema" : sample_data}
+
 
         elif http_method == "post":
             _, responses = cls.get_swagger_doc(http_method)

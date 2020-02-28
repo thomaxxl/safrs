@@ -949,7 +949,13 @@ class SAFRSRestRelationshipAPI(Resource):
         if relation is None:
             # child may have been deleted
             return "Not Found", HTTPStatus.NOT_FOUND
-        if child_id:
+        elif self.SAFRSObject.relationship.direction == MANYTOONE:
+            data = instance = relation
+            links = {"self": request.url}
+            if request.url != instance._s_url:
+                links["related"] = instance._s_url
+            meta.update(dict(instance_meta=instance._s_meta()))
+        elif child_id:
             safrs.log.warning("Fetching relationship items by path id is deprecated and will be removed")
             child = self.target.get_instance(child_id)
             links = {"self": child._s_url}
@@ -962,13 +968,6 @@ class SAFRSRestRelationshipAPI(Resource):
                 raise NotFoundError()
             else:
                 return jsonify({"data": child, "links": {"self": request.url, "related": child._s_url}})
-        # elif type(relation) == self.target: # ==>
-        elif self.SAFRSObject.relationship.direction == MANYTOONE:
-            data = instance = relation
-            links = {"self": request.url}
-            if request.url != instance._s_url:
-                links["related"] = instance._s_url
-            meta.update(dict(instance_meta=instance._s_meta()))
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
             instances = [item for item in relation if isinstance(item, SAFRSBase)]
             instances = jsonapi_sort(instances, self.target)
@@ -1014,6 +1013,7 @@ class SAFRSRestRelationshipAPI(Resource):
             a resource identifier object corresponding to the new related resource.
             null, to remove the relationship.
         """
+        changed = False
         parent, relation = self.parse_args(**kwargs)
         payload = request.get_jsonapi_payload()
         if not isinstance(payload, dict):
@@ -1033,8 +1033,11 @@ class SAFRSRestRelationshipAPI(Resource):
             if self.SAFRSObject.relationship.direction != MANYTOONE:
                 raise GenericError("Provide a list o PATCH a TOMANY relationship")
             child = self._parse_target_data(data)
-            setattr(parent, self.rel_name, child)
-            obj_args[self.child_object_id] = child.jsonapi_id
+            if getattr(parent, self.rel_name) != child:
+                # change the relationship, i.e. add the child
+                setattr(parent, self.rel_name, child)
+                obj_args[self.child_object_id] = child.jsonapi_id
+                changed = True
 
         elif isinstance(data, list) and not self.SAFRSObject.relationship.direction == MANYTOONE:
             """
@@ -1073,14 +1076,32 @@ class SAFRSRestRelationshipAPI(Resource):
                 'Invalid data object type "{}" for this "{}"" relationship'.format(type(data), self.SAFRSObject.relationship.direction)
             )
 
+        # Create the patch response
+        # https://jsonapi.org/format/#crud-updating-responses
+        # 200 OK
+        # If a server accepts an update but also changes the resource(s) in ways other than those specified by the request 
+        # (for example, updating the updated-at attribute or a computed sha), it MUST return a 200 OK response. The response 
+        # document MUST include a representation of the updated resource(s) as if a GET request was made to the request URL.
+        # A server MUST return a 200 OK status code if an update is successful, the client’s current attributes remain up to date, 
+        # and the server responds only with top-level meta data. In this case the server MUST NOT include a representation of the updated resource(s).
+
+        # 204 No Content
+        # If an update is successful and the server doesn’t update any attributes besides those provided, the server MUST return 
+        # either a 200 OK status code and response document (as described above) or a 204 No Content status code with no response document.
+
+
         if data is None:
             # item removed from relationship => 202 accepted
             # TODO: add response to swagger
             # add meta?
-            response = {}, HTTPStatus.ACCEPTED
-        else:
+            response = {}, HTTPStatus.NO_CONTENT
+        elif changed:
             obj_data = self.get(**obj_args)
-            response = make_response(obj_data, HTTPStatus.CREATED)
+            response = make_response(obj_data, HTTPStatus.OK)
+        else:
+            # Nothing changed, reflect the data
+            response = make_response({"data" : data}, HTTPStatus.OK)
+            
         return response
 
     # Adding items to a relationship

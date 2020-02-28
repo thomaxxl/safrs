@@ -363,6 +363,10 @@ class Api(FRSApiBase):
                     method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
                     validate_path_item_object(path_item)
+                    
+                    if method == "get" and exposing_instance:
+                        print('#'*80)
+                        print(path_item)
 
                 self._swagger_object["paths"][swagger_url] = path_item
 
