@@ -87,6 +87,10 @@ class SAFRSBase(Model):
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
 
+    # The swagger models are kept here, this lookup table will be used when the api swagger is generated
+    # on startup
+    swagger_models = {"instance": None, "collection": None}
+
     def __new__(cls, **kwargs):
         """
             If an object with given arguments already exists, this object is instantiated

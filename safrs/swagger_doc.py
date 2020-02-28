@@ -301,7 +301,7 @@ def swagger_doc(cls, tags=None):
     swagger_doc
     """
 
-    def swagger_doc_gen(func):
+    def swagger_doc_gen(func, instance=False):
         """
             Decorator used to document SAFRSRestAPI HTTP methods exposed in the API
         """
@@ -329,25 +329,53 @@ def swagger_doc(cls, tags=None):
 
         responses = {}
         # adhere to open api
-        model_name = "{}_{}".format(class_name, http_method)
+        # the model_name will hold the OAS "$ref" schema reference
+        coll_model_name = "{}_{}_coll".format(class_name, http_method)  # collection model name
+        inst_model_name = "{}_{}_inst".format(class_name, http_method)  # instance model name
+
+        sample_dict = cls._s_sample_dict()
+
+        # Samples with "id" are used for GET and PATCH
+        coll_sample_data = schema_from_object(
+            coll_model_name, {"data": [{"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}]}
+        )
+
+        inst_sample_data = schema_from_object(
+            inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}}
+        )
+
+        cls.swagger_models["instance"] = inst_sample_data
+        cls.swagger_models["collection"] = coll_sample_data
+
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)
             doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
             body, responses = cls.get_swagger_doc(http_method)
 
-            sample_dict = cls._s_sample_dict()
-            sample_data = schema_from_object(
-                model_name, {"data": [{"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}]}
-            )
-            responses[HTTPStatus.OK.value] = {"schema": sample_data}
+            responses[HTTPStatus.OK.value] = {"schema": coll_sample_data}
 
+        elif http_method == "patch":
+            post_model, responses = cls.get_swagger_doc("patch")
+            sample = cls._s_sample_dict()
+            sample_dict = cls._s_sample_dict()
+
+            parameters.append(
+                {
+                    "name": "PATCH body",
+                    "in": "body",
+                    "description": "{} attributes".format(class_name),
+                    "schema": inst_sample_data,
+                    "required": True,
+                }
+            )
         elif http_method == "post":
             _, responses = cls.get_swagger_doc(http_method)
             doc["summary"] = "Create a {} object".format(class_name)
 
             # Create the default POST body schema
             sample_dict = cls._s_sample_dict()
-            sample_data = schema_from_object(model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
+            # The POST sample doesn't contain an "id"
+            sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
             parameters.append(
                 {
                     "name": "POST body",
@@ -358,27 +386,6 @@ def swagger_doc(cls, tags=None):
                 }
             )
 
-        elif http_method == "patch":
-            post_model, responses = cls.get_swagger_doc("patch")
-            sample = cls._s_sample_dict()
-            sample_dict = cls._s_sample_dict()
-            if sample:
-                sample_data = schema_from_object(
-                    model_name, {"data": [{"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}]}
-                )
-            else:
-                sample_data = schema_from_object(
-                    model_name, {"data": {"attributes": sample_dict, "id": cls._s_sample_id(), "type": cls._s_type}}
-                )
-            parameters.append(
-                {
-                    "name": "PATCH body",
-                    "in": "body",
-                    "description": "{} attributes".format(class_name),
-                    "schema": sample_data,
-                    "required": True,
-                }
-            )
         elif http_method == "delete":
             pass
         else:

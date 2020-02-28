@@ -104,9 +104,6 @@ class Api(FRSApiBase):
         endpoint = safrs_object.get_endpoint(type="instance")
 
         # Expose the instances
-        swagger_decorator = swagger_doc(safrs_object)
-        # api_class = api_decorator(type(f"{api_class_name}_instance", (SAFRSRestAPI,), properties), swagger_decorator)
-
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint)
 
@@ -362,11 +359,13 @@ class Api(FRSApiBase):
                     method_doc["parameters"] = list(unique_params.values())
                     method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
                     path_item[method] = method_doc
-                    validate_path_item_object(path_item)
 
                     if method == "get" and exposing_instance:
-                        print("#" * 80)
-                        print(path_item)
+                        instance_schema = method_doc.get("responses", {}).get("200", {})
+                        if instance_schema:
+                            method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
+
+                    validate_path_item_object(path_item)
 
                 self._swagger_object["paths"][swagger_url] = path_item
 
