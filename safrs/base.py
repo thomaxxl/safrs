@@ -393,7 +393,7 @@ class SAFRSBase(Model):
     @Type.setter
     def Type(self, value):
         """
-            Type property setter
+            Type property setter, see comment in the type property
         """
         # pylint: disable=attribute-defined-outside-init
         if not self.Type == value:
@@ -649,6 +649,7 @@ class SAFRSBase(Model):
         try:
             first = cls._s_query.first()
         except RecursionError as exc:
+            # This may happen when exposing an existing database
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
         except Exception as exc:
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
@@ -717,12 +718,10 @@ class SAFRSBase(Model):
         if http_method in cls.http_methods:
             object_model = cls._get_swagger_doc_object_model()
             responses = {
-                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description, "schema": {"$ref": "#/definitions/Book_patch"}},
+                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
                 HTTPStatus.NOT_FOUND.value: {
-                    "description": HTTPStatus.NOT_FOUND.description,
-                    "schema": {"$ref": "#/definitions/Book_patch"},
-                },
-                669: {"description": HTTPStatus.NOT_FOUND.description, "schema": {"$ref": "#/definitions/Book_patch"}},
+                    "description": HTTPStatus.NOT_FOUND.description
+                }
             }
 
             if http_method == "get":

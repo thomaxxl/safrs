@@ -356,9 +356,7 @@ def swagger_doc(cls, tags=None):
 
         elif http_method == "patch":
             post_model, responses = cls.get_swagger_doc("patch")
-            sample = cls._s_sample_dict()
-            sample_dict = cls._s_sample_dict()
-
+            
             parameters.append(
                 {
                     "name": "PATCH body",
