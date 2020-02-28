@@ -20,6 +20,7 @@ import pdb
 
 db = SQLAlchemy()
 
+
 class User(SAFRSBase, db.Model):
     """
         description: User description
@@ -43,6 +44,7 @@ class Book(SAFRSBase, db.Model):
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
 
+
 #
 #
 #
@@ -53,6 +55,7 @@ class TestQuery:
         The safrs sqla serialization calls some sqlalchemy methods
         We emulate them here
     """
+
     def first(cls):
         return Test(name="name 0")
 
@@ -87,7 +90,7 @@ class TestBookRelationship:
 
     def __init__(self, parent):
         self.parent = parent
-        
+
     def __iter__(self):
         """
             yield items from the collection that should be in the relationship

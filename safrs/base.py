@@ -312,7 +312,7 @@ class SAFRSBase(Model):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels and getattr(rel,"expose",True)]
+        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels and getattr(rel, "expose", True)]
         return rels
 
     @classproperty
@@ -713,9 +713,12 @@ class SAFRSBase(Model):
         if http_method in cls.http_methods:
             object_model = cls._get_swagger_doc_object_model()
             responses = {
-                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description, "schema" :{"$ref": "#/definitions/Book_patch"}},
-                HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description, "schema" :{"$ref": "#/definitions/Book_patch"}},
-                669 : {"description": HTTPStatus.NOT_FOUND.description, "schema" :{"$ref": "#/definitions/Book_patch"}}
+                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description, "schema": {"$ref": "#/definitions/Book_patch"}},
+                HTTPStatus.NOT_FOUND.value: {
+                    "description": HTTPStatus.NOT_FOUND.description,
+                    "schema": {"$ref": "#/definitions/Book_patch"},
+                },
+                669: {"description": HTTPStatus.NOT_FOUND.description, "schema": {"$ref": "#/definitions/Book_patch"}},
             }
 
             if http_method == "get":

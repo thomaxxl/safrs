@@ -1079,16 +1079,15 @@ class SAFRSRestRelationshipAPI(Resource):
         # Create the patch response
         # https://jsonapi.org/format/#crud-updating-responses
         # 200 OK
-        # If a server accepts an update but also changes the resource(s) in ways other than those specified by the request 
-        # (for example, updating the updated-at attribute or a computed sha), it MUST return a 200 OK response. The response 
+        # If a server accepts an update but also changes the resource(s) in ways other than those specified by the request
+        # (for example, updating the updated-at attribute or a computed sha), it MUST return a 200 OK response. The response
         # document MUST include a representation of the updated resource(s) as if a GET request was made to the request URL.
-        # A server MUST return a 200 OK status code if an update is successful, the client’s current attributes remain up to date, 
+        # A server MUST return a 200 OK status code if an update is successful, the client’s current attributes remain up to date,
         # and the server responds only with top-level meta data. In this case the server MUST NOT include a representation of the updated resource(s).
 
         # 204 No Content
-        # If an update is successful and the server doesn’t update any attributes besides those provided, the server MUST return 
+        # If an update is successful and the server doesn’t update any attributes besides those provided, the server MUST return
         # either a 200 OK status code and response document (as described above) or a 204 No Content status code with no response document.
-
 
         if data is None:
             # item removed from relationship => 202 accepted
@@ -1100,8 +1099,8 @@ class SAFRSRestRelationshipAPI(Resource):
             response = make_response(obj_data, HTTPStatus.OK)
         else:
             # Nothing changed, reflect the data
-            response = make_response({"data" : data}, HTTPStatus.OK)
-            
+            response = make_response({"data": data}, HTTPStatus.OK)
+
         return response
 
     # Adding items to a relationship

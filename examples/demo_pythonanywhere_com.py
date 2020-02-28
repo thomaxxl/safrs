@@ -14,6 +14,9 @@
 # - Flask-Admin frontend is created
 # - jsonapi-admin pages are served
 #
+# All sorts of customizations are applied to the exposed objects
+# The explanation can be found on the github wiki (https://github.com/thomaxxl/safrs/wiki)
+#
 import sys
 import os
 import datetime
@@ -44,16 +47,19 @@ db = SQLAlchemy()
 
 # SQLAlchemy Mixin Superclass with multiple inheritance
 
+
 class BaseModel(SAFRSBase, db.Model):
     __abstract__ = True
 
 
-# Some customized columns
+# Customized columns
+
 
 class HiddenColumn(db.Column):
     """
         The "expose" attribute indicates that the column shouldn't be exposed
     """
+
     expose = False
 
 
@@ -61,14 +67,38 @@ class DocumentedColumn(db.Column):
     """
         The class attributes are used for the swagger
     """
+
     description = "My custom column description"
     swagger_type = "string"
     swagger_format = "string"
-    name_format = "filter[{}]" # Format string with the column name as argument
+    name_format = "filter[{}]"  # Format string with the column name as argument
     required = False
     default_filter = ""
 
+
+# Customized relationships
+
+
+def hiddenRelationship(*args, **kwargs):
+    """
+        To hide a relationship, set the expose attribute to False
+    """
+    relationship = db.relationship(*args, **kwargs)
+    relationship.expose = False
+    return relationship
+
+
+def documentedRelationship(*args, **kwargs):
+    """
+        To hide a relationship, set the expose attribute to False
+    """
+    relationship = db.relationship(*args, **kwargs)
+    relationship.expose = False
+    return relationship
+
+
 # SQLA objects that will be exposed
+
 
 class Book(BaseModel):
     """
@@ -94,13 +124,16 @@ class Person(BaseModel):
     id = db.Column(db.String, primary_key=True)
     name = db.Column(db.String, default="")
     email = db.Column(db.String, default="")
-    comment = DocumentedColumn(db.Text, default="comment")
+    comment = DocumentedColumn(db.Text, default="my empty comment")
     dob = db.Column(db.Date)
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
     password = HiddenColumn(db.String, default="")
-    
+
+    employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
+    employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
+
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
@@ -159,6 +192,7 @@ class Publisher(BaseModel):
     name = db.Column(db.String, default="")
     # books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
     books = db.relationship("Book", back_populates="publisher")
+    employees = hiddenRelationship(Person, back_populates="employer")
 
     def __init__(self, *args, **kwargs):
         custom_field = kwargs.pop("custom_field", None)
@@ -182,6 +216,7 @@ class Review(BaseModel):
     """
         description: Review description
     """
+
     __tablename__ = "Reviews"
     reader_id = db.Column(db.String, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True)
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
@@ -201,6 +236,7 @@ class Review(BaseModel):
 
 # API app initialization:
 # Create the instances and exposes the classes
+
 
 def start_api(swagger_host="0.0.0.0", PORT=None):
 
@@ -232,7 +268,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         custom_swagger = {
             "info": {"title": "New Title"},
             "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
-        } # Customized swagger will be merged
+        }  # Customized swagger will be merged
 
         api = SAFRSAPI(
             app,

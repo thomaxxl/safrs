@@ -13,6 +13,7 @@ from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
 
 db = SQLAlchemy()
 
+
 class User(SAFRSBase, db.Model):
     """
         description: User description
@@ -69,9 +70,8 @@ if __name__ == "__main__":
         book = Book(name="test_book")
         user.books.append(book)
         custom_swagger = {
-            "info": {"title": "New Title", 
-                     "description" : "new description"},
-            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}}
+            "info": {"title": "New Title", "description": "new description"},
+            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
         }  # Customized swagger will be merged
 
         api = SAFRSAPI(
@@ -81,7 +81,7 @@ if __name__ == "__main__":
             prefix=API_PREFIX,
             api_spec_url=API_PREFIX + "/swagger",
             custom_swagger=custom_swagger,
-            schemes=["http", "https"]
+            schemes=["http", "https"],
         )
 
         # Expose the database objects as REST API endpoints
