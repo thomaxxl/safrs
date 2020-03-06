@@ -14,17 +14,19 @@ install_requires = [
     str(ir.req) for ir in parse_requirements("requirements.txt", session=False)
 ]
 
+version="2.7.0"
+
 setup(
     name="safrs",
     packages=["safrs"],
-    version="2.6.2",
+    version=version,
     license="MIT",
     description="safrs : SqlAlchemy Flask-Restful Swagger2",
     long_description=open("README.rst").read(),
     author="Thomas Pollet",
     author_email="thomas.pollet@gmail.com",
     url="https://github.com/thomaxxl/safrs",
-    download_url="https://github.com/thomaxxl/safrs/archive/2.5.5.tar.gz",
+    download_url="https://github.com/thomaxxl/safrs/archive/{}.tar.gz".format(version),
     keywords=["SqlAlchemy", "Flask", "REST", "Swagger", "JsonAPI", "OpenAPI"],
     python_requires=">=3.0, !=3.0.*, !=3.1.*, !=3.2.*, <4",
     install_requires=install_requires,
