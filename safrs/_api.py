@@ -204,7 +204,7 @@ class Api(FRSApiBase):
                 # TODO: simplify this by creating a proper superclass
                 "custom_decorators": decorators,
                 "parent": parent_class,
-                "_target": safrs_object,
+                "_target": safrs_object
             },
         )
 
@@ -216,7 +216,9 @@ class Api(FRSApiBase):
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
         safrs.log.info("Exposing relationship {} on {}, endpoint: {}".format(rel_name, url, endpoint))
-        self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST", "PATCH", "DELETE"])
+        # Check if there are custom http methods specified
+        methods = getattr(relationship, "http_methods", parent_class.http_methods)
+        self.add_resource(api_class, url, endpoint=endpoint, methods=methods)
 
         try:
             child_object_id = safrs_object.object_id
@@ -428,7 +430,18 @@ def api_decorator(cls, swagger_decorator):
             decorated_method = custom_method
             # keep the default method as parent_<method_name>, e.g. parent_get
             parent_method = getattr(cls, method_name)
-            cls.http_methods[method_name] = lambda *args, **kwargs: parent_method(*args, **kwargs)
+            cls.http_methods[method_name] = parent_method
+
+        # Add cors
+        if cors_domain is not None:
+            decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
+        # Add exception handling
+        decorated_method = http_method_decorator(decorated_method)
+
+        setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
+        # The user can add custom decorators
+        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []):
+            decorated_method = custom_decorator(decorated_method)
 
         # Apply custom decorators, specified as class variable list
         try:
@@ -441,17 +454,6 @@ def api_decorator(cls, swagger_decorator):
         except Exception as exc:
             safrs.log.exception(exc)
             safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
-
-        # Add cors
-        if cors_domain is not None:
-            decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
-        # Add exception handling
-        decorated_method = http_method_decorator(decorated_method)
-
-        setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
-        # The user can add custom decorators
-        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []):
-            decorated_method = custom_decorator(decorated_method)
 
         setattr(cls, method_name, decorated_method)
     return cls
@@ -528,7 +530,7 @@ class SAFRSRelationshipObject:
         body = {}
         responses = {}
         object_name = cls.__name__
-
+        
         object_model = {}
         responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
 
