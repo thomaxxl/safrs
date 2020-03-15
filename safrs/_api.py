@@ -5,6 +5,7 @@ import traceback
 import copy
 import logging
 from http import HTTPStatus
+from functools import update_wrapper
 import werkzeug
 from flask_restful import abort
 from flask_restful.representations.json import output_json
@@ -13,7 +14,7 @@ from flask_restful.utils import cors
 from flask_restful_swagger_2 import Api as FRSApiBase
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
 from flask_restful_swagger_2 import validate_path_item_object
-from flask_restful_swagger_2 import extract_swagger_path, Extractor
+from flask_restful_swagger_2 import extract_swagger_path, Extractor, ValidationError as FRSValidationError
 from flask_restful_swagger_2 import Schema
 from flask import request
 from functools import wraps
@@ -204,7 +205,7 @@ class Api(FRSApiBase):
                 # TODO: simplify this by creating a proper superclass
                 "custom_decorators": decorators,
                 "parent": parent_class,
-                "_target": safrs_object
+                "_target": safrs_object,
             },
         )
 
@@ -303,7 +304,12 @@ class Api(FRSApiBase):
                 if summary:
                     operation["summary"] = summary.split("<br/>")[0]
 
-        validate_definitions_object(definitions)
+        try:
+            validate_definitions_object(definitions)
+        except FRSValidationError:
+            safrs.log.critical("Validation failed for {}".format(definitions))
+            exit()
+
         self._swagger_object["definitions"].update(definitions)
 
         if path_item:
@@ -329,7 +335,7 @@ class Api(FRSApiBase):
                         continue
 
                     collection_summary = method_doc.pop("collection_summary", method_doc.get("summary", None))
-                    if not exposing_instance:
+                    if not exposing_instance and collection_summary:
                         method_doc["summary"] = collection_summary
 
                     parameters = []
@@ -375,7 +381,12 @@ class Api(FRSApiBase):
                         # add this later
                         method_doc["responses"]["200"]["schema"] = {}
 
-                    validate_path_item_object(path_item)
+                    try:
+                        validate_path_item_object(path_item)
+                    except FRSValidationError as exc:
+                        safrs.log.exception(exc)
+                        safrs.log.critical("Validation failed for {}".format(path_item))
+                        exit()
 
                 self._swagger_object["paths"][swagger_url] = path_item
 
@@ -439,11 +450,7 @@ def api_decorator(cls, swagger_decorator):
         decorated_method = http_method_decorator(decorated_method)
 
         setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
-        # The user can add custom decorators
-        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []):
-            decorated_method = custom_decorator(decorated_method)
 
-        # Apply custom decorators, specified as class variable list
         try:
             # Add swagger documentation
             decorated_method = swagger_decorator(decorated_method)
@@ -455,12 +462,20 @@ def api_decorator(cls, swagger_decorator):
             safrs.log.exception(exc)
             safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
 
+        # The user can add custom decorators
+        # Apply the custom decorators, specified as class variable list
+        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []):
+            # update_wrapper(custom_decorator, decorated_method)
+            swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
+            decorated_method = custom_decorator(decorated_method)
+            decorated_method.__swagger_operation_object = swagger_operation_object
+
         setattr(cls, method_name, decorated_method)
     return cls
 
 
 def http_method_decorator(fun):
-    """ Decorator for the REST methods
+    """ Decorator for the supported jsonapi HTTP methods (get, post, patch, delete)
         - commit the database
         - convert all exceptions to a JSON serializable GenericError
 
@@ -530,7 +545,7 @@ class SAFRSRelationshipObject:
         body = {}
         responses = {}
         object_name = cls.__name__
-        
+
         object_model = {}
         responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
 
