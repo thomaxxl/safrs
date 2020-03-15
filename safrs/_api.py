@@ -464,7 +464,7 @@ def api_decorator(cls, swagger_decorator):
 
         # The user can add custom decorators
         # Apply the custom decorators, specified as class variable list
-        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []):
+        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []) + getattr(cls.SAFRSObject, "decorators", []):
             # update_wrapper(custom_decorator, decorated_method)
             swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
             decorated_method = custom_decorator(decorated_method)
