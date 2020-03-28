@@ -8,7 +8,7 @@
 #
 # This will run the example on http://Listener-Ip:5000
 #
-# - A database is created and a person is added
+# - A database is created and items are added
 # - A rest api is available
 # - swagger2 documentation is generated
 # - Flask-Admin frontend is created
@@ -25,7 +25,10 @@ from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_admin import Admin
-from flask_admin.contrib import sqla
+try:
+    from flask_admin.contrib import sqla
+except Exception as exc:
+    print(f"flask-admin import failed {exc}")
 from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate, ValidationError
@@ -74,6 +77,7 @@ class DocumentedColumn(db.Column):
     name_format = "filter[{}]"  # Format string with the column name as argument
     required = False
     default_filter = ""
+    sample = "my custom value"
 
 
 # Customized relationships
@@ -122,7 +126,7 @@ class Person(BaseModel):
 
     __tablename__ = "People"
     id = db.Column(db.String, primary_key=True)
-    name = db.Column(db.String, default="")
+    name = db.Column(db.String, default="John Doe")
     email = db.Column(db.String, default="")
     comment = DocumentedColumn(db.Text, default="my empty comment")
     dob = db.Column(db.Date)
@@ -130,7 +134,6 @@ class Person(BaseModel):
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
     password = HiddenColumn(db.String, default="")
-
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
 
@@ -276,7 +279,10 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         for model in [Person, Book, Review, Publisher]:
             # add the flask-admin view
-            admin.add_view(sqla.ModelView(model, db.session))
+            try:
+                admin.add_view(sqla.ModelView(model, db.session))
+            except Exception:
+                print(f"Failed to add flask-admin view for {model}")
             # Create an API endpoint
             api.expose_object(model)
 
@@ -303,16 +309,6 @@ def send_swagger_editor(path="index.html"):
 @app.route("/")
 def goto_api():
     return redirect(API_PREFIX)
-
-
-@app.route("/sd")
-def shutdown():
-    func = request.environ.get("werkzeug.server.shutdown")
-    if func is None:
-        raise RuntimeError("Not running with the Werkzeug Server")
-    func()
-    return ""
-
 
 if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "thomaxxl.pythonanywhere.com"
