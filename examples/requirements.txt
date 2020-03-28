@@ -1,0 +1,12 @@
+Flask==1.0.2
+Flask-Admin==1.5.3
+Flask-Cors==3.0.7
+Flask-HTTPAuth==3.3.0
+Flask-Login==0.5.0
+flask-marshmallow==0.8.0
+Flask-RESTful==0.3.6
+flask-restful-swagger-2==0.35
+Flask-SQLAlchemy==2.3.2
+flask-swagger-ui==3.20.9
+Flask-Testing==0.7.1
+Werkzeug==0.14.1
