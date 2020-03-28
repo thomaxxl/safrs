@@ -14,6 +14,7 @@ from .__about__ import __version__, __description__
 from .request import SAFRSRequest
 from .response import SAFRSResponse
 from .errors import ValidationError, GenericError
+from .json_encoder import SAFRSJSONEncoder
 
 DB = SQLAlchemy()
 
@@ -33,7 +34,7 @@ def test_decorator(func):
 
 # pylint: disable=invalid-name
 # Uppercase bc we're returning the API class here, eventually this might become a class by itself
-def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI", **kwargs):
+def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI", json_encoder=SAFRSJSONEncoder, **kwargs):
     """ :param app: flask app
         :param host: the host used in the swagger doc
         :param port: the port used in the swagger doc
@@ -46,7 +47,7 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     """
     decorators = kwargs.pop("decorators", [])  # eg. test_decorator
     custom_swagger = kwargs.pop("custom_swagger", {})
-    SAFRS(app, prefix=prefix)
+    SAFRS(app, prefix=prefix, json_encoder=json_encoder)
     # the host shown in the swagger ui
     # this host may be different from the hostname of the server and
     # sometimes we don't want to show the port (eg when proxied)
@@ -99,14 +100,14 @@ class SAFRS:
     #
     config = {}
 
-    def __new__(cls, app, app_db=DB, prefix="", **kwargs):
+    def __new__(cls, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", app_db=DB, json_encoder=json_encoder, **kwargs):
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
         cls.app = app
         cls.db = app_db
 
-        app.json_encoder = SAFRSJSONEncoder
+        app.json_encoder = json_encoder
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
         app.url_map.strict_slashes = False
@@ -189,7 +190,6 @@ log = SAFRS.init_logging(LOGLEVEL)
 from ._api import Api, SAFRSRestAPI
 from .base import SAFRSBase
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
-from .json_encoder import SAFRSJSONEncoder
 from .api_methods import search, startswith
 from .swagger_doc import jsonapi_rpc
 

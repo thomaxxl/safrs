@@ -206,6 +206,8 @@ class SAFRSBase(Model):
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
+        else:
+            attr_val = column.type.python_type(attr_val)
 
         return attr_val
 
