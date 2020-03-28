@@ -666,7 +666,9 @@ class SAFRSBase(Model):
             if column.name in ("id", "type") or column.name not in cls._s_jsonapi_attrs:
                 continue
             arg = None
-            if column.default:
+            if hasattr(column, "sample"):
+                arg = getattr(column, "sample")
+            elif column.default:
                 if callable(column.default.arg):
                     # todo: check how to display the default args
                     safrs.log.warning("Not implemented: {}".format(column.default.arg))
@@ -686,6 +688,7 @@ class SAFRSBase(Model):
                     else:
                         arg = column.type.python_type()
                 except NotImplementedError:
+                    # This may happen for custom columns
                     safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
                     arg = None
                 except Exception as exc:
@@ -735,7 +738,7 @@ class SAFRSBase(Model):
         body = {}
         responses = {}
 
-        if http_method in cls.http_methods:
+        if http_method.upper() in cls.http_methods:
             object_model = cls._get_swagger_doc_object_model()
             responses = {
                 HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
