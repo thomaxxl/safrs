@@ -10,11 +10,9 @@ try:  # for pip >= 10
 except ImportError:  # for pip <= 9.0.3
     from pip.req import parse_requirements
 
-install_requires = [
-    str(ir.req) for ir in parse_requirements("requirements.txt", session=False)
-]
+install_requires = [str(ir.req) for ir in parse_requirements("requirements.txt", session=False)]
 
-version="2.7.0"
+version = "2.8.0"
 
 setup(
     name="safrs",
@@ -32,7 +30,7 @@ setup(
     install_requires=install_requires,
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
         "Intended Audience :: Developers",
         "Framework :: Flask",
         "Topic :: Software Development :: Libraries",
