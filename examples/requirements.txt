@@ -10,3 +10,5 @@ Flask-SQLAlchemy==2.3.2
 flask-swagger-ui==3.20.9
 Flask-Testing==0.7.1
 Werkzeug==0.15.3
+PyYAML==5.3.1
+validate-email==1.3
