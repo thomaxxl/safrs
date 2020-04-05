@@ -1,5 +1,5 @@
 #
-# Implementation using geoalchemy column types 
+# Implementation using geoalchemy column types
 # Documentation:
 # https://github.com/thomaxxl/safrs/wiki/Postgis-Geoalchemy2
 #
@@ -19,10 +19,12 @@ from geoalchemy2.elements import _SpatialElement
 app = Flask(__name__)
 db = SQLAlchemy()
 
+
 class GeoJSONEncoder(SAFRSJSONEncoder):
     """
         json encode geometry shapes
     """
+
     def default(self, obj, **kwargs):
         if isinstance(obj, _SpatialElement):
             result = geometry.mapping(to_shape(obj))
@@ -35,6 +37,7 @@ class GeometryColumn(db.Column):
     """
         The class attributes are used for the swagger
     """
+
     description = "Geo column description"
     swagger_type = "json"
     swagger_format = "json"
@@ -49,10 +52,10 @@ class City(SAFRSBase, db.Model):
     __tablename__ = "cities"
 
     point_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    location = db.Column(db.String(30),default="Gotham City")
+    location = db.Column(db.String(30), default="Gotham City")
     geo = GeometryColumn(Geometry(geometry_type="POINT", srid=25833, dimension=2))
 
-    def __init__(self, *args, **kwargs):
+    def ___init__(self, *args, **kwargs):
         # convert the json to geometry database type
         # (this can be implemented in the GeometryColumn type.python_type too)
         geo = kwargs.get("geo")
@@ -80,8 +83,7 @@ def connect_to_db(app):
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
-    app.json_encoder = GeoJSONEncoder
+    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX, json_encoder=GeoJSONEncoder)
     api.expose_object(City)
     print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
 

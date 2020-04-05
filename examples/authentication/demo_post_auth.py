@@ -72,10 +72,7 @@ def start_app(app):
 
 app = Flask("demo_app")
 app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/test.sqlite",
-    SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    SECRET_KEY=b"changeme",
-    DEBUG=True,
+    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/test.sqlite", SQLALCHEMY_TRACK_MODIFICATIONS=False, SECRET_KEY=b"changeme", DEBUG=True
 )
 HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
 PORT = 5000

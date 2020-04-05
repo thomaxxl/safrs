@@ -24,8 +24,9 @@ import hashlib
 from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_admin import Admin
+
 try:
+    from flask_admin import Admin
     from flask_admin.contrib import sqla
 except Exception as exc:
     print(f"flask-admin import failed {exc}")
@@ -58,12 +59,13 @@ class BaseModel(SAFRSBase, db.Model):
 # Customized columns
 
 
-class HiddenColumn(db.Column):
+class WriteOnlyColumn(db.Column):
     """
-        The "expose" attribute indicates that the column shouldn't be exposed
+        The "permissions" attribute set to "w" indicates that the column shouldn't be readable
+        in this case it's write-only
     """
 
-    expose = False
+    permissions = "w"
 
 
 class DocumentedColumn(db.Column):
@@ -133,7 +135,7 @@ class Person(BaseModel):
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
-    password = HiddenColumn(db.String, default="")
+    password = WriteOnlyColumn(db.String, default="")
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
 
@@ -225,7 +227,8 @@ class Review(BaseModel):
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
     review = db.Column(db.String, default="")
     created = db.Column(db.DateTime, default=datetime.datetime.now())
-    #http_methods = {"GET", "POST"}  # only allow GET and POST
+    # http_methods = {"GET", "POST"}  # only allow GET and POST
+
 
 # API app initialization:
 # Create the instances and exposes the classes
@@ -274,17 +277,17 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             description=description,
         )
 
-        # Flask-Admin Config
-        admin = Admin(app, url="/admin")
-
         for model in [Person, Book, Review, Publisher]:
-            # add the flask-admin view
-            try:
-                admin.add_view(sqla.ModelView(model, db.session))
-            except Exception:
-                print(f"Failed to add flask-admin view for {model}")
             # Create an API endpoint
             api.expose_object(model)
+
+        # see if we can add the flask-admin views
+        try:
+            admin = Admin(app, url="/admin")
+            for model in [Person, Book, Review, Publisher]:
+                admin.add_view(sqla.ModelView(model, db.session))
+        except Exception as exc:
+            print(f"Failed to add flask-admin view {exc}")
 
 
 API_PREFIX = "/api"  # swagger location
@@ -309,6 +312,7 @@ def send_swagger_editor(path="index.html"):
 @app.route("/")
 def goto_api():
     return redirect(API_PREFIX)
+
 
 if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "thomaxxl.pythonanywhere.com"
