@@ -18,8 +18,7 @@ if sys.version_info[0] == 3:
 try:
     from validate_email import validate_email
 except ModuleNotFoundError as exc:
-    safrs.log.warning("validate_email module not imported {}".format(exc))
-    pass
+    print("validate_email module not imported {}".format(exc))
 
 
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"

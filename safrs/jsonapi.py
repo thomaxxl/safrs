@@ -183,7 +183,13 @@ def paginate(object_query, SAFRSObject=None):
     else:
         count = SAFRSObject._s_count()
     if count is None:
-        count = object_query.count()
+        try:
+            count = object_query.count()
+        except Exception as exc:
+            # May happen for custom types, for ex. the psycopg2 extension
+            safrs.log.warning("Can't get count for {}".format(SAFRSObject))
+            count = -1
+
         if count > get_config("MAX_TABLE_COUNT"):
             safrs.log.warning("Large table count detected, performance may be impacted, consider using '_s_count'")
 
@@ -598,6 +604,7 @@ class SAFRSRestAPI(Resource):
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
 
+    # Instance patching
     def patch(self, **kwargs):
         """
             summary : Update {class_name}
@@ -781,39 +788,7 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("Invalid type member: {} != {}".format(obj_type, self.SAFRSObject._s_type))
 
         attributes = data.get("attributes", {})
-        # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
-        # SAFRSObject allow_client_generated_ids attribute
-        for col_name in self.SAFRSObject.id_type.column_names:
-            attributes.pop(col_name, None)
-
-        # remove attributes that have relationship names
-        attributes = {
-            attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in self.SAFRSObject._s_relationship_names
-        }
-
-        if getattr(self.SAFRSObject, "allow_client_generated_ids", False) is True:
-            # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            id = data.get("id")
-            self.SAFRSObject.id_type.get_pks(id)
-
-        # Create the object instance with the specified id and json data
-        # If the instance (id) already exists, it will be updated with the data
-        # pylint: disable=not-callable
-        instance = self.SAFRSObject(**attributes)
-
-        if not instance._s_auto_commit:
-            #
-            # The item has not yet been added/commited by the SAFRSBase,
-            # in that case we have to do it ourselves
-            #
-            safrs.DB.session.add(instance)
-            try:
-                safrs.DB.session.commit()
-            except sqlalchemy.exc.SQLAlchemyError as exc:
-                # Exception may arise when a db constrained has been violated
-                # (e.g. duplicate key)
-                safrs.log.warning(str(exc))
-                raise GenericError(str(exc))
+        instance = self.SAFRSObject._s_post(**attributes)
 
         return instance
 

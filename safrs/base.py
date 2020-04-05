@@ -8,7 +8,7 @@ import datetime
 import sqlalchemy
 from http import HTTPStatus
 from urllib.parse import urljoin
-from flask import request, url_for
+from flask import request, url_for, has_request_context
 from flask_sqlalchemy import Model
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
@@ -119,20 +119,18 @@ class SAFRSBase(Model):
         kwargs["id"] = self.id_type(kwargs.get("id", None))
 
         # Initialize the attribute values: these have been passed as key-value pairs in the
-        # kwargs dictionary (from json).
+        # kwargs dictionary (from json in case of a web request).
         # Retrieve the values from each attribute (== class table column)
         db_args = {}
-        columns = self.__table__.columns
-        for column in columns:
-            attr_val = self._s_parse_attr_value(kwargs, column)
-            db_args[column.name] = attr_val
+        for column_name in self._s_column_names:
+            if column_name in kwargs:
+                attr_val = self._s_parse_attr_value(column_name, kwargs.get(column_name))
+                db_args[column_name] = attr_val
 
         # Add the related instances
         for rel_name in self._s_relationship_names:
-            rel_attr = kwargs.get(rel_name, None)
-            if rel_attr:
-                # This shouldn't in the work in the web context
-                # because the relationships should already have been removed by SAFRSRestAPI.post
+            if rel_name in kwargs:
+                rel_attr = kwargs.get(rel_name)
                 db_args[rel_name] = rel_attr
 
         # db_args now contains the class attributes. Initialize the DB model with them
@@ -156,21 +154,106 @@ class SAFRSBase(Model):
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
 
-    def _s_parse_attr_value(self, kwargs, column):
+    @classmethod
+    def _s_post(cls, **attributes):
+        """
+            This method is called when a new item is created with a POST to the json api
+            
+            :param attributes: the jsonapi "data" attributes
+            :return: new `cls` instance
+
+            `_s_post` performs attribute sanitization and calls `cls.__init__`
+            The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
+        """
+        # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
+        # SAFRSObject allow_client_generated_ids attribute
+        for col_name in cls.id_type.column_names:
+            attributes.pop(col_name, None)
+
+        # remove attributes that are not declared in
+        attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name in cls._s_jsonapi_attrs}
+
+        if getattr(cls, "allow_client_generated_ids", False) is True:
+            # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
+            id = data.get("id")
+            cls.id_type.get_pks(id)
+
+        # Create the object instance with the specified id and json data
+        # If the instance (id) already exists, it will be updated with the data
+        # pylint: disable=not-callable
+        instance = cls(**attributes)
+
+        if not instance._s_auto_commit:
+            #
+            # The item has not yet been added/commited by the SAFRSBase,
+            # in that case we have to do it ourselves
+            #
+            safrs.DB.session.add(instance)
+            try:
+                safrs.DB.session.commit()
+            except sqlalchemy.exc.SQLAlchemyError as exc:
+                # Exception may arise when a db constrained has been violated
+                # (e.g. duplicate key)
+                safrs.log.warning(str(exc))
+                raise GenericError(str(exc))
+
+        return instance
+
+    def _s_patch(self, **attributes):
+        """
+            update the object attributes 
+            :param **attributes:
+        """
+        for attr_name, attr_val in attributes.items():
+            if not attr_name in self._s_jsonapi_attrs:
+                continue
+            value = self._s_parse_attr_value(attr_name, attr_val)
+            # check if write permission is set
+            if self._s_check_perm(attr_name, "w"):
+                setattr(self, attr_name, attr_val)
+
+    def _s_clone(self, **kwargs):
+        """
+            Clone an object: copy the parameters and create a new id
+            :param *kwargs: TBD
+        """
+        make_transient(self)
+        # pylint: disable=attribute-defined-outside-init
+        self.id = self.id_type()
+        for parameter in self._s_jsonapi_attrs:
+            value = kwargs.get(parameter, None)
+            if value is not None:
+                setattr(self, parameter, value)
+        safrs.DB.session.add(self)
+        if self._s_auto_commit:
+            safrs.DB.session.commit()
+        return self
+
+    def _s_parse_attr_value(self, attr_name, attr_val):
         """
             Try to fetch and parse the (jsonapi attribute) value for a db column from the kwargs
             :param kwargs:
             :param column: database column
             :return parsed value:
         """
-        attr_name = column.name
-        attr_val = kwargs.get(attr_name, None)
+        columns = dict(zip(self._s_column_names, self._s_columns))
+        # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
+        """if request and attr_name not in columns:
+            raise ValidationError("Unable to add {}".format(attr_name))"""
+
+        column = columns[attr_name]
         if attr_val is None and column.default:
             attr_val = column.default.arg
             return attr_val
 
         if attr_val is None:
             return attr_val
+
+        if getattr(column, "python_type", None):
+            """
+                It's possible for a column to specify a custom python_type to use for deserialization
+            """
+            attr_val = column.python_type(attr_val)
 
         try:
             column.type.python_type
@@ -217,6 +300,23 @@ class SAFRSBase(Model):
         """
         session = sqla_inspect(self).session
         session.expunge(self)
+
+    @classproperty
+    def _s_auto_commit(self):
+        """
+            :return: whether the instance should be automatically commited.
+            :rtype: boolen
+            fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
+        """
+        return self.db_commit
+
+    @_s_auto_commit.setter
+    def _s_auto_commit(self, value):
+        """ 
+            :param value:
+            auto_commit setter
+        """
+        self.db_commit = value
 
     @classmethod
     def get_instance(cls, item=None, failsafe=False):
@@ -302,23 +402,22 @@ class SAFRSBase(Model):
         if mapper is None:
             return []
 
-        # Only return column where the "expose" attribute is set on the db.Column instance
-        result = [c for c in cls.__mapper__.columns if getattr(c, "expose", True)]
-        return result
+        result = cls.__mapper__.columns
 
-    @classproperty
-    def _s_column_dict(cls):
-        """
-            :return: dict of column_name : column
-        """
-        return {c.name: c for c in cls._s_columns}
+        if has_request_context():
+            # In the web context we only return the attributes that are exposable and readable
+            # i.e. where the "expose" attribute is set on the db.Column instance
+            # and the "r" flag is in the permissions
+            result = [c for c in result if cls._s_check_perm(c.name)]
+
+        return result
 
     @hybrid_property
     def _s_relationships(self):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [rel for rel in self.__mapper__.relationships if rel.key not in self.exclude_rels and getattr(rel, "expose", True)]
+        rels = [rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)]
         return rels
 
     @classproperty
@@ -346,8 +445,9 @@ class SAFRSBase(Model):
             the cls.__mapper__._polymorphic_properties instead
         """
         result = []
-        for attr_name, column in cls._s_column_dict.items():
+        for column in cls._s_columns:
             # Ignore the exclude_attrs for serialization/deserialization
+            attr_name = column.name
             if attr_name in cls.exclude_attrs:
                 continue
             # jsonapi schema prohibits the use of the fields 'id' and 'type' in the attributes
@@ -355,7 +455,7 @@ class SAFRSBase(Model):
             if attr_name == "type":
                 # translate type to Type
                 result.append("Type")
-            elif not attr_name == "id":
+            elif not attr_name == "id" and attr_name not in cls._s_relationship_names:
                 result.append(attr_name)
 
         return result
@@ -402,50 +502,28 @@ class SAFRSBase(Model):
             self.Type = value
         self.type = value
 
-    @classproperty
-    def _s_auto_commit(self):
+    @classmethod
+    def _s_check_perm(cls, property_name, permission="r"):
         """
-            :return: whether the instance should be automatically commited.
-            :rtype: boolen
-            fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
+            Check the column permission (read/write)
+            Goal is to extend this in the future
+            :param column_name: column name
+            :permission: 
+            :return: Boolean
         """
-        return self.db_commit
+        for column in cls.__mapper__.columns:
+            if column.name == property_name:
+                if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
+                    return True
+                return False
 
-    @_s_auto_commit.setter
-    def _s_auto_commit(self, value):
-        """ 
-            :param value:
-            auto_commit setter
-        """
-        self.db_commit = value
-
-    def _s_patch(self, **attributes):
-        """
-            update the object attributes 
-            :param **attributes:
-        """
-        columns = self._s_column_dict
-        for attr, value in attributes.items():
-            if attr in columns and attr in self._s_jsonapi_attrs:
-                value = self._s_parse_attr_value(attributes, columns[attr])
-                setattr(self, attr, value)
-
-    def _s_clone(self, **kwargs):
-        """
-            Clone an object: copy the parameters and create a new id
-            :param *kwargs: TBD
-        """
-        make_transient(self)
-        # pylint: disable=attribute-defined-outside-init
-        self.id = self.id_type()
-        for parameter in self._s_jsonapi_attrs:
-            value = kwargs.get(parameter, None)
-            if value is not None:
-                setattr(self, parameter, value)
-        safrs.DB.session.add(self)
-        if self._s_auto_commit:
-            safrs.DB.session.commit()
-        return self
+        for rel in cls.__mapper__.relationships:
+            if property_name == rel.key:
+                if rel.key not in cls.exclude_rels and getattr(rel, "expose", True):
+                    return True
+                return False
+        
+        raise ValidationError("Invalid property {}".format(property_name))
 
     def to_dict(self, fields=None):
         """

@@ -33,6 +33,7 @@ class SAFRSRequest(Request):
     _extensions = set()
     filters = {}
     filter = ""  # filter is the custom filter, used as an argument by _s_filter
+    secure = True
 
     def __init__(self, *args, **kwargs):
         """
