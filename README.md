@@ -46,7 +46,7 @@ Class and method descriptions and examples can be provided in yaml syntax in the
 
 The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](https://jsonapi.org) compliant API implementation.
 
-A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, implementing the [relationship example](examples/demo_relationship.py).
+A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, implementing a simple [example](examples/demo_pythonanywhere_com.py).
 
 <a class="mk-toclify" id="installation"></a>
 ## Installation
@@ -60,7 +60,7 @@ pip3 install -r requirements.txt --user
 python3 setup.py install --user
 ```
 
-The examples can then be started with 
+Once the dependencies are installed, the [examples](examples) can be started with
 ```
 python3 examples/demo_relationship.py "your-interface-ip"
 ```

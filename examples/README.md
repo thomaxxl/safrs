@@ -1,3 +1,7 @@
+# Examples
+
+This folder contains some example applications demonstrating different functionality of SAFRS.
+
 ## Basic Use Case
 [mini_app.py](mini_app.py) : a small sample application
 The example can be started with
@@ -17,7 +21,7 @@ The [demo_pythonanywhere_com.py](demo_pythonanywhere_com.py) example is deployed
 python3 demo_pythonanywhere_com.py 172.16.9.12
 ```
 
-note, you may have to install the [requirements.txt] dependencies
+note, you may have to install the [requirements.txt](requirements.txt) dependencies
 
 ## Example without SQLAlchemy Model
 The [demo_stateless.py](demo_stateless.py) example demonstrates how to create an exposed object that is not based on an SQLAlchemy instance.
