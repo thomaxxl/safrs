@@ -27,9 +27,12 @@ def test_decorator(func):
     def api_wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
-    result = api_wrapper
-    result.__name__ = func.__name__  # make sure to to reset the __name__ !
-    return result
+    if func.__name__.lower() == "get":
+        result = api_wrapper
+        result.__name__ = func.__name__  # make sure to to reset the __name__ !
+        return result
+
+    return func
 
 
 # pylint: disable=invalid-name
