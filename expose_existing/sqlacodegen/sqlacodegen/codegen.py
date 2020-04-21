@@ -9,16 +9,7 @@ from inspect import ArgSpec
 from keyword import iskeyword
 
 import sqlalchemy
-from sqlalchemy import (
-    Enum,
-    ForeignKeyConstraint,
-    PrimaryKeyConstraint,
-    CheckConstraint,
-    UniqueConstraint,
-    Table,
-    Column,
-    Float,
-)
+from sqlalchemy import Enum, ForeignKeyConstraint, PrimaryKeyConstraint, CheckConstraint, UniqueConstraint, Table, Column, Float
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.types import Boolean, String
 from sqlalchemy.util import OrderedDict
@@ -174,11 +165,7 @@ class ModelClass(Model):
         for constraint in sorted(table.constraints, key=_get_constraint_sort_key):
             if isinstance(constraint, ForeignKeyConstraint):
                 target_cls = self._tablename_to_classname(constraint.elements[0].column.table.name, inflect_engine)
-                if (
-                    detect_joined
-                    and self.parent_name == "Base"
-                    and set(_get_column_names(constraint)) == pk_column_names
-                ):
+                if detect_joined and self.parent_name == "Base" and set(_get_column_names(constraint)) == pk_column_names:
                     self.parent_name = target_cls
                 else:
                     relationship_ = ManyToOneRelationship(self.name, target_cls, constraint, inflect_engine)
@@ -251,8 +238,7 @@ class ManyToOneRelationship(Relationship):
 
         # Add uselist=False to One-to-One relationships
         if any(
-            isinstance(c, (PrimaryKeyConstraint, UniqueConstraint))
-            and set(col.name for col in c.columns) == set(column_names)
+            isinstance(c, (PrimaryKeyConstraint, UniqueConstraint)) and set(col.name for col in c.columns) == set(column_names)
             for c in constraint.table.constraints
         ):
             self.kwargs["uselist"] = "False"
@@ -274,16 +260,8 @@ class ManyToOneRelationship(Relationship):
     @staticmethod
     def get_common_fk_constraints(table1, table2):
         """Returns a set of foreign key constraints the two tables have against each other."""
-        c1 = set(
-            c
-            for c in table1.constraints
-            if isinstance(c, ForeignKeyConstraint) and c.elements[0].column.table == table2
-        )
-        c2 = set(
-            c
-            for c in table2.constraints
-            if isinstance(c, ForeignKeyConstraint) and c.elements[0].column.table == table1
-        )
+        c1 = set(c for c in table1.constraints if isinstance(c, ForeignKeyConstraint) and c.elements[0].column.table == table2)
+        c2 = set(c for c in table2.constraints if isinstance(c, ForeignKeyConstraint) and c.elements[0].column.table == table1)
         return c1.union(c2)
 
 
@@ -304,20 +282,10 @@ class ManyToManyRelationship(Relationship):
             self.preferred_name = "parents" if not colname.endswith("_id") else colname[:-3] + "s"
             pri_pairs = zip(_get_column_names(constraints[0]), constraints[0].elements)
             sec_pairs = zip(_get_column_names(constraints[1]), constraints[1].elements)
-            pri_joins = [
-                "{0}.{1} == {2}.c.{3}".format(source_cls, elem.column.name, assocation_table.name, col)
-                for col, elem in pri_pairs
-            ]
-            sec_joins = [
-                "{0}.{1} == {2}.c.{3}".format(target_cls, elem.column.name, assocation_table.name, col)
-                for col, elem in sec_pairs
-            ]
-            self.kwargs["primaryjoin"] = (
-                repr("and_({0})".format(", ".join(pri_joins))) if len(pri_joins) > 1 else repr(pri_joins[0])
-            )
-            self.kwargs["secondaryjoin"] = (
-                repr("and_({0})".format(", ".join(sec_joins))) if len(sec_joins) > 1 else repr(sec_joins[0])
-            )
+            pri_joins = ["{0}.{1} == {2}.c.{3}".format(source_cls, elem.column.name, assocation_table.name, col) for col, elem in pri_pairs]
+            sec_joins = ["{0}.{1} == {2}.c.{3}".format(target_cls, elem.column.name, assocation_table.name, col) for col, elem in sec_pairs]
+            self.kwargs["primaryjoin"] = repr("and_({0})".format(", ".join(pri_joins))) if len(pri_joins) > 1 else repr(pri_joins[0])
+            self.kwargs["secondaryjoin"] = repr("and_({0})".format(", ".join(sec_joins))) if len(sec_joins) > 1 else repr(sec_joins[0])
 
 
 class CodeGenerator(object):
@@ -453,9 +421,7 @@ class CodeGenerator(object):
             return inflect.engine()
 
     def render_imports(self):
-        return "\n".join(
-            "from {0} import {1}".format(package, ", ".join(sorted(names))) for package, names in self.collector.items()
-        )
+        return "\n".join("from {0} import {1}".format(package, ", ".join(sorted(names))) for package, names in self.collector.items())
 
     def render_metadata_declarations(self):
         if "sqlalchemy.ext.declarative" in self.collector:
@@ -569,9 +535,7 @@ NullType = db.String
         kwarg = []
         is_sole_pk = column.primary_key and len(column.table.primary_key) == 1
         dedicated_fks = [c for c in column.foreign_keys if len(c.constraint.columns) == 1]
-        is_unique = any(
-            isinstance(c, UniqueConstraint) and set(c.columns) == {column} for c in column.table.constraints
-        )
+        is_unique = any(isinstance(c, UniqueConstraint) and set(c.columns) == {column} for c in column.table.constraints)
         is_unique = is_unique or any(i.unique and set(i.columns) == {column} for i in column.table.indexes)
         has_index = any(set(i.columns) == {column} for i in column.table.indexes)
         server_default = None

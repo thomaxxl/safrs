@@ -103,12 +103,22 @@ class SAFRS:
     #
     config = {}
 
-    def __new__(cls, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", app_db=DB, json_encoder=json_encoder, **kwargs):
+    def __init__(self, app, *args, **kwargs):
+        """
+            Constructor
+        """
+        self.app = app
+        if app is not None:
+            self.init_app(app, *args, **kwargs)
+
+    def init_app(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", app_db=DB, json_encoder=json_encoder, **kwargs):
+        """
+            API and application initialization
+        """
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
-        cls.app = app
-        cls.db = app_db
+        self.db = app_db
 
         app.json_encoder = json_encoder
         app.request_class = SAFRSRequest
@@ -128,22 +138,21 @@ class SAFRS:
             swaggerui_blueprint.json_encoder = JSONEncoder
 
         for conf_name, conf_val in kwargs.items():
-            setattr(cls, conf_name, conf_val)
+            setattr(self, conf_name, conf_val)
 
         for conf_name, conf_val in app.config.items():
-            setattr(cls, conf_name, conf_val)
+            setattr(self, conf_name, conf_val)
 
-        cls.config.update(app.config)
+        self.config.update(app.config)
 
         # pylint: disable=unused-argument,unused-variable
         @app.teardown_appcontext
         def shutdown_session(exception=None):
             """cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/"""
-            cls.db.session.remove()
+            self.db.session.remove()
 
-        return object.__new__(object)
 
-    @classmethod
+    @staticmethod
     def init_logging(cls, loglevel=logging.WARNING):
         """
             Specify the log format used in the webserver logs

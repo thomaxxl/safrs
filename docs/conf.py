@@ -232,15 +232,7 @@ man_pages = [("index", "safrs", u"safrs Documentation", [u"Thomas Pollet"], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (
-        "index",
-        "safrs",
-        u"safrs Documentation",
-        u"Thomas Pollet",
-        "safrs",
-        "One line description of project.",
-        "Miscellaneous",
-    )
+    ("index", "safrs", u"safrs Documentation", u"Thomas Pollet", "safrs", "One line description of project.", "Miscellaneous")
 ]
 
 # Documents to append as an appendix to all manuals.

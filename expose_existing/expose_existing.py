@@ -4,21 +4,7 @@
 #
 
 import sys, logging, inspect, builtins, os, argparse, tempfile, atexit, shutil, io
-from sqlalchemy import (
-    CHAR,
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    TIMESTAMP,
-    Table,
-    Text,
-    UniqueConstraint,
-    text,
-)
+from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -97,9 +83,7 @@ def codegen(args):
 
     capture = StringIO()
     # outfile = io.open(args.outfile, 'w', encoding='utf-8') if args.outfile else capture # sys.stdout
-    generator = CodeGenerator(
-        metadata, args.noindexes, args.noconstraints, args.nojoined, args.noinflect, args.noclasses
-    )
+    generator = CodeGenerator(metadata, args.noindexes, args.noconstraints, args.nojoined, args.noinflect, args.noclasses)
     generator.render(capture)
     generated = capture.getvalue()
     generated = fix_generated(generated)

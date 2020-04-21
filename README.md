@@ -152,7 +152,19 @@ The User.book relationship can be queried in the API through the following endpo
 - DELETE removes an item from the relationship
 - GET retrieves a list of item ids
 
-The relationship REST API works similarly for one-to-many relationships. 
+The relationship API endpoints work similarly for one-to-many relationships.
+
+Relationship members can also be included in the response when querying an instance, by specifying the relationship name in the `include` query argument.
+
+For example, to retrieve all items in the `books_read` relationship from the People endpoint, you may add the `include=books_read` url parameter
+
+![relationship include swagger](docs/images/rel_include.PNG)
+
+http://thomaxxl.pythonanywhere.com/api/People/?include=books_read
+
+To retrieve nested relationship items, you can specify the nested relationship name after the '.', to retrieve the authors of the books_read instances for instance, you can use
+
+http://thomaxxl.pythonanywhere.com/api/People/?include=books_read.author
 
 <a class="mk-toclify" id="methods"></a>
 ## Methods

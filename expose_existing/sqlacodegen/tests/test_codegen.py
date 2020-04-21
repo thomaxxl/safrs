@@ -9,16 +9,7 @@ import sqlalchemy
 from sqlalchemy.dialects import mysql
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import create_engine
-from sqlalchemy.schema import (
-    MetaData,
-    Table,
-    Column,
-    CheckConstraint,
-    UniqueConstraint,
-    Index,
-    ForeignKey,
-    ForeignKeyConstraint,
-)
+from sqlalchemy.schema import MetaData, Table, Column, CheckConstraint, UniqueConstraint, Index, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.sql.expression import text
 from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, NUMERIC
 
@@ -164,12 +155,7 @@ t_simple_items = Table(
 
 
 def test_enum_detection(metadata):
-    Table(
-        "simple_items",
-        metadata,
-        Column("enum", VARCHAR(255)),
-        CheckConstraint(r"simple_items.enum IN ('A', '\'B', 'C')"),
-    )
+    Table("simple_items", metadata, Column("enum", VARCHAR(255)), CheckConstraint(r"simple_items.enum IN ('A', '\'B', 'C')"))
 
     assert (
         generate_code(metadata)
@@ -340,9 +326,7 @@ t_simple_items = Table(
 
 
 def test_indexes_table(metadata):
-    simple_items = Table(
-        "simple_items", metadata, Column("id", INTEGER), Column("number", INTEGER), Column("text", VARCHAR)
-    )
+    simple_items = Table("simple_items", metadata, Column("id", INTEGER), Column("number", INTEGER), Column("text", VARCHAR))
     simple_items.indexes.add(Index("idx_number", simple_items.c.number))
     simple_items.indexes.add(Index("idx_text_number", simple_items.c.text, simple_items.c.number, unique=True))
     simple_items.indexes.add(Index("idx_text", simple_items.c.text, unique=True))
@@ -369,11 +353,7 @@ t_simple_items = Table(
 
 def test_indexes_class(metadata):
     simple_items = Table(
-        "simple_items",
-        metadata,
-        Column("id", INTEGER, primary_key=True),
-        Column("number", INTEGER),
-        Column("text", VARCHAR),
+        "simple_items", metadata, Column("id", INTEGER, primary_key=True), Column("number", INTEGER), Column("text", VARCHAR)
     )
     simple_items.indexes.add(Index("idx_number", simple_items.c.number))
     simple_items.indexes.add(Index("idx_text_number", simple_items.c.text, simple_items.c.number))
@@ -520,18 +500,10 @@ def test_onetomany_composite(metadata):
         Column("container_id1", INTEGER),
         Column("container_id2", INTEGER),
         ForeignKeyConstraint(
-            ["container_id1", "container_id2"],
-            ["simple_containers.id1", "simple_containers.id2"],
-            ondelete="CASCADE",
-            onupdate="CASCADE",
+            ["container_id1", "container_id2"], ["simple_containers.id1", "simple_containers.id2"], ondelete="CASCADE", onupdate="CASCADE"
         ),
     )
-    Table(
-        "simple_containers",
-        metadata,
-        Column("id1", INTEGER, primary_key=True),
-        Column("id2", INTEGER, primary_key=True),
-    )
+    Table("simple_containers", metadata, Column("id1", INTEGER, primary_key=True), Column("id2", INTEGER, primary_key=True))
 
     assert (
         generate_code(metadata)
@@ -790,12 +762,7 @@ t_child_items = Table(
 @pytest.mark.skipif(sqlalchemy.__version__ < "1.0", reason="SQLA < 1.0 gives inconsistent results")
 def test_manytomany_composite(metadata):
     Table("simple_items", metadata, Column("id1", INTEGER, primary_key=True), Column("id2", INTEGER, primary_key=True))
-    Table(
-        "simple_containers",
-        metadata,
-        Column("id1", INTEGER, primary_key=True),
-        Column("id2", INTEGER, primary_key=True),
-    )
+    Table("simple_containers", metadata, Column("id1", INTEGER, primary_key=True), Column("id2", INTEGER, primary_key=True))
     Table(
         "container_items",
         metadata,
@@ -966,9 +933,7 @@ class SimpleItem(Base):
 
 
 def test_table_args_kwargs(metadata):
-    simple_items = Table(
-        "simple_items", metadata, Column("id", INTEGER, primary_key=True), Column("name", VARCHAR), schema="testschema"
-    )
+    simple_items = Table("simple_items", metadata, Column("id", INTEGER, primary_key=True), Column("name", VARCHAR), schema="testschema")
     simple_items.indexes.add(Index("testidx", simple_items.c.id, simple_items.c.name))
 
     assert (
@@ -1018,11 +983,7 @@ t_simple_items = Table(
 
 def test_schema_boolean(metadata):
     Table(
-        "simple_items",
-        metadata,
-        Column("bool1", INTEGER),
-        CheckConstraint("testschema.simple_items.bool1 IN (0, 1)"),
-        schema="testschema",
+        "simple_items", metadata, Column("bool1", INTEGER), CheckConstraint("testschema.simple_items.bool1 IN (0, 1)"), schema="testschema"
     )
 
     assert (
@@ -1048,11 +1009,7 @@ def test_foreign_key_options(metadata):
         "simple_items",
         metadata,
         Column(
-            "name",
-            VARCHAR,
-            ForeignKey(
-                "simple_items.name", ondelete="CASCADE", onupdate="CASCADE", deferrable=True, initially="DEFERRED"
-            ),
+            "name", VARCHAR, ForeignKey("simple_items.name", ondelete="CASCADE", onupdate="CASCADE", deferrable=True, initially="DEFERRED")
         ),
     )
 
