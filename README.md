@@ -154,11 +154,12 @@ The User.book relationship can be queried in the API through the following endpo
 
 The relationship API endpoints work similarly for one-to-many relationships.
 
-Relationship members can also be included in the response when querying an instance, by specifying the relationship name in the `include` query argument.
+Relationship members can also be included in the response when querying an instance, by specifying the relationship names as a comma separated list in the `include` query argument.
+
+![relationship include swagger](docs/images/rel_include.PNG)
 
 For example, to retrieve all items in the `books_read` relationship from the People endpoint, you may add the `include=books_read` url parameter
 
-![relationship include swagger](docs/images/rel_include.PNG)
 
 http://thomaxxl.pythonanywhere.com/api/People/?include=books_read
 
