@@ -176,8 +176,9 @@ class SAFRSBase(Model):
 
         if getattr(cls, "allow_client_generated_ids", False) is True:
             # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            id = data.get("id")
-            cls.id_type.get_pks(id)
+            id = attributes.get("data",{}).get("id")
+            #cls.id_type.get_pks(id)
+            attributes["id"] = id
 
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
@@ -232,11 +233,12 @@ class SAFRSBase(Model):
 
     def _s_parse_attr_value(self, attr_name, attr_val):
         """
-            Try to fetch and parse the (jsonapi attribute) value for a db column from the kwargs
-            :param kwargs:
-            :param column: database column
-            :return parsed value:
+            Parse the given jsonapi attribute value so it can be stored in the db
+            :param attr_name: attribute name
+            :param attr_val: attribute value
+            :return: parsed value
         """
+        print(attr_name, attr_val)
         columns = dict(zip(self._s_column_names, self._s_columns))
         # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
         """if request and attr_name not in columns:
@@ -289,6 +291,17 @@ class SAFRSBase(Model):
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
+        elif attr_val and column.type.python_type == datetime.time:
+            try:
+                date_str = str(attr_val)
+                if "." in date_str:
+                    # str(datetime.datetime.now()) => "%H:%M:%S.%f"
+                    attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S.%f").time()
+                else:
+                    # JS datepicker format
+                    attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S").time()
+            except (NotImplementedError, ValueError) as exc:
+                safrs.log.warning('Invalid datetime.time {} for value "{}"'.format(exc, attr_val))
         else:
             attr_val = column.type.python_type(attr_val)
 
@@ -555,7 +568,6 @@ class SAFRSBase(Model):
                 result[attr] = getattr(self, attr)
             except:
                 safrs.log.warning("Failed to fetch {}".format(attr))
-                # result[attr] = getattr(self, attr.lower())
         return result
 
     @classmethod
@@ -699,7 +711,7 @@ class SAFRSBase(Model):
 
     def __str__(self):
         """
-
+            
         """
         name = getattr(self, "name", self.__class__.__name__)
         return "<SAFRS {}>".format(name)
@@ -712,28 +724,26 @@ class SAFRSBase(Model):
         """
             :return: a sample id for the API documentation, i.e. the first item in the DB
         """
+        result = ""
         sample = cls._s_sample()
         if sample:
-            j_id = sample.jsonapi_id
-        else:
-            j_id = ""
-        return j_id
+            result = sample.jsonapi_id
+        return result
 
     @classmethod
     def _s_sample(cls):
         """
             :return: a sample instance for the API documentation, i.e. the first item in the DB
         """
-        first = None
-
+        result = None
         try:
-            first = cls._s_query.first()
+            result = cls._s_query.first()
         except RecursionError as exc:
             # This may happen when exposing an existing database
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
         except Exception as exc:
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
-        return first
+        return result
 
     @classmethod
     def _s_sample_dict(cls):
