@@ -6,7 +6,6 @@ This should evolve to a more declarative version in the future with templates
 import inspect
 import datetime
 import decimal
-import json
 from http import HTTPStatus
 import yaml
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
