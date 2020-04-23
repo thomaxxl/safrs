@@ -60,6 +60,7 @@ SQLALCHEMY_SWAGGER2_TYPE = {
     "LONGTEXT": "string",
     "MEDIUMTEXT": "string",
     "UUID": "string",
+    "TIME": "string",
 }
 # casting of swagger types to python types
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": int, "boolean": bool}
@@ -283,7 +284,6 @@ class SAFRSBase(Model):
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
-
         elif attr_val and column.type.python_type == datetime.date:
             try:
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
@@ -522,7 +522,7 @@ class SAFRSBase(Model):
                 if rel.key not in cls.exclude_rels and getattr(rel, "expose", True):
                     return True
                 return False
-        
+
         raise ValidationError("Invalid property {}".format(property_name))
 
     def to_dict(self, fields=None):
@@ -773,6 +773,10 @@ class SAFRSBase(Model):
                     arg = None
                 except Exception as exc:
                     safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
+                    # use an empty string when no type is matched, otherwise we may get json encoding
+                    # errors for the swagger generation
+                    arg = ""
+
             sample[column.name] = arg
 
         return sample
@@ -863,10 +867,12 @@ class SAFRSBase(Model):
                     )
                 )
                 swagger_type = "string"
+
             default = getattr(sample_instance, column.name, None)
             if default is None:
                 # swagger api spec doesn't support nullable values
-                continue
+                safrs.log.debug("No default value for {}".format(column.name))
+                default = ""
 
             field = {"type": swagger_type, "example": str(default)}  # added unicode str() for datetime encoding
             fields[column.name] = field

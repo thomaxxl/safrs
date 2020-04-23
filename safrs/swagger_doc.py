@@ -6,6 +6,7 @@ This should evolve to a more declarative version in the future with templates
 import inspect
 import datetime
 import decimal
+import json
 from http import HTTPStatus
 import yaml
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
@@ -143,9 +144,7 @@ def encode_schema(obj):
         This breaks our samples :/
         We don't add the item to the schema if it's None
     """
-    if obj is None:
-        return None
-    if isinstance(obj, (datetime.datetime, datetime.date, decimal.Decimal, bytes)):
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time, decimal.Decimal, bytes)):
         return str(obj)
     if isinstance(obj, dict):
         result = {}
@@ -164,6 +163,10 @@ def encode_schema(obj):
                 result.append(encoded)
 
         return result
+
+    if obj is None:
+        return None
+
     return obj
 
 
@@ -183,7 +186,7 @@ def schema_from_object(name, object):
     elif isinstance(object, int):
         properties = {"example": 0, "type": "integer"}
 
-    elif isinstance(object, (datetime.datetime, datetime.date)):
+    elif isinstance(object, (datetime.datetime, datetime.date, datetime.time)):
         properties = {"example": str(object), "type": "string"}
 
     elif isinstance(object, dict):
@@ -197,6 +200,7 @@ def schema_from_object(name, object):
                     v = encode_schema(v)
                 properties[k] = {"example": v, "type": "string"}
             elif v is None:
+                # swagger doesn't allow null values
                 properties[k] = {"example": "", "type": "string"}
             else:  # isinstance(object, datetime.datetime):
                 properties = {"example": str(k), "type": "string"}
@@ -204,8 +208,8 @@ def schema_from_object(name, object):
     else:
         raise ValidationError("Invalid schema object type {}".format(type(object)))
 
+    properties = encode_schema(properties)
     schema = SchemaClassFactory(name, properties)
-
     return schema
 
 

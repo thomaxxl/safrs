@@ -151,7 +151,6 @@ class SAFRS:
             """cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/"""
             self.db.session.remove()
 
-
     @staticmethod
     def init_logging(cls, loglevel=logging.WARNING):
         """

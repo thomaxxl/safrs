@@ -68,7 +68,7 @@ class SAFRSJSONEncoder(JSONEncoder):
             return result
         if isinstance(obj, datetime.datetime):
             return obj.isoformat(" ")
-        if isinstance(obj, datetime.date):
+        if isinstance(obj, (datetime.date, datetime.time)):
             return obj.isoformat()
         if isinstance(obj, SAFRSDummy):
             return {}

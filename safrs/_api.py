@@ -26,6 +26,7 @@ from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config
 from .jsonapi import SAFRSRestAPI, SAFRSJSONRPCAPI, SAFRSRestRelationshipAPI
 from .util import classproperty
+import json
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
@@ -389,6 +390,12 @@ class Api(FRSApiBase):
                         exit()
 
                 self._swagger_object["paths"][swagger_url] = path_item
+                # Check whether we manage to convert to json
+                try:
+                    json.dumps(self._swagger_object)
+                except Exception as exc:
+                    safrs.log.critical("Json encoding failed for")
+                    # safrs.log.debug(self._swagger_object)
 
         # disable API methods that were not set by the SAFRSObject
         for http_method in HTTP_METHODS:

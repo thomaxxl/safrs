@@ -119,6 +119,7 @@ class Book(BaseModel):
     publisher_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     publisher = db.relationship("Publisher", back_populates="books", cascade="save-update, delete")
     reviews = db.relationship("Review", backref="book", cascade="save-update, delete")
+    published = db.Column(db.Time)
 
 
 class Person(BaseModel):
