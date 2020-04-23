@@ -880,8 +880,14 @@ class SAFRSBase(Model):
             default = getattr(sample_instance, column.name, None)
             if default is None:
                 # swagger api spec doesn't support nullable values
-                safrs.log.debug("No default value for {}".format(column.name))
-                default = ""
+                if getattr(column.type, "python_type"):
+                    try:
+                        default = column.type.python_type()
+                    except:
+                        pass
+                if default is None:
+                    safrs.log.debug("No default value for {}".format(column.name))
+                    default = ""
 
             field = {"type": swagger_type, "example": str(default)}  # added unicode str() for datetime encoding
             fields[column.name] = field
