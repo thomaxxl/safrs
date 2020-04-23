@@ -22,8 +22,6 @@ class User(SAFRSBase, db.Model):
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    print(host)
-    exit()
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
@@ -42,7 +40,7 @@ def create_app(config_filename=None, host="localhost"):
 
 host = "192.168.235.136"
 
-app = create_app(host)
+app = create_app(host=host)
 
 if __name__ == "__main__":
     app.run(host=host)
