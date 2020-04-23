@@ -238,7 +238,6 @@ class SAFRSBase(Model):
             :param attr_val: attribute value
             :return: parsed value
         """
-        print(attr_name, attr_val)
         columns = dict(zip(self._s_column_names, self._s_columns))
         # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
         """if request and attr_name not in columns:
