@@ -821,7 +821,7 @@ class SAFRSBase(Model):
 
     # pylint: disable=
     @classmethod
-    def get_swagger_doc(cls, http_method):
+    def _s_get_swagger_doc(cls, http_method):
         """
             :param http_method: the http method for which to retrieve the documentation
             :return: swagger `body` and `response` dictionaries
@@ -843,7 +843,6 @@ class SAFRSBase(Model):
 
             if http_method in ("post", "patch"):
                 responses = {
-                    HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
                     HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
                 }
 

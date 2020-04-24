@@ -145,7 +145,6 @@ def encode_schema(obj):
         This breaks our samples :/
         We don't add the item to the schema if it's None
     """
-    
     result = ""
 
     if obj is not None:
@@ -346,12 +345,12 @@ def swagger_doc(cls, tags=None):
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)
             doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
-            body, responses = cls.get_swagger_doc(http_method)
+            body, responses = cls._s_get_swagger_doc(http_method)
 
             responses[HTTPStatus.OK.value] = {"schema": coll_sample_data}
 
         elif http_method == "patch":
-            post_model, responses = cls.get_swagger_doc("patch")
+            post_model, responses = cls._s_get_swagger_doc(http_method)
 
             parameters.append(
                 {
@@ -363,7 +362,7 @@ def swagger_doc(cls, tags=None):
                 }
             )
         elif http_method == "post":
-            _, responses = cls.get_swagger_doc(http_method)
+            _, responses = cls._s_get_swagger_doc(http_method)
             doc["summary"] = "Create a {} object".format(class_name)
 
             # Create the default POST body schema
@@ -471,12 +470,12 @@ def swagger_relationship_doc(cls, tags=None):
 
         responses = {}
         if http_method == "get":
-            _, responses = cls.get_swagger_doc(http_method)
+            _, responses = cls._s_get_swagger_doc(http_method)
         elif http_method in ("post", "patch"):
-            _, responses = cls.get_swagger_doc(http_method)
+            _, responses = cls._s_get_swagger_doc(http_method)
             child_sample_id = child_class._s_sample_id()
 
-            _, responses = child_class.get_swagger_doc("patch")
+            _, responses = child_class._s_get_swagger_doc("patch")
             data = {"type": child_class._s_type, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
@@ -495,7 +494,7 @@ def swagger_relationship_doc(cls, tags=None):
         elif http_method == "delete":
             child_sample_id = child_class._s_sample_id()
 
-            _, responses = child_class.get_swagger_doc("patch")
+            _, responses = child_class._s_get_swagger_doc("patch")
             data = {"type": child_class._s_type, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
