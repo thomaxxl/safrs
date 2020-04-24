@@ -6,6 +6,8 @@ This should evolve to a more declarative version in the future with templates
 import inspect
 import datetime
 import decimal
+import json
+import flask
 from http import HTTPStatus
 import yaml
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
@@ -143,31 +145,11 @@ def encode_schema(obj):
         This breaks our samples :/
         We don't add the item to the schema if it's None
     """
-    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time, decimal.Decimal, bytes)):
-        return str(obj)
-    if isinstance(obj, dict):
-        result = {}
-        for key, val in obj.items():
-            val = encode_schema(val)
-            if val is None:
-                result[key] = ""
-            else:
-                result[key] = val
-        return result
-    if isinstance(obj, (list, set)):
-        result = []
-        for i in obj:
-            encoded = encode_schema(i)
-            if encoded is not None:
-                result.append(encoded)
-
-        return result
-
     if obj is None:
-        return None
-
-    return obj
-
+        return ""
+        
+    return json.loads(json.dumps(obj, cls=flask.current_app.json_encoder))
+    
 
 # pylint: disable=redefined-builtin
 def schema_from_object(name, object):
