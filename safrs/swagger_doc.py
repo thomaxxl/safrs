@@ -145,11 +145,17 @@ def encode_schema(obj):
         This breaks our samples :/
         We don't add the item to the schema if it's None
     """
-    if obj is None:
-        return ""
-        
-    return json.loads(json.dumps(obj, cls=flask.current_app.json_encoder))
     
+    result = ""
+
+    if obj is not None:
+        try:
+            result = json.loads(json.dumps(obj, cls=flask.current_app.json_encoder))
+        except Exception as exc:
+            log.warning("Json encoding failed for {}, type {} ({})".format(obj, type(obj), exc))
+            result = str(obj)
+    
+    return result
 
 # pylint: disable=redefined-builtin
 def schema_from_object(name, object):
