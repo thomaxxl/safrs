@@ -171,7 +171,7 @@ class SAFRSBase(Model):
         for col_name in cls.id_type.column_names:
             attributes.pop(col_name, None)
 
-        # remove attributes that are not declared in
+        # remove attributes that are not declared in _s_jsonapi_attrs
         attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name in cls._s_jsonapi_attrs}
 
         if getattr(cls, "allow_client_generated_ids", False) is True:
@@ -563,6 +563,7 @@ class SAFRSBase(Model):
         for attr in self._s_jsonapi_attrs:
             if attr not in fields:
                 continue
+            
             try:
                 result[attr] = getattr(self, attr)
             except:

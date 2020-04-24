@@ -542,7 +542,7 @@ class SAFRSRelationshipObject:
     http_methods = {"GET", "POST", "PATCH", "DELETE"}
 
     @classmethod
-    def get_swagger_doc(cls, http_method):
+    def _s_get_swagger_doc(cls, http_method):
         """ Create a swagger api model based on the sqlalchemy schema
             if an instance exists in the DB, the first entry is used as example
             :param http_method: HTTP method for which to generate the doc
