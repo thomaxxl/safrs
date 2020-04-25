@@ -92,6 +92,8 @@ class SAFRSBase(Model):
     # on startup
     swagger_models = {"instance": None, "collection": None}
 
+    _s_expose = True # indicates we want to expose this (see _s_check_perms)
+
     def __new__(cls, **kwargs):
         """
             If an object with given arguments already exists, this object is instantiated
@@ -531,7 +533,8 @@ class SAFRSBase(Model):
 
         for rel in cls.__mapper__.relationships:
             if property_name == rel.key:
-                if rel.key not in cls.exclude_rels and getattr(rel, "expose", True):
+                if rel.key not in cls.exclude_rels and getattr(rel, "expose", True) and getattr(rel.mapper.class_, "_s_expose", False):
+                    # Don't return classes that are not exposed (only SAFRSBase instances can be exposed)
                     return True
                 return False
 

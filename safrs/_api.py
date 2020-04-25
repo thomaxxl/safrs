@@ -160,11 +160,11 @@ class Api(FRSApiBase):
     def expose_relationship(self, relationship, url_prefix, tags):
         """
             Expose a relationship tp the REST API:
-            A relationship consists of a parent and a child class
+            A relationship consists of a parent and a target class
             creates a class of the form
 
             @api_decorator
-            class Parent_X_Child_API(SAFRSRestAPI):
+            class Parent_X_target_API(SAFRSRestAPI):
                 SAFRSObject = safrs_object
 
             add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
@@ -174,13 +174,18 @@ class Api(FRSApiBase):
             :param tags: swagger tags
             :return: None
         """
-
+        # safrs_object is the target class, if this is not a SAFRSBase class, then we shouldn't expose it
+        # the _s_expose attribute indicates we're dealing with a SAFRSBase instance
+        # if the relationship is not an sql sqlalchemy.orm.relationships.RelationshipProperty instance
+        # then we should have defined the _target
+        target_object = relationship.mapper.class_
+        if not getattr(target_object, "_s_expose",False):
+            safrs.log.debug("Not exposing {}".format(target_object))
+            return
+        
         API_CLASSNAME_FMT = "{}_X_{}_API"
 
         properties = {}
-        # if the relationship is not an sql sqlalchemy.orm.relationships.RelationshipProperty instance
-        # then we should have defined the _target
-        safrs_object = relationship.mapper.class_
         rel_name = relationship.key
 
         parent_class = relationship.parent.class_
@@ -206,12 +211,12 @@ class Api(FRSApiBase):
                 # TODO: simplify this by creating a proper superclass
                 "custom_decorators": decorators,
                 "parent": parent_class,
-                "_target": safrs_object,
+                "_target": target_object,
             },
         )
 
         properties["SAFRSObject"] = rel_object
-        properties["http_methods"] = safrs_object.http_methods
+        properties["http_methods"] = target_object.http_methods
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
         api_class = api_decorator(type(api_class_name, (SAFRSRestRelationshipAPI,), properties), swagger_decorator)
 
@@ -223,23 +228,23 @@ class Api(FRSApiBase):
         self.add_resource(api_class, url, endpoint=endpoint, methods=methods)
 
         try:
-            child_object_id = safrs_object.object_id
+            target_object_id = target_object.object_id
         except Exception as exc:
             safrs.log.exception(exc)
-            safrs.log.error("No object id for {}".format(safrs_object))
-            child_object_id = safrs_object.__name__
+            safrs.log.error("No object id for {}".format(target_object))
+            target_object_id = target_object.__name__
 
-        if safrs_object == parent_class:
+        if target_object == parent_class:
             # Avoid having duplicate argument ids in the url:
             # append a 2 in case of a self-referencing relationship
             # todo : test again
-            child_object_id += "2"
+            target_object_id += "2"
 
-        # Expose the relationship for <string:ChildId>, this lets us
+        # Expose the relationship for <string:targetId>, this lets us
         # query and delete the class relationship properties for a given
-        # child id
+        # target id
         # nb: this is not really documented in the jsonapi spec, remove??
-        url = (RELATIONSHIP_URL_FMT + "/<string:{}>").format(url_prefix, rel_name, child_object_id)
+        url = (RELATIONSHIP_URL_FMT + "/<string:{}>").format(url_prefix, rel_name, target_object_id)
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
