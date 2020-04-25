@@ -82,13 +82,14 @@ class SAFRSJSONEncoder(JSONEncoder):
             return str(obj)
         if isinstance(obj, bytes):
             safrs.log.warning("bytes obj, TODO")
+            return obj.hex()
 
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
         if not is_debug():
             # only continue if in debug mode
             safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
-            return {"error": "invalid object"}
+            return {"error": "SAFRSJSONEncoder invalid object"}
 
         return self.ghetto_encode(obj)
 

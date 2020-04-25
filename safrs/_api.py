@@ -581,7 +581,7 @@ class SAFRSRelationshipObject:
             dummy
             :return: JSON:API attributes
         """
-        return []
+        return {}
 
     @classproperty
     def _s_type(cls):
