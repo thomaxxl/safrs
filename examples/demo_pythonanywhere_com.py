@@ -139,6 +139,7 @@ class Person(BaseModel):
     password = WriteOnlyColumn(db.String, default="")
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
+    _salary = db.Column(db.String, default="") # hidden column
 
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])

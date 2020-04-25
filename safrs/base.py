@@ -92,7 +92,7 @@ class SAFRSBase(Model):
     # on startup
     swagger_models = {"instance": None, "collection": None}
 
-    _s_expose = True # indicates we want to expose this (see _s_check_perms)
+    _s_expose = True  # indicates we want to expose this (see _s_check_perms)
 
     def __new__(cls, **kwargs):
         """
@@ -178,8 +178,8 @@ class SAFRSBase(Model):
 
         if getattr(cls, "allow_client_generated_ids", False) is True:
             # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            id = attributes.get("data",{}).get("id")
-            #cls.id_type.get_pks(id)
+            id = attributes.get("data", {}).get("id")
+            # cls.id_type.get_pks(id)
             attributes["id"] = id
 
         # Create the object instance with the specified id and json data
@@ -462,7 +462,12 @@ class SAFRSBase(Model):
         for column in cls._s_columns:
             # Ignore the exclude_attrs for serialization/deserialization
             attr_name = column.name
+            if getattr(column, "expose", True) is not True:
+                continue
             if attr_name in cls.exclude_attrs:
+                continue
+            # don't expose attributes starting with an underscore
+            if attr_name.startswith("_"):
                 continue
             # jsonapi schema prohibits the use of the fields 'id' and 'type' in the attributes
             # http://jsonapi.org/format/#document-resource-object-fields
@@ -526,6 +531,9 @@ class SAFRSBase(Model):
             :return: Boolean
         """
         for column in cls.__mapper__.columns:
+            # don't expose attributes starting with an underscore
+            if column.name.startswith("_"):
+                return False
             if column.name == property_name:
                 if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
                     return True
@@ -566,7 +574,6 @@ class SAFRSBase(Model):
         for attr in self._s_jsonapi_attrs:
             if attr not in fields:
                 continue
-            
             try:
                 result[attr] = getattr(self, attr)
             except:
@@ -846,9 +853,7 @@ class SAFRSBase(Model):
                 body = object_model
 
             if http_method in ("post", "patch"):
-                responses = {
-                    HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description},
-                }
+                responses = {HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description}}
 
         return body, responses
 

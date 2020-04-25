@@ -179,10 +179,10 @@ class Api(FRSApiBase):
         # if the relationship is not an sql sqlalchemy.orm.relationships.RelationshipProperty instance
         # then we should have defined the _target
         target_object = relationship.mapper.class_
-        if not getattr(target_object, "_s_expose",False):
+        if not getattr(target_object, "_s_expose", False):
             safrs.log.debug("Not exposing {}".format(target_object))
             return
-        
+
         API_CLASSNAME_FMT = "{}_X_{}_API"
 
         properties = {}

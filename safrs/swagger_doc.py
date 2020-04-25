@@ -153,8 +153,9 @@ def encode_schema(obj):
         except Exception as exc:
             log.warning("Json encoding failed for {}, type {} ({})".format(obj, type(obj), exc))
             result = str(obj)
-    
+
     return result
+
 
 # pylint: disable=redefined-builtin
 def schema_from_object(name, object):
