@@ -65,7 +65,7 @@ def jsonapi_filter(safrs_object):
     expressions = []
     filters = get_request_param("filters", {})
     for attr_name, val in filters.items():
-        if not attr_name in safrs_object._s_jsonapi_attrs + ["id"]:
+        if not attr_name in list(safrs_object._s_jsonapi_attrs.keys()) + ["id"]:
             safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
         attr = getattr(safrs_object, attr_name)
@@ -402,7 +402,7 @@ class Resource(FRSResource):
         """
             :return: JSON:API fields[] swagger spec
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs)
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys())
         # Add the fields query string swagger
         # todo: get the columns of the target
         param = {
@@ -421,7 +421,7 @@ class Resource(FRSResource):
         """
             :return: JSON:API sort swagger spec
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ["id"]
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
 
         param = {
             "default": ",".join(attr_list),
@@ -446,7 +446,7 @@ class Resource(FRSResource):
             - type
             - format
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs) + ["id"]
+        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
 
         for attr_name in attr_list:
             # (Customizable swagger specs):

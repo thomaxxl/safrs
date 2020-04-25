@@ -8,25 +8,20 @@ import datetime
 
 db = SQLAlchemy()
 
-
 class User(SAFRSBase, db.Model):
     """
         description: User description
     """
-
     __tablename__ = "Users"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     email = db.Column(db.String)
-    created = db.Column(db.Time)
-
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
-
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
@@ -37,9 +32,7 @@ def create_app(config_filename=None, host="localhost"):
         create_api(app, host)
     return app
 
-
 host = "192.168.235.136"
-
 app = create_app(host=host)
 
 if __name__ == "__main__":

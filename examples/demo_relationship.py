@@ -48,13 +48,13 @@ class User(SAFRSBase, db.Model):
         return {"result": args}
 
 
-class Book(SAFRSBase, db.Model):
+class Book(db.Model):
     """
         description: Book description
     """
 
     __tablename__ = "Books"
-    id = db.Column(db.String, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, default="")
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         api = SAFRSAPI(app, host="{}".format(HOST), port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
-        api.expose_object(Book)
+        #api.expose_object(Book)
         # Register the API at /api/docs
         print("Starting API: http://{}:{}{}".format(HOST, PORT, API_PREFIX))
         app.run(host=HOST, port=PORT)

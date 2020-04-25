@@ -6,9 +6,10 @@
 import inspect
 import datetime
 import sqlalchemy
+import json
 from http import HTTPStatus
 from urllib.parse import urljoin
-from flask import request, url_for, has_request_context
+from flask import request, url_for, has_request_context, current_app
 from flask_sqlalchemy import Model
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
@@ -446,8 +447,34 @@ class SAFRSBase(Model):
     def _s_jsonapi_attrs(self):
         """
             :return: dictionary of exposed attribute names and values
+            
+            The `fields` variable is used to implement jsonapi "Sparse Fieldsets"
+            https://jsonapi.org/format/#fetching-sparse-fieldsets:
+              client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
+              The value of the fields parameter MUST be a comma-separated (U+002C COMMA, “,”) list that refers to the name(s) of the fields to be returned.
+              If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects
+              of that type in its response.
+            Therefore we extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
         """
-        result = {attr: getattr(self, attr) for attr in self.__class__._s_jsonapi_attrs}
+        fields = self.__class__._s_jsonapi_attrs.keys()
+        if request:
+            fields = request.fields.get(self._s_class_name, fields)
+
+        result = {}
+        for attr in fields:
+            attr_val = getattr(self, attr)
+            try:
+                # use the current_app json_encoder
+                if current_app:
+                    result[attr] = json.loads(json.dumps(attr_val,cls=current_app.json_encoder))
+                else:
+                    result[attr] = attr_val
+            except UnicodeDecodeError as exc:
+                safrs.log.warning("UnicodeDecodeError fetching {}.{}".format(self, attr))
+                result[attr] = ""
+            except Exception as exc:
+                safrs.log.warning("Failed to fetch {}.{}: {}".format(self, attr, exc))
+        
         return result
 
     @_s_jsonapi_attrs.expression
@@ -458,7 +485,7 @@ class SAFRSBase(Model):
             Things will go south if this isn't the case and we should use
             the cls.__mapper__._polymorphic_properties instead
         """
-        result = []
+        result = {}
         for column in cls._s_columns:
             # Ignore the exclude_attrs for serialization/deserialization
             attr_name = column.name
@@ -473,11 +500,22 @@ class SAFRSBase(Model):
             # http://jsonapi.org/format/#document-resource-object-fields
             if attr_name == "type":
                 # translate type to Type
-                result.append("Type")
+                result["Type"] = None
             elif not attr_name == "id" and attr_name not in cls._s_relationship_names:
-                result.append(attr_name)
+                result[attr_name] = None
 
         return result
+
+    def to_dict(self, *args, **kwargs):
+        """
+            Create a dictionary with all the instance "attributes"
+            this method will be called by SAFRSJSONEncoder to serialize objects
+
+            :return: dictionary object
+            ---
+            This method is deprecated, use _s_jsonapi_attrs
+        """
+        return self._s_jsonapi_attrs
 
     @classproperty
     def _s_class_name(cls):
@@ -499,27 +537,6 @@ class SAFRSBase(Model):
             :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
         """
         return cls.__name__
-
-    @property
-    def Type(self):
-        """
-            jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
-            we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
-            This may cause other errors too, for ex when sorting
-            :return: renamed type
-        """
-        safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
-        return self.type
-
-    @Type.setter
-    def Type(self, value):
-        """
-            Type property setter, see comment in the type property
-        """
-        # pylint: disable=attribute-defined-outside-init
-        if not self.Type == value:
-            self.Type = value
-        self.type = value
 
     @classmethod
     def _s_check_perm(cls, property_name, permission="r"):
@@ -547,46 +564,6 @@ class SAFRSBase(Model):
                 return False
 
         raise ValidationError("Invalid property {}".format(property_name))
-
-    def to_dict(self, fields=None):
-        """
-            Create a dictionary with all the instance "attributes"
-            this method will be called by SAFRSJSONEncoder to serialize objects
-
-            :param fields: if set, fields to include in the result
-            :return: dictionary object
-
-            The optional `fields` attribute is used to implement jsonapi "Sparse Fieldsets"
-            https://jsonapi.org/format/#fetching-sparse-fieldsets:
-              client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
-              The value of the fields parameter MUST be a comma-separated (U+002C COMMA, “,”) list that refers to the name(s) of the fields to be returned.
-              If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects
-              of that type in its response.
-        """
-        result = {}
-        if fields is None:
-            # Check if fields have been provided in the request
-            fields = self._s_jsonapi_attrs
-            if request:
-                fields = request.fields.get(self._s_class_name, fields)
-
-        # filter the relationships, id & type from the data
-        for attr in self._s_jsonapi_attrs:
-            if attr not in fields:
-                continue
-            try:
-                result[attr] = getattr(self, attr)
-            except:
-                safrs.log.warning("Failed to fetch {}".format(attr))
-        return result
-
-    @classmethod
-    def _s_count(cls):
-        """
-            returning None will cause our jsonapi to perform a count() on the result
-            this can be overridden with a cached value for performance on large tables (>1G)
-        """
-        return None
 
     @hybrid_method
     def _s_jsonapi_encode(self):
@@ -699,15 +676,7 @@ class SAFRSBase(Model):
             relationships[rel_name] = rel_data
 
         attributes = self.to_dict()
-        # extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
-        fields = request.args.get("fields[{}]".format(self._s_type), None)
-        if fields:
-            # Remove all attributes not listed in the fields csv
-            fields = fields.split(",")
-            unwanted = set(attributes.keys()) - set(fields)
-            for unwanted_key in unwanted:
-                attributes.pop(unwanted_key, None)
-
+        
         data = dict(attributes=attributes, id=self.jsonapi_id, links={"self": self_link}, type=self._s_type, relationships=relationships)
 
         return data
@@ -725,6 +694,14 @@ class SAFRSBase(Model):
         """
         name = getattr(self, "name", self.__class__.__name__)
         return "<SAFRS {}>".format(name)
+
+    @classmethod
+    def _s_count(cls):
+        """
+            returning None will cause our jsonapi to perform a count() on the result
+            this can be overridden with a cached value for performance on large tables (>1G)
+        """
+        return None
 
     #
     # Following methods are used to create the swagger2 API documentation
@@ -951,6 +928,27 @@ class SAFRSBase(Model):
             may be implemented by the app
         """
         return {}
+
+    @property
+    def Type(self):
+        """
+            jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
+            we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
+            This may cause other errors too, for ex when sorting
+            :return: renamed type
+        """
+        safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
+        return self.type
+
+    @Type.setter
+    def Type(self, value):
+        """
+            Type property setter, see comment in the type property
+        """
+        # pylint: disable=attribute-defined-outside-init
+        if not self.Type == value:
+            self.Type = value
+        self.type = value
 
     @classmethod
     def _s_filter(cls, filter_args):
