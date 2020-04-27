@@ -254,7 +254,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                     # Standard SQLA columns don't have this attibute
                     # but this may have been customized by a subclass
                     if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
-                        description = getattr(column, "description", "{} attribute filter.. (csv)".format(column_name))
+                        description = getattr(column, "description", "{} attribute filter (csv)".format(column_name))
                         param = {
                             "default": "",
                             "type": "string",

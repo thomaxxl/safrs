@@ -451,7 +451,7 @@ class Resource(FRSResource):
         for attr_name in attr_list:
             # (Customizable swagger specs):
             default_filter = ""
-            description = "{} attribute filter.. (csv)"
+            description = "{} attribute filter (csv)".format(attr_name)
             swagger_type = "string"
             swagger_format = "string"
             name_format = "filter[{}]"
