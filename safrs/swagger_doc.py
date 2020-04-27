@@ -151,7 +151,7 @@ def encode_schema(obj):
         try:
             result = json.loads(json.dumps(obj, cls=flask.current_app.json_encoder))
         except Exception as exc:
-            log.warning("Json encoding failed for {}, type {} ({})".format(obj, type(obj), exc))
+            safrs.log.warning("Json encoding failed for {}, type {} ({})".format(obj, type(obj), exc))
             result = str(obj)
 
     return result

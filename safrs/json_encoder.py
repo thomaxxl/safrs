@@ -8,7 +8,7 @@ from flask.json import JSONEncoder
 from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
 from .config import is_debug
-from .base import SAFRSBase, SAFRSDummy
+from .base import SAFRSBase
 
 
 class SAFRSFormattedResponse:
@@ -70,8 +70,6 @@ class SAFRSJSONEncoder(JSONEncoder):
             return obj.isoformat(" ")
         if isinstance(obj, (datetime.date, datetime.time)):
             return obj.isoformat()
-        if isinstance(obj, SAFRSDummy):
-            return {}
         if isinstance(obj, set):
             return list(obj)
         if isinstance(obj, DeclarativeMeta):

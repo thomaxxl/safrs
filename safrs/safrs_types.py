@@ -152,11 +152,16 @@ class SAFRSID:
         """
             Validate a given id (eg. check if it's a valid uuid, email etc.)
         """
+        result = id
         if len(cls.columns) == 1:
-            return cls.columns[0].type.python_type(id)
-
-        safrs.log.debug("ID Validation not implemented")
-        return id
+            try:
+                result = cls.columns[0].type.python_type(id)
+            except Exception as exc:
+                raise ValidationError("Invalid id: '{}'.".format(id))
+        else:
+            safrs.log.debug("ID Validation not implemented")
+        
+        return result
         """return
         for pk in id.split(cls.delimiter):
             try:

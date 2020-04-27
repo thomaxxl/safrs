@@ -65,6 +65,15 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 # casting of swagger types to python types
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
+JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
+
+def jsonapi_attr(attr):
+    """
+        
+    """
+    result = hybrid_property(attr)
+    setattr(result, JSONAPI_ATTR_TAG, True)
+    return result
 #
 # SAFRSBase superclass
 #
@@ -504,6 +513,10 @@ class SAFRSBase(Model):
             elif not attr_name == "id" and attr_name not in cls._s_relationship_names:
                 result[attr_name] = None
 
+        for attr_name, attr_val in cls.__dict__.items():
+            if getattr(attr_val, JSONAPI_ATTR_TAG, False) is True:
+                result[attr_name] = attr_val
+        
         return result
 
     def to_dict(self, *args, **kwargs):
@@ -960,15 +973,3 @@ class SAFRSBase(Model):
         safrs.log.info("_s_filter args: {}".format(filter_args))
         safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
         return cls._s_query
-
-
-class SAFRSDummy:
-    """
-        Debug class
-    """
-
-    def __getattr__(self, attr):
-        print("get", attr)
-
-    def __setattr__(self, attr, val):
-        print("set", attr, val)
