@@ -466,7 +466,7 @@ class SAFRSBase(Model):
             try:
                 # use the current_app json_encoder
                 if current_app:
-                    result[attr] = json.loads(json.dumps(attr_val,cls=current_app.json_encoder))
+                    result[attr] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
                 else:
                     result[attr] = attr_val
             except UnicodeDecodeError as exc:
@@ -474,7 +474,7 @@ class SAFRSBase(Model):
                 result[attr] = ""
             except Exception as exc:
                 safrs.log.warning("Failed to fetch {}.{}: {}".format(self, attr, exc))
-        
+
         return result
 
     @_s_jsonapi_attrs.expression
@@ -676,7 +676,7 @@ class SAFRSBase(Model):
             relationships[rel_name] = rel_data
 
         attributes = self.to_dict()
-        
+
         data = dict(attributes=attributes, id=self.jsonapi_id, links={"self": self_link}, type=self._s_type, relationships=relationships)
 
         return data

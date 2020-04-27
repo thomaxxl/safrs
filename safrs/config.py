@@ -83,7 +83,7 @@ def get_config(option):
     return result
 
 
-def get_legacy(param, default=0):
+def get_request_param(param, default=0):
     """ Retrieve request parameters
         Used for backwards compatibility (with safrs < 2.x)
         :param param: parameter to retrieve
@@ -100,10 +100,8 @@ def get_legacy(param, default=0):
 
 def is_debug():
     """
+        We use the loglevel to check whether we're running in debug mode
         :return: whether the app is in debug mode
         :rtype: Boolean
     """
     return safrs.log.getEffectiveLevel() < logging.INFO
-
-
-get_request_param = get_legacy

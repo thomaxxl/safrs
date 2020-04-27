@@ -115,13 +115,11 @@ class SAFRSRequest(Request):
 
             filter_attr = re.search(r"filter\[(\w+)\]", arg)
             if filter_attr:
-                col_name = filter_attr.group(1)
-                if not col_name.startswith("_"):  # maybe validate col_name?
-                    self.filters[col_name] = val
+                attr_name = filter_attr.group(1)
+                self.filters[attr_name] = val
 
             # https://jsonapi.org/format/#fetching-sparse-fieldsets
             fields_attr = re.search(r"fields\[(\w+)\]", arg)
             if fields_attr:
                 field_type = fields_attr.group(1)
-                if not val.startswith("_"):
-                    self.fields[field_type] = val.split(",")
+                self.fields[field_type] = val.split(",")
