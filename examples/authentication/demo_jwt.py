@@ -99,7 +99,6 @@ class User(SAFRSBase, db.Model):
 def start_app(app):
 
     custom_swagger = {
-            "info": {"title": "New Title"},
             "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
             "security" : [{"Bearer" : []}]
         }  # Customized swagger will be merged
