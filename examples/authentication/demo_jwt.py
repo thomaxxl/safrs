@@ -98,7 +98,13 @@ class User(SAFRSBase, db.Model):
 
 def start_app(app):
 
-    api = SAFRSAPI(app, api_spec_url="/api/swagger", host=HOST, port=PORT, schemes=["http"])
+    custom_swagger = {
+            "info": {"title": "New Title"},
+            "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
+            "security" : [{"Bearer" : []}]
+        }  # Customized swagger will be merged
+
+    api = SAFRSAPI(app, api_spec_url="/api/swagger", host=HOST, port=PORT, schemes=["http"], custom_swagger=custom_swagger)
 
     username = "admin"
 
@@ -113,7 +119,8 @@ def start_app(app):
     # Identity can be any data that is json serializable
     access_token = create_access_token(identity=username)
     print("Test Authorization header access_token: Bearer", access_token)
-    api._swagger_object["securityDefinitions"] = {"Bearer": {"type": "apiKey", "name": "Authorization", "in": "header"}}
+    
+
 
     app.run(host=HOST, port=PORT)
 
