@@ -52,7 +52,7 @@ from flask import Flask, redirect, jsonify, make_response
 from flask import abort, request, g, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, SAFRS, Api, jsonapi_rpc
+from safrs import SAFRSBase, SAFRS, SAFRSAPI, jsonapi_rpc
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from passlib.apps import custom_app_context as pwd_context
@@ -82,7 +82,7 @@ class Item(SAFRSBase, db.Model):
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description (With JWT Authentication)
+        description: User description (With Authorization Header)
     """
 
     __tablename__ = "Users"
@@ -98,8 +98,7 @@ class User(SAFRSBase, db.Model):
 
 def start_app(app):
 
-    SAFRS(app)
-    api = Api(app, api_spec_url="/api/swagger", host="{}:{}".format(HOST, PORT), schemes=["http"])
+    api = SAFRSAPI(app, api_spec_url="/api/swagger", host=HOST, port=PORT, schemes=["http"])
 
     username = "admin"
 
@@ -156,11 +155,6 @@ def login():
         return jsonify({"msg": "Bad username or password"}), 401
 
     return jsonify(access_token=access_token), 200
-
-
-@app.route("/")
-def goto_api():
-    return redirect("/api")
 
 
 @app.teardown_appcontext
