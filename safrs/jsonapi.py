@@ -66,6 +66,7 @@ def jsonapi_filter(safrs_object):
     filters = get_request_param("filters", {})
     for attr_name, val in filters.items():
         if not attr_name in list(safrs_object._s_jsonapi_attrs.keys()) + ["id"]:
+            # validation failed: this attribute can't be queried
             safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
         attr = getattr(safrs_object, attr_name)
