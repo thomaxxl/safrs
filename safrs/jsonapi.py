@@ -33,7 +33,7 @@ from flask import make_response, url_for
 from flask import jsonify, request
 from flask_restful_swagger_2 import Resource as FRSResource
 import safrs
-from .base import SAFRSBase
+from .base import SAFRSBase, is_jsonapi_attr
 from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config, get_request_param
@@ -70,7 +70,11 @@ def jsonapi_filter(safrs_object):
             safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
         attr = getattr(safrs_object, attr_name)
-        expressions.append((attr, val))
+        if is_jsonapi_attr(attr):
+            # to do
+            safrs.log.debug("Filtering not implemented for {}".format(attr))
+        else:
+            expressions.append((attr, val))
 
     if isinstance(safrs_object, (list, sqlalchemy.orm.collections.InstrumentedList)):
         # todo: filter properly
@@ -107,13 +111,16 @@ def jsonapi_sort(object_query, safrs_object):
                 attr = getattr(safrs_object, sort_attr, None)
             if sort_attr == "id":
                 if attr is None:
-                    # => todo: parse the id
+                    # => to do: parse the id
                     continue
             elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
                 safrs.log.error("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
                 object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-"))
+            elif is_jsonapi_attr(attr):
+                # to do
+                safrs.log.debug("sorting not implemented for {}".format(attr))
             else:
                 try:
                     # This may fail on non-sqla objects, eg. properties

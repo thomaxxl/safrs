@@ -398,19 +398,6 @@ def swagger_doc(cls, tags=None):
     return swagger_doc_gen
 
 
-def get_sample_dict(sample):
-    """
-    get_sample_dict
-    """
-    if getattr(sample, "to_dict", False):
-        # ==> isinstance SAFRSBASE
-        sample_dict = sample.to_dict()
-    else:
-        cols = sample.__table__.columns
-        sample_dict = {col.name: "" for col in cols if col.name in sample._s_jsonapi_attrs}
-    return encode_schema(sample_dict)
-
-
 def swagger_relationship_doc(cls, tags=None):
     """
     swagger_relationship_doc

@@ -15,10 +15,11 @@ from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.sql.schema import Column
 
 # safrs dependencies:
 import safrs
-from .swagger_doc import SchemaClassFactory, get_doc
+from .swagger_doc import SchemaClassFactory, get_doc, parse_object_doc
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
@@ -67,13 +68,39 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
 JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
 
-def jsonapi_attr(attr):
+class jsonapi_attr(hybrid_property):
     """
-        
+       hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy 
     """
-    result = hybrid_property(attr)
-    setattr(result, JSONAPI_ATTR_TAG, True)
-    return result
+    def __init__(self, *args, **kwargs):
+        """
+            :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
+            :return: decorated attribute
+
+            set `swagger_type` and `default` to customize the swagger
+        """
+        obj_doc = {}
+        if args:
+            attr = args[0]
+            setattr(self, JSONAPI_ATTR_TAG, True)
+            obj_doc = parse_object_doc(attr)
+            if isinstance(obj_doc, dict):
+                for k,v in obj_doc.items():
+                    setattr(self, k, v)
+        kwargs.pop("default", None)
+        super().__init__(*args, **kwargs)
+
+    def setter(self, value):
+        safrs.log.debug("Empty '{}' jsonapi_attr setter".format(self.__name__))
+
+
+def is_jsonapi_attr(attr):
+    """
+        :param attr: `SAFRSBase` attribute
+        :return: boolean
+    """
+    return getattr(attr, JSONAPI_ATTR_TAG, False) is True
+
 #
 # SAFRSBase superclass
 #
@@ -213,13 +240,19 @@ class SAFRSBase(Model):
 
         return instance
 
+    def __setattr__(self, attr_name, attr_val):
+        if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
+            getattr(self.__class__, attr_name).setter(attr_val)
+        else:
+            super().__setattr__(attr_name, attr_val)
+
     def _s_patch(self, **attributes):
         """
             update the object attributes 
             :param **attributes:
         """
         for attr_name, attr_val in attributes.items():
-            if not attr_name in self._s_jsonapi_attrs:
+            if not attr_name in self.__class__._s_jsonapi_attrs:
                 continue
             value = self._s_parse_attr_value(attr_name, attr_val)
             # check if write permission is set
@@ -250,27 +283,42 @@ class SAFRSBase(Model):
             :param attr_val: attribute value
             :return: parsed value
         """
-        columns = dict(zip(self._s_column_names, self._s_columns))
         # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
         """if request and attr_name not in columns:
             raise ValidationError("Unable to add {}".format(attr_name))"""
 
-        column = columns[attr_name]
-        if attr_val is None and column.default:
-            attr_val = column.default.arg
+        if not has_request_context():
+            return attr_val
+
+        attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
+        if attr_name == "id":
+            return attr_val 
+
+        elif attr is None:
+            raise ValidationError("Invalid attribute {}".format(attr_name))
+
+        if is_jsonapi_attr(attr):
+            return attr_val
+
+        # attr is a sqlalchemy.sql.schema.Column now
+        if not isinstance(attr, Column):
+            raise ValidationError("Not a column")
+
+        if attr_val is None and attr.default:
+            attr_val = attr.default.arg
             return attr_val
 
         if attr_val is None:
             return attr_val
 
-        if getattr(column, "python_type", None):
+        if getattr(attr, "python_type", None):
             """
                 It's possible for a column to specify a custom python_type to use for deserialization
             """
-            attr_val = column.python_type(attr_val)
+            attr_val = attr.python_type(attr_val)
 
         try:
-            column.type.python_type
+            attr.type.python_type
         except NotImplementedError as exc:
             """
                 This happens when a custom type has been implemented, in which case the user/dev should know how to handle it:
@@ -286,7 +334,7 @@ class SAFRSBase(Model):
             Parse datetime and date values for some common representations
             If another format is uses, the user should create a custom column type or custom serialization
         """
-        if attr_val and column.type.python_type == datetime.datetime:
+        if attr_val and attr.type.python_type == datetime.datetime:
             date_str = str(attr_val)
             try:
                 if "." in date_str:
@@ -297,12 +345,12 @@ class SAFRSBase(Model):
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
-        elif attr_val and column.type.python_type == datetime.date:
+        elif attr_val and attr.type.python_type == datetime.date:
             try:
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
-        elif attr_val and column.type.python_type == datetime.time:
+        elif attr_val and attr.type.python_type == datetime.time:
             try:
                 date_str = str(attr_val)
                 if "." in date_str:
@@ -314,7 +362,7 @@ class SAFRSBase(Model):
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.time {} for value "{}"'.format(exc, attr_val))
         else:
-            attr_val = column.type.python_type(attr_val)
+            attr_val = attr.type.python_type(attr_val)
 
         return attr_val
 
@@ -456,7 +504,9 @@ class SAFRSBase(Model):
     def _s_jsonapi_attrs(self):
         """
             :return: dictionary of exposed attribute names and values
-            
+        """
+
+        """
             The `fields` variable is used to implement jsonapi "Sparse Fieldsets"
             https://jsonapi.org/format/#fetching-sparse-fieldsets:
               client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
@@ -466,7 +516,7 @@ class SAFRSBase(Model):
             Therefore we extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
         """
         fields = self.__class__._s_jsonapi_attrs.keys()
-        if request:
+        if has_request_context():
             fields = request.fields.get(self._s_class_name, fields)
 
         result = {}
@@ -509,14 +559,14 @@ class SAFRSBase(Model):
             # http://jsonapi.org/format/#document-resource-object-fields
             if attr_name == "type":
                 # translate type to Type
-                result["Type"] = None
+                result["Type"] = column
             elif not attr_name == "id" and attr_name not in cls._s_relationship_names:
-                result[attr_name] = None
+                result[attr_name] = column
 
         for attr_name, attr_val in cls.__dict__.items():
-            if getattr(attr_val, JSONAPI_ATTR_TAG, False) is True:
+            if is_jsonapi_attr(attr_val):
                 result[attr_name] = attr_val
-        
+
         return result
 
     def to_dict(self, *args, **kwargs):
@@ -575,6 +625,9 @@ class SAFRSBase(Model):
                     # Don't return classes that are not exposed (only SAFRSBase instances can be exposed)
                     return True
                 return False
+
+        if is_jsonapi_attr(getattr(cls, property_name, None)):
+            return True
 
         raise ValidationError("Invalid property {}".format(property_name))
 
@@ -724,7 +777,7 @@ class SAFRSBase(Model):
         """
             :return: a sample id for the API documentation, i.e. the first item in the DB
         """
-        result = ""
+        result = "sample id"
         sample = cls._s_sample()
         if sample:
             result = sample.jsonapi_id
@@ -752,42 +805,44 @@ class SAFRSBase(Model):
         """
         # create a swagger example based on the jsonapi attributes (i.e. the database column schema)
         sample = {}
-        for column in cls._s_columns:
-            if column.name in ("id", "type") or column.name not in cls._s_jsonapi_attrs:
-                continue
-            arg = None
-            if hasattr(column, "sample"):
-                arg = getattr(column, "sample")
-            elif column.default:
-                if callable(column.default.arg):
-                    # todo: check how to display the default args
-                    safrs.log.warning("Not implemented: {}".format(column.default.arg))
-                    continue
-                else:
-                    python_type = SWAGGER2_TYPE_CAST.get(column.type, str)
-                    arg = python_type(column.default.arg)
+        for attr_name, attr in cls._s_jsonapi_attrs.items():
+            if is_jsonapi_attr(attr):
+                arg = getattr(attr, "default", "")
             else:
-                # No default column value speciefd => infer one by type
-                try:
-                    if column.type.python_type == int:
-                        arg = 0
-                    if column.type.python_type == datetime.datetime:
-                        arg = str(datetime.datetime.now())
-                    elif column.type.python_type == datetime.date:
-                        arg = str(datetime.date.today())
+                column = attr
+                arg = None
+                if hasattr(column, "sample"):
+                    arg = getattr(column, "sample")
+                elif column.default:
+                    if callable(column.default.arg):
+                        # todo: check how to display the default args
+                        safrs.log.warning("Not implemented: {}".format(column.default.arg))
+                        continue
                     else:
-                        arg = column.type.python_type()
-                except NotImplementedError:
-                    # This may happen for custom columns
-                    safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
-                    arg = None
-                except Exception as exc:
-                    safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
-                    # use an empty string when no type is matched, otherwise we may get json encoding
-                    # errors for the swagger generation
-                    arg = ""
+                        python_type = SWAGGER2_TYPE_CAST.get(column.type, str)
+                        arg = python_type(column.default.arg)
+                else:
+                    # No default column value speciefd => infer one by type
+                    try:
+                        if column.type.python_type == int:
+                            arg = 0
+                        if column.type.python_type == datetime.datetime:
+                            arg = str(datetime.datetime.now())
+                        elif column.type.python_type == datetime.date:
+                            arg = str(datetime.date.today())
+                        else:
+                            arg = column.type.python_type()
+                    except NotImplementedError:
+                        # This may happen for custom columns
+                        safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
+                        arg = None
+                    except Exception as exc:
+                        safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
+                        # use an empty string when no type is matched, otherwise we may get json encoding
+                        # errors for the swagger generation
+                        arg = ""
 
-            sample[column.name] = arg
+            sample[attr_name] = arg
 
         return sample
 
@@ -833,64 +888,15 @@ class SAFRSBase(Model):
         responses = {}
 
         if http_method.upper() in cls.http_methods:
-            object_model = cls._get_swagger_doc_object_model()
             responses = {
                 HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
                 HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
             }
 
-            if http_method == "get":
-                body = object_model
-
             if http_method in ("post", "patch"):
                 responses = {HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description}}
 
         return body, responses
-
-    @classmethod
-    def _get_swagger_doc_object_model(cls):
-        """
-            Create a schema for object creation and updates through the HTTP PATCH and POST interfaces
-            The schema is created using the sqlalchemy database schema. So there
-            is a one-to-one mapping between json input data and db columns
-            :return: swagger doc
-        """
-        fields = {}
-        sample_id = cls._s_sample_id()
-        sample_instance = cls.get_instance(sample_id, failsafe=True)
-        for column in cls._s_columns:
-            if column.name not in cls._s_jsonapi_attrs:
-                continue
-            # convert the column type to string and map it to a swagger type
-            column_type = str(column.type)
-            # Take care of extended column type declarations, eg. TEXT COLLATE "utf8mb4_unicode_ci" > TEXT
-            column_type = column_type.split("(")[0]
-            column_type = column_type.split(" ")[0]
-            swagger_type = SQLALCHEMY_SWAGGER2_TYPE.get(column_type, None)
-            if swagger_type is None:
-                safrs.log.warning(
-                    'Could not match json datatype for db column type `{}`, using "string" for {}.{}'.format(
-                        column_type, cls.__tablename__, column.name
-                    )
-                )
-                swagger_type = "string"
-
-            default = getattr(sample_instance, column.name, None)
-            if default is None and getattr(column.type, "python_type"):
-                try:
-                    default = column.type.python_type()
-                except:
-                    pass
-            if default is None:
-                safrs.log.debug("No default value for {}".format(column.name))
-                default = ""
-
-            field = {"type": swagger_type, "example": default}  # added unicode str() for datetime encoding
-            fields[column.name] = field
-
-        model_name = "{}_{}".format(cls.__name__, "CreateUpdate")
-        model = SchemaClassFactory(model_name, fields)
-        return model
 
     @classmethod
     def get_endpoint(cls, url_prefix=None, type=None):
