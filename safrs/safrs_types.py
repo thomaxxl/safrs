@@ -160,7 +160,7 @@ class SAFRSID:
                 raise ValidationError("Invalid id: '{}'.".format(id))
         else:
             safrs.log.debug("ID Validation not implemented")
-        
+
         return result
         """return
         for pk in id.split(cls.delimiter):

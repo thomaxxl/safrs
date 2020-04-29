@@ -68,10 +68,12 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
 JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
 
+
 class jsonapi_attr(hybrid_property):
     """
        hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy 
     """
+
     def __init__(self, *args, **kwargs):
         """
             :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
@@ -85,7 +87,7 @@ class jsonapi_attr(hybrid_property):
             setattr(self, JSONAPI_ATTR_TAG, True)
             obj_doc = parse_object_doc(attr)
             if isinstance(obj_doc, dict):
-                for k,v in obj_doc.items():
+                for k, v in obj_doc.items():
                     setattr(self, k, v)
         kwargs.pop("default", None)
         super().__init__(*args, **kwargs)
@@ -100,6 +102,7 @@ def is_jsonapi_attr(attr):
         :return: boolean
     """
     return getattr(attr, JSONAPI_ATTR_TAG, False) is True
+
 
 #
 # SAFRSBase superclass
@@ -292,7 +295,7 @@ class SAFRSBase(Model):
 
         attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
         if attr_name == "id":
-            return attr_val 
+            return attr_val
 
         elif attr is None:
             raise ValidationError("Invalid attribute {}".format(attr_name))
