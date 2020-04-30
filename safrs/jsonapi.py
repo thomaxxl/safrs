@@ -226,6 +226,9 @@ def paginate(object_query, SAFRSObject=None):
 
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
         instances = object_query[page_offset : page_offset + limit]
+    elif isinstance(object_query, dict):
+        # (might happen when using a custom filter)
+        instances = object_query
     else:
         try:
             res_query = object_query.offset(page_offset).limit(limit)

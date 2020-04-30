@@ -19,7 +19,7 @@ from sqlalchemy.sql.schema import Column
 
 # safrs dependencies:
 import safrs
-from .swagger_doc import SchemaClassFactory, get_doc, parse_object_doc
+from .swagger_doc import get_doc, parse_object_doc
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
@@ -71,25 +71,28 @@ JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
 
 class jsonapi_attr(hybrid_property):
     """
-       hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy 
+       hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy
     """
 
     def __init__(self, *args, **kwargs):
         """
             :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
-            :return: decorated attribute
+            :return: jsonapi attribute decorator
 
             set `swagger_type` and `default` to customize the swagger
         """
-        obj_doc = {}
         if args:
+            # called when the app starts
             attr = args[0]
             setattr(self, JSONAPI_ATTR_TAG, True)
             obj_doc = parse_object_doc(attr)
             if isinstance(obj_doc, dict):
                 for k, v in obj_doc.items():
                     setattr(self, k, v)
-        kwargs.pop("default", None)
+        else:
+            # the "default" kwarg may have been added by the obj_doc but we no longer
+            # need it (and it causes an exception)
+            kwargs.pop("default", None)
         super().__init__(*args, **kwargs)
 
     def setter(self, value):
@@ -98,7 +101,7 @@ class jsonapi_attr(hybrid_property):
 
 def is_jsonapi_attr(attr):
     """
-        :param attr: `SAFRSBase` attribute
+        :param attr: `SAFRSBase` `jsonapi_attr` decorated attribute
         :return: boolean
     """
     return getattr(attr, JSONAPI_ATTR_TAG, False) is True
@@ -287,17 +290,15 @@ class SAFRSBase(Model):
             :return: parsed value
         """
         # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
-        """if request and attr_name not in columns:
-            raise ValidationError("Unable to add {}".format(attr_name))"""
-
         if not has_request_context():
+            # we only care about parsing when working in the request context
             return attr_val
 
-        attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
         if attr_name == "id":
             return attr_val
 
-        elif attr is None:
+        attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
+        if attr is None:
             raise ValidationError("Invalid attribute {}".format(attr_name))
 
         if is_jsonapi_attr(attr):
@@ -816,7 +817,7 @@ class SAFRSBase(Model):
                 arg = None
                 if hasattr(column, "sample"):
                     arg = getattr(column, "sample")
-                elif column.default:
+                elif hasattr(column,"default") and column.default:
                     if callable(column.default.arg):
                         # todo: check how to display the default args
                         safrs.log.warning("Not implemented: {}".format(column.default.arg))
