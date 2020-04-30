@@ -46,7 +46,9 @@ Class and method descriptions and examples can be provided in yaml syntax in the
 
 The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](https://jsonapi.org) compliant API implementation.
 
-A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, implementing a simple [example](examples/demo_pythonanywhere_com.py).
+A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, where much of the basic functionality is implemented with a simple [example](examples/demo_pythonanywhere_com.py).
+
+__UPDATE!__ documentation can be found in the [wiki](https://github.com/thomaxxl/safrs/wiki).
 
 <a class="mk-toclify" id="installation"></a>
 ## Installation
