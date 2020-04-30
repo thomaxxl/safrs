@@ -32,7 +32,8 @@ except Exception as exc:
     print(f"flask-admin import failed {exc}")
 from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
-from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate, ValidationError
+from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate
+from safrs import jsonapi_attr, ValidationError
 from safrs import jsonapi_rpc  # rpc decorator
 from safrs.api_methods import search, startswith, duplicate  # rpc methods
 from flask import url_for, jsonify
@@ -139,7 +140,7 @@ class Person(BaseModel):
     password = WriteOnlyColumn(db.String, default="")
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
-    _salary = db.Column(db.String, default="") # hidden column
+    _salary = db.Column(db.String, default="")  # hidden column
 
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
@@ -211,12 +212,27 @@ class Publisher(BaseModel):
         return result
 
     @classmethod
-    def _s_filter(cls, arg):
+    def filter(cls, arg):
         """
             Sample custom filtering, override this method to implement custom filtering
             using the sqlalchemy orm
+
+            This method will be called when the filter= url query argument is provided, eg.
+            GET /Publishers/?filter=some_filter
         """
+        print('x '*40)
+        print(arg)
+        return {1:1}
         return cls.query.filter_by(name=arg)
+
+    @jsonapi_attr
+    def target(self):
+        """
+            default: 30
+            ---
+            Custom Attribute that will be shown in the book swagger
+        """
+        return 100
 
 
 class Review(BaseModel):
@@ -229,7 +245,7 @@ class Review(BaseModel):
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
     review = db.Column(db.String, default="")
     created = db.Column(db.DateTime, default=datetime.datetime.now())
-    # http_methods = {"GET", "POST"}  # only allow GET and POST
+    http_methods = {"GET", "POST"}  # only allow GET and POST
 
 
 # API app initialization:
@@ -258,6 +274,8 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             publisher.books.append(book)
             reader.books_read.append(book)
             author.books_written.append(book)
+            if i % 20 == 0:
+                reader.comment = ""
             for obj in [reader, author, book, publisher, review]:
                 db.session.add(obj)
 
