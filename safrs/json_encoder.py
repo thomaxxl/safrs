@@ -8,7 +8,7 @@ from flask.json import JSONEncoder
 from sqlalchemy.ext.declarative import DeclarativeMeta
 import safrs
 from .config import is_debug
-from .base import SAFRSBase
+from .base import SAFRSBase, Included
 
 
 class SAFRSFormattedResponse:
@@ -63,6 +63,11 @@ class SAFRSJSONEncoder(JSONEncoder):
             :param obj: object to be encoded
             :return: encoded/serizlaized object
         """
+        if obj is Included:
+            return Included.encode()
+        if isinstance(obj, Included):
+            result = obj.encode()
+            return result
         if isinstance(obj, SAFRSBase):
             result = obj._s_jsonapi_encode()
             return result

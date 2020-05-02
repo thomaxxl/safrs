@@ -29,11 +29,11 @@ import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 from sqlalchemy.orm.interfaces import MANYTOONE
-from flask import make_response, url_for
-from flask import jsonify, request
+from flask import make_response, url_for, request
+from flask import jsonify as flask_jsonify
 from flask_restful_swagger_2 import Resource as FRSResource
 import safrs
-from .base import SAFRSBase, is_jsonapi_attr
+from .base import SAFRSBase, is_jsonapi_attr, Included
 from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .config import get_config, get_request_param
@@ -41,6 +41,10 @@ from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
 
 INCLUDE_ALL = "+all"  # this "include" query string parameter value tells us to retrieve all included resources
+
+def jsonify(obj):
+    #if isinstance(obj, dict) 
+    return flask_jsonify(obj)
 
 # JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
@@ -114,7 +118,7 @@ def jsonapi_sort(object_query, safrs_object):
                     # => to do: parse the id
                     continue
             elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
-                safrs.log.error("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
+                safrs.log.debug("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
                 object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-"))
@@ -175,6 +179,7 @@ def paginate(object_query, SAFRSObject=None):
         limit = int(get_request_param("page_limit", get_config("MAX_PAGE_LIMIT")))
     except ValueError:
         raise ValidationError("Pagination Value Error")
+
     if limit == 0:
         limit = 1
 
@@ -241,93 +246,17 @@ def paginate(object_query, SAFRSObject=None):
     return links, instances, count
 
 
-def get_included(data, limit, include="", level=0):
-    """
-        :param data:
-        :param limit:
-        :param include: csv string with the items to include
-        :param level:
-        :return:
-        return a set of included items
+def get_included(data, limit, included_list=None, level=0):
 
-        http://jsonapi.org/format/#fetching-includes
-
-        Inclusion of Related Resources
-        Multiple related resources can be requested in a comma-separated list:
-        An endpoint MAY return resources related to the primary data by default.
-        An endpoint MAY also support an include request parameter to allow
-        the client to customize which related resources should be returned.
-        In order to request resources related to other resources,
-        a dot-separated path for each relationship name can be specified
-    """
-    result = set()
-
-    if not include:
-        return result
-
-    if isinstance(data, (list, set)):
-        for included in [get_included(obj, limit, include, level=level + 1) for obj in data]:
-            result = result.union(included)
-        return result
-
-    # When we get here, data has to be a SAFRSBase instance
-    if not isinstance(data, SAFRSBase):
-        return result
-    instance = data
-
-    # Multiple related resources can be requested in a comma-separated list
-    includes = include.split(",")
-
-    if INCLUDE_ALL in includes:
-        includes += [r.key for r in instance._s_relationships]
-
-    for include in set(includes):
-        relationship = include.split(".")[0]
-        nested_rel = None
-        if "." in include:
-            nested_rel = ".".join(include.split(".")[level:])
-        if relationship in [r.key for r in instance._s_relationships]:
-            included = getattr(instance, relationship)
-
-            # relationship direction in (ONETOMANY, MANYTOMANY):
-            if included and isinstance(included, SAFRSBase) and included not in result:
-                # convert single instance to a list so we can generically add the includes
-                included = [included]
-            elif isinstance(included, sqlalchemy.orm.collections.InstrumentedList):
-                pass
-            elif not included or included in result:
-                continue
-            try:
-                # This works on sqlalchemy.orm.dynamic.AppenderBaseQuery
-                included = included[:limit]
-            except Exception as exc:
-                safrs.log.debug("Failed to add included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc))
-
-            try:
-                result = result.union(included)
-            except Exception as exc:
-                safrs.log.warning(
-                    "Failed to unionize included for {} (included: {} - {}): {}".format(relationship, type(included), included, exc)
-                )
-                result.add(included)
-
-        if INCLUDE_ALL in includes:
-            for nested_included in [get_included(result, limit, level=level + 1) for obj in result]:
-                # Removed recursion with get_included(result, limit, INCLUDE_ALL)
-                result = result.union(nested_included)
-
-        elif nested_rel:
-            for nested_included in [get_included(result, limit, nested_rel, level=level + 1) for obj in result]:
-                result = result.union(nested_included)
-
+    result = set(Included.instances)
     return result
 
 
 def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count=None, include=None):
     """
-    Create a response dict according to the json:api schema spec
-    :param data : the objects that will be serialized
-    :return: jsonapi formatted dictionary
+        Create a response dict according to the json:api schema spec
+        :param data : the objects that will be serialized
+        :return: jsonapi formatted dictionary
     """
     limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
     try:
@@ -337,14 +266,12 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     if meta is None:
         meta = {}
 
-    if include is None:
-        include = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
-
+    
     meta["limit"] = limit
     meta["count"] = count
 
     jsonapi = dict(version="1.0")
-    included = list(get_included(data, limit, include=include))
+    
     """if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)"""
     result = dict(data=data)
@@ -357,8 +284,8 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
         result["jsonapi"] = jsonapi
     if links:
         result["links"] = links
-    if included:
-        result["included"] = included
+    
+    result["included"] = Included
 
     return result
 
@@ -867,7 +794,7 @@ class SAFRSRestRelationshipAPI(Resource):
         Following attributes are set on this class:
             - SAFRSObject: the sqla object which has been set with the type
              constructor in expose_relationship
-            - parent_class: class of the parent ( e.g. Parent, __tablename__ : Parents )
+            - source_class: class of the parent ( e.g. Parent, __tablename__ : Parents )
             - target : class of the child
             - rel_name : name of the relationship ( e.g. children )
             - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
@@ -891,18 +818,19 @@ class SAFRSRestRelationshipAPI(Resource):
 
     SAFRSObject = None
 
-    def __new__(cls, *args, **kwargs):
-        cls.relationship = cls.SAFRSObject.relationship
-        return super().__new__(cls, *args, **kwargs)
-
     # pylint: disable=unused-argument
     def __init__(self, *args, **kwargs):
-
-        self.parent_class = self.SAFRSObject.relationship.parent.class_
+        """
+            Initialize the relationship references:
+            - relationship : sqla relationship
+            - 
+        """
+        self.relationship = self.SAFRSObject.relationship
+        self.source_class = self.SAFRSObject.relationship.parent.class_
         self.target = self.SAFRSObject.relationship.mapper.class_
         self.rel_name = self.SAFRSObject.relationship.key
         # The object_ids are the ids in the swagger path e.g {FileId}
-        self.parent_object_id = self.parent_class.object_id
+        self.parent_object_id = self.source_class.object_id
         self.child_object_id = self.target.object_id
 
         if self.parent_object_id == self.child_object_id:
@@ -944,18 +872,17 @@ class SAFRSRestRelationshipAPI(Resource):
                 links["related"] = instance._s_url
             meta.update(dict(instance_meta=instance._s_meta()))
         elif child_id:
-            safrs.log.warning("Fetching relationship items by path id is deprecated and will be removed")
-            child = self.target.get_instance(child_id)
+            safrs.log.debug("Fetching relationship items by path id is deprecated and may be removed in future versions")
+            data = child = self.target.get_instance(child_id)
             links = {"self": child._s_url}
             # If {ChildId} is passed in the url, return the child object
             # there's a difference between to-one and -to-many relationships:
-            if isinstance(relation, SAFRSBase):
-                if child != relation:
-                    raise NotFoundError()
+            if isinstance(relation, SAFRSBase) and child != relation:
+                raise NotFoundError()
             elif child not in relation:
                 raise NotFoundError()
             else:
-                return jsonify({"data": child, "links": {"self": request.url, "related": child._s_url}})
+                links = {"self": request.url, "related": child._s_url}
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
             instances = [item for item in relation if isinstance(item, SAFRSBase)]
             instances = jsonapi_sort(instances, self.target)
@@ -1143,10 +1070,9 @@ class SAFRSRestRelationshipAPI(Resource):
                 child = self._parse_target_data(child_data)
                 if child not in relation:
                     relation.append(child)
-            # result = [child for child in relation]
 
         # we can return result too but it's not necessary per the spec
-        return {}, 204
+        return {}, HTTPStatus.NO_CONTENT
 
     def delete(self, **kwargs):
         """
@@ -1242,7 +1168,7 @@ class SAFRSRestRelationshipAPI(Resource):
         if parent_id is None:
             raise ValidationError("Invalid Parent Id")
 
-        parent = self.parent_class.get_instance(parent_id)
+        parent = self.source_class.get_instance(parent_id)
         relation = getattr(parent, self.rel_name)
 
         return parent, relation

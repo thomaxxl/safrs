@@ -10,7 +10,7 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 """
 import re
-from flask import Request, abort
+from flask import Request, abort, g
 from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
@@ -42,7 +42,7 @@ class SAFRSRequest(Request):
         super().__init__(*args, **kwargs)
         self.parse_content_type()
         self.parse_jsonapi_args()
-
+        
     def parse_content_type(self):
         """
             Check if the request content type is jsonapi and any requested extensions
@@ -96,16 +96,7 @@ class SAFRSRequest(Request):
             - fields[]
         """
         self.page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
-        # .pop() doesn't work for TypeConversionDict, del manually
-        if "page[limit]" in self.args:
-            pass
-            # del self.args['page[limit]']
-
         self.page_offset = self.args.get("page[offset]", 0, type=int)
-        if "page[offset]" in self.args:
-            pass
-            # del self.args['page[offset]']
-
         self.filters = {}
         self.fields = {}
         # Parse the jsonapi filter[] and fields[] args

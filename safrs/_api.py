@@ -248,7 +248,6 @@ class Api(FRSApiBase):
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
-
         self.add_resource(
             api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True
         )
