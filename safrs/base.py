@@ -9,7 +9,7 @@ import sqlalchemy
 import json
 from http import HTTPStatus
 from urllib.parse import urljoin
-from flask import request, url_for, has_request_context, current_app, g
+from flask import request, url_for, has_request_context, current_app
 from flask_sqlalchemy import Model
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
@@ -247,6 +247,9 @@ class SAFRSBase(Model):
         return instance
 
     def __setattr__(self, attr_name, attr_val):
+        """
+            setattr behaves differently for `jsonapi_attr` decorated attributes
+        """
         if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
             getattr(self.__class__, attr_name).setter(attr_val)
         else:
