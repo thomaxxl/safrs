@@ -6,6 +6,7 @@ import decimal
 import json
 from flask.json import JSONEncoder
 from sqlalchemy.ext.declarative import DeclarativeMeta
+from uuid import UUID
 import safrs
 from .config import is_debug
 from .base import SAFRSBase, Included
@@ -81,6 +82,8 @@ class SAFRSJSONEncoder(JSONEncoder):
             return self.sqla_encode(obj)
         if isinstance(obj, SAFRSFormattedResponse):
             return obj.to_dict()
+        elif isinstance(obj, UUID):
+            return str(obj)
         if isinstance(obj, decimal.Decimal):
             return str(obj)
         if isinstance(obj, bytes):
