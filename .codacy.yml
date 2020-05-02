@@ -1,6 +1,9 @@
+# We're only interested in safrs/*
 exclude_paths:
           - 'codegen/**'
           - 'jsonapi-admin/**'
           - 'swagger-editor/**'
           - 'tests/**'
           - 'examples/**'
+          - 'docs/**'
+          - 'expose_existing/**'
