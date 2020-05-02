@@ -668,17 +668,28 @@ class SAFRSBase(Model):
 
         self_link = self._s_url
         attributes = self.to_dict()
-        relationships, _ = self._s_get_related()
+        relationships = self._s_get_related()
         data = dict(attributes=attributes, id=self.jsonapi_id, links={"self": self_link}, type=self._s_type, relationships=relationships)
 
         return data
 
     def _s_get_related(self):
+        """
+            :return: related objects
+            
+            http://jsonapi.org/format/#fetching-includes
 
-        self._s_included = set()
+            Inclusion of Related Resources
+            Multiple related resources can be requested in a comma-separated list:
+            An endpoint MAY return resources related to the primary data by default.
+            An endpoint MAY also support an include request parameter to allow
+            the client to customize which related resources should be returned.
+            In order to request resources related to other resources,
+            a dot-separated path for each relationship name can be specified
 
-        # In order to request resources related to other resources,
-        # a dot-separated path for each relationship name can be specified
+            All related instances are stored in the `Included` class so we don't have to walk
+            the relationships twice
+        """
         included_list = getattr(self, "included_list", None)
         if included_list is None:
             # Multiple related resources can be requested in a comma-separated list
@@ -686,7 +697,8 @@ class SAFRSBase(Model):
             included_list = included_csv.split(",")
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
-
+        # In order to recursively request related resources
+        # a dot-separated path for each relationship name can be specified
         included_rels = {i.split(".")[0]: i for i in included_list}
         relationships = dict()
         for relationship in self._s_relationships:
@@ -712,7 +724,6 @@ class SAFRSBase(Model):
                 MAY also contain pagination links under the links member, as described below.
                 SAFRS currently implements links with self
             """
-
             meta = {}
             rel_name = relationship.key
             if rel_name in excluded_list:
@@ -721,15 +732,19 @@ class SAFRSBase(Model):
                 pass
             data = None
             if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
+                # the relationship instances should be included
                 included_rel = included_rels.get(rel_name)
+                # next_included_list contains the recursive relationship names
                 next_included_list = included_rel.split(".")[1:] if included_rel else []
                 if relationship.direction == MANYTOONE:
+                    # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
                     if rel_item:
-                        self._s_included.add(rel_item)
+                        # create an Included instance that will be used for serialization eventually
                         data = Included(rel_item, next_included_list)
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    # Data is optional, it's also really slow for large sets!!!!!
+                    # manytoone relationship contains a list of instances
+                    # Data is optional, it's also really slow for large sets!
                     rel_query = getattr(self, rel_name)
                     limit = request.page_limit
                     if not get_config("ENABLE_RELATIONSHIPS"):
@@ -758,10 +773,6 @@ class SAFRSBase(Model):
                 else:  # pragma: no cover
                     # shouldn't happen!!
                     safrs.log.error("Unknown relationship direction for relationship {}: {}".format(rel_name, relationship.direction))
-                # add the relationship direction, for debugging purposes.
-                if is_debug():
-                    # meta["direction"] = relationship.direction.name
-                    pass
 
             rel_link = urljoin(self._s_url, rel_name)
             links = dict(self=rel_link)
@@ -772,7 +783,7 @@ class SAFRSBase(Model):
                 rel_data["meta"] = meta
             relationships[rel_name] = rel_data
 
-        return relationships, self._s_included
+        return relationships
 
     def __unicode__(self):
         """
@@ -1010,31 +1021,34 @@ class SAFRSBase(Model):
 
 class Included:
     """    
-        http://jsonapi.org/format/#fetching-includes
-
-        Inclusion of Related Resources
-        Multiple related resources can be requested in a comma-separated list:
-        An endpoint MAY return resources related to the primary data by default.
-        An endpoint MAY also support an include request parameter to allow
-        the client to customize which related resources should be returned.
-        In order to request resources related to other resources,
-        a dot-separated path for each relationship name can be specified
+        This class contains the instances that will be included in the jsonapi response
+        we keep a set of instances to avoid storing duplicates
     """
 
     instances = set()
     instance = None
 
     def __init__(self, instance, included_list):
+        """
+            :param instance: the instance to be included
+            :param included_list: the list of relationships that should be included for `instance`
+        """
         self.instance = instance
         instance.included_list = included_list
         Included.instances.add(instance)
 
     @hybrid_method
     def encode(self):
+        """
+            jsonapi encoding of the instance in the relationship dictionary
+        """
         return {"id": str(self.instance.jsonapi_id), "type": self.instance._s_type}
 
     @encode.expression
     def encode(cls):
+        """
+            encoding of all included instances (in the included[] part of the jsonapi response)
+        """
         already_included = set()
         result = []
         while len(cls.instances):
