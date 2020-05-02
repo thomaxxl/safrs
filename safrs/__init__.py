@@ -99,7 +99,7 @@ class SAFRS:
     RELATIONSHIP_URL_FMT = None
     ENDPOINT_FMT = None
     MAX_TABLE_COUNT = 10 ** 7  # table counts will become really slow for large tables, inform the user about it using this
-    INCLUDE_ALL = "+all" # include= url query argument that tells us to include all related resources
+    INCLUDE_ALL = "+all"  # include= url query argument that tells us to include all related resources
 
     #
     config = {}
@@ -184,8 +184,9 @@ def dict_merge(dct, merge_dct):
             # convert to string, for ex. http return codes
             dct[str(k)] = merge_dct[k]
 
+
 #
-# 
+#
 #
 try:
     DEBUG = os.getenv("DEBUG", str(logging.WARNING))

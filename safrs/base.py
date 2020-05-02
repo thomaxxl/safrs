@@ -349,11 +349,13 @@ class SAFRSBase(Model):
                     attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
+                attr_val = datetime.datetime.now()
         elif attr_val and attr.type.python_type == datetime.date:
             try:
                 attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
+                attr_val = datetime.datetime.now()
         elif attr_val and attr.type.python_type == datetime.time:
             try:
                 date_str = str(attr_val)
@@ -363,8 +365,9 @@ class SAFRSBase(Model):
                 else:
                     # JS datepicker format
                     attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S").time()
-            except (NotImplementedError, ValueError) as exc:
+            except (NotImplementedError, ValueError, TypeError) as exc:
                 safrs.log.warning('Invalid datetime.time {} for value "{}"'.format(exc, attr_val))
+                attr_val = attr.type.python_type()
         else:
             attr_val = attr.type.python_type(attr_val)
 
@@ -496,10 +499,9 @@ class SAFRSBase(Model):
             :return: the relationships used for jsonapi (de/)serialization
         """
         rels = [rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)]
-        rels = [rel for rel in self.__mapper__.relationships]
         return rels
 
-    @classproperty
+    @hybrid_property
     def _s_relationship_names(cls):
         """
             :return: list of realtionship names
@@ -617,19 +619,26 @@ class SAFRSBase(Model):
             :permission: 
             :return: Boolean
         """
-        for column in cls.__mapper__.columns:
-            # don't expose attributes starting with an underscore
-            if column.name.startswith("_"):
-                return False
-            if column.name == property_name:
-                if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
-                    return True
-                return False
+        if property_name.startswith("_"):
+            return False
 
         for rel in cls.__mapper__.relationships:
             if property_name == rel.key:
-                if rel.key not in cls.exclude_rels and getattr(rel.mapper.class_, "_s_expose", False):
-                    # Don't return classes that are not exposed (only SAFRSBase instances can be exposed)
+                if rel.key in cls.exclude_rels:
+                    # relationship name has been set in exclude_rels
+                    return False
+                if not getattr(rel.mapper.class_, "_s_expose", False):
+                    # only SAFRSBase instances can be exposed
+                    return False
+                if not getattr(rel, "expose", True):
+                    # relationship `expose` attribute has been set to False
+                    return False
+                return True
+
+        for column in cls.__mapper__.columns:
+            # don't expose attributes starting with an underscore
+            if column.name == property_name:
+                if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
                     return True
                 return False
 
@@ -637,16 +646,6 @@ class SAFRSBase(Model):
             return True
 
         raise ValidationError("Invalid property {}".format(property_name))
-
-    def _s_get_included(self, included_list):
-        """
-            :param included_list:
-        """
-        for included_rel in included_list:
-            rel = included_rel.split('.')[0]
-            if rel in _s_relationships:
-                pass
-
 
     @hybrid_method
     def _s_jsonapi_encode(self):
@@ -660,7 +659,7 @@ class SAFRSBase(Model):
                     "type": "..."
                     }`
         """
-        
+
         # params = { self.object_id : self.id }
         # obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
         obj_url = url_for(self.get_endpoint())
@@ -675,7 +674,7 @@ class SAFRSBase(Model):
         return data
 
     def _s_get_related(self):
-        
+
         self._s_included = set()
 
         # In order to request resources related to other resources,
@@ -687,8 +686,8 @@ class SAFRSBase(Model):
             included_list = included_csv.split(",")
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
-            
-        included_rels = {i.split('.')[0] : i for i in included_list}
+
+        included_rels = {i.split(".")[0]: i for i in included_list}
         relationships = dict()
         for relationship in self._s_relationships:
             """
@@ -713,6 +712,7 @@ class SAFRSBase(Model):
                 MAY also contain pagination links under the links member, as described below.
                 SAFRS currently implements links with self
             """
+
             meta = {}
             rel_name = relationship.key
             if rel_name in excluded_list:
@@ -722,7 +722,7 @@ class SAFRSBase(Model):
             data = None
             if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
                 included_rel = included_rels.get(rel_name)
-                next_included_list = included_rel.split('.')[1:] if included_rel else []
+                next_included_list = included_rel.split(".")[1:] if included_rel else []
                 if relationship.direction == MANYTOONE:
                     rel_item = getattr(self, rel_name)
                     if rel_item:
@@ -762,7 +762,7 @@ class SAFRSBase(Model):
                 if is_debug():
                     # meta["direction"] = relationship.direction.name
                     pass
-            
+
             rel_link = urljoin(self._s_url, rel_name)
             links = dict(self=rel_link)
             rel_data = dict(links=links)
@@ -773,7 +773,6 @@ class SAFRSBase(Model):
             relationships[rel_name] = rel_data
 
         return relationships, self._s_included
-
 
     def __unicode__(self):
         """
@@ -841,7 +840,7 @@ class SAFRSBase(Model):
                 arg = None
                 if hasattr(column, "sample"):
                     arg = getattr(column, "sample")
-                elif hasattr(column,"default") and column.default:
+                elif hasattr(column, "default") and column.default:
                     if callable(column.default.arg):
                         # todo: check how to display the default args
                         safrs.log.warning("Not implemented: {}".format(column.default.arg))
@@ -1021,6 +1020,7 @@ class Included:
         In order to request resources related to other resources,
         a dot-separated path for each relationship name can be specified
     """
+
     instances = set()
     instance = None
 
@@ -1031,7 +1031,7 @@ class Included:
 
     @hybrid_method
     def encode(self):
-        return {"id" : str(self.instance.jsonapi_id), "type": self.instance._s_type}
+        return {"id": str(self.instance.jsonapi_id), "type": self.instance._s_type}
 
     @encode.expression
     def encode(cls):
@@ -1044,4 +1044,3 @@ class Included:
             result.append(instance._s_jsonapi_encode())
 
         return result
-

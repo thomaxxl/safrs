@@ -42,7 +42,7 @@ class SAFRSRequest(Request):
         super().__init__(*args, **kwargs)
         self.parse_content_type()
         self.parse_jsonapi_args()
-        
+
     def parse_content_type(self):
         """
             Check if the request content type is jsonapi and any requested extensions

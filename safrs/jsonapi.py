@@ -42,9 +42,11 @@ from .util import classproperty
 
 INCLUDE_ALL = "+all"  # this "include" query string parameter value tells us to retrieve all included resources
 
+
 def jsonify(obj):
-    #if isinstance(obj, dict) 
+    # if isinstance(obj, dict)
     return flask_jsonify(obj)
+
 
 # JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
@@ -266,12 +268,11 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     if meta is None:
         meta = {}
 
-    
     meta["limit"] = limit
     meta["count"] = count
 
     jsonapi = dict(version="1.0")
-    
+
     """if count >= 0:
         included = jsonapi_format_response(included, {}, {}, {}, -1)"""
     result = dict(data=data)
@@ -284,7 +285,7 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
         result["jsonapi"] = jsonapi
     if links:
         result["links"] = links
-    
+
     result["included"] = Included
 
     return result
@@ -1063,7 +1064,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 )
             if child_data:
                 child = self._parse_target_data(child_data)
-                # result = [child]
+                setattr(parent, self.rel_name, child)
 
         else:  # direction is TOMANY => append the items to the relationship
             for child_data in data:
@@ -1114,12 +1115,12 @@ class SAFRSRestRelationshipAPI(Resource):
                     # invalid, try to fix it by deleting the firs item from the list
                     safrs.log.warning("Invalid Payload to delete from MANYTOONE relationship")
                     data = data[0]
-                else:
-                    raise ValidationError("Invalid data payload")
+            if not isinstance(data, dict):
+                raise ValidationError("Invalid data payload")
             child_id = data.get("id", None)
             child_type = data.get("type", None)
 
-            if not child_id or not child_type:
+            if child_id is None or child_type is None:
                 raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
             if child_type != self.target._s_type:
