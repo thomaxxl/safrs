@@ -5,7 +5,6 @@ This should evolve to a more declarative version in the future with templates
 """
 import inspect
 import datetime
-import decimal
 import json
 import flask
 from http import HTTPStatus
@@ -411,7 +410,6 @@ def swagger_relationship_doc(cls, tags=None):
         parent_class = cls.relationship.parent.class_
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
-        type = cls._s_type
         http_method = func.__name__.lower()
         #######################################################################
         # Following will only happen when exposing an exisiting DB

@@ -1,11 +1,9 @@
 """
 flask_restful_swagger2 API subclass
 """
-import traceback
 import copy
 import logging
 from http import HTTPStatus
-from functools import update_wrapper
 import werkzeug
 from flask_restful import abort
 from flask_restful.representations.json import output_json
@@ -15,7 +13,6 @@ from flask_restful_swagger_2 import Api as FRSApiBase
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
 from flask_restful_swagger_2 import validate_path_item_object
 from flask_restful_swagger_2 import extract_swagger_path, Extractor, ValidationError as FRSValidationError
-from flask_restful_swagger_2 import Schema
 from flask import request
 from functools import wraps
 import collections
@@ -281,7 +278,7 @@ class Api(FRSApiBase):
         #
         # pylint: disable=too-many-nested-blocks,too-many-statements, too-many-locals
         #
-        relationship = kwargs.pop("relationship", False)  # relationship object
+        kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
 
         path_item = collections.OrderedDict()

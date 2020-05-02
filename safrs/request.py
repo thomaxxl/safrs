@@ -10,11 +10,11 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 """
 import re
-from flask import Request, abort, g
+from flask import Request, abort
 from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
-from .errors import ValidationError, GenericError
+from .errors import ValidationError
 from ._api import HTTP_METHODS
 
 # pylint: disable=too-many-ancestors, logging-format-interpolation

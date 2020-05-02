@@ -23,7 +23,6 @@
 # - expose canonical endpoints
 # - move all swagger formatting to swagger_doc
 #
-import logging
 from http import HTTPStatus
 import sqlalchemy
 import sqlalchemy.orm.dynamic
@@ -272,9 +271,6 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     meta["count"] = count
 
     jsonapi = dict(version="1.0")
-
-    """if count >= 0:
-        included = jsonapi_format_response(included, {}, {}, {}, -1)"""
     result = dict(data=data)
 
     if errors:
@@ -856,7 +852,7 @@ class SAFRSRestRelationshipAPI(Resource):
             The top-level links object MAY contain self and related links,
             as described above for relationship objects.
         """
-        parent, relation = self.parse_args(**kwargs)
+        _ , relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
         errors = {}
         count = 1
