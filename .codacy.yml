@@ -1,0 +1,6 @@
+exclude_paths:
+          - 'codegen'
+          - 'jsonapi-admin'
+          - 'swagger-editor'
+          - 'tests'
+          - 'examples'
