@@ -40,7 +40,7 @@ class Api(FRSApiBase):
     _operation_ids = {}
 
     def __init__(self, *args, **kwargs):
-        """ 
+        """
             http://jsonapi.org/format/#content-negotiation-servers
             Servers MUST send all JSON:API data in response documents with
             the header Content-Type: application/vnd.api+json without any media type parameters.

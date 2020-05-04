@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, g
+from flask import Flask
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .__about__ import __version__, __description__
@@ -112,7 +112,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", app_db=DB, json_encoder=json_encoder, **kwargs):
+    def init_app(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", app_db=DB, json_encoder=SAFRSJSONEncoder, **kwargs):
         """
             API and application initialization
         """

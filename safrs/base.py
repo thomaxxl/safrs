@@ -204,7 +204,7 @@ class SAFRSBase(Model):
     def _s_post(cls, **attributes):
         """
             This method is called when a new item is created with a POST to the json api
-            
+
             :param attributes: the jsonapi "data" attributes
             :return: new `cls` instance
 
@@ -257,7 +257,7 @@ class SAFRSBase(Model):
 
     def _s_patch(self, **attributes):
         """
-            update the object attributes 
+            update the object attributes
             :param **attributes:
         """
         for attr_name, attr_val in attributes.items():
@@ -394,7 +394,7 @@ class SAFRSBase(Model):
 
     @_s_auto_commit.setter
     def _s_auto_commit(self, value):
-        """ 
+        """
             :param value:
             auto_commit setter
         """
@@ -630,7 +630,7 @@ class SAFRSBase(Model):
             Check the column permission (read/write)
             Goal is to extend this in the future
             :param column_name: column name
-            :permission: 
+            :permission:
             :return: Boolean
         """
         if property_name.startswith("_"):
@@ -690,7 +690,7 @@ class SAFRSBase(Model):
     def _s_get_related(self):
         """
             :return: related objects
-            
+
             http://jsonapi.org/format/#fetching-includes
 
             Inclusion of Related Resources
@@ -808,7 +808,7 @@ class SAFRSBase(Model):
 
     def __str__(self):
         """
-            
+
         """
         name = getattr(self, "name", self.__class__.__name__)
         return "<SAFRS {}>".format(name)
@@ -1034,7 +1034,7 @@ class SAFRSBase(Model):
 
 
 class Included:
-    """    
+    """
         This class contains the instances that will be included in the jsonapi response
         we keep a set of instances to avoid storing duplicates
     """

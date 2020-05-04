@@ -618,7 +618,7 @@ class SAFRSRestAPI(Resource):
 
     def _patch_instance(self, data, path_id=None):
         """
-        
+
         """
         # Check that the id in the body is equal to the id in the url
         body_id = data.get("id", None)
@@ -834,7 +834,7 @@ class SAFRSRestRelationshipAPI(Resource):
         """
             Initialize the relationship references:
             - relationship : sqla relationship
-            - 
+            -
         """
         self.relationship = self.SAFRSObject.relationship
         self.source_class = self.SAFRSObject.relationship.parent.class_
