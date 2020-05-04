@@ -10,7 +10,7 @@ with open("requirements.txt", "rt") as fp:
 
 version = "2.8.0"
 
-setup(
+setup( # pragma: no cover
     name="safrs",
     packages=["safrs"],
     version=version,
