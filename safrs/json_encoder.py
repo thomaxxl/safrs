@@ -82,17 +82,17 @@ class SAFRSJSONEncoder(JSONEncoder):
             return self.sqla_encode(obj)
         if isinstance(obj, SAFRSFormattedResponse):
             return obj.to_dict()
-        elif isinstance(obj, UUID):
+        elif isinstance(obj, UUID): # pragma: no cover
             return str(obj)
-        if isinstance(obj, decimal.Decimal):
+        if isinstance(obj, decimal.Decimal): # pragma: no cover
             return str(obj)
-        if isinstance(obj, bytes):
-            safrs.log.warning("bytes obj, TODO")
+        if isinstance(obj, bytes): # pragma: no cover
+            safrs.log.warning("bytes obj, override SAFRSJSONEncoder")
             return obj.hex()
 
         # We shouldn't get here in a normal setup
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        if not is_debug():
+        if not is_debug(): # pragma: no cover
             # only continue if in debug mode
             safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
             return {"error": "SAFRSJSONEncoder invalid object"}
@@ -100,7 +100,7 @@ class SAFRSJSONEncoder(JSONEncoder):
         return self.ghetto_encode(obj)
 
     @staticmethod
-    def ghetto_encode(obj):
+    def ghetto_encode(obj): # pragma: no cover
         """
             if everything else failed, try to encode the public obj attributes
             i.e. those attributes without a _ prefix
@@ -119,8 +119,9 @@ class SAFRSJSONEncoder(JSONEncoder):
             result = str(obj)
         return result
 
+ # pragma: no cover
     @staticmethod
-    def sqla_encode(obj):
+    def sqla_encode(obj): # pragma: no cover
         """
         encode an SQLAlchemy object
         :param obj: sqlalchemy object to be encoded

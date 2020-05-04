@@ -12,7 +12,7 @@ import yaml
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
-from safrs.config import get_config
+from safrs.config import get_config, is_debug
 import safrs
 
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
@@ -23,6 +23,10 @@ DOC_DELIMITER = "---"  # used as delimiter between the rest_doc swagger yaml spe
 PAGEABLE = "pageable"  # denotes whether an api method is pageable
 FILTERABLE = "filterable"
 
+debug_responses = { HTTPStatus.METHOD_NOT_ALLOWED.value : {"description" : HTTPStatus.METHOD_NOT_ALLOWED.description},
+                    HTTPStatus.BAD_REQUEST.value : {"description" : HTTPStatus.BAD_REQUEST.description},
+                    HTTPStatus.INTERNAL_SERVER_ERROR.value : {"description" : HTTPStatus.INTERNAL_SERVER_ERROR.description}}
+            
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
 def parse_object_doc(object):
     """
@@ -346,7 +350,6 @@ def swagger_doc(cls, tags=None):
             doc["summary"] = "Retrieve a {} object".format(class_name)
             doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
             body, responses = cls._s_get_swagger_doc(http_method)
-
             responses[HTTPStatus.OK.value] = {"schema": coll_sample_data}
 
         elif http_method == "patch":
@@ -384,6 +387,9 @@ def swagger_doc(cls, tags=None):
         else:
             # one of 'options', 'head', 'delete'
             safrs.log.debug('no additional documentation for "%s" ', func)
+
+        if is_debug():
+            responses.update(debug_responses)
 
         doc["parameters"] = parameters
         doc["responses"] = responses
@@ -503,6 +509,10 @@ def swagger_relationship_doc(cls, tags=None):
         doc["parameters"] = parameters
         if doc.get("responses"):
             responses.update({str(val): desc for val, desc in doc["responses"].items()})
+
+        if is_debug():
+            responses.update(debug_responses)
+
         doc["responses"] = responses
 
         direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
@@ -530,11 +540,15 @@ def swagger_method_doc(cls, method_name, tags=None):
         else:
             doc_tags = tags
 
+        responses = {HTTPStatus.OK.value: {"description": HTTPStatus.OK.description}}
+        if is_debug():
+            responses.update(debug_responses)
+
         doc = {
             "tags": doc_tags,
             "description": "Invoke {}.{}".format(class_name, method_name),
             "summary": "Invoke {}.{}".format(class_name, method_name),
-            "responses": {HTTPStatus.OK.value: {"description": HTTPStatus.OK.description}},
+            "responses": responses,
         }
 
         model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)

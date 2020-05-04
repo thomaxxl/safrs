@@ -28,6 +28,7 @@ import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 from sqlalchemy.orm.interfaces import MANYTOONE
+from sqlalchemy.sql.schema import Column
 from flask import make_response, url_for, request
 from flask import jsonify as flask_jsonify
 from flask_restful_swagger_2 import Resource as FRSResource
@@ -74,7 +75,10 @@ def jsonapi_filter(safrs_object):
             # validation failed: this attribute can't be queried
             safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
-        attr = getattr(safrs_object, attr_name)
+        if attr_name == "id":
+            return safrs_object._s_get_instance_by_id(val)
+        else:
+            attr = getattr(safrs_object, attr_name)
         if is_jsonapi_attr(attr):
             # to do
             safrs.log.debug("Filtering not implemented for {}".format(attr))
@@ -85,7 +89,12 @@ def jsonapi_filter(safrs_object):
         # todo: filter properly
         result = safrs_object
     elif expressions:
-        expressions_ = [column.in_(val.split(",")) for column, val in expressions]
+        expressions_ = []
+        for column, val in expressions:
+            if hasattr(column, "in_"):
+                expressions_.append(column.in_(val.split(",")))
+            else:
+                safrs.log.warning("'{}.{}' is not a column ({})".format(safrs_object, column, type(column)))
         result = safrs_object._s_query.filter(*expressions_)
     else:
         result = safrs_object._s_query
@@ -181,9 +190,14 @@ def paginate(object_query, SAFRSObject=None):
     except ValueError:
         raise ValidationError("Pagination Value Error")
 
-    if limit == 0:
+    if limit <= 0:
         limit = 1
-
+    if limit > get_config("MAX_PAGE_LIMIT"):
+        limit = get_config("MAX_PAGE_LIMIT")
+    if page_offset <= 0:
+        page_offset = 0
+    if page_offset > get_config("MAX_PAGE_LIMIT"):
+        page_offset = get_config("MAX_PAGE_LIMIT")
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
@@ -1193,7 +1207,7 @@ class SAFRSJSONRPCAPI(Resource):
 
     def post(self, **kwargs):
         """
-            summary : call             
+            summary : call
             responses :
                 403:
                     description :

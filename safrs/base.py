@@ -144,7 +144,7 @@ class SAFRSBase(Model):
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs.get("id", ""))
         # Lookup the object with the PKs
-        instance = cls._s_query.filter_by(**primary_keys).first()
+        instance = cls._s_query.filter_by(**primary_keys).one_or_none()
         if not instance:
             instance = object.__new__(cls)
         else:
@@ -359,7 +359,7 @@ class SAFRSBase(Model):
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
                 attr_val = datetime.datetime.now()
-        elif attr_val and attr.type.python_type == datetime.time:
+        elif attr_val and attr.type.python_type == datetime.time: # pragma: no cover (todo)
             try:
                 date_str = str(attr_val)
                 if "." in date_str:
@@ -429,11 +429,20 @@ class SAFRSBase(Model):
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
             except Exception as exc:
-                safrs.log.error("get_instance : {}".format(exc))
+                raise GenericError("get_instance : {}".format(exc))
 
             if not instance and not failsafe:
                 raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
         return instance
+
+    @classmethod
+    def _s_get_instance_by_id(cls, id):
+        """
+            :param id: jsonapi_id
+            :return: query obj
+        """
+        primary_keys = cls.id_type.get_pks(id)
+        return cls._s_query.filter_by(**primary_keys)
 
     @property
     def jsonapi_id(self):
@@ -533,14 +542,16 @@ class SAFRSBase(Model):
 
         result = {}
         for attr in fields:
-            attr_val = getattr(self, attr)
+            attr_val = ""
+            if attr in self.__class__._s_jsonapi_attrs.keys():
+                attr_val = getattr(self, attr)
             try:
                 # use the current_app json_encoder
                 if current_app:
                     result[attr] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
                 else:
                     result[attr] = attr_val
-            except UnicodeDecodeError as exc:
+            except UnicodeDecodeError as exc: # pragma: no cover
                 safrs.log.warning("UnicodeDecodeError fetching {}.{}".format(self, attr))
                 result[attr] = ""
             except Exception as exc:
@@ -832,7 +843,7 @@ class SAFRSBase(Model):
         result = None
         try:
             result = cls._s_query.first()
-        except RecursionError as exc:
+        except RecursionError as exc: # pragma: no cover
             # This may happen when exposing an existing database
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
         except Exception as exc:
