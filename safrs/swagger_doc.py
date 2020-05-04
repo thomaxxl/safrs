@@ -23,10 +23,12 @@ DOC_DELIMITER = "---"  # used as delimiter between the rest_doc swagger yaml spe
 PAGEABLE = "pageable"  # denotes whether an api method is pageable
 FILTERABLE = "filterable"
 
-debug_responses = { HTTPStatus.METHOD_NOT_ALLOWED.value : {"description" : HTTPStatus.METHOD_NOT_ALLOWED.description},
-                    HTTPStatus.BAD_REQUEST.value : {"description" : HTTPStatus.BAD_REQUEST.description},
-                    HTTPStatus.INTERNAL_SERVER_ERROR.value : {"description" : HTTPStatus.INTERNAL_SERVER_ERROR.description}}
-            
+debug_responses = {
+    HTTPStatus.METHOD_NOT_ALLOWED.value: {"description": HTTPStatus.METHOD_NOT_ALLOWED.description},
+    HTTPStatus.BAD_REQUEST.value: {"description": HTTPStatus.BAD_REQUEST.description},
+    HTTPStatus.INTERNAL_SERVER_ERROR.value: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.description},
+}
+
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
 def parse_object_doc(object):
     """

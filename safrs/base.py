@@ -359,7 +359,7 @@ class SAFRSBase(Model):
             except (NotImplementedError, ValueError) as exc:
                 safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
                 attr_val = datetime.datetime.now()
-        elif attr_val and attr.type.python_type == datetime.time: # pragma: no cover (todo)
+        elif attr_val and attr.type.python_type == datetime.time:  # pragma: no cover (todo)
             try:
                 date_str = str(attr_val)
                 if "." in date_str:
@@ -551,7 +551,7 @@ class SAFRSBase(Model):
                     result[attr] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
                 else:
                     result[attr] = attr_val
-            except UnicodeDecodeError as exc: # pragma: no cover
+            except UnicodeDecodeError as exc:  # pragma: no cover
                 safrs.log.warning("UnicodeDecodeError fetching {}.{}".format(self, attr))
                 result[attr] = ""
             except Exception as exc:
@@ -843,7 +843,7 @@ class SAFRSBase(Model):
         result = None
         try:
             result = cls._s_query.first()
-        except RecursionError as exc: # pragma: no cover
+        except RecursionError as exc:  # pragma: no cover
             # This may happen when exposing an existing database
             safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
         except Exception as exc:

@@ -3,6 +3,7 @@ safrs response
 """
 from flask import Response
 
+
 class SAFRSResponse(Response):
     """
 		Response class

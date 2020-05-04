@@ -866,7 +866,7 @@ class SAFRSRestRelationshipAPI(Resource):
             The top-level links object MAY contain self and related links,
             as described above for relationship objects.
         """
-        _ , relation = self.parse_args(**kwargs)
+        _, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
         errors = {}
         count = 1

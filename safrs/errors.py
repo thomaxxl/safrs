@@ -16,6 +16,7 @@ from .config import is_debug
 
 HIDDEN_LOG = "(debug logging disabled)"
 
+
 class NotFoundError(Exception, DontWrapMixin):
     """
     This exception is raised when an item was not found
@@ -57,7 +58,7 @@ class GenericError(Exception, DontWrapMixin):
     This exception is raised when an error has been detected
     """
 
-    status_code = 403#HTTPStatus.INTERNAL_SERVER_ERROR.value
+    status_code = 403  # HTTPStatus.INTERNAL_SERVER_ERROR.value
     message = "Generic Error: "
 
     def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value):
