@@ -37,7 +37,7 @@ class User(SAFRSBase, db.Model):
             description : Send an email
             args:
                 email:
-                    type : string 
+                    type : string
                     example : test email
         """
         content = "Mail to {} : {}\n".format(self.name, email)

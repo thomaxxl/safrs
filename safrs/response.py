@@ -6,8 +6,8 @@ from flask import Response
 
 class SAFRSResponse(Response):
     """
-		Response class
-	"""
+        Response class
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

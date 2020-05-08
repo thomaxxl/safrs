@@ -63,7 +63,9 @@ def get_args():
 def fix_generated(code):
     if db.session.bind.dialect.name == "sqlite":
         code = code.replace("Numeric", "String")
-
+    if db.session.bind.dialect.name == "mysql":
+        code = code.replace("Numeric", "String")
+        code = code.replace(", 'utf8_bin'","")
     return code
 
 
@@ -101,6 +103,7 @@ app.config.update(SQLALCHEMY_DATABASE_URI=args.url, DEBUG=True, JSON_AS_ASCII=Fa
 SAFRSBase.db_commit = False
 builtins.db = SQLAlchemy(app)  # set db as a global variable to be used in employees.py
 models = codegen(args)
+print(models)
 
 #
 # Write the models to file, we could try to exec() but this makes our code more complicated

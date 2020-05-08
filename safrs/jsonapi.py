@@ -28,9 +28,8 @@ import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 from sqlalchemy.orm.interfaces import MANYTOONE
-from sqlalchemy.sql.schema import Column
 from flask import make_response, url_for, request
-from flask import jsonify as flask_jsonify
+from flask import jsonify
 from flask_restful_swagger_2 import Resource as FRSResource
 import safrs
 from .base import SAFRSBase, is_jsonapi_attr, Included
@@ -40,20 +39,13 @@ from .config import get_config, get_request_param
 from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
 
-INCLUDE_ALL = "+all"  # this "include" query string parameter value tells us to retrieve all included resources
-
-
-def jsonify(obj):
-    # if isinstance(obj, dict)
-    return flask_jsonify(obj)
-
 
 # JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
     """
         https://jsonapi.org/recommendations/#filtering
         Apply the request.args filters to the object
-        :param safrs_object:
+        :param safrs_object: the safrs class object that is queried
         :return: a sqla query object
     """
     # First check if a filter= URL query parameter has been used
@@ -71,14 +63,14 @@ def jsonapi_filter(safrs_object):
     expressions = []
     filters = get_request_param("filters", {})
     for attr_name, val in filters.items():
-        if not attr_name in list(safrs_object._s_jsonapi_attrs.keys()) + ["id"]:
+        if attr_name == "id":
+            return safrs_object._s_get_instance_by_id(val)
+        if attr_name not in safrs_object._s_jsonapi_attrs:
             # validation failed: this attribute can't be queried
             safrs.log.warning("Invalid filter {}".format(attr_name))
             continue
-        if attr_name == "id":
-            return safrs_object._s_get_instance_by_id(val)
         else:
-            attr = getattr(safrs_object, attr_name)
+            attr = safrs_object._s_jsonapi_attrs[attr_name]
         if is_jsonapi_attr(attr):
             # to do
             safrs.log.debug("Filtering not implemented for {}".format(attr))
@@ -111,7 +103,7 @@ def jsonapi_sort(object_query, safrs_object):
         :return: sqla query object
     """
     sort_attrs = request.args.get("sort", None)
-    if not sort_attrs is None:
+    if sort_attrs is not None:
         for sort_attr in sort_attrs.split(","):
             if sort_attr.startswith("-"):
                 # if the sort column starts with - , then we want to do a reverse sort
@@ -119,7 +111,7 @@ def jsonapi_sort(object_query, safrs_object):
                 # with a minus, in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
                 attr = getattr(safrs_object, sort_attr, None)
-                if not attr is None:
+                if attr is not None:
                     attr = attr.desc()
             else:
                 attr = getattr(safrs_object, sort_attr, None)
@@ -215,7 +207,7 @@ def paginate(object_query, SAFRSObject=None):
             count = object_query.count()
         except Exception as exc:
             # May happen for custom types, for ex. the psycopg2 extension
-            safrs.log.warning("Can't get count for {}".format(SAFRSObject))
+            safrs.log.warning("Can't get count for {} ({})".format(SAFRSObject, exc))
             count = -1
 
         if count > get_config("MAX_TABLE_COUNT"):
@@ -245,7 +237,7 @@ def paginate(object_query, SAFRSObject=None):
         del links["prev"]
 
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        instances = object_query[page_offset : page_offset + limit]
+        instances = object_query[page_offset:page_offset + limit]
     elif isinstance(object_query, dict):
         # (might happen when using a custom filter)
         instances = object_query
@@ -407,7 +399,7 @@ class Resource(FRSResource):
             required = False
 
             column = getattr(cls.SAFRSObject, "_s_column_dict", {}).get(attr_name, None)
-            if not column is None:
+            if column is not None:
                 if not getattr(column, "filterable", True):
                     continue
                 description = getattr(column, "description", description)
@@ -548,9 +540,12 @@ class SAFRSRestAPI(Resource):
             # retrieve a collection, filter and sort
             instances = jsonapi_filter(self.SAFRSObject)
             instances = jsonapi_sort(instances, self.SAFRSObject)
+            print('##'*200)
             links, data, count = paginate(instances, self.SAFRSObject)
+
         # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
+
         return jsonify(result)
 
     # Instance patching
@@ -687,8 +682,6 @@ class SAFRSRestAPI(Resource):
               information to recognize the source of the conflict.
         """
         payload = request.get_jsonapi_payload()
-        method_name = payload.get("meta", {}).get("method", None)
-
         id = kwargs.get(self.object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
@@ -1233,7 +1226,6 @@ class SAFRSJSONRPCAPI(Resource):
                 # If no instance was found this means the user supplied
                 # an invalid ID
                 raise ValidationError("Invalid ID")
-
         else:
             # No ID was supplied, apply method to the class itself
             instance = self.SAFRSObject
@@ -1250,16 +1242,7 @@ class SAFRSJSONRPCAPI(Resource):
         payload = request.get_jsonapi_payload()
         if payload:
             args = payload.get("meta", {}).get("args", {})
-
-        safrs.log.debug("method {} args {}".format(self.method_name, args))
-        result = method(**args)
-
-        if isinstance(result, SAFRSFormattedResponse):
-            response = result
-        else:
-            response = {"meta": {"result": result}}
-
-        return jsonify(response)  # 200 : default
+        return self.create_response(method, args)
 
     def get(self, **kwargs):
         """
@@ -1293,11 +1276,17 @@ class SAFRSJSONRPCAPI(Resource):
             raise ValidationError("Method is not public")
 
         args = dict(request.args)
+        return self.create_response(method, args)
+
+    def create_response(self, method, args):
+
         safrs.log.debug("method {} args {}".format(self.method_name, args))
         result = method(**args)
 
         if isinstance(result, SAFRSFormattedResponse):
             response = result
+        elif getattr(method, "valid_jsonapi", None):
+            pass
         else:
             response = {"meta": {"result": result}}
 

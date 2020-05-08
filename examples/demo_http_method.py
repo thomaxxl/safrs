@@ -32,7 +32,7 @@ class User(SAFRSBase, db.Model):
             description : Send an email
             args:
                 email:
-                    type : string 
+                    type : string
                     example : test email
         """
         content = "Mail to {} : {}\n".format(self.name, email)
@@ -44,8 +44,8 @@ class User(SAFRSBase, db.Model):
         """
             description: Get something
             summary : User get summary
-            responses : 
-                429 : 
+            responses :
+                429 :
                     description : Too many requests
         """
         return self.http_methods["get"](self, *args, **kwargs)

@@ -54,7 +54,7 @@ def parse_object_doc(object):
     return api_doc
 
 
-def jsonapi_rpc(http_methods):
+def jsonapi_rpc(http_methods, valid_jsonapi=True):
     """
         Decorator to expose functions in the REST API:
         When a method is decorated with jsonapi_rpc, this means
@@ -79,6 +79,7 @@ def jsonapi_rpc(http_methods):
                 safrs.log.error("Failed to parse documentation for %s", method)
             setattr(method, REST_DOC, api_doc)
             setattr(method, HTTP_METHODS, http_methods)
+            setattr(method, "valid_jsonapi", valid_jsonapi)
         return method
 
     return _documented_api_method

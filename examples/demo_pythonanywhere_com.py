@@ -44,7 +44,7 @@ description = """
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a><br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
-- Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/> 
+- Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/>
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 """
 
@@ -65,7 +65,6 @@ class WriteOnlyColumn(db.Column):
         The "permissions" attribute set to "w" indicates that the column shouldn't be readable
         in this case it's write-only
     """
-
     permissions = "w"
 
 
@@ -73,7 +72,6 @@ class DocumentedColumn(db.Column):
     """
         The class attributes are used for the swagger
     """
-
     description = "My custom column description"
     swagger_type = "string"
     swagger_format = "string"
@@ -106,6 +104,13 @@ def documentedRelationship(*args, **kwargs):
 
 # SQLA objects that will be exposed
 
+friendship = db.Table(
+    'friendships', db.metadata,
+    db.Column('friend_a_id', db.String, db.ForeignKey('People.id'),
+                                        primary_key=True),
+    db.Column('friend_b_id', db.String, db.ForeignKey('People.id'),
+                                        primary_key=True)
+)
 
 class Book(BaseModel):
     """
@@ -141,6 +146,10 @@ class Person(BaseModel):
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
     _salary = db.Column(db.String, default="")  # hidden column
+    friends = db.relationship("Person", secondary=friendship,
+                           primaryjoin=id==friendship.c.friend_a_id,
+                           secondaryjoin=id==friendship.c.friend_b_id,
+    )
 
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
@@ -170,9 +179,7 @@ class Person(BaseModel):
             args:
                 email: test email
         """
-
-        print(args)
-        print(kwargs)
+        print(args, kwargs)
         result = cls
         response = SAFRSFormattedResponse()
         try:
@@ -220,13 +227,12 @@ class Publisher(BaseModel):
             This method will be called when the filter= url query argument is provided, eg.
             GET /Publishers/?filter=some_filter
         """
-        print('x '*40)
         print(arg)
         return {1:1}
         return cls.query.filter_by(name=arg)
 
     @jsonapi_attr
-    def target(self):
+    def stock(self):
         """
             default: 30
             ---
@@ -265,15 +271,16 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         # populate the database
         NR_INSTANCES = 200
         for i in range(NR_INSTANCES):
-            secret = hashlib.sha256(bytes(i)).hexdigest()
-            reader = Person(name="Reader " + str(i), email="reader_email" + str(i), password=secret)
-            author = Person(name="Author " + str(i), email="author_email" + str(i))
+            reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
+            author = Person(name="Author " + str(i), email="author@email" + str(i))
             book = Book(title="book_title" + str(i))
             review = Review(reader_id=reader.id, book_id=book.id, review="review " + str(i))
             publisher = Publisher(name="name" + str(i))
             publisher.books.append(book)
             reader.books_read.append(book)
             author.books_written.append(book)
+            reader.friends.append(author)
+            author.friends.append(reader)
             if i % 20 == 0:
                 reader.comment = ""
             for obj in [reader, author, book, publisher, review]:

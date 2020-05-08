@@ -613,7 +613,7 @@ class SAFRSBase(Model):
     @classproperty
     def _s_collection_name(cls):
         """
-            :return: the name of the collection
+            :return: the name of the collection, this will be used to construct the endpoint
         """
         return getattr(cls, "__tablename__", cls.__name__)
 
@@ -635,26 +635,28 @@ class SAFRSBase(Model):
         """
         if property_name.startswith("_"):
             return False
-
+            
         for rel in cls.__mapper__.relationships:
-            if property_name == rel.key:
-                if rel.key in cls.exclude_rels:
-                    # relationship name has been set in exclude_rels
-                    return False
-                if not getattr(rel.mapper.class_, "_s_expose", False):
-                    # only SAFRSBase instances can be exposed
-                    return False
-                if not getattr(rel, "expose", True):
-                    # relationship `expose` attribute has been set to False
-                    return False
-                return True
+            if rel.key != property_name:
+                continue
+            if rel.key in cls.exclude_rels:
+                # relationship name has been set in exclude_rels
+                return False
+            if not getattr(rel.mapper.class_, "_s_expose", False):
+                # only SAFRSBase instances can be exposed
+                return False
+            if not getattr(rel, "expose", True):
+                # relationship `expose` attribute has explicitly been set to False
+                return False
+            return True
 
         for column in cls.__mapper__.columns:
             # don't expose attributes starting with an underscore
-            if column.name == property_name:
-                if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
-                    return True
-                return False
+            if column.name != property_name:
+                continue
+            if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
+                return True
+            return False
 
         if is_jsonapi_attr(getattr(cls, property_name, None)):
             return True
@@ -673,7 +675,6 @@ class SAFRSBase(Model):
                     "type": "..."
                     }`
         """
-
         # params = { self.object_id : self.id }
         # obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
         obj_url = url_for(self.get_endpoint())

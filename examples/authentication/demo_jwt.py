@@ -12,7 +12,7 @@
 # - swagger2 documentation is generated
 #
 """
-Example invocation: 
+Example invocation:
 
 t@TEMP:~$ token=$(curl -X POST localhost:5000/login -d '{ "username" : "test", "password" : "test" }' --header "Content-Type: application/json" | jq .access_token -r)
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -52,12 +52,13 @@ from flask import Flask, redirect, jsonify, make_response
 from flask import abort, request, g, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, SAFRS, SAFRSAPI, jsonapi_rpc
+from safrs import SAFRSBase, SAFRS, SAFRSAPI, jsonapi_rpc, SAFRSFormattedResponse
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from passlib.apps import custom_app_context as pwd_context
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+from sqlalchemy import orm
 
 db = SQLAlchemy()
 auth = HTTPBasicAuth()
@@ -95,20 +96,34 @@ class User(SAFRSBase, db.Model):
     username = db.Column(db.String(32), index=True)
     items = db.relationship("Item", back_populates="user", lazy="dynamic")
 
+    def __init__(self, *args, **kwargs):
+        print("xx "*30)
+        print(args, kwargs)
+        super().__init__(*args, **kwargs)
+
+    @orm.reconstructor
+    def reconstruct(self):
+        print(f"reconstruct {self.username}"*3)
+
+    @classmethod
+    def filter(cls, *args, **kwargs):
+        print(args, kwargs) # args[0] should contain the filter= url query parameter value
+        return cls.query.filter_by(username = args[0])
+
 
 def start_app(app):
 
     custom_swagger = {
-            "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
-            "security" : [{"Bearer" : []}]
-        }  # Customized swagger will be merged
+        "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
+        "security": [{"Bearer": []}],
+    }  # Customized swagger will be merged
 
     api = SAFRSAPI(app, api_spec_url="/api/swagger", host=HOST, port=PORT, schemes=["http"], custom_swagger=custom_swagger)
 
-    username = "admin"
+    """username = "user2"
 
-    item = Item(name="test", email="em@il")
-    user = User(username=username)
+    item = Item(name="item test")
+    user = User(username=username, items=[item])"""
 
     api.expose_object(Item)
     api.expose_object(User)
@@ -116,10 +131,9 @@ def start_app(app):
     print("Starting API: http://{}:{}/api".format(HOST, PORT))
 
     # Identity can be any data that is json serializable
-    access_token = create_access_token(identity=username)
+    user = User.query.filter_by(username = "user2").first()
+    access_token = create_access_token(identity=user.username)
     print("Test Authorization header access_token: Bearer", access_token)
-    
-
 
     app.run(host=HOST, port=PORT)
 
@@ -131,7 +145,7 @@ def start_app(app):
 app = Flask("demo_app")
 jwt = JWTManager(app)
 app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite://",
+    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/jwt_demo.sqlite",
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
     SECRET_KEY=b"sdqfjqsdfqizroqnxwc",
     JWT_SECRET_KEY="ik,ncbxh",

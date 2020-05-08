@@ -391,7 +391,7 @@ init_login()
 
 description = """<a href=http://jsonapi.org>Json-API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a> <br/>
-- Auto-generated swagger spec: <a href=swagger.json>swagger.json</a> <br/> 
+- Auto-generated swagger spec: <a href=swagger.json>swagger.json</a> <br/>
 - Petstore <a href=http://petstore.swagger.io/?url=http://thomaxxl.pythonanywhere.com/api/swagger.json>Swagger2 UI</a><br/>
 - <a href="http://thomaxxl.pythonanywhere.com/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>

@@ -434,6 +434,12 @@ from safrs import SAFRSBase
 Base = db.Model
 metadata = Base.metadata
 
+NullType = db.String
+TIMESTAMP= db.TIMESTAMP
+
+if db.session.bind.dialect.name == "mysql":
+    from sqlalchemy.dialects.mysql import *
+
 def BIGINT(_):
     return db.SMALLINT
 
@@ -446,8 +452,6 @@ def INTEGER(_):
 def TIME(**kwargs):
     return db.TIME
 
-TIMESTAMP= db.TIMESTAMP
-NullType = db.String
 
 ########################################################################################################################
 """
