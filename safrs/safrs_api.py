@@ -5,10 +5,9 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Flask
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
-from .__about__ import __version__, __description__
 from .request import SAFRSRequest
 from .response import SAFRSResponse
-from .errors import ValidationError, GenericError
+from .errors import ValidationError
 from .json_encoder import SAFRSJSONEncoder
 from ._api import Api
 
@@ -108,7 +107,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", app_db=DB, json_encoder=SAFRSJSONEncoder, **kwargs):
+    def init_app(self, app, host="localhost", port=5000, prefix="", app_db=DB, json_encoder=SAFRSJSONEncoder, **kwargs):
         """
             API and application initialization
         """
