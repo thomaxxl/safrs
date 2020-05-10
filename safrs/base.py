@@ -1023,7 +1023,7 @@ class SAFRSBase(Model):
         self.type = value
 
     @classmethod
-    def _s_filter(cls, filter_args):
+    def _s_filter(cls, *filter_args, **filter_kwargs):
         """
             Apply a filter to this model
             :param filter_args: filter to apply, passed as a request URL parameter

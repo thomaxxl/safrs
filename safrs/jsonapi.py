@@ -81,13 +81,13 @@ def jsonapi_filter(safrs_object):
         # todo: filter properly
         result = safrs_object
     elif expressions:
-        expressions_ = []
+        _expressions = []
         for column, val in expressions:
             if hasattr(column, "in_"):
-                expressions_.append(column.in_(val.split(",")))
+                _expressions.append(column.in_(val.split(",")))
             else:
                 safrs.log.warning("'{}.{}' is not a column ({})".format(safrs_object, column, type(column)))
-        result = safrs_object._s_query.filter(*expressions_)
+        result = safrs_object._s_query.filter(*_expressions)
     else:
         result = safrs_object._s_query
 
