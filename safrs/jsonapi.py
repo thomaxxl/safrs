@@ -540,7 +540,6 @@ class SAFRSRestAPI(Resource):
             # retrieve a collection, filter and sort
             instances = jsonapi_filter(self.SAFRSObject)
             instances = jsonapi_sort(instances, self.SAFRSObject)
-            print('##'*200)
             links, data, count = paginate(instances, self.SAFRSObject)
 
         # format the response: add the included objects
