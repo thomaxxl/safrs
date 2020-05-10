@@ -23,7 +23,7 @@ from .swagger_doc import get_doc, parse_object_doc
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
-from .config import get_config, is_debug
+from .config import get_config
 
 #
 # Map SQLA types to swagger2 json types
@@ -832,7 +832,7 @@ class SAFRSBase(Model):
         """
         result = "sample id"
         sample = cls._s_sample()
-        if sample:
+        if False:
             result = sample.jsonapi_id
         return result
 
@@ -900,7 +900,7 @@ class SAFRSBase(Model):
         return sample
 
     @classproperty
-    def object_id(cls):
+    def _s_object_id(cls):
         """
             :return: the Flask url parameter name of the object, e.g. UserId
             :rtype: string
@@ -975,7 +975,7 @@ class SAFRSBase(Model):
             :return: endpoint url of this instance
         """
         try:
-            params = {self.object_id: self.jsonapi_id}
+            params = {self._s_object_id: self.jsonapi_id}
             instance_url = url_for(self.get_endpoint(type="instance"), **params)
             result = urljoin(request.url_root, instance_url)
         except RuntimeError:

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import logging
 import os
 import sys
@@ -7,28 +8,8 @@ from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
 from .response import SAFRSResponse
-from .errors import ValidationError
 from .json_encoder import SAFRSJSONEncoder
 from ._api import Api
-
-DB = SQLAlchemy()
-
-
-def test_decorator(func):
-    """ Example flask-restful decorator that can be used in the "decorators" Api argument
-        cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
-    """
-
-    def api_wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    if func.__name__.lower() == "get":
-        result = api_wrapper
-        result.__name__ = func.__name__  # make sure to to reset the __name__ !
-        return result
-
-    return func
-
 
 # pylint: disable=invalid-name
 # Uppercase bc we're returning the API class here, eventually this might become a class by itself
@@ -107,14 +88,15 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self, app, host="localhost", port=5000, prefix="", app_db=DB, json_encoder=SAFRSJSONEncoder, **kwargs):
+    def init_app(self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, **kwargs):
         """
             API and application initialization
         """
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
 
-        self.db = app_db
+        if app_db is None:
+            self.db = DB
 
         app.json_encoder = json_encoder
         app.request_class = SAFRSRequest
@@ -179,10 +161,26 @@ def dict_merge(dct, merge_dct):
             # convert to string, for ex. http return codes
             dct[str(k)] = merge_dct[k]
 
+def test_decorator(func):
+    """ Example flask-restful decorator that can be used in the "decorators" Api argument
+        cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
+    """
+
+    def api_wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    if func.__name__.lower() == "get":
+        result = api_wrapper
+        result.__name__ = func.__name__  # make sure to to reset the __name__ !
+        return result
+
+    return func
 
 #
+# DB and logging initialization
 #
-#
+DB = SQLAlchemy()
+
 try:
     DEBUG = os.getenv("DEBUG", str(logging.WARNING))
     LOGLEVEL = int(DEBUG)

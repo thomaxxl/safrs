@@ -312,7 +312,7 @@ def swagger_doc(cls, tags=None):
         collection_name = cls._s_collection_name
         http_method = func.__name__.lower()
         parameters = [
-            {"name": cls.object_id, "in": "path", "type": "string", "default": default_id, "required": True},  # parameter id, e.g. UserId
+            {"name": cls._s_object_id, "in": "path", "type": "string", "default": default_id, "required": True},  # parameter id, e.g. UserId
             {
                 "name": "Content-Type",  # parameter id, e.g. UserId
                 "in": "header",
@@ -424,9 +424,9 @@ def swagger_relationship_doc(cls, tags=None):
         # Following will only happen when exposing an exisiting DB
         #
         if not getattr(parent_class, "object_id", None):
-            parent_class.object_id = parent_class.__name__ + "Id"
+            parent_class._s_object_id = parent_class.__name__ + "Id"
         if not getattr(child_class, "object_id", None):
-            child_class.object_id = child_class.__name__ + "Id"
+            child_class._s_object_id = child_class.__name__ + "Id"
         if not getattr(parent_class, "sample_id", None):
             setattr(parent_class, "sample_id", lambda: "")
         if not getattr(child_class, "sample_id", None):
@@ -438,7 +438,7 @@ def swagger_relationship_doc(cls, tags=None):
 
         parameters = [
             {
-                "name": parent_class.object_id,
+                "name": parent_class._s_object_id,
                 "in": "path",
                 "type": "string",
                 "default": parent_class._s_sample_id(),
@@ -446,7 +446,7 @@ def swagger_relationship_doc(cls, tags=None):
                 "required": True,
             },
             {
-                "name": child_class.object_id,
+                "name": child_class._s_object_id,
                 "in": "path",
                 "type": "string",
                 "default": child_class._s_sample_id(),
@@ -580,7 +580,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         # URL Path Parameter
         default_id = cls._s_sample_id()
         parameters.append(
-            {"name": cls.object_id, "in": "path", "type": "string", "default": default_id, "required": True}
+            {"name": cls._s_object_id, "in": "path", "type": "string", "default": default_id, "required": True}
         )  # parameter id, e.g. UserId
         doc["parameters"] = parameters
         doc["produces"] = ["application/vnd.api+json"]

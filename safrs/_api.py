@@ -141,7 +141,7 @@ class Api(FRSApiBase):
             else:
                 # expose the method at the instance level
                 INSTANCEMETHOD_URL_FMT = get_config("INSTANCEMETHOD_URL_FMT")
-                url = INSTANCEMETHOD_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.object_id, method_name)
+                url = INSTANCEMETHOD_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object._s_object_id, method_name)
 
             ENDPOINT_FMT = get_config("ENDPOINT_FMT")
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
@@ -224,7 +224,7 @@ class Api(FRSApiBase):
         self.add_resource(api_class, url, endpoint=endpoint, methods=methods)
 
         try:
-            target_object_id = target_object.object_id
+            target_object_id = target_object._s_object_id
         except Exception as exc:
             safrs.log.exception(exc)
             safrs.log.error("No object id for {}".format(target_object))

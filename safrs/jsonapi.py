@@ -482,7 +482,7 @@ class SAFRSRestAPI(Resource):
             eg. /Users/{UserId} where the UserId parameter is the id of
             the underlying SAFRSObject.
         """
-        self.object_id = self.SAFRSObject.object_id
+        self._s_object_id = self.SAFRSObject._s_object_id
         self.target = self.SAFRSObject
 
     def get(self, **kwargs):
@@ -523,7 +523,7 @@ class SAFRSRestAPI(Resource):
         errors = None
         links = None
 
-        id = kwargs.get(self.object_id, None)
+        id = kwargs.get(self._s_object_id, None)
         # method_name = kwargs.get('method_name','')
 
         if id:
@@ -569,7 +569,7 @@ class SAFRSRestAPI(Resource):
             ---
             Update the object with the specified id
         """
-        id = kwargs.get(self.object_id, None)
+        id = kwargs.get(self._s_object_id, None)
 
         payload = request.get_jsonapi_payload()
         if not isinstance(payload, dict):
@@ -603,7 +603,7 @@ class SAFRSRestAPI(Resource):
             """
 
             # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-            obj_args = {instance.object_id: instance.jsonapi_id}
+            obj_args = {instance._s_object_id: instance.jsonapi_id}
             # Retrieve the object json and return it to the client
             obj_data = self.get(**obj_args)
             response = make_response(obj_data, HTTPStatus.CREATED)
@@ -682,7 +682,7 @@ class SAFRSRestAPI(Resource):
               information to recognize the source of the conflict.
         """
         payload = request.get_jsonapi_payload()
-        id = kwargs.get(self.object_id, None)
+        id = kwargs.get(self._s_object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
             raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED)
@@ -704,7 +704,7 @@ class SAFRSRestAPI(Resource):
         else:
             instance = self._create_instance(data)
             # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-            obj_args = {instance.object_id: instance.jsonapi_id}
+            obj_args = {instance._s_object_id: instance.jsonapi_id}
             # Retrieve the object json and return it to the client
             resp_data = self.get(**obj_args)
             location = url_for(self.endpoint, **obj_args)
@@ -771,7 +771,7 @@ class SAFRSRestAPI(Resource):
                 A server SHOULD return a 404 Not Found status code
                 if a deletion request fails due to the resource not existing.
         """
-        id = kwargs.get(self.object_id, None)
+        id = kwargs.get(self._s_object_id, None)
 
         if not id:
             # This endpoint shouldn't be exposed so this code is not reachable
@@ -834,8 +834,8 @@ class SAFRSRestRelationshipAPI(Resource):
         self.target = self.SAFRSObject.relationship.mapper.class_
         self.rel_name = self.SAFRSObject.relationship.key
         # The object_ids are the ids in the swagger path e.g {FileId}
-        self.parent_object_id = self.source_class.object_id
-        self.child_object_id = self.target.object_id
+        self.parent_object_id = self.source_class._s_object_id
+        self.child_object_id = self.target._s_object_id
 
         if self.parent_object_id == self.child_object_id:
             # see expose_relationship: if a relationship consists of
@@ -1195,7 +1195,7 @@ class SAFRSJSONRPCAPI(Resource):
             -this parameter is used in the swagger endpoint spec,
             eg. /Users/{UserId} where the UserId parameter is the id of the underlying SAFRSObject.
         """
-        self.object_id = self.SAFRSObject.object_id
+        self._s_object_id = self.SAFRSObject._s_object_id
         self.target = self.SAFRSObject
 
     def post(self, **kwargs):
@@ -1218,7 +1218,7 @@ class SAFRSJSONRPCAPI(Resource):
             HTTP POST: apply actions, return 200 regardless.
             The actual jsonapi_rpc method may return other codes
         """
-        id = kwargs.get(self.object_id, None)
+        id = kwargs.get(self._s_object_id, None)
 
         if id is not None:
             instance = self.SAFRSObject.get_instance(id)
@@ -1254,7 +1254,7 @@ class SAFRSJSONRPCAPI(Resource):
 
             ---
         """
-        id = kwargs.get(self.object_id, None)
+        id = kwargs.get(self._s_object_id, None)
 
         if id is not None:
             instance = self.SAFRSObject.get_instance(id)

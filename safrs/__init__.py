@@ -5,6 +5,7 @@
 #
 from .safrs_api import DB, log, SAFRSAPI, SAFRS, dict_merge, test_decorator, SAFRSRequest
 from .errors import ValidationError, GenericError
+from .json_encoder import SAFRSJSONEncoder
 from ._api import Api, SAFRSRestAPI
 from .base import SAFRSBase, jsonapi_attr
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
@@ -23,7 +24,7 @@ __all__ = (
     "jsonapi_attr",
     "jsonapi_rpc",
     # jsonapi:
-    # "SAFRSJSONEncoder",
+    "SAFRSJSONEncoder",
     "paginate",
     "jsonapi_format_response",
     "SAFRSFormattedResponse",
