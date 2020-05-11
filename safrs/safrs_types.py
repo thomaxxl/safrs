@@ -223,6 +223,13 @@ class SAFRSID:
         """
         return [c.name for c in self.columns]
 
+    @classmethod
+    def sample_id(cls):
+        if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
+            return 0
+
+        return "sample_id"
+
 
 def get_id_type(cls, Super=SAFRSID):
     """
