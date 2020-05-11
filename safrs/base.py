@@ -828,28 +828,10 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample_id(cls):
         """
-            :return: a sample id for the API documentation, i.e. the first item in the DB
+            :return: a sample id for the API documentation
         """
-        result = "sample id"
-        sample = cls._s_sample()
-        if False:
-            result = sample.jsonapi_id
-        return result
-
-    @classmethod
-    def _s_sample(cls):
-        """
-            :return: a sample instance for the API documentation, i.e. the first item in the DB
-        """
-        result = None
-        try:
-            result = cls._s_query.first()
-        except RecursionError as exc:  # pragma: no cover
-            # This may happen when exposing an existing database
-            safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
-        except Exception as exc:
-            safrs.log.warning("Failed to retrieve sample for {}({})".format(cls, exc))
-        return result
+        sample_id = cls._s_sample_dict().get("id", cls.id_type.sample_id())
+        return sample_id
 
     @classmethod
     def _s_sample_dict(cls):
