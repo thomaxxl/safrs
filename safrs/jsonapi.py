@@ -1284,8 +1284,8 @@ class SAFRSJSONRPCAPI(Resource):
 
         if isinstance(result, SAFRSFormattedResponse):
             response = result
-        elif getattr(method, "valid_jsonapi", None):
-            pass
+        elif getattr(method, "valid_jsonapi", None) is False:
+            response = result
         else:
             response = {"meta": {"result": result}}
 
