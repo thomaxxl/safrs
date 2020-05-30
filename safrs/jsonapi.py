@@ -28,8 +28,7 @@ import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 from sqlalchemy.orm.interfaces import MANYTOONE
-from flask import make_response, url_for, request
-from flask import jsonify
+from flask import jsonify, make_response, url_for, request
 from flask_restful_swagger_2 import Resource as FRSResource
 import safrs
 from .base import SAFRSBase, is_jsonapi_attr, Included
@@ -581,7 +580,7 @@ class SAFRSRestAPI(Resource):
                 if not isinstance(item, dict):
                     raise ValidationError("Invalid Data Object")
                 instance = self._patch_instance(item)
-            response = make_response({}, HTTPStatus.CREATED)
+            response = make_response(jsonify({}), HTTPStatus.CREATED)
 
         elif not data or not isinstance(data, dict):
             raise ValidationError("Invalid Data Object")
@@ -698,7 +697,7 @@ class SAFRSRestAPI(Resource):
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
             for item in data:
                 instance = self._create_instance(item)
-            resp_data = {}
+            resp_data = jsonify({})
             location = None
         else:
             instance = self._create_instance(data)
@@ -1017,7 +1016,7 @@ class SAFRSRestRelationshipAPI(Resource):
             response = make_response(obj_data, HTTPStatus.OK)
         else:
             # Nothing changed, reflect the data
-            response = make_response({"data": data}, HTTPStatus.OK)
+            response = make_response(jsonify({"data": data}), HTTPStatus.OK)
 
         return response
 
