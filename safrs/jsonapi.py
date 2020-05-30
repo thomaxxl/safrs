@@ -1312,12 +1312,12 @@ class SAFRSRelationship:
         object_name = cls.__name__
 
         object_model = {}
-        responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
+        responses = {HTTPStatus.OK.value: {"description": "{} object".format(object_name), "schema": object_model}}
 
         if http_method.upper() in ("POST", "GET"):
             responses = {
-                str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
-                str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
+                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
+                HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
             }
 
         return body, responses

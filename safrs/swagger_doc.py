@@ -386,10 +386,10 @@ def swagger_doc(cls, tags=None):
             )
 
         elif http_method == "delete":
-            pass
+            _, responses = cls._s_get_swagger_doc(http_method)
         else:
             # one of 'options', 'head', 'delete'
-            safrs.log.debug('no additional documentation for "%s" ', func)
+            safrs.log.debug('no additional documentation for "{}" '.format(func))
 
         if is_debug():
             responses.update(debug_responses)
