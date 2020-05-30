@@ -924,7 +924,6 @@ class SAFRSBase(Model):
 
         if http_method.upper() in cls.http_methods:
             responses = {
-                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
                 HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
             }
 
@@ -1024,6 +1023,7 @@ class Included:
 
     instances = set()
     instance = None
+    data = set()
 
     def __init__(self, instance, included_list):
         """
@@ -1052,6 +1052,9 @@ class Included:
             instance = cls.instances.pop()
             if instance in already_included:
                 continue
-            result.append(instance._s_jsonapi_encode())
+            try:
+                result.append(instance._s_jsonapi_encode())
+            except sqlalchemy.orm.exc.DetachedInstanceError as exc:
+                log.debug("Already included")
 
         return result
