@@ -162,14 +162,6 @@ class SAFRSID:
             safrs.log.debug("ID Validation not implemented")
 
         return result
-        """return
-        for pk in id.split(cls.delimiter):
-            try:
-                cls.column.type(pk)
-                uuid.UUID(pk, version=4)
-                #return pk
-            except:
-                raise ValidationError('Invalid ID')"""
 
     @property
     def name(self):
@@ -224,11 +216,15 @@ class SAFRSID:
         return [c.name for c in self.columns]
 
     @classmethod
-    def sample_id(cls):
+    def sample_id(cls, obj):
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return 0
 
-        return "sample_id"
+        sample = obj.query.first()
+        if sample:
+            return sample.jsonapi_id
+    
+        return "jsonapi_id_string"
 
 
 def get_id_type(cls, Super=SAFRSID):

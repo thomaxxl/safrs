@@ -147,9 +147,7 @@ class SAFRSBase(Model):
         instance = cls._s_query.filter_by(**primary_keys).one_or_none()
         if not instance:
             instance = object.__new__(cls)
-        else:
-            safrs.log.debug("{} exists for {} ".format(cls.__name__, str(kwargs)))
-
+        
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -238,8 +236,8 @@ class SAFRSBase(Model):
             safrs.DB.session.add(instance)
             try:
                 safrs.DB.session.commit()
-            except sqlalchemy.exc.SQLAlchemyError as exc:
-                # Exception may arise when a db constrained has been violated
+            except sqlalchemy.exc.SQLAlchemyError as exc: # pragma: no cover
+                # Exception may arise when a db constraint has been violated
                 # (e.g. duplicate key)
                 safrs.log.warning(str(exc))
                 raise GenericError(str(exc))
@@ -419,7 +417,7 @@ class SAFRSBase(Model):
             id = item
         try:
             primary_keys = cls.id_type.get_pks(id)
-        except AttributeError:
+        except AttributeError: # pragma: no cover
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
             safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
@@ -428,7 +426,7 @@ class SAFRSBase(Model):
         if id is not None or not failsafe:
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
-            except Exception as exc:
+            except Exception as exc: # pragma: no cover
                 raise GenericError("get_instance : {}".format(exc))
 
             if not instance and not failsafe:
@@ -830,7 +828,15 @@ class SAFRSBase(Model):
         """
             :return: a sample id for the API documentation
         """
-        sample_id = cls._s_sample_dict().get("id", cls.id_type.sample_id())
+        sample = cls.query.first()
+        if sample:
+            try:
+                sample_id = sample.jsonapi_id
+                return sample_id
+            except Exception as exc:
+                log.warning("Failed to retrieve sample id for {}".format(cls))
+        
+        sample_id = cls.id_type.sample_id(cls)
         return sample_id
 
     @classmethod
@@ -1055,6 +1061,7 @@ class Included:
             try:
                 result.append(instance._s_jsonapi_encode())
             except sqlalchemy.orm.exc.DetachedInstanceError as exc:
-                log.debug("Already included")
+                # todo: test this
+                continue
 
         return result
