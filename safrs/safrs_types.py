@@ -156,7 +156,7 @@ class SAFRSID:
         if len(cls.columns) == 1:
             try:
                 result = cls.columns[0].type.python_type(id)
-            except Exception as exc:
+            except Exception:
                 raise ValidationError("Invalid id: '{}'.".format(id))
         else:
             safrs.log.debug("ID Validation not implemented")
@@ -203,7 +203,7 @@ class SAFRSID:
                     result[col_name] = pk_col.default
                 else:
                     result[col_name] = ""
-            except:
+            except Exception:
                 result[col_name] = ""
 
         return result
@@ -223,7 +223,7 @@ class SAFRSID:
         sample = obj.query.first()
         if sample:
             return sample.jsonapi_id
-    
+
         return "jsonapi_id_string"
 
 

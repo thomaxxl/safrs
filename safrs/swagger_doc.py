@@ -44,8 +44,7 @@ def parse_object_doc(object):
     except (SyntaxError, yaml.scanner.ScannerError) as exc:
         safrs.log.error("Failed to parse documentation {} ({})".format(raw_doc, exc))
         yaml_doc = {"description": raw_doc}
-
-    except Exception as exc:
+    except Exception:
         raise ValidationError("Failed to parse api doc")
 
     if isinstance(yaml_doc, dict):
@@ -536,7 +535,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         """
             decorator
         """
-        method = getattr(cls,method_name,None)
+        method = getattr(cls, method_name, None)
         method_doc = parse_object_doc(method)
         class_name = cls.__name__
         if tags is None:
@@ -548,9 +547,9 @@ def swagger_method_doc(cls, method_name, tags=None):
         if is_debug():
             responses.update(debug_responses)
 
-        summary = method_doc.get("summary","Invoke {}.{}".format(class_name, method_name))
+        summary = method_doc.get("summary", "Invoke {}.{}".format(class_name, method_name))
         description = method_doc.get("description", summary)
-        
+
         doc = {
             "tags": doc_tags,
             "description": description,

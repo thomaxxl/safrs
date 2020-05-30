@@ -176,6 +176,7 @@ def test_decorator(func):
 
     return func
 
+
 #
 # DB and logging initialization
 #
