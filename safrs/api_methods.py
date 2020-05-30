@@ -78,9 +78,9 @@ def lookup_re_mysql(cls, **kwargs):
 def startswith(cls, **kwargs):
     """
         pageable: True
-        summary : lookup column names
+        summary : lookup items where specified attributes starts with the argument string
         args:
-            column: value
+            attr_name: value
     """
     result = cls
     response = SAFRSFormattedResponse()

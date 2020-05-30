@@ -536,21 +536,25 @@ def swagger_method_doc(cls, method_name, tags=None):
         """
             decorator
         """
-
+        method = getattr(cls,method_name,None)
+        method_doc = parse_object_doc(method)
         class_name = cls.__name__
         if tags is None:
             doc_tags = [cls._s_collection_name]
         else:
             doc_tags = tags
 
-        responses = {HTTPStatus.OK.value: {"description": HTTPStatus.OK.description}}
+        responses = method_doc.get("responses", {HTTPStatus.OK.value: {"description": HTTPStatus.OK.description}})
         if is_debug():
             responses.update(debug_responses)
 
+        summary = method_doc.get("summary","Invoke {}.{}".format(class_name, method_name))
+        description = method_doc.get("description", summary)
+        
         doc = {
             "tags": doc_tags,
-            "description": "Invoke {}.{}".format(class_name, method_name),
-            "summary": "Invoke {}.{}".format(class_name, method_name),
+            "description": description,
+            "summary": summary,
             "responses": responses,
         }
 
