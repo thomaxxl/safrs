@@ -335,6 +335,10 @@ class SAFRSBase(Model):
             safrs.log.debug(exc)
             return attr_val
 
+        # skip type coercion on JSON columns, since they could be anything
+        if type(attr.type) is sqlalchemy.sql.sqltypes.JSON:
+            return attr_val
+
         """
             Parse datetime and date values for some common representations
             If another format is uses, the user should create a custom column type or custom serialization
