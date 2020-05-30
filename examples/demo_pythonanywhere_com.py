@@ -92,16 +92,6 @@ def hiddenRelationship(*args, **kwargs):
     relationship.expose = False
     return relationship
 
-
-def documentedRelationship(*args, **kwargs):
-    """
-        To hide a relationship, set the expose attribute to False
-    """
-    relationship = db.relationship(*args, **kwargs)
-    relationship.expose = False
-    return relationship
-
-
 # SQLA objects that will be exposed
 
 friendship = db.Table(
@@ -171,7 +161,7 @@ class Person(BaseModel):
     @jsonapi_rpc(http_methods=["POST"])
     def my_rpc(cls, *args, **kwargs):
         """
-            description : Generate and return a jsonapi-formatted response
+            description : Invoke my_rpc and return a jsonapi-formatted response
             pageable: false
             parameters:
                 - name : my_query_string_param
@@ -179,18 +169,24 @@ class Person(BaseModel):
             args:
                 email: test email
         """
+        o1 = cls.query.first()
+        o2 = cls.query.first()
+        o1.friends.append(o2)
+        data = [o1,o2]
+        response = SAFRSFormattedResponse(data, {}, {}, {}, 1)
+        return response
         print(args, kwargs)
         result = cls
-        response = SAFRSFormattedResponse()
         try:
             instances = result.query
             links, instances, count = paginate(instances)
             data = [item for item in instances]
             meta = {}
             errors = None
-            response.response = jsonapi_format_response(data, meta, links, errors, count)
+            response = SAFRSFormattedResponse(data, meta, links, errors, count)
         except Exception as exc:
             log.exception(exc)
+            response = SAFRSFormattedResponse({}, {}, {}, {"error": str(exc)}, 0)
 
         return response
 
