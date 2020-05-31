@@ -2,6 +2,7 @@
 flask_restful_swagger2 API subclass
 """
 import copy
+from http import HTTPStatus
 import logging
 import werkzeug
 from flask_restful import abort
@@ -355,8 +356,6 @@ class Api(FRSApiBase):
                         # Add the sort, filter parameters to the swagger doc when retrieving a collection
                         #
                         if method == "get" and not (exposing_instance or is_jsonapi_rpc):
-                            relationship = getattr(resource.SAFRSObject, "relationship", None)
-
                             # limit parameter specifies the number of items to return
                             parameters += default_paging_parameters()
 
@@ -365,7 +364,7 @@ class Api(FRSApiBase):
 
                             parameters += list(resource.get_swagger_filters())
 
-                        if not (parameter.get("in") == "path" and not object_id in swagger_url) and parameter not in parameters:
+                        if not (parameter.get("in") == "path" and object_id not in swagger_url) and parameter not in parameters:
                             # Only if a path param is in path url then we add the param
                             parameters.append(parameter)
 
@@ -393,7 +392,7 @@ class Api(FRSApiBase):
                 # Check whether we manage to convert to json
                 try:
                     json.dumps(self._swagger_object)
-                except Exception as exc:
+                except Exception:
                     safrs.log.critical("Json encoding failed for")
                     # safrs.log.debug(self._swagger_object)
 
@@ -529,4 +528,3 @@ def http_method_decorator(fun):
         abort(status_code, errors=[errors])
 
     return method_wrapper
-

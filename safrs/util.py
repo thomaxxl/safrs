@@ -47,4 +47,3 @@ def classproperty(func):
         func = classmethod(func)
 
     return ClassPropertyDescriptor(func)
-

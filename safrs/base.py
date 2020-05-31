@@ -147,7 +147,7 @@ class SAFRSBase(Model):
         instance = cls._s_query.filter_by(**primary_keys).one_or_none()
         if not instance:
             instance = object.__new__(cls)
-        
+
         return instance
 
     def __init__(self, *args, **kwargs):
@@ -236,7 +236,7 @@ class SAFRSBase(Model):
             safrs.DB.session.add(instance)
             try:
                 safrs.DB.session.commit()
-            except sqlalchemy.exc.SQLAlchemyError as exc: # pragma: no cover
+            except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Exception may arise when a db constraint has been violated
                 # (e.g. duplicate key)
                 safrs.log.warning(str(exc))
@@ -259,9 +259,9 @@ class SAFRSBase(Model):
             :param **attributes:
         """
         for attr_name, attr_val in attributes.items():
-            if not attr_name in self.__class__._s_jsonapi_attrs:
+            if attr_name not in self.__class__._s_jsonapi_attrs:
                 continue
-            value = self._s_parse_attr_value(attr_name, attr_val)
+            _ = self._s_parse_attr_value(attr_name, attr_val)
             # check if write permission is set
             if self._s_check_perm(attr_name, "w"):
                 setattr(self, attr_name, attr_val)
@@ -333,6 +333,10 @@ class SAFRSBase(Model):
                 => simply return the attr_val for user-defined classes
             """
             safrs.log.debug(exc)
+            return attr_val
+
+        # skip type coercion on JSON columns, since they could be anything
+        if type(attr.type) is sqlalchemy.sql.sqltypes.JSON:
             return attr_val
 
         """
@@ -417,7 +421,7 @@ class SAFRSBase(Model):
             id = item
         try:
             primary_keys = cls.id_type.get_pks(id)
-        except AttributeError: # pragma: no cover
+        except AttributeError:  # pragma: no cover
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
             safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
@@ -426,7 +430,7 @@ class SAFRSBase(Model):
         if id is not None or not failsafe:
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
-            except Exception as exc: # pragma: no cover
+            except Exception as exc:  # pragma: no cover
                 raise GenericError("get_instance : {}".format(exc))
 
             if not instance and not failsafe:
@@ -549,7 +553,7 @@ class SAFRSBase(Model):
                     result[attr] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
                 else:
                     result[attr] = attr_val
-            except UnicodeDecodeError as exc:  # pragma: no cover
+            except UnicodeDecodeError:  # pragma: no cover
                 safrs.log.warning("UnicodeDecodeError fetching {}.{}".format(self, attr))
                 result[attr] = ""
             except Exception as exc:
@@ -633,7 +637,7 @@ class SAFRSBase(Model):
         """
         if property_name.startswith("_"):
             return False
-            
+
         for rel in cls.__mapper__.relationships:
             if rel.key != property_name:
                 continue
@@ -833,9 +837,9 @@ class SAFRSBase(Model):
             try:
                 sample_id = sample.jsonapi_id
                 return sample_id
-            except Exception as exc:
-                log.warning("Failed to retrieve sample id for {}".format(cls))
-        
+            except Exception:
+                safrs.log.warning("Failed to retrieve sample id for {}".format(cls))
+
         sample_id = cls.id_type.sample_id(cls)
         return sample_id
 
@@ -1060,7 +1064,7 @@ class Included:
                 continue
             try:
                 result.append(instance._s_jsonapi_encode())
-            except sqlalchemy.orm.exc.DetachedInstanceError as exc:
+            except sqlalchemy.orm.exc.DetachedInstanceError:
                 # todo: test this
                 continue
 
