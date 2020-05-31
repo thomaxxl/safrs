@@ -161,6 +161,7 @@ def dict_merge(dct, merge_dct):
             # convert to string, for ex. http return codes
             dct[str(k)] = merge_dct[k]
 
+
 def test_decorator(func):
     """ Example flask-restful decorator that can be used in the "decorators" Api argument
         cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1

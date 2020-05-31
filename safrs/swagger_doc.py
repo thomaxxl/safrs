@@ -311,7 +311,13 @@ def swagger_doc(cls, tags=None):
         collection_name = cls._s_collection_name
         http_method = func.__name__.lower()
         parameters = [
-            {"name": cls._s_object_id, "in": "path", "type": "string", "default": default_id, "required": True},  # parameter id, e.g. UserId
+            {
+                "name": cls._s_object_id,
+                "in": "path",
+                "type": "string",
+                "default": default_id,
+                "required": True,
+            },  # parameter id, e.g. UserId
             {
                 "name": "Content-Type",  # parameter id, e.g. UserId
                 "in": "header",
@@ -550,12 +556,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         summary = method_doc.get("summary", "Invoke {}.{}".format(class_name, method_name))
         description = method_doc.get("description", summary)
 
-        doc = {
-            "tags": doc_tags,
-            "description": description,
-            "summary": summary,
-            "responses": responses,
-        }
+        doc = {"tags": doc_tags, "description": description, "summary": summary, "responses": responses}
 
         model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
         param_model = SchemaClassFactory(model_name, {})
