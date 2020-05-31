@@ -341,7 +341,7 @@ class SAFRSBase(Model):
 
         """
             Parse datetime and date values for some common representations
-            If another format is uses, the user should create a custom column type or custom serialization
+            If another format is used, the user should create a custom column type or custom serialization
         """
         if attr_val and attr.type.python_type == datetime.datetime:
             date_str = str(attr_val)
@@ -933,9 +933,7 @@ class SAFRSBase(Model):
         responses = {}
 
         if http_method.upper() in cls.http_methods:
-            responses = {
-                HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
-            }
+            responses = {HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description}}
 
             if http_method in ("post", "patch"):
                 responses = {HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description}}
