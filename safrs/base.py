@@ -1063,7 +1063,7 @@ class Included:
                 continue
             try:
                 result.append(instance._s_jsonapi_encode())
-            except sqlalchemy.orm.exc.DetachedInstanceError exc:
+            except sqlalchemy.orm.exc.DetachedInstanceError as exc:
                 # todo: test this
                 safrs.log.warning("Included encode: {}".format(exc))
                 continue
