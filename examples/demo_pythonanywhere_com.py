@@ -204,6 +204,7 @@ class Publisher(BaseModel):
     # books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
     books = db.relationship("Book", back_populates="publisher")
     employees = hiddenRelationship(Person, back_populates="employer")
+    data = db.Column(db.JSON, default = {1:1})
 
     def __init__(self, *args, **kwargs):
         custom_field = kwargs.pop("custom_field", None)
@@ -271,7 +272,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             author = Person(name="Author " + str(i), email="author@email" + str(i))
             book = Book(title="book_title" + str(i))
             review = Review(reader_id=reader.id, book_id=book.id, review="review " + str(i))
-            publisher = Publisher(name="name" + str(i))
+            publisher = Publisher(name="publisher" + str(i))
             publisher.books.append(book)
             reader.books_read.append(book)
             author.books_written.append(book)
