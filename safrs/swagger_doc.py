@@ -24,6 +24,7 @@ DOC_DELIMITER = "---"  # used as delimiter between the rest_doc swagger yaml spe
 PAGEABLE = "pageable"  # denotes whether an api method is pageable
 FILTERABLE = "filterable"
 
+# additional responses added when in debug mode to make swagger-check succeed
 debug_responses = {
     HTTPStatus.METHOD_NOT_ALLOWED.value: {"description": HTTPStatus.METHOD_NOT_ALLOWED.description},
     HTTPStatus.BAD_REQUEST.value: {"description": HTTPStatus.BAD_REQUEST.description},
