@@ -15,6 +15,7 @@ from safrs.errors import ValidationError
 from safrs.config import get_config, is_debug
 import safrs
 
+
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
 # this means that the function is reachable through HTTP POST
 HTTP_METHODS = "__http_method"
@@ -28,6 +29,7 @@ debug_responses = {
     HTTPStatus.BAD_REQUEST.value: {"description": HTTPStatus.BAD_REQUEST.description},
     HTTPStatus.INTERNAL_SERVER_ERROR.value: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.description},
 }
+
 
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
 def parse_object_doc(object):

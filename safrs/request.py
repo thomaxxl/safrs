@@ -17,6 +17,7 @@ from .config import get_config
 from .errors import ValidationError
 from ._api import HTTP_METHODS
 
+
 # pylint: disable=too-many-ancestors, logging-format-interpolation
 class SAFRSRequest(Request):
     """

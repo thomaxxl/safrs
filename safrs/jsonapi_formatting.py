@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# JSON:API response formatting functions: 
+# JSON:API response formatting functions:
 # - filtering (https://jsonapi.org/format/#fetching-filtering)
 # - sorting (https://jsonapi.org/format/#fetching-sorting)
 # - pagination (https://jsonapi.org/format/#fetching-pagination)
@@ -15,6 +15,7 @@ from flask import request
 from .base import is_jsonapi_attr, Included
 from .errors import ValidationError, GenericError
 from .config import get_config, get_request_param
+
 
 def jsonapi_filter(safrs_object):
     """
@@ -81,7 +82,7 @@ def jsonapi_filter_list(relation):
     """
     result = set()
     for instance in relation:
-        if not hasattr(instance,'id_type'):
+        if not hasattr(instance, "id_type"):
             # item is not a SAFRSBase instance
             result.add(instance)
             continue

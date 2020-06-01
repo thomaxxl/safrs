@@ -1,6 +1,7 @@
 from http import HTTPStatus
 from .util import classproperty
 
+
 # pylint: disable=too-few-public-methods
 class SAFRSRelationshipObject:
     """

@@ -11,6 +11,7 @@ from .response import SAFRSResponse
 from .json_encoder import SAFRSJSONEncoder
 from ._api import Api
 
+
 # pylint: disable=invalid-name
 # Uppercase bc we're returning the API class here, eventually this might become a class by itself
 def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI", json_encoder=SAFRSJSONEncoder, **kwargs):
