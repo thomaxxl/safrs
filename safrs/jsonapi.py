@@ -36,7 +36,7 @@ from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
-from .jsonapi_formatting import jsonapi_filter, jsonapi_filter_query, jsonapi_sort, paginate, jsonapi_format_response
+from .jsonapi_formatting import jsonapi_filter, jsonapi_filter_query, jsonapi_sort, paginate, jsonapi_format_response, jsonapi_filter_list
 
 
 class Resource(FRSResource):
@@ -634,13 +634,14 @@ class SAFRSRestRelationshipAPI(Resource):
                 links = {"self": request.url, "related": child._s_url}
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
             instances = [item for item in relation if isinstance(item, SAFRSBase)]
-            instances = jsonapi_filter(instances)
+            instances = jsonapi_filter_list(instances)
             instances = jsonapi_sort(instances, self.target)
             links, data, count = paginate(instances, self.target)
             count = len(data)
         else:
+            # lazy='dynamic' relationships
             instances = jsonapi_filter_query(relation, self.target)
-            instances = jsonapi_sort(relation, self.target)
+            instances = jsonapi_sort(instances, self.target)
             links, data, count = paginate(instances, self.target)
 
         result = jsonapi_format_response(data, meta, links, errors, count)

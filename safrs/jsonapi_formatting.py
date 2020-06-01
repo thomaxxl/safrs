@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+#
+# JSON:API response formatting functions: 
+# - filtering (https://jsonapi.org/format/#fetching-filtering)
+# - sorting (https://jsonapi.org/format/#fetching-sorting)
+# - pagination (https://jsonapi.org/format/#fetching-pagination)
+#
+# Response formatting follows filter -> sort -> paginate
+#
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
@@ -7,14 +16,12 @@ from .base import is_jsonapi_attr, Included
 from .errors import ValidationError, GenericError
 from .config import get_config, get_request_param
 
-
-# JSON:API Response formatting follows filter -> sort -> paginate
 def jsonapi_filter(safrs_object):
     """
         https://jsonapi.org/recommendations/#filtering
         Apply the request.args filters to the object
         :param safrs_object: the safrs class object that is queried
-        :return: a sqla query object
+        :return: sqla query object
     """
     # First check if a filter= URL query parameter has been used
     # the SAFRSObject should've implemented a filter method or
@@ -65,29 +72,35 @@ def jsonapi_filter(safrs_object):
     return result
 
 
-def jsonapi_filter_list(safrs_inst_list):
+def jsonapi_filter_list(relation):
     """
-        :param safrs_inst_list: list of safrsbase instances
+        :param relation: InstrumentedList
         :return: list of instances filtered using the jsonapi filters in the url query args
 
         Called when filtering a relationship collection
     """
     result = set()
-    for so in safrs_inst_list:
-        pks = {col.name: getattr(so, col.name) for col in so.id_type.columns}
-        filter_query = jsonapi_filter(so.__class__)
+    for instance in relation:
+        if not hasattr(instance,'id_type'):
+            # item is not a SAFRSBase instance
+            result.add(instance)
+            continue
+        pks = {col.name: getattr(instance, col.name) for col in instance.id_type.columns}
+        filter_query = jsonapi_filter(instance.__class__)
         result.update(filter_query.filter_by(**pks).all())  # this should only contain zero or one items
     return list(result)
 
 
 def jsonapi_filter_query(object_query, safrs_object):
     """
-        :param object_query: query to be filtered (AppenderBaseQuery relationship)
+        :param object_query: query to be filtered (lazy='dynamic' relationships AppenderBaseQuery)
         :param safrs_object: sqla object to be queried
-        :return: query object
+        :return: sqla query object
+
+        Called when filtering a relationship query
     """
     filter_query = jsonapi_filter(safrs_object)
-    result = sqlalchemy.intersect(filter_query, object_query)
+    result = object_query.intersect(filter_query)
     return result
 
 
@@ -102,7 +115,8 @@ def jsonapi_sort(object_query, safrs_object):
     sort_attrs = request.args.get("sort", None)
     if sort_attrs is not None:
         for sort_attr in sort_attrs.split(","):
-            if sort_attr.startswith("-"):
+            reverse = sort_attr.startswith("-")
+            if reverse:
                 # if the sort column starts with - , then we want to do a reverse sort
                 # The sort order for each sort field MUST be ascending unless it is prefixed
                 # with a minus, in which case it MUST be descending.
@@ -114,15 +128,15 @@ def jsonapi_sort(object_query, safrs_object):
                 attr = getattr(safrs_object, sort_attr, None)
             if sort_attr == "id":
                 if attr is None:
-                    # => to do: parse the id
+                    # jsonapi_id is a composite key => to do: parse the id
                     continue
             elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
-                safrs.log.debug("{} has no column {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
+                safrs.log.debug("{} has no attribute {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-                object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=sort_attr.startswith("-"))
+                object_query = sorted(list(object_query), key=lambda obj: getattr(obj, sort_attr), reverse=reverse)
             elif is_jsonapi_attr(attr):
-                # to do
+                # to do: implement sorting for jsonapi_attr
                 safrs.log.debug("sorting not implemented for {}".format(attr))
             else:
                 try:

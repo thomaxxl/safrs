@@ -3,6 +3,7 @@
 #
 # SQLAlchemy database schemas
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
+#
 import inspect
 import datetime
 import sqlalchemy
