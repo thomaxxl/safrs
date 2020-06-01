@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-  This demo application demonstrates the functionality of the safrs documented REST API
+  This demo application demonstrates the functionality of the safrs documented JSON API
   After installing safrs with pip, you can run this app standalone:
-  $ python3 demo_relationship.py [Listener-IP]
+  $ python3 demo_devto.py [Listener-IP]
 
   This will run the example on http://Listener-Ip:5000
 
-  - A database is created and a user is added
-  - A rest api is available
+  - A database is created and items are added
+  - A json api is available
   - swagger documentation is generated
 
 """
 import sys
-import logging
-import builtins
-from flask import Flask, redirect
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_swagger_ui import get_swaggerui_blueprint
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+from safrs import SAFRSBase, SAFRSAPI
 
 db = SQLAlchemy()
+
 
 # Example sqla database object
 class User(SAFRSBase, db.Model):
@@ -32,6 +30,7 @@ class User(SAFRSBase, db.Model):
     name = db.Column(db.String, default="")
     email = db.Column(db.String, default="")
     books = db.relationship("Book", back_populates="user", lazy="dynamic")
+
 
 class Book(SAFRSBase, db.Model):
     """
@@ -68,10 +67,9 @@ def create_app(config_filename=None, host="localhost"):
         create_api(app, host)
     return app
 
-
-host = "127.0.0.1"  # address where the api will be hosted, change this if you're not running the app on localhost!
+# address where the api will be hosted, change this if you're not running the app on localhost!
+host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"
 app = create_app(host=host)
 
 if __name__ == "__main__":
     app.run(host=host)
-
