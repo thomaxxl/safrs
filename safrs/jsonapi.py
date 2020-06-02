@@ -633,8 +633,7 @@ class SAFRSRestRelationshipAPI(Resource):
             else:
                 links = {"self": request.url, "related": child._s_url}
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
-            instances = [item for item in relation if isinstance(item, SAFRSBase)]
-            instances = jsonapi_filter_list(instances)
+            instances = jsonapi_filter_list(relation)
             instances = jsonapi_sort(instances, self.target)
             links, data, count = paginate(instances, self.target)
             count = len(data)
@@ -646,6 +645,7 @@ class SAFRSRestRelationshipAPI(Resource):
 
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
+
 
     # Relationship patching
     def patch(self, **kwargs):
