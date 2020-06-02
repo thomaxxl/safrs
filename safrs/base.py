@@ -763,6 +763,7 @@ class SAFRSBase(Model):
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
                     # manytoone relationship contains a list of instances
                     # Data is optional, it's also really slow for large sets!
+                    data = []
                     rel_query = getattr(self, rel_name)
                     limit = request.page_limit
                     if not get_config("ENABLE_RELATIONSHIPS"):
@@ -785,7 +786,6 @@ class SAFRSBase(Model):
                             count = len(items)
                         meta["count"] = count
                         meta["limit"] = limit
-                        data = []
                         for rel_item in items:
                             data.append(Included(rel_item, next_included_list))
                 else:  # pragma: no cover
