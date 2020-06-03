@@ -16,14 +16,14 @@
 # pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
 # pylint: disable=fixme, logging-format-interpolation
 #
-from http import HTTPStatus
+import safrs
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
-from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import jsonify, make_response, url_for, request
 from flask_restful_swagger_2 import Resource as FRSResource
-import safrs
+from http import HTTPStatus
+from sqlalchemy.orm.interfaces import MANYTOONE
 from .base import SAFRSBase
 from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
@@ -40,7 +40,7 @@ class Resource(FRSResource):
         * RPC methods : SAFRSJSONRPCAPI
     """
 
-    # The class that will be returned when a http method is invoked
+    # SAFRSObject: the class that will be returned when a http method is invoked
     # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     SAFRSObject = None
     # relationship target in SAFRSRestRelationshipAPI, identical to self.SAFRSObject in SAFRSRestAPI
@@ -94,7 +94,7 @@ class Resource(FRSResource):
     @classmethod
     def get_swagger_fields(cls):
         """
-            :return: JSON:API fields[] swagger spec
+            :return: JSON:API fields[] swagger spec (the model instance fields to be included)
         """
         attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys())
         # Add the fields query string swagger
@@ -113,7 +113,7 @@ class Resource(FRSResource):
     @classmethod
     def get_swagger_sort(cls):
         """
-            :return: JSON:API sort swagger spec
+            :return: JSON:API sort swagger spec (the collection sort key)
         """
         attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
 
@@ -288,7 +288,6 @@ class SAFRSRestAPI(Resource):
                 links["related"] = request.url
             count = 1
             meta.update(dict(instance_meta=instance._s_meta()))
-
         else:
             # retrieve a collection, filter and sort
             instances = jsonapi_filter(self.SAFRSObject)
@@ -297,10 +296,8 @@ class SAFRSRestAPI(Resource):
 
         # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
-
         return jsonify(result)
 
-    # Instance patching
     def patch(self, **kwargs):
         """
             summary : Update {class_name}
@@ -341,32 +338,26 @@ class SAFRSRestAPI(Resource):
         elif id is None:
             raise ValidationError("Invalid ID")
         else:
-            path_id = self.SAFRSObject.id_type.validate_id(id)
-            instance = self._patch_instance(data, path_id)
-            """
-            attributes = data.get("attributes", {})
-            attributes["id"] = body_id
-            # Create the object instance with the specified id and json data
-            # If the instance (id) already exists, it will be updated with the data
-            instance = self._parse_target_data(data)
-            if not instance:
-                raise ValidationError("No instance with ID")
-            instance._s_patch(**attributes)
-            """
-
+            instance = self._patch_instance(data, id)
             # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
             obj_args = {instance._s_object_id: instance.jsonapi_id}
-            # Retrieve the object json and return it to the client
+            # Retrieve the jsonapi encoded object and return it to the client
             obj_data = self.get(**obj_args)
             response = make_response(obj_data, HTTPStatus.CREATED)
             # Set the Location header to the newly created object
             response.headers["Location"] = url_for(self.endpoint, **obj_args)
+
         return response
 
-    def _patch_instance(self, data, path_id=None):
+    def _patch_instance(self, data, id=None):
         """
-
+            Update the inst
+            :param data: jsonapi payload
+            :param id: jsonapi id
+            :return: instance
         """
+        # validate the jsonapi id in the url path and convert it to a database id
+        path_id = self.SAFRSObject.id_type.validate_id(id)
         # Check that the id in the body is equal to the id in the url
         body_id = data.get("id", None)
         if body_id is None:
