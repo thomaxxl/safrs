@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 #
 #  This file contains jsonapi-related flask-restful "Resource" objects:
-#  - SAFRSRestAPI for exposed database objects
+#  - SAFRSRestAPI for exposed database instances and collections
 #  - SAFRSRestRelationshipAPI for exposed database relationships
 #  - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
-#
 #
 # Configuration parameters:
 # - endpoint
@@ -43,7 +42,7 @@ class Resource(FRSResource):
 
     # The class that will be returned when a http method is invoked
     # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
-    SAFRSObject = None  
+    SAFRSObject = None
     # relationship target in SAFRSRestRelationshipAPI, identical to self.SAFRSObject in SAFRSRestAPI
     target = None
 
