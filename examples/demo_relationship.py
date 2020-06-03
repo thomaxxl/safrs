@@ -12,14 +12,12 @@
 
 """
 import sys
-import logging
-import builtins
-from flask import Flask, redirect
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_swagger_ui import get_swaggerui_blueprint
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+from safrs import SAFRSBase, SAFRSAPI
 
 db = SQLAlchemy()
+
 
 # Example sqla database object
 class User(SAFRSBase, db.Model):
@@ -32,20 +30,6 @@ class User(SAFRSBase, db.Model):
     name = db.Column(db.String, default="")
     email = db.Column(db.String, default="")
     books = db.relationship("Book", back_populates="user", lazy="dynamic")
-
-    # Following method is exposed through the REST API
-    # This means it can be invoked with a HTTP POST
-    @classmethod
-    @jsonapi_rpc(http_methods=["POST"])
-    def send_mail(self, **args):
-        """
-        description : Send an email
-        args:
-            email:
-                type : string
-                example : test email
-        """
-        return {"result": args}
 
 
 class Book(SAFRSBase, db.Model):
@@ -60,26 +44,32 @@ class Book(SAFRSBase, db.Model):
     user = db.relationship("User", back_populates="books")
 
 
-if __name__ == "__main__":
-    HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
-    PORT = 5000
-    app = Flask("SAFRS Demo Application")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True)
+def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+    api.expose_object(User)
+    api.expose_object(Book)
+    print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
+
+
+def create_app(config_filename=None, host="localhost"):
+    app = Flask("demo_app")
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
-    db.app = app
-    # Create the database
-    db.create_all()
-    API_PREFIX = ""
 
     with app.app_context():
-        # Create a user and a book and add the book to the user.books relationship
-        user = User(name="thomas", email="em@il")
-        book = Book(name="test_book")
-        user.books.append(book)
-        api = SAFRSAPI(app, host="{}".format(HOST), port=PORT, prefix=API_PREFIX)
-        # Expose the database objects as REST API endpoints
-        api.expose_object(User)
-        api.expose_object(Book)
-        # Register the API at /api/docs
-        print("Starting API: http://{}:{}{}".format(HOST, PORT, API_PREFIX))
-        app.run(host=HOST, port=PORT)
+        db.create_all()
+        # Populate the db with users and a books and add the book to the user.books relationship
+        for i in range(200):
+            user = User(name=f"user{i}", email=f"email{i}@dev.to")
+            book = Book(name="test_book")
+            user.books.append(book)
+
+        create_api(app, host)
+    return app
+
+# address where the api will be hosted, change this if you're not running the app on localhost!
+host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"
+app = create_app(host=host)
+
+if __name__ == "__main__":
+    app.run(host=host)
