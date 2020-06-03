@@ -1,27 +1,21 @@
 # -*- coding: utf-8 -*-
-"""
-  This file contains jsonapi-related flask-restful "Resource" objects:
-  - SAFRSRestAPI for exposed database objects
-  - SAFRSRestRelationshipAPI for exposed database relationships
-  - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
-
-  Other jsonapi-related functions are also implemented here:
-  - filtering: jsonapi_filter
-  - sorting: jsonapi_sort
-  - pagination: paginate
-  - retrieve included resources: get_included
-"""
 #
-# Some linting errors to ignore
-# pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
-# pylint: disable=fixme, logging-format-interpolation
+#  This file contains jsonapi-related flask-restful "Resource" objects:
+#  - SAFRSRestAPI for exposed database objects
+#  - SAFRSRestRelationshipAPI for exposed database relationships
+#  - SAFRSRestMethodAPI for exposed jsonapi_rpc methods
+#
 #
 # Configuration parameters:
 # - endpoint
 #
-# todo:
+# to do:
 # - expose canonical endpoints
 # - move all swagger formatting to swagger_doc
+#
+# Some linting errors to ignore
+# pylint: disable=redefined-builtin,invalid-name, line-too-long, protected-access, no-member, too-many-lines
+# pylint: disable=fixme, logging-format-interpolation
 #
 from http import HTTPStatus
 import sqlalchemy
@@ -36,35 +30,49 @@ from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
-from .jsonapi_formatting import jsonapi_filter, jsonapi_filter_query, jsonapi_sort, paginate, jsonapi_format_response, jsonapi_filter_list
+from .jsonapi_formatting import jsonapi_filter, jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 
 
 class Resource(FRSResource):
+    """
+        Superclass for the exposed endpoints
+        * Collections and instances : SAFRSRestAPI
+        * Relationships : SAFRSRestRelationshipAPI
+        * RPC methods : SAFRSJSONRPCAPI
+    """
 
-    SAFRSObject = None  # The class that will be returned when a http method is invoked
+    # The class that will be returned when a http method is invoked
     # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
+    SAFRSObject = None  
+    # relationship target in SAFRSRestRelationshipAPI, identical to self.SAFRSObject in SAFRSRestAPI
     target = None
 
-    def _parse_target_data(self, child_data):
+    def _parse_target_data(self, target_data):
         """
-            Validate the jsonapi payload in child_data, which should contain "id" and "type" keys
+            Validate the jsonapi payload for patch requests (to self.target):
+            - the payload must contain "id" and "type" keys.
+            - the type must match the target type
+            - an object with the specified id must exist
+
+            :param target_data: jsonapi instance payload
+            :return: sqla/safrs orm instance
         """
-        if not isinstance(child_data, dict):
-            raise ValidationError("Invalid data type {}".format(child_data))
-        child_id = child_data.get("id", None)
-        if child_id is None:
-            raise ValidationError("no child id {}".format(child_data))
-        child_type = child_data.get("type")
-        if not child_id:
+        if not isinstance(target_data, dict):
+            raise ValidationError("Invalid data type {}".format(target_data))
+        target_id = target_data.get("id", None)
+        if target_id is None:
+            raise ValidationError("no target id {}".format(target_data))
+        target_type = target_data.get("type")
+        if not target_id:
             raise ValidationError("Invalid id in data", HTTPStatus.FORBIDDEN)
-        if not child_type:
+        if not target_type:
             raise ValidationError("Invalid type in data", HTTPStatus.FORBIDDEN)
-        if child_type != self.target._s_type:
-            raise ValidationError("Invalid type {} != {}".format(child_type, self.target._s_type), HTTPStatus.FORBIDDEN)
-        child = self.target.get_instance(child_id)
-        if not child:
-            raise ValidationError("invalid child id {}".format(child_id))
-        return child
+        if target_type != self.target._s_type:
+            raise ValidationError("Invalid type {} != {}".format(target_type, self.target._s_type), HTTPStatus.FORBIDDEN)
+        target = self.target.get_instance(target_id)
+        if not target:
+            raise ValidationError("invalid target id {}".format(target_id))
+        return target
 
     @classmethod
     def get_swagger_include(cls):
@@ -645,7 +653,6 @@ class SAFRSRestRelationshipAPI(Resource):
 
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
-
 
     # Relationship patching
     def patch(self, **kwargs):
