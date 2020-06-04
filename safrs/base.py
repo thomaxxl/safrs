@@ -96,8 +96,19 @@ class jsonapi_attr(hybrid_property):
             kwargs.pop("default", None)
         super().__init__(*args, **kwargs)
 
-    def setter(self, value):
-        safrs.log.debug("Empty '{}' jsonapi_attr setter".format(self.__name__))
+    def getter(self, fget):
+        """
+            Provide a decorator that defines a getter method.
+        """
+
+        return self._copy(fget=fget)
+
+    def setter(self, fset):
+        """
+            Provide a decorator that defines a setter method.
+        """
+
+        return self._copy(fset=fset)
 
 
 def is_jsonapi_attr(attr):
@@ -157,7 +168,7 @@ class SAFRSBase(Model):
             - set the named attributes and add the object to the database
             - create relationships
         """
-        # All SAFRSBase subclasses have an id,
+        # All SAFRSBase subclasses have a jsonapi id, passed as "id" in web requests
         # if no id is supplied, generate a new safrs id (uuid4)
         # instantiate the id with the "id_type", this will validate the id if
         # validation is implemented
