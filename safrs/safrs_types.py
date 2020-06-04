@@ -22,30 +22,6 @@ except ModuleNotFoundError as exc:
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
 
 
-class SAFRSSHA256HashID(SAFRSID):
-    """
-    SAFRSSHA256HashID
-    """
-
-    @classmethod
-    def gen_id(cls):
-        """
-            Create a hash based on the current time
-            This is just an example
-            Not cryptographically secure and might cause collisions!
-        """
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")
-        return hashlib.sha256(now).hexdigest()
-
-    @classmethod
-    def validate_id(cls, _id):
-        """
-        validate_id
-        """
-        # todo
-        return _id
-
-
 class JSONType(PickleType):
     """
         JSON DB type is used to store JSON objects in the database
@@ -258,3 +234,26 @@ def get_id_type(cls, Super=SAFRSID):
     delimiter = getattr(cls, "delimiter", "_")
     id_type_class = type(cls.__name__ + "_ID", (Super,), {"primary_keys": primary_keys, "columns": columns, "delimiter": delimiter})
     return id_type_class
+
+class SAFRSSHA256HashID(SAFRSID):
+    """
+    SAFRSSHA256HashID
+    """
+
+    @classmethod
+    def gen_id(cls):
+        """
+            Create a hash based on the current time
+            This is just an example
+            Not cryptographically secure and might cause collisions!
+        """
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")
+        return hashlib.sha256(now).hexdigest()
+
+    @classmethod
+    def validate_id(cls, _id):
+        """
+        validate_id
+        """
+        # todo
+        return _id
