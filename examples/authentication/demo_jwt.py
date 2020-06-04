@@ -14,7 +14,8 @@
 """
 Example invocation:
 
-t@TEMP:~$ token=$(curl -X POST localhost:5000/login -d '{ "username" : "test", "password" : "test" }' --header "Content-Type: application/json" | jq .access_token -r)
+t@TEMP:~$ token=$(curl -X POST localhost:5000/login -d '{ "username" : "test", "password" : "test" }' \
+          --header "Content-Type: application/json" | jq .access_token -r)
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100   344  100   300  100    44  19197   2815 --:--:-- --:--:-- --:--:-- 18750
@@ -44,20 +45,17 @@ t@TEMP:~$ curl localhost:5000/users/ -H "Authorization: Bearer $token"
 }
 """
 import sys
-import os
-import logging
-import builtins
-from functools import wraps
-from flask import Flask, redirect, jsonify, make_response
-from flask import abort, request, g, url_for
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, SAFRS, SAFRSAPI, jsonapi_rpc, SAFRSFormattedResponse
+from flask import Flask, jsonify
+from flask import request
+from sqlalchemy import Column, String
+from safrs import SAFRSBase, SAFRSAPI
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
-from passlib.apps import custom_app_context as pwd_context
-from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+from flask_jwt_extended import (
+    JWTManager,
+    jwt_required,
+    create_access_token
+)
 from sqlalchemy import orm
 
 db = SQLAlchemy()
@@ -97,33 +95,44 @@ class User(SAFRSBase, db.Model):
     items = db.relationship("Item", back_populates="user", lazy="dynamic")
 
     def __init__(self, *args, **kwargs):
-        print("xx "*30)
+        print("xx " * 30)
         print(args, kwargs)
         super().__init__(*args, **kwargs)
 
     @orm.reconstructor
     def reconstruct(self):
-        print(f"reconstruct {self.username}"*3)
+        print(f"reconstruct {self.username}" * 3)
 
     @classmethod
     def filter(cls, *args, **kwargs):
-        print(args, kwargs) # args[0] should contain the filter= url query parameter value
-        return cls.query.filter_by(username = args[0])
+        print(
+            args, kwargs
+        )  # args[0] should contain the filter= url query parameter value
+        return cls.query.filter_by(username=args[0])
 
 
 def start_app(app):
 
     custom_swagger = {
-        "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
+        "securityDefinitions": {
+            "Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}
+        },
         "security": [{"Bearer": []}],
     }  # Customized swagger will be merged
 
-    api = SAFRSAPI(app, api_spec_url="/api/swagger", host=HOST, port=PORT, schemes=["http"], custom_swagger=custom_swagger)
+    api = SAFRSAPI(
+        app,
+        api_spec_url="/api/swagger",
+        host=HOST,
+        port=PORT,
+        schemes=["http"],
+        custom_swagger=custom_swagger,
+    )
 
-    """username = "user2"
+    username = "user2"
 
     item = Item(name="item test")
-    user = User(username=username, items=[item])"""
+    user = User(username=username, items=[item])
 
     api.expose_object(Item)
     api.expose_object(User)
@@ -131,7 +140,7 @@ def start_app(app):
     print("Starting API: http://{}:{}/api".format(HOST, PORT))
 
     # Identity can be any data that is json serializable
-    user = User.query.filter_by(username = "user2").first()
+    user = User.query.filter_by(username="user2").first()
     access_token = create_access_token(identity=user.username)
     print("Test Authorization header access_token: Bearer", access_token)
 
@@ -161,9 +170,6 @@ def login():
     if not request.is_json:
         return jsonify({"msg": "Missing JSON in request"}), 400
 
-    # Identity can be any data that is json serializable
-    access_token = create_access_token(identity=username)
-
     username = request.json.get("username", None)
     password = request.json.get("password", None)
     if not username:
@@ -174,6 +180,8 @@ def login():
     if username != "test" or password != "test":
         return jsonify({"msg": "Bad username or password"}), 401
 
+    # Identity can be any data that is json serializable
+    access_token = create_access_token(identity=username)
     return jsonify(access_token=access_token), 200
 
 
