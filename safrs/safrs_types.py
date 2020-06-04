@@ -11,12 +11,10 @@ from sqlalchemy.types import TypeDecorator, BLOB
 from .errors import ValidationError
 from .util import classproperty
 
-if sys.version_info[0] == 3:
-    unicode = str
 try:
     from validate_email import validate_email
 except ModuleNotFoundError as exc:
-    print("validate_email module not imported {}".format(exc))
+    safrs.log.debug("validate_email module not imported {}".format(exc))
 
 
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
@@ -227,7 +225,7 @@ class SAFRSID:
 
 def get_id_type(cls, Super=SAFRSID):
     """
-    get_id_type
+        get_id_type
     """
     columns = [col for col in cls.__table__.columns if col.primary_key]
     primary_keys = [col.name for col in columns]
@@ -237,9 +235,8 @@ def get_id_type(cls, Super=SAFRSID):
 
 class SAFRSSHA256HashID(SAFRSID):
     """
-    SAFRSSHA256HashID
+        SAFRSSHA256HashID class for a hash based id
     """
-
     @classmethod
     def gen_id(cls):
         """
