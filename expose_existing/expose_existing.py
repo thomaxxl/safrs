@@ -2,7 +2,6 @@
 # This script exposes an existing database as a webservice.
 # A lot of dirty things going on here because we have to handle all sorts of edge cases
 #
-
 import sys, logging, inspect, builtins, os, argparse, tempfile, atexit, shutil, io
 from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
@@ -17,7 +16,6 @@ from io import StringIO
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
 from flask_cors import CORS
-
 MODEL_DIR = tempfile.mkdtemp()  # directory where the generated models.py will be saved
 
 sqlacodegen_dir = os.path.join(os.path.dirname(__file__), "sqlacodegen")
@@ -101,7 +99,7 @@ CORS(app, origins=["*"])
 
 app.config.update(SQLALCHEMY_DATABASE_URI=args.url, DEBUG=True, JSON_AS_ASCII=False)
 SAFRSBase.db_commit = False
-builtins.db = SQLAlchemy(app)  # set db as a global variable to be used in employees.py
+db = builtins.db = SQLAlchemy(app)  # set db as a global variable to be used in employees.py
 models = codegen(args)
 print(models)
 
