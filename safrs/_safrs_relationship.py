@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+#
+# 
+#
 from http import HTTPStatus
 from .util import classproperty
 
@@ -6,6 +10,7 @@ from .util import classproperty
 class SAFRSRelationshipObject:
     """
         Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
+        so we can call the same methods on a relationship target as we do when using SAFRSBase
     """
 
     _s_class_name = None
@@ -44,10 +49,9 @@ class SAFRSRelationshipObject:
     @classproperty
     def _s_jsonapi_attrs(cls):
         """
-            dummy
-            :return: JSON:API attributes
+            :return: target JSON:API attributes
         """
-        return {}
+        return cls._target._s_jsonapi_attrs
 
     @classproperty
     def _s_type(cls):
@@ -59,13 +63,13 @@ class SAFRSRelationshipObject:
     @classproperty
     def _s_column_names(cls):
         """
-
+            :return: the list of the target column names
         """
         return cls._target._s_column_names
 
     @classproperty
     def _s_class_name(cls):
         """
-
+            :return: name of the target class
         """
         return cls._target.__name__
