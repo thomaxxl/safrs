@@ -633,7 +633,12 @@ def apply_fstring(swagger_obj, vars, k=None):
         Format the f-strings in the swagger object
     """
     if isinstance(swagger_obj, str):
-        return swagger_obj.format(**vars)
+        result = swagger_obj
+        try:
+            result = swagger_obj.format(**vars)
+        except Exception as exc:
+            safrs.log.error("Failed to format ({})".format(exc))
+        return result
     elif isinstance(swagger_obj, list):
         for i in swagger_obj:
             apply_fstring(i, vars)
