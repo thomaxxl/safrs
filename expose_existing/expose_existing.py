@@ -47,7 +47,7 @@ def get_args():
     args = parser.parse_args()
 
     if args.version:
-        version = pkg_resources.get_distribution("sqlacodegen").parsed_version
+        version = pkg_resources.get_distribution("sqlacodegen").parsed_version # noqa: F821
         print(version.public)
         exit()
     if not args.url:
