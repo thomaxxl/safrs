@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # base.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
 #
 # SQLAlchemy database schemas

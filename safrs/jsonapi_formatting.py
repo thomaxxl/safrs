@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-#
 # JSON:API response formatting functions:
 # - filtering (https://jsonapi.org/format/#fetching-filtering)
 # - sorting (https://jsonapi.org/format/#fetching-sorting)

@@ -1,5 +1,3 @@
-"""errors.py"""
-# -*- coding: utf-8 -*
 # Exception Handlers
 #
 # The application loglevel determines the level of detail dhown to the user.

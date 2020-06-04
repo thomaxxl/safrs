@@ -1,6 +1,4 @@
-"""
-safrs response
-"""
+# Response class
 from flask import Response
 
 

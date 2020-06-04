@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # jsonapi_rpc methods that can be added to the exposed classes
 #

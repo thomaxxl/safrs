@@ -1,8 +1,7 @@
-"""
-Functions for api documentation: these decorators generate the swagger schemas
-
-This should evolve to a more declarative version in the future with templates
-"""
+#
+# # Functions for api documentation: these decorators generate the swagger schemas
+# This should evolve to a more declarative version in the future with templates
+#
 import inspect
 import datetime
 import json

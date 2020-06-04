@@ -1,6 +1,4 @@
-"""
-flask_restful_swagger2 API subclass
-"""
+# flask_restful_swagger2 API subclass
 import copy
 from http import HTTPStatus
 import logging

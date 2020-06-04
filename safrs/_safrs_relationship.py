@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-#
-#
-#
 from http import HTTPStatus
 from .util import classproperty
 

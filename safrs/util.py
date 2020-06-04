@@ -1,11 +1,7 @@
-"""
-util.py
-"""
-
-
+#
 class ClassPropertyDescriptor:
     """
-    ClassPropertyDescriptor
+       ClassPropertyDescriptor
     """
 
     def __init__(self, fget, fset=None):

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-#
 #  This file contains jsonapi-related flask-restful "Resource" objects:
 #  - SAFRSRestAPI for exposed database instances and collections
 #  - SAFRSRestRelationshipAPI for exposed database relationships

@@ -1,9 +1,6 @@
-"""
-Configuration settings should be set in app.config
-Most of the configuration in this file is deprecated, it is kept for backwards compatibility
-The get_config function handles the current config while remaining backwards compatible
-
-"""
+# Configuration settings should be set in app.config
+# Most of the configuration in this file is deprecated, it is kept for backwards compatibility
+# The get_config function handles the current config while remaining backwards compatible
 import os
 import logging
 from flask import current_app, request

@@ -1,6 +1,5 @@
-"""
-safrs to json encoding
-"""
+# safrs to json encoding
+
 import datetime
 import decimal
 import json
