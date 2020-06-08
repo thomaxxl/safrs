@@ -148,15 +148,20 @@ class SAFRSBase(Model):
 
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
 
-    def __new__(cls, **kwargs):
+    def __new__(cls, *args, **kwargs):
         """
             If an object with given arguments already exists, this object is instantiated
         """
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs.get("id", ""))
         # Lookup the object with the PKs
-        instance = cls._s_query.filter_by(**primary_keys).one_or_none()
-        if not instance:
+        instance = None
+        try:
+            instance = cls._s_query.filter_by(**primary_keys).one_or_none()
+        except Exception as exc:
+            safrs.log.warning(exc)
+
+        if instance is None:
             instance = object.__new__(cls)
 
         return instance
@@ -843,7 +848,11 @@ class SAFRSBase(Model):
         """
             :return: a sample id for the API documentation
         """
-        sample = cls.query.first()
+        sample = None
+        try:
+            sample = cls.query.first()
+        except Exception as exc:
+            pass
         if sample:
             try:
                 sample_id = sample.jsonapi_id
