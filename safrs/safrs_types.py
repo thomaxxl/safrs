@@ -79,7 +79,7 @@ class EmailType(TypeDecorator):
     def process_bind_param(self, value, dialect):
         # install validate_email:
         # from validate_email import validate_email
-        #if value and not validate_email(value):
+        # if value and not validate_email(value):
         if value and not "@" in value:
             raise ValidationError("Email Validation Error {}".format(value))
 
@@ -235,10 +235,12 @@ def get_id_type(cls, Super=SAFRSID):
     id_type_class = type(cls.__name__ + "_ID", (Super,), {"primary_keys": primary_keys, "columns": columns, "delimiter": delimiter})
     return id_type_class
 
+
 class SAFRSSHA256HashID(SAFRSID):
     """
         SAFRSSHA256HashID class for a hash based id
     """
+
     @classmethod
     def gen_id(cls):
         """
