@@ -11,11 +11,6 @@ from sqlalchemy.types import TypeDecorator, BLOB
 from .errors import ValidationError
 from .util import classproperty
 
-try:
-    from validate_email import validate_email
-except ModuleNotFoundError as exc:
-    safrs.log.debug("validate_email module not imported {}".format(exc))
-
 
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
 
@@ -71,6 +66,7 @@ class SafeString(TypeDecorator):
 
 class EmailType(TypeDecorator):
     """
+        example class to perform email validation
         DB Email Type class: validates email when bound
     """
 
@@ -81,7 +77,10 @@ class EmailType(TypeDecorator):
         super(EmailType, self).__init__(*args, **kwargs)
 
     def process_bind_param(self, value, dialect):
-        if value and not validate_email(value):
+        # install validate_email:
+        # from validate_email import validate_email
+        #if value and not validate_email(value):
+        if value and not "@" in value:
             raise ValidationError("Email Validation Error {}".format(value))
 
         return value
@@ -215,8 +214,11 @@ class SAFRSID:
     def sample_id(cls, obj):
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return 0
-
-        sample = obj.query.first()
+        sample = None
+        try:
+            sample = obj.query.first()
+        except Exception as exc:
+            pass
         if sample:
             return sample.jsonapi_id
 
