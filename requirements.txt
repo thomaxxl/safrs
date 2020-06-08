@@ -6,4 +6,3 @@ inflect==2.1.0
 jsonschema==3.0.1
 PyMySQL==0.9.3
 PyYAML==5.1
-validate-email==1.3
