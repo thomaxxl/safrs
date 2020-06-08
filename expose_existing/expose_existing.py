@@ -108,7 +108,7 @@ print(models)
 # Also, we can modify models.py in case things go awry
 #
 if args.models:
-    model_dir = os.path.basename(args.models)
+    model_dir = os.path.dirname(args.models)
     sys.path.insert(0, model_dir)
 else:
     with open(os.path.join(MODEL_DIR, "models.py"), "w+") as models_f:
