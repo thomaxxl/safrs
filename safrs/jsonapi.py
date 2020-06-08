@@ -716,7 +716,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # then it is a subclass of AppenderBaseQuery and
             # we should empty the relationship by setting it to []
             # otherwise it is an instance of InstrumentedList and we have to empty it
-            # ( we could loop all items but this is slower for large collections )
+            # (we could loop all items but this is slower for large collections)
             tmp_rel = []
             for child_data in data:
                 child = self._parse_target_data(child_data)
@@ -746,7 +746,6 @@ class SAFRSRestRelationshipAPI(Resource):
         # document MUST include a representation of the updated resource(s) as if a GET request was made to the request URL.
         # A server MUST return a 200 OK status code if an update is successful, the client’s current attributes remain up to date,
         # and the server responds only with top-level meta data. In this case the server MUST NOT include a representation of the updated resource(s).
-
         # 204 No Content
         # If an update is successful and the server doesn’t update any attributes besides those provided, the server MUST return
         # either a 200 OK status code and response document (as described above) or a 204 No Content status code with no response document.
@@ -1054,7 +1053,6 @@ class SAFRSRelationship:
         body = {}
         responses = {}
         object_name = cls.__name__
-
         object_model = {}
         responses = {HTTPStatus.OK.value: {"description": "{} object".format(object_name), "schema": object_model}}
 

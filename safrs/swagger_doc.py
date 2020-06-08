@@ -30,6 +30,10 @@ debug_responses = {
     HTTPStatus.INTERNAL_SERVER_ERROR.value: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.description},
 }
 
+# List to generate the swagger references / definitions unique name
+Schema._reference_count = []
+Schema._references = {}
+
 
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
 def parse_object_doc(object):
@@ -139,11 +143,6 @@ def SchemaClassFactory(name, properties):
     new_schema_cls = type(name, (Schema,), {"__init__": __init__, "properties": properties})
     Schema._references[name] = new_schema_cls
     return new_schema_cls
-
-
-# List to generate the swagger references / definitions unique name
-Schema._reference_count = []
-Schema._references = {}
 
 
 def encode_schema(obj):
