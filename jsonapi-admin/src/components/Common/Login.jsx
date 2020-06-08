@@ -16,7 +16,7 @@ class LoginModal extends React.Component {
 
     this.state = {
       modal: props.logged_in,
-      username : username ? username : 'admin',
+      username : username ? username : 'automat',
       password : '',
       token : token
     };
@@ -52,7 +52,7 @@ class LoginModal extends React.Component {
 
   logout(){
       // authenticate in common.jsx
-      Config.authenticate(api_config.baseUrl) // call without args to logoff
+      Config.authenticate(api_config.baseUrl, null) // call without args to logoff
       document.location.href = Config.logout_url
   }
 
@@ -79,7 +79,6 @@ class LoginModal extends React.Component {
     const cookies = new Cookies()
     var username = cookies.get('username')
 
-    
     var link
     var isOpen = false
     if(this.logged_in()){
@@ -89,7 +88,6 @@ class LoginModal extends React.Component {
         link = <span id="login" onClick={this.toggle}>{this.props.logged_in ? 'Logout' : 'Login' }</span>
         isOpen = true
     }
-    isOpen = false
 
     const login_background = isOpen? <div id="login_background" /> : <div/>
     const externalCloseBtn = <button className="close" style={{ position: 'absolute', top: '15px', right: '15px' }} onClick={this.toggle}>&times;</button>;

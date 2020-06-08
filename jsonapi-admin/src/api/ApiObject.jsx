@@ -10,9 +10,35 @@ import * as SpinnerAction from '../action/SpinnerAction'
 import toastr from 'toastr'
 import configureStore from '../configureStore';
 
+
+function getObjectFromStore(objectKey, item_id){
+	/*
+		retrieve an item with type objectKey from the jsonapi redux store
+		This should only be called if you're sure the item is in the store
+	*/
+	
+	const store = configureStore()
+	const store_objects = store.getState()['object']
+ 	if(!store_objects || ! store_objects[objectKey]){
+ 		return null
+ 	}
+ 	const items = store_objects[objectKey].data
+ 	const result = items.find((item) => item.id === item_id)
+
+ 	if(!result){
+ 		console.warn(`${objectKey} with id ${item_id} not found `)
+ 	}
+ 	return result
+}
+
 class ApiObject extends React.Component {
 	/*
 		API Object Superclass
+
+		This type of objects retreives api data from the jsonapi backend for a single instance
+		we use getSingleAction to do so when the component mounts
+
+		other actions to modify the instance are also implemented (save changes, update relationships etc)
 	*/
 
 	constructor(props){
@@ -34,7 +60,7 @@ class ApiObject extends React.Component {
 		const objectKey = this.props.objectKey
 		
 		if(!store_objects[objectKey]){
-			console.warn('No objects for '+objectKey)
+			console.warn('No objects for ' + objectKey)
 			return
 		}
 
@@ -46,18 +72,28 @@ class ApiObject extends React.Component {
 			}
 		}
 
-		//this.props.spinnerAction.getSpinnerStart()
-		this.props.action.getSingleAction(objectKey, item_id, api_params)
-			.catch((error) => toastr.error(error))
-			.then(() => {
-				const item = this.props.api_data[objectKey].data.find(analysis => analysis.id == item_id)
-				this.loadItem(item)
-				//this.props.spinnerAction.getSpinnerEnd()
-			})
+		if(this.props.modalview){
+			// a modal is open.. do nothing
+			return
+		}
+
+		api_params['fast'] = true // sent to the backend to indicate we need fast (partial) data
+		setTimeout(() => 
+			this.props.action.getSingleAction(objectKey, item_id, api_params)
+				.catch((error) => toastr.error(error))
+				.then(() => {
+					const item = this.props.api_data[objectKey].data.find(analysis => analysis.id == item_id)
+					this.loadItem(item)
+				}),
+			2000 + Math.random() * 1000 // random delay so not everything is loaded at once
+			)
+		
 	}
 
 	componentWillUnmount() {
-		// Prevent state changes in the action promise of componentWillMount when the component is no longer mounted
+		/*
+			Prevent state changes in the action promise of componentWillMount when the component is no longer mounted
+		*/
     	this._isMounted = false
   	}
 
@@ -85,8 +121,6 @@ class ApiObject extends React.Component {
 							...item.attributes, 
 							...item.relationships})
 		}
-		//console.log(this.props)
-		//console.log(this.state)
   	}
 
   	handleSave(attributes, attr_name){
@@ -96,7 +130,10 @@ class ApiObject extends React.Component {
 
         return this.props.action.saveAction(...saveArgs).catch(error => {
                 toastr.error(error, '')
-            }).then( toastr.success('saved', ''))
+            })
+        	.then((e) => console.log(e))
+            .then(toastr.success('Saved', ''))
+
     }
 
     handleSaveRelationship(newValue, row, column){
@@ -105,12 +142,15 @@ class ApiObject extends React.Component {
         let relArgs = [ this.props.objectKey, row.id, rel_name, newValue, this.props.api_data[key].offset, this.props.api_data[key].limit ]
         this.props.action.updateRelationshipAction(...relArgs).catch(error => {
                 toastr.error(error, '')
-            }).then( toastr.success('saved', ''))
+            })
+        	.then((e) => console.log(e))
+        	.then( toastr.success('Saved', ''))
     }
 
 	render(){
+		const name = this.state.attributes && this.state.attributes.name ? this.state.attributes.name : "default api object"
 		// TO be overwritten by subclasses
-		return <div>Default API Object</div>
+		return <div>{name}</div>
 	}
 
 	getattr(attr_name){
@@ -131,7 +171,8 @@ function get_ApiObject(key, item_id, details) {
         inputflag: state.inputReducer,
         item_id: item_id,
         details: details,
-        name : ownProps.name
+        name : ownProps.name,
+  		modalview: state.modalReducer.showmodal
     })
     
     const mapDispatchToProps = dispatch => ({
@@ -182,5 +223,4 @@ function get_ApiComponent(key, item_id, details, ref){
 }
 
 
-
-export {get_ApiObject, ApiObject, get_ApiComponent}
+export {get_ApiObject, ApiObject, get_ApiComponent, getObjectFromStore}

@@ -13,6 +13,7 @@ import Cookies from 'universal-cookie'
 import toastr from 'toastr'
 import {
   Collapse,
+  Form,
   Navbar,
   NavbarToggler,
   NavbarBrand,
@@ -29,6 +30,96 @@ import {
 import { faList as faRefresh } from '@fortawesome/fontawesome-free-solid'
 import FontAwesomeIcon from '@fortawesome/react-fontawesome'
 import ReactTooltip from 'react-tooltip';
+import { Button, Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
+import  { useState } from 'react';
+
+
+function setSMBPass(smbpasswd){
+    
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+class Profile extends React.Component {
+
+    constructor(props){
+        super(props);
+        this.state = {modal: false, setModal: false}
+        this.toggle = this.toggle.bind(this)
+        this.setSMBPass = this.setSMBPass.bind(this)
+        this.textInput = React.createRef();
+        this.setPass = this.setPass.bind(this)
+    }
+  
+    //const [modal, setModal] = useState(false);
+    toggle(e){
+        this.setState({modal: !this.state.modal}); if(e){e.stopPropagation()}
+    }
+
+    setSMBPass(e){
+        let headers = api_config.configureHeaders();
+        headers['Accept'] = 'application/json';
+        headers['Content-Type'] = 'application/json';
+
+        fetch(api_config.baseUrl + '/smbpasswd', {
+            method: 'POST',
+            headers: headers,
+            credentials: 'same-origin',
+            body: JSON.stringify({smbpasswd: this.state.smbpass})
+        }).then(function(response) {
+            if (!response.ok) {
+                response.json().then(function(rsp_json) {
+                    toastr.error("Failed to change smb passwd: " + rsp_json.error)
+                });
+            }
+            else{
+                toastr.success("Changed Password")
+            }
+            
+        });
+    }
+
+    setPass(e){
+        console.log(e.target.value)
+        this.setState({smbpass:e.target.value})
+    }
+
+    render(){
+
+      return (
+        <div>
+          <span onClick={this.toggle}>Profile</span>
+          <Modal isOpen={this.state.modal} toggle={this.toggle}>
+            <ModalHeader toggle={this.toggle}>Profile</ModalHeader>
+            <ModalBody>
+                <Form>
+                    
+                    <dl>
+                        <dt>Username</dt>
+                        <dd>{ui_config.username}</dd>
+
+                        <dt>Role</dt>
+                        <dd>{ui_config.role}</dd>
+
+                        <dt>E-mail Address</dt>
+                        <dd>{ui_config.email}</dd>
+
+                        <dd><Input ref={this.textInput} type="password" onChange={this.setPass}/></dd>
+                    </dl>
+                </Form>
+
+            </ModalBody>
+            <ModalFooter>
+              <Button type="submit" color="primary" onClick={this.setSMBPass.bind(this)}>Save</Button>{' '}
+              <Button color="secondary" onClick={this.toggle}>Cancel</Button>
+            </ModalFooter>
+          </Modal>
+        </div>
+      );
+    }
+}
 
 class HeaderNavContainer extends React.Component {
   constructor(props) {
@@ -44,10 +135,18 @@ class HeaderNavContainer extends React.Component {
   }
 
   async preload(objectKey, spinner){
-    // Retrieve the data from the api
+    /*
+      Retrieve the data from the api
+    */
+
+    // don't preload if the 
+    const cookies = new Cookies();
+    if(! cookies.get('token') ){
+        return;
+    }
     let loading = this.state.loading
     console.log('preload', objectKey)
-    
+
     let config  = APP[objectKey]
     if(!config){
         console.warn(`no config for ${objectKey}`)
@@ -65,7 +164,7 @@ class HeaderNavContainer extends React.Component {
     
     let request_args = config.request_args ? config.request_args : {}
     let offset = config.offset ? config.offset : 0
-    let limit = config.limit ? config.limit : 50
+    let limit = config.limit || api_config.limit ? config.limit || api_config.limit: 25
     let getArgs = [ objectKey, offset, limit ]
     //let result = await this.props.action.getAction(...getArgs).then(console.log(`Loaded ${objectKey}`))
     let result = await this.props.action.getAction(...getArgs)
@@ -80,23 +179,26 @@ class HeaderNavContainer extends React.Component {
     }
   }
 
-  refresh_all(){
+  async refresh_all(){
     let current = Object.keys(APP).find((k) => APP[k].path == this.props.location.pathname)
     this.preload(current, true)
     let preload_list = Object.keys(APP).filter((k) => k != current)
-    for (let objectKey of preload_list){          
+    for (let objectKey of preload_list){
+        await sleep(100);
         this.preload(objectKey)
     }
   }
 
   componentDidMount(){
-    this.preload('Analyses', true)
+    
     if (this.props.location.pathname.indexOf('/index') > 0 ){
+        setTimeout(() => this.preload('Analyses', true), 3000)
         return
     }
+    setTimeout(() => this.preload('Analyses', true), 1000)
     // Refresh all the objects every 5 minutes
-    this.interval = setInterval(() => this.refresh_all(), 300000);
-    setInterval(() => document.location.reload(), 9000000);
+    this.interval = setInterval(() => this.refresh_all(), 1500000);
+    setInterval(() => document.location.reload(), 45000000);
     /*setTimeout(function () { 
       window.location.reload();
     }, 1200 * 1000);*/
@@ -124,12 +226,13 @@ class HeaderNavContainer extends React.Component {
     e.preventDefault();
   }
 
-  refresh(e){
+  async refresh(e){
     e.stopPropagation()
     let current = Object.keys(APP).find((k) => APP[k].path == this.props.location.pathname)
     this.preload(current, true)
     let preload_list = Object.keys(APP).filter((k) => k != current)
-    for (let objectKey of preload_list){          
+    for (let objectKey of preload_list){   
+        await sleep(1000);
         this.preload(objectKey)
     }
   }
@@ -144,7 +247,7 @@ class HeaderNavContainer extends React.Component {
                 </InputGroup>)
     if(this.props.inputflag.flag){
       INPUT =     (<InputGroup className="Left">
-                    <InputGroupAddon addonType="prepend">JSON:API URL</InputGroupAddon>
+                    <InputGroupAddon addonType="prepend">BACK-END-URL</InputGroupAddon>
                     <Input placeholder={this.props.inputflag.url === '' ? api_config.URL : this.props.inputflag.url} onChange={this.change_url.bind(this)}/>
                   </InputGroup>)
     }
@@ -155,12 +258,27 @@ class HeaderNavContainer extends React.Component {
 
     //const login = Param.enable_login ?  <Login logged_in={false}/> : 'Login'
     
-    let login = <Login logged_in={false}/>
-    //let login = 'Login'
+    let login = "Login"//<Login logged_in={false}/>
     const parent = this
+    const profile_link = <Profile/>
 
+    let admin_links = <DropdownItem>{profile_link} </DropdownItem>
+
+    if(ui_config.role == "admin"){
+        admin_links = [ <DropdownItem key="profile_link">
+                           {profile_link}
+                        </DropdownItem>,
+                        <DropdownItem key="admin_link">
+                            <a href={"/admin/"} target="_blank">Admin</a>
+                        </DropdownItem>,
+                        <DropdownItem key="api_link">
+                            <a href={"/api/"} target="_blank">API</a>
+                        </DropdownItem>]
+    }
+
+    
     return (
-     <div>
+     <div className="ja-headernav">
         <ReactTooltip id="headertt" />
         <Navbar color="faded" light expand="md" className="navbar-dark navbar-inverse bg-dark">
         <NavbarBrand replace tag={RRNavLink} to="/" >{navTitle}</NavbarBrand>
@@ -198,14 +316,7 @@ class HeaderNavContainer extends React.Component {
                   {/* <FontAwesomeIcon icon={faCog}></FontAwesomeIcon> */}
                 </DropdownToggle>
                 <DropdownMenu right>
-                  <DropdownItem>
-                     <a href={api_config.baseUrl + "/admin/"} target="_blank">Admin</a>
-                  </DropdownItem>
-                  <DropdownItem>
-                    <a href={api_config.baseUrl + "/api"} target="_blank">API</a>
-                  </DropdownItem>
-                  <DropdownItem divider />
-                   
+                    {admin_links}
                 </DropdownMenu>
               </UncontrolledDropdown>
             </Nav>
@@ -225,10 +336,12 @@ class HeaderNavContainer extends React.Component {
   }
 }
 
+
 const mapStateToProps = state => ({
   api_data: state.object,
   inputflag: state.inputReducer,
   spin: state.analyzeReducer.spinner,
+  modalview: state.modalReducer.showmodal
 })
 
 const mapDispatchToProps = dispatch => ({

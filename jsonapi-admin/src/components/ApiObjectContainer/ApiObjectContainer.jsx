@@ -115,6 +115,7 @@ class ApiObjectContainer extends React.Component {
             .catch(error => {
                 toastr.error('Failed to retrieve data from back-end. Verify your configuration.','', { timeOut: 0 });   
                 clearInterval(this.timer);
+		console.error(error)
                 //this.props.history.push('/');
             })
     }
@@ -178,7 +179,7 @@ class ApiObjectContainer extends React.Component {
         }
         
         const action = <Action key={action_name}
-                                onClick={()=>alert()}
+                               onClick={()=>alert()}
                                selectedIds={this.state.selectedIds}
                                objectKey={this.props.objectKey}
                                parent={this} />
@@ -192,9 +193,11 @@ class ApiObjectContainer extends React.Component {
             - set the search parameter in the redux store
             - refresh the api_objects
         */
+        if(this.props.spinnerAction){
+           this.props.spinnerAction.getSpinnerStart()
+        }
         this.props.api_data[this.props.objectKey].search = value
-        var key = this.props.objectKey
-        this.getAction()
+        this.getAction().then(()=>{if(this.props.spinnerAction){this.props.spinnerAction.getSpinnerEnd()}})
     }
 
     handleSave(column,dataField){
@@ -222,15 +225,17 @@ class ApiObjectContainer extends React.Component {
         let rel_name = column.relation_url
         let relArgs = [this.props.objectKey, row.id, rel_name, newValue, this.props.api_data[key].offset, this.props.api_data[key].limit]
         console.log('handleSaveRelationship', newValue)
-        this.props.action.updateRelationshipAction(...relArgs).catch(error => {
+        this.props.action.updateRelationshipAction(...relArgs)
+        .then((e) => console.log(e))
+        .catch(error => {
                 toastr.error(error, '', toasterPosition)
             })
-            .then(toastr.success('saved', '', toasterPosition))
+        .then(toastr.success('Saved', '', toasterPosition))
+
             //.then(this.getAction())
     }
 
     render() {
-        console.log(this.props)
         if(this.props.item.container){
             const Container = this.props.item.container
             return <Container data={this.props.api_data[this.props.objectKey]}

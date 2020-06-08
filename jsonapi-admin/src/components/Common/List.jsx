@@ -9,6 +9,15 @@ import cellEditFactory from 'react-bootstrap-table2-editor';
 import {connect} from 'react-redux'
 import {Config} from '../../Config.jsx'
 import filterFactory, { textFilter } from 'react-bootstrap-table2-filter';
+import {Input} from 'reactstrap';
+import {
+    faCheck,
+    faCheckSquare,
+    faSquare,
+    faMinusSquare
+} from '@fortawesome/free-regular-svg-icons';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
+
 
 // function resolveFormatter(value){
 //     return  Param.FormatterList[value.formatter]
@@ -180,7 +189,8 @@ class List extends React.Component {
 
         this.options = {
             sortIndicator: true,
-            noDataText: 'No data'
+            noDataText: 'No data',
+            bgColor: '#c1f291'
         };
 
         this.selectRowProp = {
@@ -220,13 +230,37 @@ class List extends React.Component {
     }
 
     render() {
+        const selectionRenderer = ({ mode, checked, disabled }) => {
+                    let icon = <FontAwesomeIcon icon={faSquare} />
+                    if(checked){
+                        icon = <FontAwesomeIcon icon={faCheckSquare} />
+                    }
+                    return <div className="ja-select">{icon}</div>
+                }
+
+        const selectionHeaderRenderer= ({ mode, checked, indeterminate }) => {
+            let icon = <FontAwesomeIcon icon={faSquare} />
+            if(indeterminate){
+                icon = <FontAwesomeIcon icon={faMinusSquare} />
+            }
+            if(checked){
+                icon = <FontAwesomeIcon icon={faCheckSquare} />
+            }
+            return <div className="ja-select">{icon}</div>
+        }
+
+
         const selectRow = {
             mode: 'checkbox',
             clickToSelect: false,
             style: { backgroundColor: '#c8e6c9' },
             onSelect: this.props.handleRowSelect,
             selected: this.props.selectedIds,
-            clickToEdit: true
+            clickToEdit: true,
+            selectionRenderer: selectionRenderer,
+            selectionHeaderRenderer: selectionHeaderRenderer,
+            selectColumnStyle: { backgroundColor: 'blue' },
+            headerColumnStyle: { backgroundColor: 'blue' }
         }
 
         const customTotal = (from, to, size) => (
@@ -234,10 +268,12 @@ class List extends React.Component {
             Showing { from } to { to+1 } of { size } Results
           </span>
         )
-
+        const limit = this.props.data.limit
+        const data = this.props.data.data.slice(0,limit)
+        
         const pager = paginationFactory({
             page: parseInt(this.props.data.offset/this.props.data.limit,10)+1,
-            sizePerPage: this.props.data.limit,
+            sizePerPage: limit,
             totalSize: this.props.data.count,
             paginationTotalRenderer : customTotal,
             showTotal : true,
@@ -252,12 +288,17 @@ class List extends React.Component {
                 this.props.onTableChange(page,sizePerPage);
               }*/
         })
-    
-        return <div>
+        
+        const rowClasses = (row, rowIndex) => {
+          return  rowIndex % 2 === 0 ? 't-row even-row' : 't-row  odd-row'
+        }
+
+        return <div className="ja-bootstrap-table">
                 <BootstrapTable
+                    rowClasses={rowClasses} 
                     keyField="id"
-                    data={ this.props.data.data }
-                    columns={ this.columns  }
+                    data={data}
+                    columns={this.columns}
                     cellEdit={ cellEditFactory({ mode: 'dbclick', afterSaveCell: this.afterSaveCell.bind(this), beforeSaveCell : this.beforeSaveCell.bind(this) }) }
                     pagination={ pager }
                     selectRow={ selectRow }

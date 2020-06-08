@@ -51,7 +51,7 @@
     "main_show":"name",
     "path": "/people",
     "API": "People",
-    "API_TYPE": "User",
+    "API_TYPE": "Person",
     "menu": "People",
     "Title": "People",
     "request_args" : { "include" : "books_read,books_written,reviews", "sort" : "name" }
@@ -126,7 +126,7 @@
         "sort": true
       },
       {
-        "text": "Person",
+        "text": "Reviewer",
         "dataField": "reader_id",
         "relation_url": "person",
         "type": "text",
@@ -156,7 +156,7 @@
     "API_TYPE": "Review",
     "menu": "Reviews",
     "Title": "Reviews",
-    "request_args" : { "include" : "person,book" }
+    "request_args" : { "include" : "reader,book" }
   },
   "Publishers":{
     "column": [

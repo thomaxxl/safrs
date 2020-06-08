@@ -6,7 +6,7 @@ import { APP, api_config } from '../Config.jsx';
 import { buildApi, get, post, patch, destroy } from 'redux-bees';
 import toastr from 'toastr'
 import Cookies from 'universal-cookie';
-import configureStore from '../configureStore';
+//import configureStore from '../configureStore';
 
 
 /*
@@ -64,7 +64,7 @@ let getInitialObject = () => {
     Object.keys(APP).map(function(key, index) {
         initObj[key] = {
             offset: 0,
-            limit: 25,
+            limit: api_config.limit || 25,
             data: [],
             count: 0,
             filter: {},
@@ -100,7 +100,7 @@ class ObjectApi{
         change_backend_url(localStorage.getItem('url'));
         let result = new Promise((resolve) => {
 
-            let request_args = Object.assign({key: APP[objectKey].API, id: dataId },
+            let request_args = Object.assign({key: APP[objectKey].API, id: dataId, single: true },
                                               APP[objectKey].request_args ? APP[objectKey].request_args : {} )
 
             if(requestArgs){
@@ -132,7 +132,15 @@ class ObjectApi{
         /*
             Retrieve all the items from the collection at the specified offset with the specified limit
         */
-        //console.log('getCollection', offset, limit)
+        console.log('getCollection', offset, limit)
+        if(offset === undefined){
+            // todo: get the current offset
+            offset = 0
+        }
+        if(limit === undefined){
+            // todo: get the current limit
+            limit = api_config.limit || 25
+        }
         change_backend_url(localStorage.getItem('url'));
         let result = new Promise ((resolve,reject)=>{
                 var search = api_objects[objectKey].search;
@@ -256,7 +264,14 @@ class ObjectApi{
                         }
                     }).catch((error) => { 
                         console.error(error)
-                        toastr.error('Failed to save data' + String(error))
+                        if(error.body && error.body.errors){
+                            console.log(error.body.errors)
+                            error = error.body.errors[0].detail
+                            toastr.error(String(error))
+                        }
+                        else{
+                            toastr.error('Failed to save data' + String(error))
+                        }
                     })
             }
         });
@@ -342,6 +357,8 @@ class ObjectApi{
                         "args": filter
                     }
                 }
+                console.log(APP)
+                console.log(objectKey)
                 let request_args = Object.assign({ key: APP[objectKey].API,
                                                     "page[offset]": offset,
                                                     "page[limit]": limit
@@ -368,7 +385,48 @@ class ObjectApi{
 }
 
 
+function type2route(type){
+    /*
+        the api data is stored in the redux store under their routes
+        here we convert the type to the appropriate route
+    */
+    for(let key of Object.keys(api_config.APP)){
+        if(api_config.APP[key].API_TYPE == type){
+            return type
+        }
+    }
+    // console.warn(`Invalid API object type ${type}: No Route, check Config.json`)
+}
 
+function type2route(type){
+    /*
+        the api data is stored in the redux store under their routes
+        here we convert the type to the appropriate route
+    */
+    for(let key of Object.keys(api_config.APP)){
+        if(api_config.APP[key].API_TYPE == type){
+            return key
+        }
+    }
+    // console.warn(`Invalid API object type ${type}: No Route, check Config.json`)
+}
+
+
+function add_to_store(item){
+    const route = type2route(item.type)
+    if(api_objects[route] === undefined){
+        console.warn(`Invalid route ${route} for ${route} (${item.type})`)
+        console.log(api_objects)
+        return
+    }
+    for(let stored_item of api_objects[route].data){
+        if(item.id == stored_item.id){
+            // item is already in the store
+            return
+        }
+    }
+    api_objects[route].data.push(item)
+}
 
 function mapIncludes(api_data){
     /*
@@ -422,6 +480,7 @@ function mapIncludes(api_data){
                     */ 
                     for(let related of relationship.data){
                         for(let included_item of included){
+                            add_to_store(included_item)
                             if(related.id === included_item.id){
                                 related['attributes'] = included_item.attributes
                             }
@@ -432,11 +491,12 @@ function mapIncludes(api_data){
                     // -to-one relationship
                     var related = relationship.data
                     for(let included_item of included){
-                            if(related.id === included_item.id){
-                                relationship.data['attributes'] = included_item.attributes
-                                //console.log('FOUND::',related['attributes'])
-                            }
+                        add_to_store(included_item)
+                        if(related.id === included_item.id){
+                            relationship.data['attributes'] = included_item.attributes
+                            //console.log('FOUND::',related['attributes'])
                         }
+                    }
                 }
                 // map the relationship items on the top level of item (e.g. user.relationships.books.data => user.books)
                 item[relationship_name] = relationship
@@ -446,6 +506,7 @@ function mapIncludes(api_data){
             item[attr] = val
         }
     }
+    console.log(api_objects)
     return api_data
 }
 
@@ -459,7 +520,7 @@ function jsonapi2bootstrap(jsonapi_data,objectKey){
         /* map the attributes inline :
             item = { id: .. , attributes : {...} } ==> item = { id: ... , attr1: ... , attr2: ... }
         */
-        let item_data = {route:objectKey, id : item.id, relationships: item.relationships, included: jsonapi_data.included, attributes: item.attributes}
+        let item_data = {route:objectKey, id : item.id, type: item.type, relationships: item.relationships, included: jsonapi_data.included, attributes: item.attributes}
         data.push(item_data)
     }
     jsonapi_data.data = data

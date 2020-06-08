@@ -4,11 +4,13 @@ import FontAwesomeIcon from '@fortawesome/react-fontawesome'
 // import toastr from 'toastr'
 import {APP} from '../../Config.jsx';
 import Select from 'react-select'
+import { Async } from 'react-select';
 import 'react-select/dist/react-select.css';
 import ObjectApi from '../../api/ObjectApi'
 import { connect } from 'react-redux'
 import { bindActionCreators } from 'redux'
 import * as ObjectAction from '../../action/ObjectAction'
+import { get_ApiObject, get_ApiComponent } from '../../api/ApiObject';
 
 function cellFormatter(cell, row) {
 
@@ -42,12 +44,19 @@ function cellFormatter(cell, row) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-function toOneFormatter(cell, row,col){
-	
+function type2collection(type){
+	for(let key of Object.keys(APP)){
+	        if(APP[key].API_TYPE == type){
+	            return key
+	        }
+	    }
+}
+
+function toOneFormatter_(cell, row, col){
 	let obj = ''
 	Object.keys(row).map(function(key, index) {
-		if(row[key] !== null && row[key]['data'] != null)
-			if(typeof (row[key]['data']) !== 'undefined')
+		if(row[key] !== null)
+			if(typeof (row[key]['data']) !== 'undefined' && row[key]['data'])
 				if(typeof (row[key]['data']['id']) !== 'undefined')
 					if(row[key]['data']['id'] === cell){
 						obj = key
@@ -58,9 +67,19 @@ function toOneFormatter(cell, row,col){
 	let data = ''
 	if(obj !== '') data = row[obj].data
 	let value = ''
-	if(data){
-		let objectKey = data.type
+	const type = row.type
 
+	if(data){
+		let objectKey
+		for(let key of Object.keys(APP)){
+	        if(APP[key].API_TYPE == type){
+	            objectKey = key
+	        }
+	    }
+	    if(!objectKey){
+	    	console.warn("Invalid type")
+	    	return <div/>
+	    }
 		var show = 0;
 		Object.keys(APP[objectKey]).map(function(key,index){
 			if(key === 'main_show') show = 1
@@ -71,7 +90,8 @@ function toOneFormatter(cell, row,col){
 	}
 	// let user = row.user ? row.user : ''
 	// let name = user ? user.attributes.name : ''
-	return <span className="editable">{value}</span>
+	
+	return <span className="editable">{value?value:cell}</span>
 }
 
 
@@ -83,9 +103,7 @@ class ItemLink extends React.Component {
 	*/
 	
 	render(){
-		let objectKey = this.props.item.type
-		console.log(this.props)
-		console.log(objectKey, APP)
+		let objectKey = type2collection(this.props.item.type)
 		let attr = APP[objectKey].main_show
 		return <span>{this.props.item.attributes[attr]}</span>
 	}
@@ -199,53 +217,68 @@ class ToManyRelationshipEditor extends React.Component {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-function getOptions(collection,data){
-	/*
+function getOptions(collection, data, queryArgs) {
+    /*
 		return an option list for the <Async> select filter
 	*/
-	if(!APP[collection]){
-		console.log('Invalid Collection')
-		return {}
-	}
-	let attr = APP[collection].main_show
+    if (!APP[collection]) {
+        console.log('Invalid Collection');
+        return {};
+    }
+    if(!queryArgs){
+        queryArgs = {}
+    }
+    let attr = APP[collection].main_show;
 
-	var label = attr // attribute to be used for the label
-	var offset = 0
-	var limit = 20
-		
-	var result 
-	if(Object.keys(data).length !== 0 && data[collection] !== undefined){
-	// if(!data){
-		result = (input,callback) => {
-			let options = data[collection].map(function(item){ return { value: item.id, label: item.attributes[label]} } )
+    var label = attr; // attribute to be used for the label
+    var offset = 0;
+    var limit = 8;
 
-	  		//options.unshift({ value: null , label : 'No parent', style: { fontStyle: 'italic' } })
-		    callback(null, {
-		      options: options,
-		      // CAREFUL! Only set this to true when there are no more options,
-		      // or more specific queries will not be sent to the server.
-		      complete: true
-		    });
-		}
-	}else{
-			result = (input, callback) => {
-			let api_endpoint = ObjectApi.search(collection, { "query" : `${input}` }, offset, limit)
-			api_endpoint.then((result) => {
-				let options = result[collection].data.map(function(item){ return { value: item.id, label: item.attributes[label]} } )
+    var result;
+    if (Object.keys(data).length !== 0 && data[collection] !== undefined) {
+        // if(!data){
+        result = (input, callback) => {
+            let options = data[collection].map(function(item) {
+                return { value: item.id, label: item.attributes[label] };
+            });
 
-				//options.unshift({ value: null , label : 'No parent', style: { fontStyle: 'italic' } })
-				callback(null, {
-				options: options,
-				// CAREFUL! Only set this to true when there are no more options,
-				// or more specific queries will not be sent to the server.
-				complete: true
-				});
-			}, 500);
-		}
-	}
+            //options.unshift({ value: null , label : 'No parent', style: { fontStyle: 'italic' } })
+            callback(null, {
+                options: options,
+                // CAREFUL! Only set this to true when there are no more options,
+                // or more specific queries will not be sent to the server.
+                complete: true
+            });
+        };
+    } else {
+        // SEARCH
+        result = (input, callback) => {
+            let api_endpoint = ObjectApi.search(
+                collection,
+                { query: `${input}` },
+                offset,
+                limit,
+                queryArgs
+            );
+            api_endpoint.then(result => {
+                let options = result[collection].data.map(function(item) {
+                    return { value: item.id, label: item.attributes[label] };
+                });
 
-	return result
+                //options.unshift({ value: null , label : 'No parent', style: { fontStyle: 'italic' } })
+                callback(null, {
+                    options: options,
+                    // CAREFUL! Only set this to true when there are no more options,
+                    // or more specific queries will not be sent to the server.
+                    complete: true
+                });
+            }, 500);
+        };
+    }
+
+    return result;
 }
+
 
 
 class toOneEditor extends React.Component {
@@ -277,12 +310,17 @@ class toOneEditor extends React.Component {
 				this.setState({value : selectedOption.value})
 
 				var sel_opt_rel_key = this.props.column.relationship
+				console.log(this.props.column)
+				console.log(this.props.select_option)
 				
 				for (let item of this.props.select_option[sel_opt_rel_key] || []) {
 					if (item.id === selectedOption.value) {
 						value = Object.assign({},{action_type:'one'}, {id:item.id}, {type:item.type}, {attributes:item.attributes})
 						break;
 					}
+				}
+				if(!value.type){
+					alert("Invalid type "+sel_opt_rel_key)
 				}
 			}
 			this.props.onUpdate(value)
@@ -298,14 +336,34 @@ class toOneEditor extends React.Component {
 		let key = this.props.column.relationship
 		var offset = 0
 		var limit = 20
-		if(this.props.select_option === undefined || this.props.select_option[key] === undefined){
+		/*if(this.props.select_option === undefined || this.props.select_option[key] === undefined){
 			this.props.action.updateSelectOptionAction(this.props.row.route, key,{ "query" : '' }, offset,limit)
 			.then(()=>{
 			})
-		}
+		}*/
 	}
 
+	addItem(item) {
+        // add(=> jsonapi patch) the case to the case/image relationship
+        /*
+         */
+         if(!item){
+            return;
+         }
+        const source_id = this.props.row.id;
+        const item_id = item.id;
+        const item_name = item.name;
+        const target = { id: item_id, type: 'Publishers' };
+        const rel_name = this.props.column.dataField;
+        let items = this.props.row[rel_name].data || [];
+        items.push(target);
+        this.props.onUpdate(items);
+        
+    }
+
  	render() {
+	 	return <div>todo</div>
+
 		let key = this.props.column.relationship || this.props.column.relationship_type
 		if(!key){
 			console.log(this.props.column)
@@ -313,27 +371,66 @@ class toOneEditor extends React.Component {
 			alert('no relationship key in config', this.props.column)
 			return <div/>
 		}
+		const rel_name = this.props.column.dataField;
+        if (!this.props.row || !this.props.row[rel_name]) {
+            console.log('rd:', rel_name, this.props.row);
+            return <div />;
+        }
+		const items = this.props.row[rel_name].data || [];
 	  	let options = getOptions(key,this.props.select_option)
-		
-	  	return <Select.Async
-					// name="parentName"
-				    // key="parent"
-				    value={this.state.value}
-				    // ref={ node => this.parent = node }
-					loadOptions={options}
-					// autoload
-				    // onUpdate={onUpdate}
-					onChange={this.onChange.bind(this)}
-				    // filterOptions={(options, filter, currentValues) => {return options;}}
-				    // { ...rest }
-				/>
+	  	const loadOptions = getOptions('Publishers', {});
+	  	const { value, onUpdate, ...rest } = this.props;
+		const async = (
+            <Async
+                name="caseName"
+                key="case"
+                value={value}
+                ref={node => (this.image_ref = node)}
+                loadOptions={loadOptions}
+                onUpdate={onUpdate}
+                onChange={this.addImage.bind(this)}
+                filterOptions={(options, filter, currentValues) => {
+                    return options;
+                }}
+                {...rest}
+            />
+        );
+	  	return (
+            <div>
+                {items.map(item => this.renderItem(item))}
+                {async}
+            </div>
+        );
 	  }
 }
 
-const mapStateToProps = (state,own_props) => { 
+
+function toOneFormatterFactory(collection){
+
+	function toOneFormatter(cell, row) {
+	    if (
+	        !row ||
+	        !row.included ||
+	        !row.relationships ||
+	        !row.relationships.reader ||
+	        !row.relationships.reader.data
+	    ) {
+	        console.warn(row)
+	        return <div >+</div>;
+	    }
+	    const reader = get_ApiComponent(collection, cell, "todo");
+	    return <div>{reader}</div>
+	}
+	return toOneFormatter
+}
+
+const reviewReaderFormatter = toOneFormatterFactory("People")
+
+
+const mapStateToProps = (state, own_props) => { 
 
 	let select_option;
-	if(own_props.row){
+	if(own_props.row && own_props.row.route){
 		select_option = state.object[own_props.row.route].select_option
 	}
 	else{
@@ -352,11 +449,11 @@ const connected_toOneEditor = connect(mapStateToProps, mapDispatchToProps)(toOne
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 let FormatterList = { cellFormatter : cellFormatter,
-					  toOneFormatter : toOneFormatter,
 					  toManyFormatter: toManyFormatter,
 					  toOneEditor: connected_toOneEditor,
 					  ToManyEditor: ToManyRelationshipEditor,
-					  ToManyRelationshipEditor: ToManyRelationshipEditor
+					  ToManyRelationshipEditor: ToManyRelationshipEditor,
+					  reviewReaderFormatter : reviewReaderFormatter,
 					}
 
-export {FormatterList}
+export {FormatterList, toOneFormatterFactory}

@@ -86,7 +86,7 @@ class CreateModal extends React.Component {
                     </ModalBody>
                     <ModalFooter>
                         <Button color="primary" onClick={this.create}>Create</Button>
-                        
+                        <Button color="secondary" onClick={this.toggle}>Cancel</Button>
                     </ModalFooter>
                 </Modal>
     }
