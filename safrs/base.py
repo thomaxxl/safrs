@@ -727,7 +727,7 @@ class SAFRSBase(Model):
         if included_list is None:
             # Multiple related resources can be requested in a comma-separated list
             included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
-            included_list = included_csv.split(",")
+            included_list = [inc for inc in included_csv.split(",") if inc]
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
         # In order to recursively request related resources
@@ -736,11 +736,10 @@ class SAFRSBase(Model):
         relationships = dict()
         for rel_name in included_rels:
             """
-                # https://jsonapi.org/format/#fetching-includes
                 If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
                 it MUST respond with 400 Bad Request.
             """
-            if rel_name and rel_name != get_config("INCLUDE_ALL") and rel_name not in self._s_relationship_names:
+            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationship_names:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
         for relationship in self._s_relationships:
             """
