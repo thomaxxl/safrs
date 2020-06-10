@@ -734,6 +734,14 @@ class SAFRSBase(Model):
         # a dot-separated path for each relationship name can be specified
         included_rels = {i.split(".")[0]: i for i in included_list}
         relationships = dict()
+        for rel_name in included_rels:
+            """
+                # https://jsonapi.org/format/#fetching-includes
+                If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
+                it MUST respond with 400 Bad Request.
+            """
+            if rel_name and rel_name != get_config("INCLUDE_ALL") and rel_name not in self._s_relationship_names:
+                raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
         for relationship in self._s_relationships:
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -759,11 +767,11 @@ class SAFRSBase(Model):
             """
             meta = {}
             rel_name = relationship.key
+            data = None
             if rel_name in excluded_list:
                 # TODO: document this
                 # continue
                 pass
-            data = None
             if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
                 # the relationship instances should be included
                 included_rel = included_rels.get(rel_name)
