@@ -141,7 +141,8 @@ class SAFRSBase(Model):
 
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
-
+    supports_includes = True # Set to False if you don't want this class to return included items
+    
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
@@ -520,7 +521,6 @@ class SAFRSBase(Model):
             # i.e. where the "expose" attribute is set on the db.Column instance
             # and the "r" flag is in the permissions
             result = [c for c in result if cls._s_check_perm(c.name)]
-
         return result
 
     @hybrid_property
@@ -528,7 +528,7 @@ class SAFRSBase(Model):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)]
+        rels = [rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key) and self.supports_includes]
         return rels
 
     @hybrid_property
@@ -728,6 +728,7 @@ class SAFRSBase(Model):
             # Multiple related resources can be requested in a comma-separated list
             included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
             included_list = [inc for inc in included_csv.split(",") if inc]
+            
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
         # In order to recursively request related resources
@@ -741,6 +742,7 @@ class SAFRSBase(Model):
             """
             if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationship_names:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
+        
         for relationship in self._s_relationships:
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
