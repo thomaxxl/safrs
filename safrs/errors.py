@@ -23,7 +23,7 @@ class NotFoundError(Exception, DontWrapMixin):
     status_code = HTTPStatus.NOT_FOUND.value
     message = "NotFoundError "
 
-    def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value):
+    def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
         if safrs.log.getEffectiveLevel() <= logging.DEBUG:
@@ -41,7 +41,7 @@ class ValidationError(Exception, DontWrapMixin):
     status_code = HTTPStatus.BAD_REQUEST.value
     message = "Validation Error: "
 
-    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value):
+    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
         if safrs.log.getEffectiveLevel() <= logging.DEBUG:
@@ -59,7 +59,7 @@ class GenericError(Exception, DontWrapMixin):
     status_code = 403  # HTTPStatus.INTERNAL_SERVER_ERROR.value
     message = "Generic Error: "
 
-    def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value):
+    def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
         if is_debug():

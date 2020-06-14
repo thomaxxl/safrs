@@ -495,6 +495,7 @@ def http_method_decorator(fun):
             :param **kwargs:
             :return: result of the wrapped method
         """
+        safrs_exception = None
         try:
             if not request.is_jsonapi and fun.__name__ not in ["get"]:
                 # reuire jsonapi content type for requests to these routes
@@ -505,24 +506,28 @@ def http_method_decorator(fun):
 
         except (ValidationError, GenericError, NotFoundError) as exc:
             safrs.log.exception(exc)
-            status_code = getattr(exc, "status_code")
-            message = exc.message
-
-        except werkzeug.exceptions.NotFound:
+            safrs_exception = exc
+            
+        except werkzeug.exceptions.NotFound as exc:
             status_code = 404
-            message = "Not Found"
+            safrs_exception = exc
 
         except Exception as exc:
-            status_code = getattr(exc, "status_code", 500)
             safrs.log.exception(exc)
+            safrs_exception = exc
             if safrs.log.getEffectiveLevel() > logging.DEBUG:
-                message = "Logging Disabled"
+                safrs_exception.message = "Logging Disabled"
             else:
-                message = str(exc)
+                safrs_exception.message = str(exc)
 
+        status_code = getattr(safrs_exception, "status_code", 500)
+        api_code = getattr(safrs_exception, "api_code", status_code)
+        title = getattr(safrs_exception, "message", "")
+        detail = getattr(safrs_exception, "detail", title)
+    
         safrs.DB.session.rollback()
-        safrs.log.error(message)
-        errors = dict(detail=message)
+        safrs.log.error(detail)
+        errors = dict(title=title, detail=detail, code=api_code)
         abort(status_code, errors=[errors])
 
     return method_wrapper
