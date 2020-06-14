@@ -497,7 +497,7 @@ def http_method_decorator(fun):
         """
         safrs_exception = None
         try:
-            if not request.is_jsonapi and fun.__name__ not in ["get"]:
+            if not request.is_jsonapi and fun.__name__ not in ["get","head","options"]:
                 # reuire jsonapi content type for requests to these routes
                 raise GenericError("Unsupported Content-Type", 415)
             result = fun(*args, **kwargs)
