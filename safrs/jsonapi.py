@@ -45,6 +45,7 @@ class Resource(FRSResource):
     target = None
 
     def head(self, *args, **kwargs):
+        headers = {}
         headers["Allow"] = " ".join(self.SAFRSObject.http_methods)
         response = make_response()
         response.headers = headers
