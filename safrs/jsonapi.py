@@ -337,7 +337,7 @@ class SAFRSRestAPI(Resource):
                 if not isinstance(item, dict):
                     raise ValidationError("Invalid Data Object")
                 instance = self._patch_instance(item)
-            response = make_response(jsonify({}), HTTPStatus.OK)
+            response = make_response(jsonify({}), HTTPStatus.ACCEPTED)
 
         elif not data or not isinstance(data, dict):
             raise ValidationError("Invalid Data Object")
