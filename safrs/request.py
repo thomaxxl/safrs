@@ -34,6 +34,7 @@ class SAFRSRequest(Request):
     _extensions = set()
     filters = {}
     filter = ""  # filter is the custom filter, used as an argument by _s_filter
+    includes = []
     secure = True
 
     def __init__(self, *args, **kwargs):
@@ -115,3 +116,6 @@ class SAFRSRequest(Request):
             if fields_attr:
                 field_type = fields_attr.group(1)
                 self.fields[field_type] = val.split(",")
+
+            if arg == "include":
+                self.includes = val.split(',')

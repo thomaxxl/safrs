@@ -302,9 +302,9 @@ class SAFRSRestAPI(Resource):
             description: Update {class_name} attributes
             responses:
                 200 :
+                    description : Request fulfilled, document follows
+                202 :
                     description : Accepted
-                201 :
-                    description : Created
                 204 :
                     description : No Content
                 403:
@@ -314,6 +314,7 @@ class SAFRSRestAPI(Resource):
                 409 :
                     description : Conflict
             ---
+            https://jsonapi.org/format/#crud-updating-responses
             Update the object with the specified id
         """
         id = kwargs.get(self._s_object_id, None)
@@ -329,7 +330,7 @@ class SAFRSRestAPI(Resource):
                 if not isinstance(item, dict):
                     raise ValidationError("Invalid Data Object")
                 instance = self._patch_instance(item)
-            response = make_response(jsonify({}), HTTPStatus.CREATED)
+            response = make_response(jsonify({}), HTTPStatus.OK)
 
         elif not data or not isinstance(data, dict):
             raise ValidationError("Invalid Data Object")
@@ -341,7 +342,7 @@ class SAFRSRestAPI(Resource):
             obj_args = {instance._s_object_id: instance.jsonapi_id}
             # Retrieve the jsonapi encoded object and return it to the client
             obj_data = self.get(**obj_args)
-            response = make_response(obj_data, HTTPStatus.CREATED)
+            response = make_response(obj_data, HTTPStatus.OK)
             # Set the Location header to the newly created object
             response.headers["Location"] = url_for(self.endpoint, **obj_args)
 
@@ -650,8 +651,6 @@ class SAFRSRestRelationshipAPI(Resource):
             responses:
                 200 :
                     description : Accepted
-                201 :
-                    description: Created
                 204 :
                     description : No Content
                 403:

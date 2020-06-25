@@ -964,7 +964,7 @@ class SAFRSBase(Model):
         if http_method.upper() in cls.http_methods:
             responses = {HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description}}
 
-            if http_method in ("post", "patch"):
+            if http_method in ("post"):
                 responses = {HTTPStatus.CREATED.value: {"description": HTTPStatus.CREATED.description}}
 
         return body, responses
