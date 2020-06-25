@@ -44,6 +44,13 @@ class Resource(FRSResource):
     # relationship target in SAFRSRestRelationshipAPI, identical to self.SAFRSObject in SAFRSRestAPI
     target = None
 
+    def head(self, *args, **kwargs):
+        headers = {}
+        headers["Allow"] = " ".join(self.SAFRSObject.http_methods)
+        response = make_response()
+        response.headers = headers
+        return response
+
     def _parse_target_data(self, target_data):
         """
             Validate the jsonapi payload for patch requests (to self.target):
