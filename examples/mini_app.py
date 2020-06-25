@@ -4,7 +4,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from safrs import SAFRSBase, SAFRSAPI
-import datetime
 
 db = SQLAlchemy()
 

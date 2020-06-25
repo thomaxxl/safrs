@@ -116,7 +116,7 @@ class Book(BaseModel):
     publisher = db.relationship("Publisher", back_populates="books", cascade="save-update, delete")
     reviews = db.relationship("Review", backref="book", cascade="save-update, delete")
     published = db.Column(db.Time)
-
+    
 
 class Person(BaseModel):
     """
@@ -142,7 +142,7 @@ class Person(BaseModel):
     )
 
     # Following methods are exposed through the REST API
-    @jsonapi_rpc(http_methods=["POST"])
+    @jsonapi_rpc(http_methods=["POST"], valid_jsonapi=False)
     def send_mail(self, email):
         """
             description : Send an email
@@ -155,7 +155,7 @@ class Person(BaseModel):
         content = "Mail to {} : {}\n".format(self.name, email)
         with open("/tmp/mail.txt", "a+") as mailfile:
             mailfile.write(content)
-        return {"result": "sent {}".format(content)}
+        return {"output": "sent {}".format(content)}
 
     @classmethod
     @jsonapi_rpc(http_methods=["POST"])
@@ -175,7 +175,7 @@ class Person(BaseModel):
         data = [o1,o2]
         response = SAFRSFormattedResponse(data, {}, {}, {}, 1)
         return response
-        print(args, kwargs)
+        
         result = cls
         try:
             instances = result.query
