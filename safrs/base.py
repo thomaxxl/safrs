@@ -278,10 +278,11 @@ class SAFRSBase(Model):
         for attr_name, attr_val in attributes.items():
             if attr_name not in self.__class__._s_jsonapi_attrs:
                 continue
-            _ = self._s_parse_attr_value(attr_name, attr_val)
             # check if write permission is set
-            if self._s_check_perm(attr_name, "w"):
-                setattr(self, attr_name, attr_val)
+            if not self._s_check_perm(attr_name, "w"):
+                continue
+            attr_val = self._s_parse_attr_value(attr_name, attr_val)
+            setattr(self, attr_name, attr_val)
 
     def _s_clone(self, **kwargs):
         """
