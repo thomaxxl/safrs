@@ -142,8 +142,8 @@ class SAFRSBase(Model):
 
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
-    supports_includes = True # Set to False if you don't want this class to return included items
-    
+    supports_includes = True  # Set to False if you don't want this class to return included items
+
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
@@ -329,7 +329,7 @@ class SAFRSBase(Model):
             raise ValidationError("Not a column")
 
         return parse_attr(attr, attr_val)
-    
+
     def _s_expunge(self):
         """
             expunge an object from its session
@@ -663,7 +663,7 @@ class SAFRSBase(Model):
             # Multiple related resources can be requested in a comma-separated list
             included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
             included_list = [inc for inc in included_csv.split(",") if inc]
-            
+
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
         # In order to recursively request related resources
@@ -677,7 +677,7 @@ class SAFRSBase(Model):
             """
             if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationship_names:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
-        
+
         for relationship in self._s_relationships:
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -796,6 +796,7 @@ class SAFRSBase(Model):
         try:
             sample = cls.query.first()
         except Exception as exc:
+            safrs.log.debug(exc)
             pass
         if sample:
             try:

@@ -1,5 +1,4 @@
 # Some custom types for db columns and jsonapi id coding
-import sys
 import uuid
 import datetime
 import hashlib
@@ -80,7 +79,7 @@ class EmailType(TypeDecorator):
         # install validate_email:
         # from validate_email import validate_email
         # if value and not validate_email(value):
-        if value and not "@" in value:
+        if value and "@" not in value:
             raise ValidationError("Email Validation Error {}".format(value))
 
         return value
@@ -218,6 +217,7 @@ class SAFRSID:
         try:
             sample = obj.query.first()
         except Exception as exc:
+            safrs.log.debug(exc)
             pass
         if sample:
             return sample.jsonapi_id

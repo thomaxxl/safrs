@@ -2,10 +2,11 @@ import datetime
 import safrs
 import sqlalchemy
 
+
 def parse_attr(column, attr_val):
     """
         Parse the supplied `attr_val` so it can be saved in the SQLAlchemy `column`
-        
+
         :param attr: SQLAlchemy column
         :param attr_val: jsonapi attribute value
         :return: processed value

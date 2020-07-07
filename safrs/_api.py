@@ -497,7 +497,7 @@ def http_method_decorator(fun):
         """
         safrs_exception = None
         try:
-            if not request.is_jsonapi and fun.__name__ not in ["get","head","options"]:
+            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options"]:
                 # reuire jsonapi content type for requests to these routes
                 raise GenericError("Unsupported Content-Type", 415)
             result = fun(*args, **kwargs)
@@ -507,7 +507,7 @@ def http_method_decorator(fun):
         except (ValidationError, GenericError, NotFoundError) as exc:
             safrs.log.exception(exc)
             safrs_exception = exc
-            
+
         except werkzeug.exceptions.NotFound as exc:
             status_code = 404
             safrs_exception = exc
@@ -524,7 +524,7 @@ def http_method_decorator(fun):
         api_code = getattr(safrs_exception, "api_code", status_code)
         title = getattr(safrs_exception, "message", "")
         detail = getattr(safrs_exception, "detail", title)
-    
+
         safrs.DB.session.rollback()
         safrs.log.error(detail)
         errors = dict(title=title, detail=detail, code=api_code)

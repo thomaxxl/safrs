@@ -118,4 +118,4 @@ class SAFRSRequest(Request):
                 self.fields[field_type] = val.split(",")
 
             if arg == "include":
-                self.includes = val.split(',')
+                self.includes = val.split(",")
