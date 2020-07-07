@@ -24,6 +24,7 @@ from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
 from .config import get_config
+from .attr_parse import parse_attr
 
 #
 # Map SQLA types to swagger2 json types
@@ -327,75 +328,8 @@ class SAFRSBase(Model):
         if not isinstance(attr, Column):
             raise ValidationError("Not a column")
 
-        if attr_val is None and attr.default:
-            attr_val = attr.default.arg
-            return attr_val
-
-        if attr_val is None:
-            return attr_val
-
-        if getattr(attr, "python_type", None):
-            """
-                It's possible for a column to specify a custom python_type to use for deserialization
-            """
-            attr_val = attr.python_type(attr_val)
-
-        try:
-            attr.type.python_type
-        except NotImplementedError as exc:
-            """
-                This happens when a custom type has been implemented, in which case the user/dev should know how to handle it:
-                override this method and implement the parsing
-                https://docs.python.org/2/library/exceptions.html#exceptions.NotImplementedError :
-                In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
-                => simply return the attr_val for user-defined classes
-            """
-            safrs.log.debug(exc)
-            return attr_val
-
-        # skip type coercion on JSON columns, since they could be anything
-        if type(attr.type) is sqlalchemy.sql.sqltypes.JSON:
-            return attr_val
-
-        """
-            Parse datetime and date values for some common representations
-            If another format is used, the user should create a custom column type or custom serialization
-        """
-        if attr_val and attr.type.python_type == datetime.datetime:
-            date_str = str(attr_val)
-            try:
-                if "." in date_str:
-                    # str(datetime.datetime.now()) => "%Y-%m-%d %H:%M:%S.%f"
-                    attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
-                else:
-                    # JS datepicker format
-                    attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except (NotImplementedError, ValueError) as exc:
-                safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
-                attr_val = datetime.datetime.now()
-        elif attr_val and attr.type.python_type == datetime.date:
-            try:
-                attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
-            except (NotImplementedError, ValueError) as exc:
-                safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
-                attr_val = datetime.datetime.now()
-        elif attr_val and attr.type.python_type == datetime.time:  # pragma: no cover (todo)
-            try:
-                date_str = str(attr_val)
-                if "." in date_str:
-                    # str(datetime.datetime.now()) => "%H:%M:%S.%f"
-                    attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S.%f").time()
-                else:
-                    # JS datepicker format
-                    attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S").time()
-            except (NotImplementedError, ValueError, TypeError) as exc:
-                safrs.log.warning('Invalid datetime.time {} for value "{}"'.format(exc, attr_val))
-                attr_val = attr.type.python_type()
-        else:
-            attr_val = attr.type.python_type(attr_val)
-
-        return attr_val
-
+        return parse_attr(attr, attr_val)
+    
     def _s_expunge(self):
         """
             expunge an object from its session
