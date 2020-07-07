@@ -3,6 +3,7 @@
 # A lot of dirty things going on here because we have to handle all sorts of edge cases
 #
 import sys, logging, inspect, builtins, os, argparse, tempfile, atexit, shutil, io
+import safrs
 from sqlalchemy import CHAR, Column, DateTime, Float, ForeignKey, Index, Integer, String, TIMESTAMP, Table, Text, UniqueConstraint, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.orm import relationship
@@ -44,6 +45,7 @@ def get_args():
     parser.add_argument("--noinflect", action="store_true", help="don't try to convert tables names to singular form")
     parser.add_argument("--noclasses", action="store_true", help="don't generate classes, only tables")
     parser.add_argument("--outfile", help="file to write output to (default: stdout)")
+    parser.add_argument("--maxpagelimit", default=250, type=int, help="maximum number of returned objects per page (default: 250)")
     args = parser.parse_args()
 
     if args.version:
@@ -96,6 +98,11 @@ def codegen(args):
 args = get_args()
 app = Flask("DB App")
 CORS(app, origins=["*"])
+
+app.config.update(
+    SQLALCHEMY_TRACK_MODIFICATIONS=0,
+    MAX_PAGE_LIMIT=args.maxpagelimit
+)
 
 app.config.update(SQLALCHEMY_DATABASE_URI=args.url, DEBUG=True, JSON_AS_ASCII=False)
 SAFRSBase.db_commit = False
