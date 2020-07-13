@@ -245,7 +245,7 @@ class SAFRSRestAPI(Resource):
 
     def get(self, **kwargs):
         """
-            summary : Retrieve a {class_name} object
+            summary : Retrieve {class_name} instance
             description : Retrieve {class_name} from {collection_name}
             responses :
                 200 :
