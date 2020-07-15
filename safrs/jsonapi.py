@@ -527,8 +527,8 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         instance = self.SAFRSObject.get_instance(id)
-        safrs.DB.session.delete(instance)
-
+        instance._s_delete()
+        
         return {}, HTTPStatus.NO_CONTENT
 
 
