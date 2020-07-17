@@ -216,6 +216,15 @@ class SAFRSBase(Model):
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
 
+    def __setattr__(self, attr_name, attr_val):
+        """
+            setattr behaves differently for `jsonapi_attr` decorated attributes
+        """
+        if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
+            getattr(self.__class__, attr_name).setter(attr_val)
+        else:
+            super().__setattr__(attr_name, attr_val)
+
     @classmethod
     def _s_post(cls, **attributes):
         """
@@ -262,18 +271,9 @@ class SAFRSBase(Model):
 
         return instance
 
-    def __setattr__(self, attr_name, attr_val):
-        """
-            setattr behaves differently for `jsonapi_attr` decorated attributes
-        """
-        if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
-            getattr(self.__class__, attr_name).setter(attr_val)
-        else:
-            super().__setattr__(attr_name, attr_val)
-
     def _s_patch(self, **attributes):
         """
-            update the object attributes
+            Update the object attributes
             :param **attributes:
         """
         for attr_name, attr_val in attributes.items():
@@ -284,6 +284,12 @@ class SAFRSBase(Model):
                 continue
             attr_val = self._s_parse_attr_value(attr_name, attr_val)
             setattr(self, attr_name, attr_val)
+
+    def _s_delete(self):
+        """
+           Delete the instance from the database
+        """
+        safrs.DB.session.delete(self)
 
     def _s_clone(self, **kwargs):
         """
