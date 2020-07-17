@@ -155,8 +155,9 @@ class Test(SAFRSBase):
     def _s_jsonapi_attrs(cls):
         """
             return the attribute names used to generate the swagger
+            in SAFRSbase the model columns are returned
         """
-        return ["id", "name", "my_custom_field"]
+        return {"id": None, "name": None, "my_custom_field": None}
 
     @classproperty
     def _s_url(self):
@@ -180,12 +181,19 @@ class Test(SAFRSBase):
 
 TestBookRelationship.parent = Test
 
+HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
+PORT = 5000
+app = Flask("SAFRS Demo Application")
+app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)
+
+from flask import jsonify
+@app.route('/tt')
+def test():
+    data = [ {k:v} for k,v in zip(["key1","key2"],["a","b"]) ]
+    return jsonify({"data" : data})
+
 
 if __name__ == "__main__":
-    HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
-    PORT = 5000
-    app = Flask("SAFRS Demo Application")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)
     db.init_app(app)
     db.app = app
     # Create the database
