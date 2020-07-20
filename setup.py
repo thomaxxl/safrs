@@ -8,7 +8,7 @@ from distutils.core import setup
 with open("requirements.txt", "rt") as fp:
     install_requires = fp.read().strip().split("\n")
 
-version = "2.9.0"
+version = "2.9.1"
 
 setup( # pragma: no cover
     name="safrs",
