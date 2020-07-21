@@ -19,12 +19,13 @@ from sqlalchemy.sql.schema import Column
 
 # safrs dependencies:
 import safrs
-from .swagger_doc import get_doc, parse_object_doc
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
 from .config import get_config
 from .attr_parse import parse_attr
+from .jsonapi_attr import jsonapi_attr, is_jsonapi_attr
+from .swagger_doc import get_doc
 
 #
 # Map SQLA types to swagger2 json types
@@ -67,58 +68,6 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 # casting of swagger types to python types
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
-JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
-
-
-class jsonapi_attr(hybrid_property):
-    """
-       hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy
-    """
-
-    def __init__(self, *args, **kwargs):
-        """
-            :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
-            :return: jsonapi attribute decorator
-
-            set `swagger_type` and `default` to customize the swagger
-        """
-        if args:
-            # called when the app starts
-            attr = args[0]
-            setattr(self, JSONAPI_ATTR_TAG, True)
-            obj_doc = parse_object_doc(attr)
-            if isinstance(obj_doc, dict):
-                for k, v in obj_doc.items():
-                    setattr(self, k, v)
-        else:
-            # the "default" kwarg may have been added by the obj_doc but we no longer
-            # need it (and it causes an exception)
-            kwargs.pop("default", None)
-        super().__init__(*args, **kwargs)
-
-    def getter(self, fget):
-        """
-            Provide a decorator that defines a getter method.
-        """
-
-        return self._copy(fget=fget)
-
-    def setter(self, fset):
-        """
-            Provide a decorator that defines a setter method.
-        """
-
-        return self._copy(fset=fset)
-
-
-def is_jsonapi_attr(attr):
-    """
-        :param attr: `SAFRSBase` `jsonapi_attr` decorated attribute
-        :return: boolean
-    """
-    return getattr(attr, JSONAPI_ATTR_TAG, False) is True
-
-
 #
 # SAFRSBase superclass
 #
@@ -147,7 +96,6 @@ class SAFRSBase(Model):
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
-
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
 
     def __new__(cls, *args, **kwargs):
@@ -291,23 +239,6 @@ class SAFRSBase(Model):
         """
         safrs.DB.session.delete(self)
 
-    def _s_clone(self, **kwargs):
-        """
-            Clone an object: copy the parameters and create a new id
-            :param *kwargs: TBD
-        """
-        make_transient(self)
-        # pylint: disable=attribute-defined-outside-init
-        self.id = self.id_type()
-        for parameter in self._s_jsonapi_attrs:
-            value = kwargs.get(parameter, None)
-            if value is not None:
-                setattr(self, parameter, value)
-        safrs.DB.session.add(self)
-        if self._s_auto_commit:
-            safrs.DB.session.commit()
-        return self
-
     def _s_parse_attr_value(self, attr_name, attr_val):
         """
             Parse the given jsonapi attribute value so it can be stored in the db
@@ -335,109 +266,6 @@ class SAFRSBase(Model):
             raise ValidationError("Not a column")
 
         return parse_attr(attr, attr_val)
-
-    def _s_expunge(self):
-        """
-            expunge an object from its session
-        """
-        session = sqla_inspect(self).session
-        session.expunge(self)
-
-    @classproperty
-    def _s_auto_commit(self):
-        """
-            :return: whether the instance should be automatically commited.
-            :rtype: boolen
-            fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
-        """
-        return self.db_commit
-
-    @_s_auto_commit.setter
-    def _s_auto_commit(self, value):
-        """
-            :param value:
-            auto_commit setter
-        """
-        self.db_commit = value
-
-    @classmethod
-    def get_instance(cls, item=None, failsafe=False):
-        """
-            :param item: instance id or dict { "id" : .. "type" : ..}
-            :param failsafe: indicates whether we want an exception to be raised in case the id is not found
-            :return: Instance or None. An error is raised if an invalid id is used
-        """
-        instance = None
-        # pylint: disable=invalid-name,redefined-builtin
-        if isinstance(item, dict):
-            id = item.get("id", None)
-            if id is None:
-                raise ValidationError("Invalid id")
-            if item.get("type") != cls._s_type:
-                raise ValidationError("Invalid item type")
-        else:
-            id = item
-        try:
-            primary_keys = cls.id_type.get_pks(id)
-        except AttributeError:  # pragma: no cover
-            # This happens when we request a sample from a class that is not yet loaded
-            # when we're creating the swagger models
-            safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
-            return instance  # instance is None!
-
-        if id is not None or not failsafe:
-            try:
-                instance = cls._s_query.filter_by(**primary_keys).first()
-            except Exception as exc:  # pragma: no cover
-                raise GenericError("get_instance : {}".format(exc))
-
-            if not instance and not failsafe:
-                raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
-        return instance
-
-    @classmethod
-    def _s_get_instance_by_id(cls, id):
-        """
-            :param id: jsonapi_id
-            :return: query obj
-        """
-        primary_keys = cls.id_type.get_pks(id)
-        return cls._s_query.filter_by(**primary_keys)
-
-    @property
-    def jsonapi_id(self):
-        """
-            :return: json:api id
-            :rtype: str
-
-            if the table/object has a single primary key "id", it will return this id.
-            In the other cases, the jsonapi "id" will be generated by the cls.id_type (typically by combining the PKs)
-
-            The id has to be of type string according to the jsonapi json validation schema
-        """
-        return str(self.id_type.get_id(self))
-
-    @hybrid_property
-    def id_type(obj):
-        """
-            :return: the object's id type
-        """
-        id_type = get_id_type(obj)
-        # monkey patch so we don't have to look it up next time
-        obj.id_type = id_type
-        return id_type
-
-    @classproperty
-    def _s_query(cls):
-        """
-            :return: sqla query object
-        """
-        _table = getattr(cls, "_table", None)
-        if _table:
-            return safrs.DB.session.query(_table)
-        return safrs.DB.session.query(cls)
-
-    query = _s_query
 
     @classproperty
     def _s_column_names(cls):
@@ -551,14 +379,132 @@ class SAFRSBase(Model):
 
         return result
 
+    def _s_expunge(self):
+        """
+            expunge an object from its session
+        """
+        session = sqla_inspect(self).session
+        session.expunge(self)
+
+    @classproperty
+    def _s_auto_commit(self):
+        """
+            :return: whether the instance should be automatically commited.
+            :rtype: boolen
+            fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
+        """
+        return self.db_commit
+
+    @_s_auto_commit.setter
+    def _s_auto_commit(self, value):
+        """
+            :param value:
+            auto_commit setter
+        """
+        self.db_commit = value
+
+    def _s_clone(self, **kwargs):
+        """
+            Clone an object: copy the parameters and create a new id
+            :param *kwargs: TBD
+        """
+        make_transient(self)
+        # pylint: disable=attribute-defined-outside-init
+        self.id = self.id_type()
+        for parameter in self._s_jsonapi_attrs:
+            value = kwargs.get(parameter, None)
+            if value is not None:
+                setattr(self, parameter, value)
+        safrs.DB.session.add(self)
+        if self._s_auto_commit:
+            safrs.DB.session.commit()
+        return self
+
+    @classmethod
+    def get_instance(cls, item=None, failsafe=False):
+        """
+            :param item: instance id or dict { "id" : .. "type" : ..}
+            :param failsafe: indicates whether we want an exception to be raised in case the id is not found
+            :return: Instance or None. An error is raised if an invalid id is used
+        """
+        instance = None
+        # pylint: disable=invalid-name,redefined-builtin
+        if isinstance(item, dict):
+            id = item.get("id", None)
+            if id is None:
+                raise ValidationError("Invalid id")
+            if item.get("type") != cls._s_type:
+                raise ValidationError("Invalid item type")
+        else:
+            id = item
+        try:
+            primary_keys = cls.id_type.get_pks(id)
+        except AttributeError:  # pragma: no cover
+            # This happens when we request a sample from a class that is not yet loaded
+            # when we're creating the swagger models
+            safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
+            return instance  # instance is None!
+
+        if id is not None or not failsafe:
+            try:
+                instance = cls._s_query.filter_by(**primary_keys).first()
+            except Exception as exc:  # pragma: no cover
+                raise GenericError("get_instance : {}".format(exc))
+
+            if not instance and not failsafe:
+                raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
+        return instance
+
+    @classmethod
+    def _s_get_instance_by_id(cls, id):
+        """
+            :param id: jsonapi_id
+            :return: query obj
+        """
+        primary_keys = cls.id_type.get_pks(id)
+        return cls._s_query.filter_by(**primary_keys)
+
+    @property
+    def jsonapi_id(self):
+        """
+            :return: json:api id
+            :rtype: str
+
+            if the table/object has a single primary key "id", it will return this id.
+            In the other cases, the jsonapi "id" will be generated by the cls.id_type (typically by combining the PKs)
+
+            The id has to be of type string according to the jsonapi json validation schema
+        """
+        return str(self.id_type.get_id(self))
+
+    @hybrid_property
+    def id_type(obj):
+        """
+            :return: the object's id type
+        """
+        id_type = get_id_type(obj)
+        # monkey patch so we don't have to look it up next time
+        obj.id_type = id_type
+        return id_type
+
+    @classproperty
+    def _s_query(cls):
+        """
+            :return: sqla query object
+        """
+        _table = getattr(cls, "_table", None)
+        if _table:
+            return safrs.DB.session.query(_table)
+        return safrs.DB.session.query(cls)
+
+    query = _s_query
+
     def to_dict(self, *args, **kwargs):
         """
             Create a dictionary with all the instance "attributes"
             this method will be called by SAFRSJSONEncoder to serialize objects
 
-            :return: dictionary object
-            ---
-            This method is deprecated, use _s_jsonapi_attrs
+            :return: dictionary with jsonapi attributes
         """
         return self._s_jsonapi_attrs
 
