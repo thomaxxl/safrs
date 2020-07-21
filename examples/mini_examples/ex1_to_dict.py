@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# 
+#
 # `to_dict` example
 #
 from flask import Flask
@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from safrs import SAFRSBase, SAFRSAPI
 
 db = SQLAlchemy()
+
 
 class User(SAFRSBase, db.Model):
     """
@@ -17,11 +18,11 @@ class User(SAFRSBase, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     email = db.Column(db.String)
-    
+
     def to_dict(self):
         result = super().to_dict()
-        result['some_value'] = 2
-        return result
+        result[1] = 2
+        return {1: 2}
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):

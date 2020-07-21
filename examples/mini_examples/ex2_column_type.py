@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# 
+#
 # `to_dict` example
 #
 from flask import Flask
@@ -8,6 +8,7 @@ from safrs import SAFRSBase, SAFRSAPI, ValidationError
 from sqlalchemy.types import TypeDecorator
 
 db = SQLAlchemy()
+
 
 class EmailType(TypeDecorator):
     """
@@ -36,7 +37,8 @@ class User(SAFRSBase, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     email = db.Column(EmailType)
-    
+
+
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
