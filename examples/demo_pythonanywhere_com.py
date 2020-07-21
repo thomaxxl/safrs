@@ -24,12 +24,8 @@ import hashlib
 from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-
-try:
-    from flask_admin import Admin
-    from flask_admin.contrib import sqla
-except Exception as exc:
-    print(f"flask-admin import failed {exc}")
+from flask_admin import Admin
+from flask_admin.contrib import sqla
 from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate
