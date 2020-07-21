@@ -7,7 +7,8 @@ from .safrs_api import DB, log, SAFRSAPI, SAFRS, dict_merge, test_decorator, SAF
 from .errors import ValidationError, GenericError, UnAuthorizedError, NotFoundError
 from .json_encoder import SAFRSJSONEncoder
 from ._api import Api, SAFRSRestAPI
-from .base import SAFRSBase, jsonapi_attr
+from .base import SAFRSBase
+from .jsonapi_attr import jsonapi_attr
 from .jsonapi import jsonapi_format_response, SAFRSFormattedResponse, paginate
 from .api_methods import search, startswith
 from .swagger_doc import jsonapi_rpc
