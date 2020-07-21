@@ -25,7 +25,7 @@ from .util import classproperty
 from .config import get_config
 from .jsonapi_filters import jsonapi_filter
 from .attr_parse import parse_attr
-from .jsonapi_attr import jsonapi_attr, is_jsonapi_attr
+from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
 
 #
@@ -69,6 +69,8 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 # casting of swagger types to python types
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
+
+
 #
 # SAFRSBase superclass
 #
@@ -635,7 +637,7 @@ class SAFRSBase(Model):
             """
             if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationship_names:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
-        
+
         for relationship in self._s_relationships:
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -944,8 +946,7 @@ class SAFRSBase(Model):
         safrs.log.info("_s_filter args: {}".format(filter_args))
         safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
         return cls._s_query
-    
-    
+
 
 class Included:
     """

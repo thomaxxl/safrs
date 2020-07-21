@@ -8,6 +8,7 @@ from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_sort
 from .swagger_doc import jsonapi_rpc
 from .errors import GenericError, ValidationError
 
+
 @jsonapi_rpc(http_methods=["POST"])
 def duplicate(self):
     """
@@ -25,7 +26,7 @@ def duplicate(self):
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def lookup_re_mysql(cls, **kwargs): # pragma: no cover
+def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
     """
         pageable: True
         description : Regex search all matching objects (works only in MySQL!!!)
@@ -47,7 +48,7 @@ def lookup_re_mysql(cls, **kwargs): # pragma: no cover
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def startswith(cls, **kwargs): # pragma: no cover
+def startswith(cls, **kwargs):  # pragma: no cover
     """
         pageable: True
         summary : lookup items where specified attributes starts with the argument string
@@ -85,7 +86,7 @@ def startswith(cls, **kwargs): # pragma: no cover
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def search(cls, **kwargs): # pragma: no cover
+def search(cls, **kwargs):  # pragma: no cover
     """
         pageable: True
         description : lookup column names
@@ -109,7 +110,7 @@ def search(cls, **kwargs): # pragma: no cover
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def re_search(cls, **kwargs): # pragma: no cover
+def re_search(cls, **kwargs):  # pragma: no cover
     """
         pageable: True
         description : lookup column names
