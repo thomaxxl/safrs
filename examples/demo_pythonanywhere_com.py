@@ -269,7 +269,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         NR_INSTANCES = 200
         for i in range(NR_INSTANCES):
             reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
-            author = Person(name="Author " + str(i), email="author@email" + str(i))
+            author = Person(name="Author " + str(i), email="author@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
             book = Book(title="book_title" + str(i))
             review = Review(reader_id=reader.id, book_id=book.id, review="review " + str(i))
             publisher = Publisher(name="publisher" + str(i))
