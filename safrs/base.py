@@ -132,23 +132,25 @@ class SAFRSBase(Model):
         # kwargs dictionary (from json in case of a web request).
         # Retrieve the values from each attribute (== class table column)
         db_args = {}
-        for column_name in self._s_column_names:
-            if column_name in kwargs:
-                attr_val = self._s_parse_attr_value(column_name, kwargs.get(column_name))
-                db_args[column_name] = attr_val
-
-        # Add the related instances
-        for rel_name in self._s_relationship_names:
-            if rel_name in kwargs:
-                rel_attr = kwargs.get(rel_name)
-                db_args[rel_name] = rel_attr
+        for name, val in kwargs.items():
+            if name in self._s_column_names:
+                # Set columns
+                attr_val = self._s_parse_attr_value(name, val)
+                db_args[name] = attr_val
+            elif is_jsonapi_attr(getattr(self.__class__, name, None)):
+                # Set jsonapi attributes
+                attr_val = self._s_parse_attr_value(name, val)
+                setattr(self, name, attr_val)
+            elif name in self._s_relationship_names:
+                # Add the related instances
+                db_args[name] = val
 
         # db_args now contains the class attributes. Initialize the DB model with them
         # All subclasses should have the DB.Model as superclass.
         # (SQLAlchemy doesn't work when using DB.Model as SAFRSBase superclass)
         try:
             safrs.DB.Model.__init__(self, **db_args)
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             # OOPS .. things are going bad, this might happen using sqla automap
             safrs.log.error("Failed to instantiate {}".format(self))
             safrs.log.debug("db args: {}".format(db_args))
@@ -160,7 +162,7 @@ class SAFRSBase(Model):
             safrs.DB.session.add(self)
             try:
                 safrs.DB.session.commit()
-            except sqlalchemy.exc.SQLAlchemyError as exc:
+            except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
 
@@ -168,6 +170,7 @@ class SAFRSBase(Model):
         """
             setattr behaves differently for `jsonapi_attr` decorated attributes
         """
+
         if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
             getattr(self.__class__, attr_name).setter(attr_val)
         else:
@@ -255,7 +258,8 @@ class SAFRSBase(Model):
             return attr_val
 
         attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
-        if attr is None:
+        if attr is None:  # pragma: no cover
+            # we shouldn't get here because we should already have checked that attr_name is in _s_jsonapi_attrs
             raise ValidationError("Invalid attribute {}".format(attr_name))
 
         if is_jsonapi_attr(attr):
@@ -349,7 +353,7 @@ class SAFRSBase(Model):
     @_s_jsonapi_attrs.expression
     def _s_jsonapi_attrs(cls):
         """
-            :return: list of jsonapi attribute names
+            :return: dict of jsonapi attributes
             At the moment we expect the column name to be equal to the column name
             Things will go south if this isn't the case and we should use
             the cls.__mapper__._polymorphic_properties instead

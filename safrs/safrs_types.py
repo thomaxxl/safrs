@@ -14,7 +14,7 @@ from .util import classproperty
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
 
 
-class JSONType(PickleType):
+class JSONType(PickleType):  # pragma: no cover
     """
         JSON DB type is used to store JSON objects in the database
     """
@@ -39,7 +39,7 @@ class JSONType(PickleType):
         return value
 
 
-class SafeString(TypeDecorator):
+class SafeString(TypeDecorator):  # pragma: no cover
     """
         DB String Type class strips special chars when bound
     """
@@ -63,29 +63,7 @@ class SafeString(TypeDecorator):
         return result
 
 
-class EmailType(TypeDecorator):
-    """
-        example class to perform email validation
-        DB Email Type class: validates email when bound
-    """
-
-    impl = String(767)
-
-    def __init__(self, *args, **kwargs):
-
-        super(EmailType, self).__init__(*args, **kwargs)
-
-    def process_bind_param(self, value, dialect):
-        # install validate_email:
-        # from validate_email import validate_email
-        # if value and not validate_email(value):
-        if value and "@" not in value:
-            raise ValidationError("Email Validation Error {}".format(value))
-
-        return value
-
-
-class UUIDType(TypeDecorator):
+class UUIDType(TypeDecorator):  # pragma: no cover
     """
     UUIDType
     """

@@ -51,6 +51,24 @@ class ValidationError(Exception, DontWrapMixin):
             self.message += HIDDEN_LOG
 
 
+class UnAuthorizedError(Exception, DontWrapMixin):
+    """
+    This exception is raised when invalid input has been detected
+    """
+
+    status_code = HTTPStatus.UNAUTHORIZED.value
+    message = "Authorization Error: "
+
+    def __init__(self, message="", status_code=HTTPStatus.UNAUTHORIZED.value, api_code=None):
+        Exception.__init__(self)
+        self.status_code = status_code
+        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
+            self.message += message
+            safrs.log.error("UnAuthorizedError: %s", message)
+        else:
+            self.message += HIDDEN_LOG
+
+
 class GenericError(Exception, DontWrapMixin):
     """
     This exception is raised when an error has been detected

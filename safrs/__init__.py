@@ -4,7 +4,7 @@
 # This is however required for backwards compatibility, we'll get rid of it eventually
 #
 from .safrs_api import DB, log, SAFRSAPI, SAFRS, dict_merge, test_decorator, SAFRSRequest
-from .errors import ValidationError, GenericError
+from .errors import ValidationError, GenericError, UnAuthorizedError, NotFoundError
 from .json_encoder import SAFRSJSONEncoder
 from ._api import Api, SAFRSRestAPI
 from .base import SAFRSBase, jsonapi_attr
@@ -34,6 +34,8 @@ __all__ = (
     # Errors:
     "ValidationError",
     "GenericError",
+    "UnAuthorizedError",
+    "NotFoundError",
     # request
     "SAFRSRequest",
 )
