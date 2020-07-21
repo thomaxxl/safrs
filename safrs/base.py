@@ -663,7 +663,7 @@ class SAFRSBase(Model):
             """
             meta = {}
             rel_name = relationship.key
-            data = None
+            data = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
                 # TODO: document this
                 # continue
