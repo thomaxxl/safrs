@@ -27,7 +27,7 @@ from .swagger_doc import is_public
 from .errors import ValidationError, GenericError, NotFoundError
 from .json_encoder import SAFRSFormattedResponse
 from .util import classproperty
-from .jsonapi_formatting import jsonapi_filter, jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
+from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 
 
 class Resource(FRSResource):
@@ -295,7 +295,7 @@ class SAFRSRestAPI(Resource):
             meta.update(dict(instance_meta=instance._s_meta()))
         else:
             # retrieve a collection, filter and sort
-            instances = jsonapi_filter(self.SAFRSObject)
+            instances = self.SAFRSObject.jsonapi_filter()
             instances = jsonapi_sort(instances, self.SAFRSObject)
             links, data, count = paginate(instances, self.SAFRSObject)
 

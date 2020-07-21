@@ -65,7 +65,7 @@ class SafeString(TypeDecorator):  # pragma: no cover
 
 class UUIDType(TypeDecorator):  # pragma: no cover
     """
-    UUIDType
+        UUIDType
     """
 
     impl = String(40)

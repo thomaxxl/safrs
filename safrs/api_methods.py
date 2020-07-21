@@ -8,31 +8,6 @@ from .jsonapi import SAFRSFormattedResponse, paginate, jsonapi_sort
 from .swagger_doc import jsonapi_rpc
 from .errors import GenericError, ValidationError
 
-
-@classmethod
-@jsonapi_rpc(http_methods=["POST"])
-def search(cls, **kwargs):
-    """
-        pageable: True
-        description : lookup column names
-        args:
-            col_name: value
-    """
-    query = kwargs.get("query", "")
-    if ":" in query:
-        column_name, value = query.split(":")
-        result = cls.query.filter(or_(column.like("%" + value + "%") for column in cls._s_columns if column.name == column_name))
-    else:
-        result = cls.query.filter(or_(column.like("%" + query + "%") for column in cls._s_columns))
-    instances = jsonapi_sort(result, cls)
-    links, instances, count = paginate(instances)
-    data = [item for item in instances]
-    meta = {}
-    errors = None
-    response = SAFRSFormattedResponse(data, meta, links, errors, count)
-    return response
-
-
 @jsonapi_rpc(http_methods=["POST"])
 def duplicate(self):
     """
@@ -50,7 +25,7 @@ def duplicate(self):
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def lookup_re_mysql(cls, **kwargs):
+def lookup_re_mysql(cls, **kwargs): # pragma: no cover
     """
         pageable: True
         description : Regex search all matching objects (works only in MySQL!!!)
@@ -72,7 +47,7 @@ def lookup_re_mysql(cls, **kwargs):
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def startswith(cls, **kwargs):
+def startswith(cls, **kwargs): # pragma: no cover
     """
         pageable: True
         summary : lookup items where specified attributes starts with the argument string
@@ -110,7 +85,31 @@ def startswith(cls, **kwargs):
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def re_search(cls, **kwargs):
+def search(cls, **kwargs): # pragma: no cover
+    """
+        pageable: True
+        description : lookup column names
+        args:
+            col_name: value
+    """
+    query = kwargs.get("query", "")
+    if ":" in query:
+        column_name, value = query.split(":")
+        result = cls.query.filter(or_(column.like("%" + value + "%") for column in cls._s_columns if column.name == column_name))
+    else:
+        result = cls.query.filter(or_(column.like("%" + query + "%") for column in cls._s_columns))
+    instances = jsonapi_sort(result, cls)
+    links, instances, count = paginate(instances)
+    data = [item for item in instances]
+    meta = {}
+    errors = None
+    response = SAFRSFormattedResponse(data, meta, links, errors, count)
+    return response
+
+
+@classmethod
+@jsonapi_rpc(http_methods=["POST"])
+def re_search(cls, **kwargs): # pragma: no cover
     """
         pageable: True
         description : lookup column names

@@ -23,6 +23,7 @@ from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .util import classproperty
 from .config import get_config
+from .jsonapi_filters import jsonapi_filter
 from .attr_parse import parse_attr
 from .jsonapi_attr import jsonapi_attr, is_jsonapi_attr
 from .swagger_doc import get_doc
@@ -97,6 +98,7 @@ class SAFRSBase(Model):
     # on startup
     swagger_models = {"instance": None, "collection": None}
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
+    jsonapi_filter = jsonapi_filter
 
     def __new__(cls, *args, **kwargs):
         """
@@ -633,7 +635,7 @@ class SAFRSBase(Model):
             """
             if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationship_names:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
-
+        
         for relationship in self._s_relationships:
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
@@ -942,7 +944,8 @@ class SAFRSBase(Model):
         safrs.log.info("_s_filter args: {}".format(filter_args))
         safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
         return cls._s_query
-
+    
+    
 
 class Included:
     """
@@ -960,7 +963,7 @@ class Included:
             :param included_list: the list of relationships that should be included for `instance`
         """
         self.instance = instance
-        instance.included_list = included_list
+        instance.included_list = ['.'.join(included_list)] if included_list else []
         Included.instances.add(instance)
 
     @hybrid_method
