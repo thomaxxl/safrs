@@ -528,7 +528,7 @@ class SAFRSRestAPI(Resource):
 
         instance = self.SAFRSObject.get_instance(id)
         instance._s_delete()
-        
+
         return {}, HTTPStatus.NO_CONTENT
 
 

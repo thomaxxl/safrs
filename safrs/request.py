@@ -98,12 +98,12 @@ class SAFRSRequest(Request):
             - filter[]
             - fields[]
         """
-        
+
         self.page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
         self.page_offset = self.args.get("page[offset]", 0, type=int)
         self.filters = {}
         self.fields = {}
-        
+
         # Parse the jsonapi filter[] and fields[] args
         for arg, val in self.args.items():
             if arg == "filter":
