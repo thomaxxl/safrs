@@ -18,7 +18,7 @@ class EmailType(TypeDecorator):
     impl = db.String(767)
 
     def __init__(self, *args, **kwargs):
-        super(EmailType, self).__init__(*args, **kwargs)
+        super(*args, **kwargs)
 
     def process_bind_param(self, value, dialect):
         if "@" not in value:
