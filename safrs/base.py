@@ -316,6 +316,16 @@ class SAFRSBase(Model):
         rel_names = [rel.key for rel in cls._s_relationships]
         return rel_names
 
+    @classmethod
+    def colname_to_attrname(cls, col_name):
+        """
+            Map column name to model attribute name
+        """
+        for attr_name, attr_val in cls.__dict__.items():
+            if col_name == getattr(attr_val,"name",None):
+                return attr_name
+        return col_name
+    
     @hybrid_property
     def _s_jsonapi_attrs(self):
         """
@@ -338,14 +348,19 @@ class SAFRSBase(Model):
         result = {}
         for attr in fields:
             attr_val = ""
+            attr_name = attr
             if attr in self.__class__._s_jsonapi_attrs.keys():
-                attr_val = getattr(self, attr)
+                if hasattr(self, attr):
+                    attr_val = getattr(self, attr)
+                else:
+                    col_name = self.colname_to_attrname(attr)
+                    attr_val = getattr(self, col_name)
             try:
                 # use the current_app json_encoder
                 if current_app:
-                    result[attr] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
+                    result[attr_name] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
                 else:
-                    result[attr] = attr_val
+                    result[attr_name] = attr_val
             except UnicodeDecodeError:  # pragma: no cover
                 safrs.log.warning("UnicodeDecodeError fetching {}.{}".format(self, attr))
                 result[attr] = ""
@@ -365,7 +380,7 @@ class SAFRSBase(Model):
         result = {}
         for column in cls._s_columns:
             # Ignore the exclude_attrs for serialization/deserialization
-            attr_name = column.name
+            attr_name = cls.colname_to_attrname(column.name)
             if getattr(column, "expose", True) is not True:
                 continue
             if attr_name in cls.exclude_attrs:
@@ -565,7 +580,7 @@ class SAFRSBase(Model):
 
         for column in cls.__mapper__.columns:
             # don't expose attributes starting with an underscore
-            if column.name != property_name:
+            if cls.colname_to_attrname(column.name) != property_name:
                 continue
             if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
                 return True
