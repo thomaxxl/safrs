@@ -62,6 +62,7 @@ class SAFRS:
 
     # Configuration settings, these can be overridden in config.py
     MAX_PAGE_LIMIT = 250
+    MAX_PAGE_OFFSET = 100000
     ENABLE_RELATIONSHIPS = True
     ENABLE_METHODS = True
     LOGLEVEL = logging.WARNING
