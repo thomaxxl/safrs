@@ -53,7 +53,7 @@ def get_config(option):
     # UNLIMITED = int(os.environ.get('safrs.SAFRS_UNLIMITED', 1<<32))
     UNLIMITED = int(os.environ.get("SAFRS_UNLIMITED", safrs.SAFRS.MAX_PAGE_LIMIT))
     MAX_PAGE_LIMIT = int(os.environ.get("MAX_PAGE_LIMIT", safrs.SAFRS.MAX_PAGE_LIMIT))
-    MAX_PAGE_LIMIT = int(os.environ.get("MAX_PAGE_OFFSET", safrs.SAFRS.MAX_PAGE_OFFSET))
+    MAX_PAGE_OFFSET = int(os.environ.get("MAX_PAGE_OFFSET", safrs.SAFRS.MAX_PAGE_OFFSET))
     # This is the default query limit
     # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
     BIG_QUERY_THRESHOLD = 1000  # Warning level
