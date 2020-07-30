@@ -126,8 +126,9 @@ def paginate(object_query, SAFRSObject=None):
 
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ""
+        ignore_args = "page[offset]","page[limit]"
         result += "?" + "&".join(
-            ["{}={}".format(k, v) for k, v in request.args.items()] + ["page[offset]={}&page[limit]={}".format(count, limit)]
+            ["{}={}".format(k, v) for k, v in request.args.items() if not k in ignore_args] + ["page[offset]={}&page[limit]={}".format(count, limit)]
         )
         return result
 
