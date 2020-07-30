@@ -144,8 +144,7 @@ def paginate(object_query, SAFRSObject=None):
         limit = get_config("MAX_PAGE_LIMIT")
     if page_offset <= 0:
         page_offset = 0
-    if page_offset > get_config("MAX_PAGE_LIMIT"):
-        page_offset = get_config("MAX_PAGE_LIMIT")
+    
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
