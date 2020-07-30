@@ -758,17 +758,14 @@ class SAFRSRestRelationshipAPI(Resource):
 
         if data is None:
             # item removed from relationship => 202 accepted
-            # TODO: add response to swagger
-            # add meta?
-            response = {}, HTTPStatus.NO_CONTENT
+            data, code = {}, HTTPStatus.NO_CONTENT
         elif changed:
-            obj_data = self.get(**obj_args)
-            response = make_response(obj_data, HTTPStatus.OK)
+            return self.get(**obj_args)
         else:
             # Nothing changed, reflect the data
-            response = make_response(jsonify({"data": data}), HTTPStatus.OK)
+            data, code = {"data": data}, HTTPStatus.OK
 
-        return response
+        return make_response(jsonify(data), code)
 
     # Adding items to a relationship
     def post(self, **kwargs):
@@ -1038,8 +1035,7 @@ class SAFRSJSONRPCAPI(Resource):
         else:
             response = {"meta": {"result": result}}
 
-        return jsonify(response)  # 200 : default
-
+        return make_response(jsonify(response), HTTPStatus.OK)
 
 # pylint: disable=too-few-public-methods
 class SAFRSRelationship:
