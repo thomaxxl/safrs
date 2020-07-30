@@ -126,9 +126,10 @@ def paginate(object_query, SAFRSObject=None):
 
     def get_link(count, limit):
         result = SAFRSObject._s_url if SAFRSObject else ""
-        ignore_args = "page[offset]","page[limit]"
+        ignore_args = "page[offset]", "page[limit]"
         result += "?" + "&".join(
-            ["{}={}".format(k, v) for k, v in request.args.items() if not k in ignore_args] + ["page[offset]={}&page[limit]={}".format(count, limit)]
+            ["{}={}".format(k, v) for k, v in request.args.items() if not k in ignore_args]
+            + ["page[offset]={}&page[limit]={}".format(count, limit)]
         )
         return result
 
@@ -193,7 +194,7 @@ def paginate(object_query, SAFRSObject=None):
         del links["prev"]
 
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        instances = object_query[page_offset: page_offset + limit]
+        instances = object_query[page_offset : page_offset + limit]
     elif isinstance(object_query, dict):
         # (might happen when using a custom filter)
         instances = object_query

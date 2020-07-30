@@ -1037,6 +1037,7 @@ class SAFRSJSONRPCAPI(Resource):
 
         return make_response(jsonify(response), HTTPStatus.OK)
 
+
 # pylint: disable=too-few-public-methods
 class SAFRSRelationship:
     """

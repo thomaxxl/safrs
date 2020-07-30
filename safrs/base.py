@@ -322,10 +322,10 @@ class SAFRSBase(Model):
             Map column name to model attribute name
         """
         for attr_name, attr_val in cls.__dict__.items():
-            if col_name == getattr(attr_val,"name",None):
+            if col_name == getattr(attr_val, "name", None):
                 return attr_name
         return col_name
-    
+
     @hybrid_property
     def _s_jsonapi_attrs(self):
         """
@@ -979,7 +979,7 @@ class Included:
             :param included_list: the list of relationships that should be included for `instance`
         """
         self.instance = instance
-        instance.included_list = ['.'.join(included_list)] if included_list else []
+        instance.included_list = [".".join(included_list)] if included_list else []
         Included.instances.add(instance)
 
     @hybrid_method
