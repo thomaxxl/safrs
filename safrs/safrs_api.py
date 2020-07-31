@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask
+from flask import Flask, g
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
@@ -47,6 +47,12 @@ def SAFRSAPI(app, host="localhost", port=5000, prefix="", description="SAFRSAPI"
     @app.before_request
     def handle_invalid_usage():
         return
+
+    @app.before_request
+    def init_ja_data():
+        # ja_data holds all data[] that will be encoded
+        g.ja_data = set()
+        g.ja_included = set()
 
     api.init_app(app)
     return api

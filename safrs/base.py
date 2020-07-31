@@ -9,7 +9,7 @@ import sqlalchemy
 import json
 from http import HTTPStatus
 from urllib.parse import urljoin
-from flask import request, url_for, has_request_context, current_app
+from flask import request, url_for, has_request_context, current_app, g
 from flask_sqlalchemy import Model
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect
@@ -276,13 +276,6 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classproperty
-    def _s_column_names(cls):
-        """
-            :return: list of column names
-        """
-        return [c.name for c in cls._s_columns]
-
-    @classproperty
     def _s_columns(cls):
         """
             :return: list of columns that are exposed by the api
@@ -300,15 +293,22 @@ class SAFRSBase(Model):
             result = [c for c in result if cls._s_check_perm(c.name)]
         return result
 
-    @hybrid_property
-    def _s_relationships(self):
+    @classproperty
+    def _s_column_names(cls):
+        """
+            :return: list of column names
+        """
+        return [c.name for c in cls._s_columns]
+
+    @classproperty
+    def _s_relationships(cls):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key) and self.supports_includes]
+        rels = [rel for rel in cls.__mapper__.relationships if cls._s_check_perm(rel.key)]
         return rels
 
-    @hybrid_property
+    @classproperty
     def _s_relationship_names(cls):
         """
             :return: list of realtionship names
@@ -325,6 +325,50 @@ class SAFRSBase(Model):
             if col_name == getattr(attr_val, "name", None):
                 return attr_name
         return col_name
+
+    @classmethod
+    def _s_check_perm(cls, property_name, permission="r"):
+        """
+            Check the column permission (read/write)
+            Goal is to extend this in the future
+            :param column_name: column name
+            :permission:
+            :return: Boolean
+        """
+        if property_name.startswith("_"):
+            return False
+
+        if property_name in cls.exclude_attrs:
+            return False
+
+        for rel in cls.__mapper__.relationships:
+            if not cls.supports_includes:
+                continue
+            if rel.key != property_name:
+                continue
+            if rel.key in cls.exclude_rels:
+                # relationship name has been set in exclude_rels
+                return False
+            if not getattr(rel.mapper.class_, "_s_expose", False):
+                # only SAFRSBase instances can be exposed
+                return False
+            if not getattr(rel, "expose", True):
+                # relationship `expose` attribute has explicitly been set to False
+                return False
+            return True
+
+        for column in cls.__mapper__.columns:
+            # don't expose attributes starting with an underscore
+            if cls.colname_to_attrname(column.name) != property_name:
+                continue
+            if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
+                return True
+            return False
+
+        if is_jsonapi_attr(getattr(cls, property_name, None)):
+            return True
+
+        raise ValidationError("Invalid property {}".format(property_name))
 
     @hybrid_property
     def _s_jsonapi_attrs(self):
@@ -346,10 +390,12 @@ class SAFRSBase(Model):
             fields = request.fields.get(self._s_class_name, fields)
 
         result = {}
+        ja_attr_keys = self.__class__._s_jsonapi_attrs.keys()
+
         for attr in fields:
             attr_val = ""
             attr_name = attr
-            if attr in self.__class__._s_jsonapi_attrs.keys():
+            if attr in ja_attr_keys:
                 if hasattr(self, attr):
                     attr_val = getattr(self, attr)
                 else:
@@ -377,16 +423,15 @@ class SAFRSBase(Model):
             Things will go south if this isn't the case and we should use
             the cls.__mapper__._polymorphic_properties instead
         """
+        # Cache this for better performance
+        cached_attrs = getattr(cls, "_cached_jsonapi_attrs", None)
+        if cached_attrs is not None:
+            return cached_attrs
+
         result = {}
         for column in cls._s_columns:
-            # Ignore the exclude_attrs for serialization/deserialization
             attr_name = cls.colname_to_attrname(column.name)
-            if getattr(column, "expose", True) is not True:
-                continue
-            if attr_name in cls.exclude_attrs:
-                continue
-            # don't expose attributes starting with an underscore
-            if attr_name.startswith("_"):
+            if not cls._s_check_perm(attr_name):
                 continue
             # jsonapi schema prohibits the use of the fields 'id' and 'type' in the attributes
             # http://jsonapi.org/format/#document-resource-object-fields
@@ -400,6 +445,7 @@ class SAFRSBase(Model):
             if is_jsonapi_attr(attr_val):
                 result[attr_name] = attr_val
 
+        cls._cached_jsonapi_attrs = result
         return result
 
     def _s_expunge(self):
@@ -552,45 +598,6 @@ class SAFRSBase(Model):
         """
         return cls.__name__
 
-    @classmethod
-    def _s_check_perm(cls, property_name, permission="r"):
-        """
-            Check the column permission (read/write)
-            Goal is to extend this in the future
-            :param column_name: column name
-            :permission:
-            :return: Boolean
-        """
-        if property_name.startswith("_"):
-            return False
-
-        for rel in cls.__mapper__.relationships:
-            if rel.key != property_name:
-                continue
-            if rel.key in cls.exclude_rels:
-                # relationship name has been set in exclude_rels
-                return False
-            if not getattr(rel.mapper.class_, "_s_expose", False):
-                # only SAFRSBase instances can be exposed
-                return False
-            if not getattr(rel, "expose", True):
-                # relationship `expose` attribute has explicitly been set to False
-                return False
-            return True
-
-        for column in cls.__mapper__.columns:
-            # don't expose attributes starting with an underscore
-            if cls.colname_to_attrname(column.name) != property_name:
-                continue
-            if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
-                return True
-            return False
-
-        if is_jsonapi_attr(getattr(cls, property_name, None)):
-            return True
-
-        raise ValidationError("Invalid property {}".format(property_name))
-
     @hybrid_method
     def _s_jsonapi_encode(self):
         """
@@ -612,6 +619,7 @@ class SAFRSBase(Model):
         self_link = self._s_url
         attributes = self.to_dict()
         relationships = self._s_get_related()
+        g.ja_data.add(self)
         data = dict(attributes=attributes, id=self.jsonapi_id, links={"self": self_link}, type=self._s_type, relationships=relationships)
 
         return data
@@ -645,6 +653,7 @@ class SAFRSBase(Model):
         # a dot-separated path for each relationship name can be specified
         included_rels = {i.split(".")[0]: i for i in included_list}
         relationships = dict()
+
         for rel_name in included_rels:
             """
                 If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
@@ -966,21 +975,20 @@ class SAFRSBase(Model):
 class Included:
     """
         This class contains the instances that will be included in the jsonapi response
-        we keep a set of instances to avoid storing duplicates
+        we keep a set of instances in `flask.g` to avoid storing duplicates
     """
 
     instances = set()
     instance = None
-    data = set()
 
     def __init__(self, instance, included_list):
         """
             :param instance: the instance to be included
-            :param included_list: the list of relationships that should be included for `instance`
+            :param included_list: the list of relationships that should be included for `instance` (from the url query param)
         """
         self.instance = instance
         instance.included_list = [".".join(included_list)] if included_list else []
-        Included.instances.add(instance)
+        g.ja_included.add(instance)
 
     @hybrid_method
     def encode(self):
@@ -996,15 +1004,13 @@ class Included:
         """
         already_included = set()
         result = []
-        while len(cls.instances):
-            instance = cls.instances.pop()
-            if instance in already_included:
+        while True:
+            instances = getattr(g, "ja_included", set())
+            if not len(instances):
+                break
+            instance = instances.pop()
+            if instance in already_included or instance in g.ja_data:
                 continue
-            try:
-                result.append(instance._s_jsonapi_encode())
-            except sqlalchemy.orm.exc.DetachedInstanceError as exc:
-                # todo: test this
-                safrs.log.warning("Included encode: {}".format(exc))
-                continue
+            result.append(instance._s_jsonapi_encode())
 
         return result
