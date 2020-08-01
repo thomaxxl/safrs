@@ -101,6 +101,9 @@ class SAFRSBase(Model):
     swagger_models = {"instance": None, "collection": None}
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
     jsonapi_filter = jsonapi_filter
+    
+    # Cached properties
+    _col_attr_name_map = None
 
     def __new__(cls, *args, **kwargs):
         """
@@ -137,17 +140,20 @@ class SAFRSBase(Model):
         # Retrieve the values from each attribute (== class table column)
         db_args = {}
         for name, val in kwargs.items():
-            if name in self._s_column_names:
-                # Set columns
-                attr_val = self._s_parse_attr_value(name, val)
-                db_args[name] = attr_val
+            if name in self._s_relationship_names:
+                # Add the related instances
+                db_args[name] = val
             elif is_jsonapi_attr(getattr(self.__class__, name, None)):
                 # Set jsonapi attributes
                 attr_val = self._s_parse_attr_value(name, val)
                 setattr(self, name, attr_val)
-            elif name in self._s_relationship_names:
-                # Add the related instances
-                db_args[name] = val
+            elif name in self._s_column_names:
+                # Set columns
+                attr_val = self._s_parse_attr_value(name, val)
+                db_args[name] = attr_val
+            elif name in self.__class__._s_jsonapi_attrs:
+                # getting TOOOODOOOOOO
+                db_args[name] = self._s_parse_attr_value(name, val)
 
         # db_args now contains the class attributes. Initialize the DB model with them
         # All subclasses should have the DB.Model as superclass.
@@ -179,6 +185,35 @@ class SAFRSBase(Model):
             getattr(self.__class__, attr_name).setter(attr_val)
         else:
             super().__setattr__(attr_name, attr_val)
+
+    def _s_parse_attr_value(self, attr_name, attr_val):
+        """
+            Parse the given jsonapi attribute value so it can be stored in the db
+            :param attr_name: attribute name
+            :param attr_val: attribute value
+            :return: parsed value
+        """
+        # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
+        if not has_request_context():
+            # we only care about parsing when working in the request context
+            return attr_val
+
+        if attr_name == "id":
+            return attr_val
+
+        attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
+        if attr is None:  # pragma: no cover
+            # we shouldn't get here because we should already have checked that attr_name is in _s_jsonapi_attrs
+            raise ValidationError("Invalid attribute {}".format(attr_name))
+
+        if is_jsonapi_attr(attr):
+            return attr_val
+
+        # attr is a sqlalchemy.sql.schema.Column now
+        if not isinstance(attr, Column):
+            raise ValidationError("Not a column")
+
+        return parse_attr(attr, attr_val)
 
     @classmethod
     def _s_post(cls, **attributes):
@@ -246,35 +281,6 @@ class SAFRSBase(Model):
         """
         safrs.DB.session.delete(self)
 
-    def _s_parse_attr_value(self, attr_name, attr_val):
-        """
-            Parse the given jsonapi attribute value so it can be stored in the db
-            :param attr_name: attribute name
-            :param attr_val: attribute value
-            :return: parsed value
-        """
-        # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
-        if not has_request_context():
-            # we only care about parsing when working in the request context
-            return attr_val
-
-        if attr_name == "id":
-            return attr_val
-
-        attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
-        if attr is None:  # pragma: no cover
-            # we shouldn't get here because we should already have checked that attr_name is in _s_jsonapi_attrs
-            raise ValidationError("Invalid attribute {}".format(attr_name))
-
-        if is_jsonapi_attr(attr):
-            return attr_val
-
-        # attr is a sqlalchemy.sql.schema.Column now
-        if not isinstance(attr, Column):
-            raise ValidationError("Not a column")
-
-        return parse_attr(attr, attr_val)
-
     @classproperty
     def _s_columns(cls):
         """
@@ -290,7 +296,7 @@ class SAFRSBase(Model):
             # In the web context we only return the attributes that are exposable and readable
             # i.e. where the "expose" attribute is set on the db.Column instance
             # and the "r" flag is in the permissions
-            result = [c for c in result if cls._s_check_perm(c.name)]
+            result = [c for c in result if cls._s_check_perm(cls.colname_to_attrname(c.name))]
         return result
 
     @classproperty
@@ -321,19 +327,36 @@ class SAFRSBase(Model):
         """
             Map column name to model attribute name
         """
-        for attr_name, attr_val in cls.__dict__.items():
-            if col_name == getattr(attr_val, "name", None):
-                return attr_name
-        return col_name
+        
+        """
+        We want this:
+        ```
+            for attr_name, attr_val in cls.__dict__.items():
+                if col_name == getattr(attr_val, "name", None):
+                    return attr_name
+            return col_name
+        ```
+        To avoid executing this loop every time, we create a lookup table when performing the first lookup
+        """
+            
+        if cls._col_attr_name_map is None:
+            # create lookup tables for attr <-> col mapping
+            cls._col_attr_name_map = {}
+            cls._attr_col_name_map = {}
+            for attr_name, attr_val in cls.__dict__.items():
+                _col_name = getattr(attr_val, "name", attr_name)
+                cls._col_attr_name_map[_col_name] = attr_name
+                cls._attr_col_name_map[attr_name] = _col_name
+        
+        return cls._col_attr_name_map[col_name]
 
     @classmethod
     def _s_check_perm(cls, property_name, permission="r"):
         """
             Check the column permission (read/write)
-            Goal is to extend this in the future
             :param column_name: column name
             :permission:
-            :return: Boolean
+            :return: Boolean indicating whether access is allowed
         """
         if property_name.startswith("_"):
             return False
@@ -795,9 +818,9 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample_dict(cls):
         """
-            :return: a sample to be used as an example payload in the swagger example
+            :return: a sample to be used as an example "attributes" payload in the swagger example
         """
-        # create a swagger example based on the jsonapi attributes (i.e. the database column schema)
+        # create a swagger example based on the jsonapi attributes (reflecting the database column schema)
         sample = {}
         for attr_name, attr in cls._s_jsonapi_attrs.items():
             if is_jsonapi_attr(attr):
@@ -811,7 +834,9 @@ class SAFRSBase(Model):
                     if callable(column.default.arg):
                         # todo: check how to display the default args
                         safrs.log.warning("Not implemented: {}".format(column.default.arg))
-                        continue
+                        arg = ""
+                    elif isinstance(column.type, sqlalchemy.sql.sqltypes.JSON):
+                        arg = column.default.arg
                     else:
                         python_type = SWAGGER2_TYPE_CAST.get(column.type, str)
                         arg = python_type(column.default.arg)
@@ -974,7 +999,7 @@ class SAFRSBase(Model):
 
 class Included:
     """
-        This class contains the instances that will be included in the jsonapi response
+        This class is used to serialize instances that will be included in the jsonapi response
         we keep a set of instances in `flask.g` to avoid storing duplicates
     """
 
