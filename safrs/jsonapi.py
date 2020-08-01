@@ -684,9 +684,6 @@ class SAFRSRestRelationshipAPI(Resource):
         changed = False
         parent, relation = self.parse_args(**kwargs)
         payload = request.get_jsonapi_payload()
-        if not isinstance(payload, dict):
-            raise ValidationError("Invalid Object Type")
-
         data = payload.get("data")
         relation = getattr(parent, self.rel_name)
         obj_args = {self.parent_object_id: parent.jsonapi_id}
@@ -699,7 +696,7 @@ class SAFRSRestRelationshipAPI(Resource):
             #   null, to remove the relationship.
 
             if self.SAFRSObject.relationship.direction != MANYTOONE:
-                raise GenericError("Provide a list o PATCH a TOMANY relationship")
+                raise ValidationError("Provide a list to PATCH a TOMANY relationship")
             child = self._parse_target_data(data)
             if getattr(parent, self.rel_name) != child:
                 # change the relationship, i.e. add the child
@@ -794,9 +791,9 @@ class SAFRSRestRelationshipAPI(Resource):
         kwargs["require_child"] = True
         parent, relation = self.parse_args(**kwargs)
         payload = request.get_jsonapi_payload()
-        if not isinstance(payload, dict):
-            raise ValidationError("Invalid Object Type")
-        data = payload.get("data")
+        data = payload.get("data", None)
+        if data is None:
+            raise ValidationError("Invalid POST payload (no data)")
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
             # https://jsonapi.org/format/#crud-updating-to-one-relationships
