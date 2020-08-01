@@ -9,7 +9,7 @@ def safrs_setup(): # pragma: no cover
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.9.2"
+    version = "2.9.3"
 
     setup(
         name="safrs",
