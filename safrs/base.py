@@ -16,6 +16,7 @@ from sqlalchemy import inspect as sqla_inspect
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.schema import Column
+from functools import lru_cache
 
 # safrs dependencies:
 import safrs
@@ -101,9 +102,10 @@ class SAFRSBase(Model):
     swagger_models = {"instance": None, "collection": None}
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
     jsonapi_filter = jsonapi_filter
-    
-    # Cached properties
+
+    # Cached lookup tables
     _col_attr_name_map = None
+    _attr_col_name_map = None
 
     def __new__(cls, *args, **kwargs):
         """
@@ -269,7 +271,7 @@ class SAFRSBase(Model):
         for attr_name, attr_val in attributes.items():
             if attr_name not in self.__class__._s_jsonapi_attrs:
                 continue
-            # check if write permission is set
+            # check if we have permission to write
             if not self._s_check_perm(attr_name, "w"):
                 continue
             attr_val = self._s_parse_attr_value(attr_name, attr_val)
@@ -282,6 +284,7 @@ class SAFRSBase(Model):
         safrs.DB.session.delete(self)
 
     @classproperty
+    @lru_cache(maxsize=32)
     def _s_columns(cls):
         """
             :return: list of columns that are exposed by the api
@@ -300,6 +303,7 @@ class SAFRSBase(Model):
         return result
 
     @classproperty
+    @lru_cache(maxsize=32)
     def _s_column_names(cls):
         """
             :return: list of column names
@@ -307,6 +311,7 @@ class SAFRSBase(Model):
         return [c.name for c in cls._s_columns]
 
     @classproperty
+    @lru_cache(maxsize=32)
     def _s_relationships(cls):
         """
             :return: the relationships used for jsonapi (de/)serialization
@@ -315,6 +320,7 @@ class SAFRSBase(Model):
         return rels
 
     @classproperty
+    @lru_cache(maxsize=32)
     def _s_relationship_names(cls):
         """
             :return: list of realtionship names
@@ -327,7 +333,7 @@ class SAFRSBase(Model):
         """
             Map column name to model attribute name
         """
-        
+
         """
         We want this:
         ```
@@ -336,9 +342,10 @@ class SAFRSBase(Model):
                     return attr_name
             return col_name
         ```
-        To avoid executing this loop every time, we create a lookup table when performing the first lookup
+        To avoid executing this loop over and over, we create a lookup table when performing the first lookup
+        (this is slightly faster than using lru_cache)
         """
-            
+
         if cls._col_attr_name_map is None:
             # create lookup tables for attr <-> col mapping
             cls._col_attr_name_map = {}
@@ -347,15 +354,26 @@ class SAFRSBase(Model):
                 _col_name = getattr(attr_val, "name", attr_name)
                 cls._col_attr_name_map[_col_name] = attr_name
                 cls._attr_col_name_map[attr_name] = _col_name
-        
+
         return cls._col_attr_name_map[col_name]
 
-    @classmethod
+    @hybrid_method
+    def _s_check_perm(self, property_name, permission="r"):
+        """
+            Check the (instance-level) column permission 
+            :param column_name: column name
+            :permission: permission string (read/write)
+            :return: Boolean indicating whether access is allowed
+        """
+        return self.__class__._s_check_perm(property_name, permission)
+
+    @_s_check_perm.expression
+    @lru_cache(maxsize=128)
     def _s_check_perm(cls, property_name, permission="r"):
         """
-            Check the column permission (read/write)
+            Check the (class-level) column permission
             :param column_name: column name
-            :permission:
+            :permission: permission string (read/write)
             :return: Boolean indicating whether access is allowed
         """
         if property_name.startswith("_"):
@@ -413,12 +431,12 @@ class SAFRSBase(Model):
             fields = request.fields.get(self._s_class_name, fields)
 
         result = {}
-        ja_attr_keys = self.__class__._s_jsonapi_attrs.keys()
+        ja_attr_names = [name for name in self.__class__._s_jsonapi_attrs.keys() if self._s_check_perm(name)]
 
         for attr in fields:
             attr_val = ""
             attr_name = attr
-            if attr in ja_attr_keys:
+            if attr in ja_attr_names:
                 if hasattr(self, attr):
                     attr_val = getattr(self, attr)
                 else:
@@ -439,6 +457,7 @@ class SAFRSBase(Model):
         return result
 
     @_s_jsonapi_attrs.expression
+    @lru_cache(maxsize=32)
     def _s_jsonapi_attrs(cls):
         """
             :return: dict of jsonapi attributes
@@ -446,7 +465,7 @@ class SAFRSBase(Model):
             Things will go south if this isn't the case and we should use
             the cls.__mapper__._polymorphic_properties instead
         """
-        # Cache this for better performance
+        # Cache this for better performance (a bit faster than lru_cache :)
         cached_attrs = getattr(cls, "_cached_jsonapi_attrs", None)
         if cached_attrs is not None:
             return cached_attrs
@@ -570,6 +589,7 @@ class SAFRSBase(Model):
         return str(self.id_type.get_id(self))
 
     @hybrid_property
+    @lru_cache(maxsize=32)
     def id_type(obj):
         """
             :return: the object's id type
