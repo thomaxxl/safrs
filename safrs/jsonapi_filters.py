@@ -45,7 +45,6 @@ def jsonapi_filter(cls):
             return []
         else:
             attr = cls._s_jsonapi_attrs[attr_name]
-        print(attr_name, type(val))
         if is_jsonapi_attr(attr):
             # to do
             safrs.log.debug("Filtering not implemented for {}".format(attr))
