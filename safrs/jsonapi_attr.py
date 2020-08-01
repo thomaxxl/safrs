@@ -1,7 +1,7 @@
 """
     jsonapi_attr: custom jsonapi attributes
 """
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from .swagger_doc import parse_object_doc
 
 JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
@@ -20,7 +20,7 @@ class jsonapi_attr(hybrid_property):
             set `swagger_type` and `default` to customize the swagger
         """
         setattr(self, JSONAPI_ATTR_TAG, True)
-
+        
         if args:
             # called when the app starts
             attr = args[0]
@@ -45,7 +45,7 @@ class jsonapi_attr(hybrid_property):
         """
             Provide a decorator that defines a setter method.
         """
-
+        
         return self._copy(fset=fset)
 
 
