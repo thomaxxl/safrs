@@ -36,12 +36,12 @@ class SAFRSRelationshipObject:
         return body, responses
 
     @classproperty
-    def _s_relationship_names(cls):
+    def _s_relationships(cls):
         """
             :return: The relationship names of the target
         """
-        return cls._target._s_relationship_names
-
+        return cls._target._s_relationships
+    
     @classproperty
     def _s_jsonapi_attrs(cls):
         """
@@ -55,13 +55,6 @@ class SAFRSRelationshipObject:
             :return: JSON:API type
         """
         return cls._target._s_type
-
-    @classproperty
-    def _s_column_names(cls):
-        """
-            :return: the list of the target column names
-        """
-        return cls._target._s_column_names
 
     @classproperty
     def _s_class_name(cls):

@@ -89,7 +89,6 @@ class SAFRSBase(Model):
 
     query_limit = 50
     db_commit = True  # commit instances automatically, see also _s_auto_commit property below
-    http_methods = {"GET", "POST", "PATCH", "DELETE", "PUT"}  # http methods, used in case of override
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
 
@@ -117,7 +116,7 @@ class SAFRSBase(Model):
         instance = None
         try:
             instance = cls._s_query.filter_by(**primary_keys).one_or_none()
-        except Exception as exc:
+        except Exception as exc: # pragma: no cover
             safrs.log.warning(exc)
 
         if instance is None:
@@ -127,9 +126,11 @@ class SAFRSBase(Model):
 
     def __init__(self, *args, **kwargs):
         """
-            Object initialization:
+            Object initialization, called from backend or `_s_post`
             - set the named attributes and add the object to the database
             - create relationships
+            :param args:
+            :param kwargs: model attributes (column & relationship values)
         """
         # All SAFRSBase subclasses have a jsonapi id, passed as "id" in web requests
         # if no id is supplied, generate a new safrs id (uuid4)
@@ -141,20 +142,20 @@ class SAFRSBase(Model):
         # kwargs dictionary (from json in case of a web request).
         # Retrieve the values from each attribute (== class table column)
         db_args = {}
+        column_names = [c.key for c in self._s_columns]
         for name, val in kwargs.items():
-            if name in self._s_relationship_names:
+            if name in self._s_relationships:
                 # Add the related instances
                 db_args[name] = val
             elif is_jsonapi_attr(getattr(self.__class__, name, None)):
                 # Set jsonapi attributes
                 attr_val = self._s_parse_attr_value(name, val)
                 setattr(self, name, attr_val)
-            elif name in self._s_column_names:
+            elif name in column_names:
                 # Set columns
                 attr_val = self._s_parse_attr_value(name, val)
                 db_args[name] = attr_val
             elif name in self.__class__._s_jsonapi_attrs:
-                # getting TOOOODOOOOOO
                 db_args[name] = self._s_parse_attr_value(name, val)
 
         # db_args now contains the class attributes. Initialize the DB model with them
@@ -182,7 +183,6 @@ class SAFRSBase(Model):
         """
             setattr behaves differently for `jsonapi_attr` decorated attributes
         """
-
         if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
             getattr(self.__class__, attr_name).setter(attr_val)
         else:
@@ -283,6 +283,14 @@ class SAFRSBase(Model):
         """
         safrs.DB.session.delete(self)
 
+    @hybrid_property
+    def http_methods(self):
+        return self.__class__.http_methods
+    
+    @http_methods.expression
+    def http_methods(self):
+        return ["GET", "POST", "PATCH", "DELETE", "PUT"]
+
     @classproperty
     @lru_cache(maxsize=32)
     def _s_columns(cls):
@@ -302,32 +310,23 @@ class SAFRSBase(Model):
             result = [c for c in result if cls._s_check_perm(cls.colname_to_attrname(c.name))]
         return result
 
-    @classproperty
+    @hybrid_property
     @lru_cache(maxsize=32)
-    def _s_column_names(cls):
+    def _s_relationships(self):
         """
-            :return: list of column names
+            :return: the relationships used for jsonapi (de/)serialization
         """
-        return [c.name for c in cls._s_columns]
+        rels = {rel.key : rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)}
+        return rels
 
-    @classproperty
-    @lru_cache(maxsize=32)
+    @_s_relationships.expression
     def _s_relationships(cls):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = [rel for rel in cls.__mapper__.relationships if cls._s_check_perm(rel.key)]
+        rels = {rel.key : rel for rel in cls.__mapper__.relationships if cls._s_check_perm(rel.key)}
         return rels
-
-    @classproperty
-    @lru_cache(maxsize=32)
-    def _s_relationship_names(cls):
-        """
-            :return: list of realtionship names
-        """
-        rel_names = [rel.key for rel in cls._s_relationships]
-        return rel_names
-
+    
     @classmethod
     def colname_to_attrname(cls, col_name):
         """
@@ -352,6 +351,8 @@ class SAFRSBase(Model):
             cls._attr_col_name_map = {}
             for attr_name, attr_val in cls.__dict__.items():
                 _col_name = getattr(attr_val, "name", attr_name)
+                if attr_name == "type":
+                    attr_name = "Type"
                 cls._col_attr_name_map[_col_name] = attr_name
                 cls._attr_col_name_map[attr_name] = _col_name
 
@@ -480,7 +481,7 @@ class SAFRSBase(Model):
             if attr_name == "type":
                 # translate type to Type
                 result["Type"] = column
-            elif not attr_name == "id" and attr_name not in cls._s_relationship_names:
+            elif not attr_name == "id" and attr_name not in cls._s_relationships:
                 result[attr_name] = column
 
         for attr_name, attr_val in cls.__dict__.items():
@@ -669,7 +670,7 @@ class SAFRSBase(Model):
 
     def _s_get_related(self):
         """
-            :return: related objects
+            :return: dict of relationship names -> [related instances]
 
             http://jsonapi.org/format/#fetching-includes
 
@@ -702,10 +703,10 @@ class SAFRSBase(Model):
                 If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
                 it MUST respond with 400 Bad Request.
             """
-            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationship_names:
+            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
 
-        for relationship in self._s_relationships:
+        for rel_name, relationship in self._s_relationships.items():
             """
                 http://jsonapi.org/format/#document-resource-object-relationships:
 
@@ -1000,7 +1001,6 @@ class SAFRSBase(Model):
         """
             Type property setter, see comment in the type property
         """
-        # pylint: disable=attribute-defined-outside-init
         if not self.Type == value:
             self.Type = value
         self.type = value
@@ -1022,8 +1022,6 @@ class Included:
         This class is used to serialize instances that will be included in the jsonapi response
         we keep a set of instances in `flask.g` to avoid storing duplicates
     """
-
-    instances = set()
     instance = None
 
     def __init__(self, instance, included_list):

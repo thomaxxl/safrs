@@ -115,7 +115,7 @@ class Api(FRSApiBase):
         object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
 
-        for relationship in safrs_object._s_relationships:
+        for rel_name, relationship in safrs_object._s_relationships.items():
             self.expose_relationship(relationship, url, tags=tags)
 
     def expose_methods(self, url_prefix, tags):

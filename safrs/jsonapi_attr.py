@@ -20,7 +20,7 @@ class jsonapi_attr(hybrid_property):
             set `swagger_type` and `default` to customize the swagger
         """
         setattr(self, JSONAPI_ATTR_TAG, True)
-        
+
         if args:
             # called when the app starts
             attr = args[0]
@@ -45,7 +45,7 @@ class jsonapi_attr(hybrid_property):
         """
             Provide a decorator that defines a setter method.
         """
-        
+
         return self._copy(fset=fset)
 
 

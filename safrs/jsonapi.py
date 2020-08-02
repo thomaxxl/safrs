@@ -83,7 +83,7 @@ class Resource(FRSResource):
         """
             :return: JSON:API "include" query string swagger spec
         """
-        default_include = ",".join(cls.SAFRSObject._s_relationship_names)
+        default_include = ",".join(cls.SAFRSObject._s_relationships.keys())
 
         param = {
             "default": default_include,
@@ -1065,20 +1065,16 @@ class SAFRSRelationship:
         return body, responses
 
     @classproperty
-    def _s_relationship_names(cls):
-        return cls._target._s_relationship_names
+    def _s_relationships(cls):
+        return cls._target._s_relationships
 
     @classproperty
     def _s_jsonapi_attrs(cls):
-        return cls._target._s_relationship_names
+        return cls._target._s_relationships.keys()
 
     @classproperty
     def _s_type(cls):
         return cls._target._s_type
-
-    @classproperty
-    def _s_column_names(cls):
-        return cls._target._s_column_names
 
     @classproperty
     def _s_class_name(cls):
