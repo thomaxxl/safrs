@@ -1,7 +1,7 @@
 """
     jsonapi_attr: custom jsonapi attributes
 """
-from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.ext.hybrid import hybrid_property
 from .swagger_doc import parse_object_doc
 
 JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"

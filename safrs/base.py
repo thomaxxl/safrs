@@ -116,7 +116,7 @@ class SAFRSBase(Model):
         instance = None
         try:
             instance = cls._s_query.filter_by(**primary_keys).one_or_none()
-        except Exception as exc: # pragma: no cover
+        except Exception as exc:  # pragma: no cover
             safrs.log.warning(exc)
 
         if instance is None:
@@ -286,7 +286,7 @@ class SAFRSBase(Model):
     @hybrid_property
     def http_methods(self):
         return self.__class__.http_methods
-    
+
     @http_methods.expression
     def http_methods(self):
         return ["GET", "POST", "PATCH", "DELETE", "PUT"]
@@ -316,7 +316,7 @@ class SAFRSBase(Model):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = {rel.key : rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)}
+        rels = {rel.key: rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)}
         return rels
 
     @_s_relationships.expression
@@ -324,9 +324,9 @@ class SAFRSBase(Model):
         """
             :return: the relationships used for jsonapi (de/)serialization
         """
-        rels = {rel.key : rel for rel in cls.__mapper__.relationships if cls._s_check_perm(rel.key)}
+        rels = {rel.key: rel for rel in cls.__mapper__.relationships if cls._s_check_perm(rel.key)}
         return rels
-    
+
     @classmethod
     def colname_to_attrname(cls, col_name):
         """
@@ -361,7 +361,7 @@ class SAFRSBase(Model):
     @hybrid_method
     def _s_check_perm(self, property_name, permission="r"):
         """
-            Check the (instance-level) column permission 
+            Check the (instance-level) column permission
             :param column_name: column name
             :permission: permission string (read/write)
             :return: Boolean indicating whether access is allowed
@@ -1022,6 +1022,7 @@ class Included:
         This class is used to serialize instances that will be included in the jsonapi response
         we keep a set of instances in `flask.g` to avoid storing duplicates
     """
+
     instance = None
 
     def __init__(self, instance, included_list):

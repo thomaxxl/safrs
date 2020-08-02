@@ -15,7 +15,7 @@ from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
 from .errors import ValidationError
-from ._api import HTTP_METHODS
+from .safrs_api import HTTP_METHODS
 
 
 # pylint: disable=too-many-ancestors, logging-format-interpolation
@@ -36,7 +36,6 @@ class SAFRSRequest(Request):
     filter = ""  # filter is the custom filter, used as an argument by _s_filter
     includes = []
     secure = True
-    parsed_qs = {}
 
     def __init__(self, *args, **kwargs):
         """
@@ -98,12 +97,12 @@ class SAFRSRequest(Request):
             - filter[]
             - fields[]
         """
-
+        
         self.page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
         self.page_offset = self.args.get("page[offset]", 0, type=int)
         self.filters = {}
         self.fields = {}
-
+        
         # Parse the jsonapi filter[] and fields[] args
         for arg, val in self.args.items():
             if arg == "filter":

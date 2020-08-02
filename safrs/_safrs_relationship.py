@@ -41,7 +41,7 @@ class SAFRSRelationshipObject:
             :return: The relationship names of the target
         """
         return cls._target._s_relationships
-    
+
     @classproperty
     def _s_jsonapi_attrs(cls):
         """

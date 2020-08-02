@@ -1,5 +1,5 @@
 """
-JSON:API filtering strategy
+JSON:API filtering strategies
 """
 from .config import get_request_param
 import sqlalchemy
@@ -63,3 +63,65 @@ def jsonapi_filter(cls):
         result = cls._s_query
 
     return result
+
+
+@classmethod
+def get_swagger_filters(cls):
+    """
+        :return: JSON:API filters swagger spec
+        create the filter[] swagger doc for all jsonapi attributes + the id
+
+        the columns may have attributes defined that are used for custom formatting:
+        - description
+        - filterable
+        - type
+        - format
+    """
+    attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
+
+    for attr_name in attr_list:
+        # (Customizable swagger specs):
+        default_filter = ""
+        description = "{} attribute filter (csv)".format(attr_name)
+        swagger_type = "string"
+        swagger_format = "string"
+        name_format = "filter[{}]"
+        required = False
+
+        column = getattr(cls.SAFRSObject, "_s_column_dict", {}).get(attr_name, None)
+        if column is not None:
+            if not getattr(column, "filterable", True):
+                continue
+            description = getattr(column, "description", description)
+            swagger_type = getattr(column, "swagger_type", swagger_type)
+            swagger_format = getattr(column, "format", swagger_format)
+            name_format = getattr(column, "name_format", name_format)
+            required = getattr(column, "required", required)
+            default_filter = getattr(column, "default_filter", default_filter)
+
+        param = {
+            "default": default_filter,
+            "type": swagger_type,
+            "name": name_format.format(attr_name),
+            "in": "query",
+            "format": swagger_format,
+            "required": required,
+            "description": description,
+        }
+        yield param
+
+    yield {
+        "default": "",
+        "type": "string",
+        "name": "filter",
+        "in": "query",
+        "format": "string",
+        "required": False,
+        "description": "Custom {} filter".format(cls.SAFRSObject._s_class_name),
+    }
+
+
+class FilteringStrategy:
+    def __init__(self, jsonapi_filter=jsonapi_filter, swagger_gen=get_swagger_filters):
+        self.jsonapi_filter = jsonapi_filter
+        self.swagger_gen = swagger_gen

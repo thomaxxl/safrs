@@ -18,16 +18,28 @@ import safrs
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
-from flask import jsonify, make_response, url_for, request
+from flask import jsonify, make_response as flask_make_response, url_for, request
 from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
 from sqlalchemy.orm.interfaces import MANYTOONE
 from .base import SAFRSBase
 from .swagger_doc import is_public
-from .errors import ValidationError, GenericError, NotFoundError
+from .errors import ValidationError, NotFoundError
 from .json_encoder import SAFRSFormattedResponse
-from .util import classproperty
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
+from .jsonapi_filters import get_swagger_filters
+from .config import get_config
+
+
+def make_response(*args, **kwargs):
+    """
+        Customized flask-restful make_response
+    """
+    response = flask_make_response(*args, **kwargs)
+    if request.is_jsonapi:
+        # Only use "application/vnd.api+json" if the client sent this with the request
+        response.headers["Content-Type"] = "application/vnd.api+json"
+    return response
 
 
 class Resource(FRSResource):
@@ -43,6 +55,12 @@ class Resource(FRSResource):
     SAFRSObject = None
     # relationship target in SAFRSRestRelationshipAPI, identical to self.SAFRSObject in SAFRSRestAPI
     target = None
+    # Swagger filter spec
+    get_swagger_filters = get_swagger_filters
+
+    def ____new__(cls, *args, **kwargs):
+        cls.get_swagger_filters = get_config("filtering_strategy").swagger_gen
+        return super().__new__(*args, **kwargs)
 
     def head(self, *args, **kwargs):
         headers = {}
@@ -132,61 +150,6 @@ class Resource(FRSResource):
             "description": "Sort order",
         }
         return param
-
-    @classmethod
-    def get_swagger_filters(cls):
-        """
-            :return: JSON:API filters swagger spec
-            create the filter[] swagger doc for all jsonapi attributes + the id
-
-            the columns may have attributes defined that are used for custom formatting:
-            - description
-            - filterable
-            - type
-            - format
-        """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
-
-        for attr_name in attr_list:
-            # (Customizable swagger specs):
-            default_filter = ""
-            description = "{} attribute filter (csv)".format(attr_name)
-            swagger_type = "string"
-            swagger_format = "string"
-            name_format = "filter[{}]"
-            required = False
-
-            column = getattr(cls.SAFRSObject, "_s_column_dict", {}).get(attr_name, None)
-            if column is not None:
-                if not getattr(column, "filterable", True):
-                    continue
-                description = getattr(column, "description", description)
-                swagger_type = getattr(column, "swagger_type", swagger_type)
-                swagger_format = getattr(column, "format", swagger_format)
-                name_format = getattr(column, "name_format", name_format)
-                required = getattr(column, "required", required)
-                default_filter = getattr(column, "default_filter", default_filter)
-
-            param = {
-                "default": default_filter,
-                "type": swagger_type,
-                "name": name_format.format(attr_name),
-                "in": "query",
-                "format": swagger_format,
-                "required": required,
-                "description": description,
-            }
-            yield param
-
-        yield {
-            "default": "",
-            "type": "string",
-            "name": "filter",
-            "in": "query",
-            "format": "string",
-            "required": False,
-            "description": "Custom {} filter".format(cls.SAFRSObject._s_class_name),
-        }
 
 
 class SAFRSRestAPI(Resource):
@@ -301,7 +264,7 @@ class SAFRSRestAPI(Resource):
 
         # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
-        return jsonify(result)
+        return make_response(jsonify(result))
 
     def patch(self, **kwargs):
         """
@@ -529,7 +492,7 @@ class SAFRSRestAPI(Resource):
         instance = self.SAFRSObject.get_instance(id)
         instance._s_delete()
 
-        return {}, HTTPStatus.NO_CONTENT
+        return make_response({}, HTTPStatus.NO_CONTENT)
 
 
 class SAFRSRestRelationshipAPI(Resource):
@@ -648,7 +611,7 @@ class SAFRSRestRelationshipAPI(Resource):
             links, data, count = paginate(instances, self.target)
 
         result = jsonapi_format_response(data, meta, links, errors, count)
-        return jsonify(result)
+        return make_response(jsonify(result))
 
     # Relationship patching
     def patch(self, **kwargs):
@@ -818,7 +781,7 @@ class SAFRSRestRelationshipAPI(Resource):
                     relation.append(child)
 
         # we can return result too but it's not necessary per the spec
-        return {}, HTTPStatus.NO_CONTENT
+        return make_response({}, HTTPStatus.NO_CONTENT)
 
     def delete(self, **kwargs):
         """
@@ -899,7 +862,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 else:
                     safrs.log.warning("Item with id {} not in relation".format(child_id))
 
-        return {}, HTTPStatus.NO_CONTENT
+        return make_response({}, HTTPStatus.NO_CONTENT)
 
     def parse_args(self, **kwargs):
         """
@@ -984,7 +947,7 @@ class SAFRSJSONRPCAPI(Resource):
         payload = request.get_jsonapi_payload()
         if payload:
             args = payload.get("meta", {}).get("args", {})
-        return self.create_response(method, args)
+        return self._create_rpc_response(method, args)
 
     def get(self, **kwargs):
         """
@@ -1018,9 +981,9 @@ class SAFRSJSONRPCAPI(Resource):
             raise ValidationError("Method is not public")
 
         args = dict(request.args)
-        return self.create_response(method, args)
+        return self._create_rpc_response(method, args)
 
-    def create_response(self, method, args):
+    def _create_rpc_response(self, method, args):
 
         safrs.log.debug("method {} args {}".format(self.method_name, args))
         result = method(**args)
@@ -1033,49 +996,3 @@ class SAFRSJSONRPCAPI(Resource):
             response = {"meta": {"result": result}}
 
         return make_response(jsonify(response), HTTPStatus.OK)
-
-
-# pylint: disable=too-few-public-methods
-class SAFRSRelationship:
-    """
-        Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
-    """
-
-    _s_class_name = None
-    __name__ = "name"
-
-    @classmethod
-    def get_swagger_doc(cls, http_method):
-        """
-            Create a swagger api model based on the sqlalchemy schema
-            if an instance exists in the DB, the first entry is used as example
-        """
-        body = {}
-        responses = {}
-        object_name = cls.__name__
-        object_model = {}
-        responses = {HTTPStatus.OK.value: {"description": "{} object".format(object_name), "schema": object_model}}
-
-        if http_method.upper() in ("POST", "GET"):
-            responses = {
-                HTTPStatus.OK.value: {"description": HTTPStatus.OK.description},
-                HTTPStatus.NOT_FOUND.value: {"description": HTTPStatus.NOT_FOUND.description},
-            }
-
-        return body, responses
-
-    @classproperty
-    def _s_relationships(cls):
-        return cls._target._s_relationships
-
-    @classproperty
-    def _s_jsonapi_attrs(cls):
-        return cls._target._s_relationships.keys()
-
-    @classproperty
-    def _s_type(cls):
-        return cls._target._s_type
-
-    @classproperty
-    def _s_class_name(cls):
-        return cls._target.__name__
