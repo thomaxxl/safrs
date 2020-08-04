@@ -367,7 +367,7 @@ class SAFRSBase(Model):
         """
             Check the (instance-level) column permission
             :param column_name: column name
-            :permission: permission string (read/write)
+            :param permission: permission string (read/write)
             :return: Boolean indicating whether access is allowed
         """
         return self.__class__._s_check_perm(property_name, permission)
@@ -378,7 +378,7 @@ class SAFRSBase(Model):
         """
             Check the (class-level) column permission
             :param column_name: column name
-            :permission: permission string (read/write)
+            :param permission: permission string (read/write)
             :return: Boolean indicating whether access is allowed
         """
         if property_name.startswith("_"):

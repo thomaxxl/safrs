@@ -49,11 +49,11 @@ class SAFRSRequest(Request):
         """
             Check if the request content type is jsonapi and any requested extensions
         """
-        if not isinstance(self.content_type, str):
+        if not isinstance(self.content_type, str): # pragma: no cover
             return
 
         content_type = self.content_type.split(";")[0]
-        if content_type not in self.jsonapi_content_types:
+        if content_type not in self.jsonapi_content_types: # pragma: no cover
             return
 
         self.is_jsonapi = True
@@ -77,7 +77,7 @@ class SAFRSRequest(Request):
         """
             :return: jsonapi request payload
         """
-        if not self.is_jsonapi:
+        if not self.is_jsonapi: # pragma: no cover
             safrs.log.warning('Invalid Media Type! "{}"'.format(self.content_type))
             # raise GenericError('Unsupported Media Type', 415)
         if self.method == "OPTIONS":
