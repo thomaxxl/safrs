@@ -751,7 +751,6 @@ class SAFRSRestRelationshipAPI(Resource):
             A server MUST return a 204 No Content status code if an update is successful and the representation
             of the resource in the request matches the result.
         """
-        kwargs["require_child"] = True
         parent, relation = self.parse_args(**kwargs)
         payload = request.get_jsonapi_payload()
         data = payload.get("data", None)
@@ -801,7 +800,6 @@ class SAFRSRestRelationshipAPI(Resource):
             ----
             Remove an item from a relationship
         """
-        kwargs["require_child"] = True
         # pylint: disable=unused-variable
         # (parent is unused)
         parent, relation = self.parse_args(**kwargs)
@@ -868,9 +866,7 @@ class SAFRSRestRelationshipAPI(Resource):
         """
             Parse relationship args
             An error is raised if the parent doesn't exist.
-            An error is raised if the child doesn't exist and the
-            "require_child" argument is set in kwargs,
-
+            
             :return: parent, child, relation
         """
         parent_id = kwargs.get(self.parent_object_id, None)
