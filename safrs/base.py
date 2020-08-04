@@ -86,12 +86,10 @@ class SAFRSBase(Model):
         match column names or sqla attribute names, this is why most of the methods & properties have
         (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
-
-    query_limit = 50
+    
     db_commit = True  # commit instances automatically, see also _s_auto_commit property below
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
-
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
     supports_includes = True  # Set to False if you don't want this class to return included items
@@ -285,10 +283,16 @@ class SAFRSBase(Model):
 
     @hybrid_property
     def http_methods(self):
+        """
+            :return: list of allowed HTTP methods
+        """
         return self.__class__.http_methods
 
     @http_methods.expression
     def http_methods(self):
+        """
+            :return: list of allowed HTTP methods
+        """
         return ["GET", "POST", "PATCH", "DELETE", "PUT"]
 
     @classproperty
