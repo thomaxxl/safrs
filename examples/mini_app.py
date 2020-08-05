@@ -35,7 +35,7 @@ def create_app(config_filename=None, host="localhost"):
     return app
 
 
-host = "automat-c2"
+host = "localhost"
 app = create_app(host=host)
 
 if __name__ == "__main__":
