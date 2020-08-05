@@ -379,8 +379,10 @@ def swagger_doc(cls, tags=None):
 
             # Create the default POST body schema
             sample_dict = cls._s_sample_dict()
-            # The POST sample doesn't contain an "id"
+            # The POST sample doesn't contain an "id", unless cls.allow_client_generated_ids is True
             sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
+            if cls.allow_client_generated_ids:
+                sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type, "id" : "client_generated"}})
             parameters.append(
                 {
                     "name": "POST body",
