@@ -442,6 +442,10 @@ class SAFRSRestAPI(Resource):
             raise ValidationError("Invalid type member: {} != {}".format(obj_type, self.SAFRSObject._s_type))
 
         attributes = data.get("attributes", {})
+        if self.SAFRSObject.allow_client_generated_ids:
+            client_generated_id = data.get("id", None)
+            attributes["id"] = client_generated_id
+
         instance = self.SAFRSObject._s_post(**attributes)
 
         return instance

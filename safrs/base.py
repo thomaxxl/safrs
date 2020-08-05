@@ -216,7 +216,7 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
-    def _s_post(cls, **attributes):
+    def _s_post(cls, id=None, **attributes):
         """
             This method is called when a new item is created with a POST to the json api
 
@@ -236,7 +236,6 @@ class SAFRSBase(Model):
 
         if getattr(cls, "allow_client_generated_ids", False) is True:
             # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            id = attributes.get("data", {}).get("id")
             # cls.id_type.get_pks(id)
             attributes["id"] = id
 
