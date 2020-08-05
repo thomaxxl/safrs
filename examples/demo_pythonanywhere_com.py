@@ -294,7 +294,6 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             host=swagger_host,
             port=PORT,
             prefix=API_PREFIX,
-            api_spec_url=API_PREFIX + "/swagger",
             custom_swagger=custom_swagger,
             schemes=["http", "https"],
             description=description,
