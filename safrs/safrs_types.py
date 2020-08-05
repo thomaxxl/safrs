@@ -14,77 +14,6 @@ from .util import classproperty
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
 
 
-class JSONType(PickleType):  # pragma: no cover
-    """
-        JSON DB type is used to store JSON objects in the database
-    """
-
-    impl = BLOB
-
-    def __init__(self, *args, **kwargs):
-
-        # kwargs['pickler'] = json
-        super(JSONType, self).__init__(*args, **kwargs)
-
-    def process_bind_param(self, value, dialect):
-
-        if value is not None:
-            value = json.dumps(value, ensure_ascii=True)
-        return value
-
-    def process_result_value(self, value, dialect):
-
-        if value is not None:
-            value = json.loads(value)
-        return value
-
-
-class SafeString(TypeDecorator):  # pragma: no cover
-    """
-        DB String Type class strips special chars when bound
-    """
-
-    impl = String(767)
-
-    def __init__(self, *args, **kwargs):
-
-        super(SafeString, self).__init__(*args, **kwargs)
-
-    def process_bind_param(self, value, dialect):
-
-        if value is not None:
-            result = re.sub(STRIP_SPECIAL, "_", value)
-            if str(result) != str(value):
-                # log.warning('({}) Replaced {} by {}'.format(self, value, result))
-                pass
-        else:
-            result = value
-
-        return result
-
-
-class UUIDType(TypeDecorator):  # pragma: no cover
-    """
-        UUIDType
-    """
-
-    impl = String(40)
-
-    def __init__(self, *args, **kwargs):
-
-        super(UUIDType, self).__init__(*args, **kwargs)
-
-    @staticmethod
-    def process_bind_param(value, dialect):
-
-        try:
-            uuid.UUID(value, version=4)
-        except Exception as exc:
-            raise ValidationError("UUID Validation Error {} ({})".format(value, exc))
-
-        return value
-
-
 class SAFRSID:
     """
         This class creates a jsonapi "id" from the classes PKs
@@ -175,7 +104,8 @@ class SAFRSID:
                     result[col_name] = pk_col.default
                 else:
                     result[col_name] = ""
-            except Exception:
+            except Exception as exc: # pragma: no cover
+                log.warning("PK Error: {}".format(exc))
                 result[col_name] = ""
 
         return result
@@ -214,7 +144,7 @@ def get_id_type(cls, Super=SAFRSID):
     return id_type_class
 
 
-class SAFRSSHA256HashID(SAFRSID):
+class SAFRSSHA256HashID(SAFRSID): # pragma: no cover
     """
         SAFRSSHA256HashID class for a hash based id
     """
@@ -236,3 +166,74 @@ class SAFRSSHA256HashID(SAFRSID):
         """
         # todo
         return _id
+
+
+class JSONType(PickleType):  # pragma: no cover
+    """
+        JSON DB type is used to store JSON objects in the database
+    """
+
+    impl = BLOB
+
+    def __init__(self, *args, **kwargs):
+
+        # kwargs['pickler'] = json
+        super(JSONType, self).__init__(*args, **kwargs)
+
+    def process_bind_param(self, value, dialect):
+
+        if value is not None:
+            value = json.dumps(value, ensure_ascii=True)
+        return value
+
+    def process_result_value(self, value, dialect):
+
+        if value is not None:
+            value = json.loads(value)
+        return value
+
+
+class SafeString(TypeDecorator):  # pragma: no cover
+    """
+        DB String Type class strips special chars when bound
+    """
+
+    impl = String(767)
+
+    def __init__(self, *args, **kwargs):
+
+        super(SafeString, self).__init__(*args, **kwargs)
+
+    def process_bind_param(self, value, dialect):
+
+        if value is not None:
+            result = re.sub(STRIP_SPECIAL, "_", value)
+            if str(result) != str(value):
+                # log.warning('({}) Replaced {} by {}'.format(self, value, result))
+                pass
+        else:
+            result = value
+
+        return result
+
+
+class UUIDType(TypeDecorator):  # pragma: no cover
+    """
+        UUIDType
+    """
+
+    impl = String(40)
+
+    def __init__(self, *args, **kwargs):
+
+        super(UUIDType, self).__init__(*args, **kwargs)
+
+    @staticmethod
+    def process_bind_param(value, dialect):
+
+        try:
+            uuid.UUID(value, version=4)
+        except Exception as exc:
+            raise ValidationError("UUID Validation Error {} ({})".format(value, exc))
+
+        return value
