@@ -370,6 +370,7 @@ class SAFRSBase(Model):
             :param permission: permission string (read/write)
             :return: Boolean indicating whether access is allowed
         """
+
         return self.__class__._s_check_perm(property_name, permission)
 
     @_s_check_perm.expression
@@ -411,7 +412,7 @@ class SAFRSBase(Model):
                 return True
             return False
 
-        if is_jsonapi_attr(getattr(cls, property_name, None)):
+        if is_jsonapi_attr(cls.__dict__.get(property_name, None)): # avoid getattr here
             return True
 
         raise ValidationError("Invalid property {}".format(property_name))
