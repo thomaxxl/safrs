@@ -216,7 +216,7 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
-    def _s_post(cls, **attributes):
+    def _s_post(cls, id=None, **attributes):
         """
             This method is called when a new item is created with a POST to the json api
 
@@ -236,7 +236,6 @@ class SAFRSBase(Model):
 
         if getattr(cls, "allow_client_generated_ids", False) is True:
             # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            id = attributes.get("data", {}).get("id")
             # cls.id_type.get_pks(id)
             attributes["id"] = id
 
@@ -370,6 +369,7 @@ class SAFRSBase(Model):
             :param permission: permission string (read/write)
             :return: Boolean indicating whether access is allowed
         """
+
         return self.__class__._s_check_perm(property_name, permission)
 
     @_s_check_perm.expression
@@ -411,7 +411,7 @@ class SAFRSBase(Model):
                 return True
             return False
 
-        if is_jsonapi_attr(getattr(cls, property_name, None)):
+        if is_jsonapi_attr(cls.__dict__.get(property_name, None)): # avoid getattr here
             return True
 
         raise ValidationError("Invalid property {}".format(property_name))

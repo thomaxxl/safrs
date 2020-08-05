@@ -24,8 +24,11 @@ import hashlib
 from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_admin import Admin
-from flask_admin.contrib import sqla
+try:
+    from flask_admin import Admin
+    from flask_admin.contrib import sqla
+except:
+    print("Failed to import flask-admin")
 from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate
@@ -138,7 +141,7 @@ class Person(BaseModel):
     )
 
     # Following methods are exposed through the REST API
-    @jsonapi_rpc(http_methods=["POST"], valid_jsonapi=False)
+    @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email):
         """
             description : Send an email
@@ -291,7 +294,6 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             host=swagger_host,
             port=PORT,
             prefix=API_PREFIX,
-            api_spec_url=API_PREFIX + "/swagger",
             custom_swagger=custom_swagger,
             schemes=["http", "https"],
             description=description,
