@@ -5,7 +5,7 @@ twine upload dist/*
 
 from distutils.core import setup
 
-def safrs_setup(): # pragma: no cover
+def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
@@ -41,4 +41,4 @@ def safrs_setup(): # pragma: no cover
         ],
     )
 
-safrs_setup()
+safrs_setup() # pragma: no cover
