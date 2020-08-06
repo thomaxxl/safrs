@@ -105,7 +105,7 @@ class SAFRSID:
                 else:
                     result[col_name] = ""
             except Exception as exc:  # pragma: no cover
-                log.warning("PK Error: {}".format(exc))
+                safrs.log.warning("PK Error: {}".format(exc))
                 result[col_name] = ""
 
         return result
