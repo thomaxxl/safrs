@@ -157,6 +157,6 @@ try:
     LOGLEVEL = int(DEBUG)
 except ValueError:  # pragma : no cover
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
-    LOGLEVEL = logging.WARNING
+    LOGLEVEL = logging.INFO
 
 log = SAFRS.init_logging(LOGLEVEL)
