@@ -86,7 +86,7 @@ class SAFRSBase(Model):
         match column names or sqla attribute names, this is why most of the methods & properties have
         (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
-    
+
     db_commit = True  # commit instances automatically, see also _s_auto_commit property below
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
@@ -237,7 +237,7 @@ class SAFRSBase(Model):
             attributes["id"] = id
         else:
             attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in cls.id_type.column_names}
-            
+
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
         # pylint: disable=not-callable
@@ -410,7 +410,7 @@ class SAFRSBase(Model):
                 return True
             return False
 
-        if is_jsonapi_attr(cls.__dict__.get(property_name, None)): # avoid getattr here
+        if is_jsonapi_attr(cls.__dict__.get(property_name, None)):  # avoid getattr here
             return True
 
         raise ValidationError("Invalid property {}".format(property_name))

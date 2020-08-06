@@ -104,7 +104,7 @@ class SAFRSID:
                     result[col_name] = pk_col.default
                 else:
                     result[col_name] = ""
-            except Exception as exc: # pragma: no cover
+            except Exception as exc:  # pragma: no cover
                 log.warning("PK Error: {}".format(exc))
                 result[col_name] = ""
 
@@ -144,7 +144,7 @@ def get_id_type(cls, Super=SAFRSID):
     return id_type_class
 
 
-class SAFRSSHA256HashID(SAFRSID): # pragma: no cover
+class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
     """
         SAFRSSHA256HashID class for a hash based id
     """

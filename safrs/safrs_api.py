@@ -65,7 +65,7 @@ class SAFRSAPI(FRSApiBase):
 
         super().__init__(
             app,
-            api_spec_url=kwargs.pop("api_spec_url","/swagger"),
+            api_spec_url=kwargs.pop("api_spec_url", "/swagger"),
             host=host,
             description=description,
             prefix=prefix,

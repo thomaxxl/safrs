@@ -10,6 +10,7 @@ from .response import SAFRSResponse
 from .json_encoder import SAFRSJSONEncoder
 from .jsonapi_filters import FilteringStrategy
 
+
 class SAFRS:
     """ This class configures the Flask application to serve SAFRSBase instances
     :param app: a Flask application.
@@ -138,12 +139,13 @@ def test_decorator(func):
     def api_wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
-    if func.__name__.lower() == "get": # pragma : no cover
+    if func.__name__.lower() == "get":  # pragma : no cover
         result = api_wrapper
         result.__name__ = func.__name__  # make sure to to reset the __name__ !
         return result
 
     return func
+
 
 #
 # DB and logging initialization
@@ -153,7 +155,7 @@ DB = SQLAlchemy()
 try:
     DEBUG = os.getenv("DEBUG", str(logging.WARNING))
     LOGLEVEL = int(DEBUG)
-except ValueError: # pragma : no cover
+except ValueError:  # pragma : no cover
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
     LOGLEVEL = logging.WARNING
 
