@@ -153,7 +153,7 @@ def test_decorator(func):
 DB = SQLAlchemy()
 
 try:
-    DEBUG = os.getenv("DEBUG", str(logging.WARNING))
+    DEBUG = os.getenv("DEBUG", logging.WARNING)
     LOGLEVEL = int(DEBUG)
 except ValueError:  # pragma : no cover
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
