@@ -226,19 +226,18 @@ class SAFRSBase(Model):
             `_s_post` performs attribute sanitization and calls `cls.__init__`
             The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
         """
-        # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
-        # SAFRSObject allow_client_generated_ids attribute
-        for col_name in cls.id_type.column_names:
-            attributes.pop(col_name, None)
-
         # remove attributes that are not declared in _s_jsonapi_attrs
         attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name in cls._s_jsonapi_attrs}
 
-        if getattr(cls, "allow_client_generated_ids", False) is True:
-            # todo, this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            # cls.id_type.get_pks(id)
+        # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
+        # SAFRSObject allow_client_generated_ids attribute
+        if cls.allow_client_generated_ids:
+            # this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
+            # also, the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
             attributes["id"] = id
-
+        else:
+            attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in cls.id_type.column_names}
+            
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
         # pylint: disable=not-callable
