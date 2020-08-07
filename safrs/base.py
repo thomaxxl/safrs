@@ -1,6 +1,5 @@
 # base.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
 #
-# SQLAlchemy database schemas
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
 #
 import inspect
@@ -210,8 +209,8 @@ class SAFRSBase(Model):
             return attr_val
 
         # attr is a sqlalchemy.sql.schema.Column now
-        if not isinstance(attr, Column):
-            raise ValidationError("Not a column")
+        if not isinstance(attr, Column): # pragma: no cover
+            raise ValidationError("Not a column: {}".format(attr))
 
         return parse_attr(attr, attr_val)
 
@@ -291,7 +290,7 @@ class SAFRSBase(Model):
         """
             :return: list of allowed HTTP methods
         """
-        return ["GET", "POST", "PATCH", "DELETE", "PUT"]
+        return ["GET", "POST", "PATCH", "DELETE", "PUT", "HEAD", "OPTIONS"]
 
     @classproperty
     @lru_cache(maxsize=32)
