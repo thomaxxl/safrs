@@ -944,9 +944,13 @@ class SAFRSJSONRPCAPI(Resource):
             raise ValidationError("Method is not public")
 
         args = dict(request.args)
-        payload = request.get_jsonapi_payload()
-        if payload:
-            args = payload.get("meta", {}).get("args", {})
+        if getattr(method, "valid_jsonapi", False):
+            payload = request.get_jsonapi_payload()
+            if payload:
+                args = payload.get("meta", {}).get("args", {})
+        else:
+            args = request.get_json()
+
         return self._create_rpc_response(method, args)
 
     def get(self, **kwargs):
