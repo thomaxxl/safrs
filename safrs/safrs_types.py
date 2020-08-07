@@ -60,7 +60,8 @@ class SAFRSID:
             except Exception:
                 raise ValidationError("Invalid id: '{}'.".format(id))
         else:
-            safrs.log.debug("ID Validation not implemented")
+            pass
+            #safrs.log.debug("ID Validation not implemented for {}".format(cls))
 
         return result
 
