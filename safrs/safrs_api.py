@@ -210,7 +210,11 @@ class SAFRSAPI(FRSApiBase):
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
-        decorators = getattr(parent_class, "custom_decorators", []) + getattr(parent_class, "decorators", []) + getattr(relationship, "decorators", [])
+        decorators = (
+            getattr(parent_class, "custom_decorators", [])
+            + getattr(parent_class, "decorators", [])
+            + getattr(relationship, "decorators", [])
+        )
         rel_object = type(
             "{}.{}".format(parent_name, rel_name),  # Name of the class we're creating here
             (SAFRSRelationshipObject,),
@@ -430,6 +434,7 @@ class SAFRSAPI(FRSApiBase):
             cls._operation_ids[summary] += 1
         return "{}_{}".format(summary, cls._operation_ids[summary])
 
+
 def api_decorator(cls, swagger_decorator):
     """ Decorator for the API views:
             - add swagger documentation ( swagger_decorator )
@@ -446,7 +451,14 @@ def api_decorator(cls, swagger_decorator):
 
     cors_domain = get_config("cors_domain")
     cls.http_methods = {}  # holds overridden http methods, note: cls also has "methods" set, but it's not related to this
-    for method_name in ["patch", "post", "delete", "get", "put", "options"]:  # HTTP methods, "put isn't used by us but may be used by a hacky developer"
+    for method_name in [
+        "patch",
+        "post",
+        "delete",
+        "get",
+        "put",
+        "options",
+    ]:  # HTTP methods, "put isn't used by us but may be used by a hacky developer"
         method = getattr(cls, method_name, None)
         if not method:
             continue
@@ -468,7 +480,7 @@ def api_decorator(cls, swagger_decorator):
         decorated_method = http_method_decorator(decorated_method)
 
         setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
-        
+
         try:
             # Add swagger documentation
             decorated_method = swagger_decorator(decorated_method)

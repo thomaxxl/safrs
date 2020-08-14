@@ -12,9 +12,12 @@ from http import HTTPStatus
 from .config import is_debug, get_config
 
 HIDDEN_LOG = "(debug logging disabled)"
+
+
 def verbose_errors():
     # Only reflect error messages when debug logging is enabled
     return safrs.log.getEffectiveLevel() <= logging.DEBUG
+
 
 class NotFoundError(Exception, DontWrapMixin):
     """

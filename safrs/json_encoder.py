@@ -93,10 +93,10 @@ class SAFRSJSONEncoder(JSONEncoder):
             # only continue if in debug mode
             safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
             return {"error": "SAFRSJSONEncoder invalid object"}
-        
-        if isinstance(obj, DeclarativeMeta): # pragma: no cover
+
+        if isinstance(obj, DeclarativeMeta):  # pragma: no cover
             return self.sqla_encode(obj)
-        
+
         return self.ghetto_encode(obj)
 
     @staticmethod

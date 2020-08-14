@@ -97,7 +97,7 @@ class SAFRSBase(Model):
     # on startup
     swagger_models = {"instance": None, "collection": None}
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
-    jsonapi_filter = jsonapi_filter # filtering implementation
+    jsonapi_filter = jsonapi_filter  # filtering implementation
 
     # Cached lookup tables
     _col_attr_name_map = None
@@ -201,12 +201,12 @@ class SAFRSBase(Model):
             return attr_val
 
         attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
-        
+
         if is_jsonapi_attr(attr):
             return attr_val
 
         # attr is a sqlalchemy.sql.schema.Column now
-        if not isinstance(attr, Column): # pragma: no cover
+        if not isinstance(attr, Column):  # pragma: no cover
             raise ValidationError("Not a column: {}".format(attr))
 
         return parse_attr(attr, attr_val)
