@@ -97,7 +97,7 @@ class SAFRSBase(Model):
     # on startup
     swagger_models = {"instance": None, "collection": None}
     _s_expose = True  # indicates we want to expose this (see _s_check_perms)
-    jsonapi_filter = jsonapi_filter
+    jsonapi_filter = jsonapi_filter # filtering implementation
 
     # Cached lookup tables
     _col_attr_name_map = None
@@ -201,10 +201,7 @@ class SAFRSBase(Model):
             return attr_val
 
         attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
-        if attr is None:  # pragma: no cover
-            # we shouldn't get here because we should already have checked that attr_name is in _s_jsonapi_attrs
-            raise ValidationError("Invalid attribute {}".format(attr_name))
-
+        
         if is_jsonapi_attr(attr):
             return attr_val
 

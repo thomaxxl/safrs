@@ -98,14 +98,13 @@ class SAFRSAPI(FRSApiBase):
             tablename/collectionname: safrs_object._s_collection_name, e.g. "Users"
             classname: safrs_object.__name__, e.g. "User"
         """
-        self.safrs_object = safrs_object
         safrs_object.url_prefix = url_prefix
         api_class_name = "{}_API".format(safrs_object._s_type)
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_collection_name]
         # Expose the methods first
-        self.expose_methods(url_prefix, tags=tags)
+        self.expose_methods(url_prefix, tags=tags, safrs_object=safrs_object)
 
         RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
@@ -137,14 +136,13 @@ class SAFRSAPI(FRSApiBase):
         for rel_name, relationship in safrs_object._s_relationships.items():
             self.expose_relationship(relationship, url, tags=tags)
 
-    def expose_methods(self, url_prefix, tags):
+    def expose_methods(self, url_prefix, tags, safrs_object):
         """ Expose the safrs "documented_api_method" decorated methods
             :param url_prefix: api url prefix
             :param tags: swagger tags
             :return: None
         """
 
-        safrs_object = self.safrs_object
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
