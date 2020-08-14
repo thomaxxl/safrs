@@ -33,7 +33,7 @@ class SAFRSFormattedResponse:
         """
         self.response = safrs.jsonapi_format_response(*args, **kwargs)
 
-    def to_dict(self):
+    def to_dict(self):  # pragma: no cover
         """
             create the response payload that will be sent to the browser
             :return: dict or None
@@ -77,11 +77,9 @@ class SAFRSJSONEncoder(JSONEncoder):
             return obj.isoformat()
         if isinstance(obj, set):
             return list(obj)
-        if isinstance(obj, DeclarativeMeta):
-            return self.sqla_encode(obj)
         if isinstance(obj, SAFRSFormattedResponse):
             return obj.to_dict()
-        elif isinstance(obj, UUID):  # pragma: no cover
+        if isinstance(obj, UUID):  # pragma: no cover
             return str(obj)
         if isinstance(obj, decimal.Decimal):  # pragma: no cover
             return str(obj)
@@ -95,7 +93,10 @@ class SAFRSJSONEncoder(JSONEncoder):
             # only continue if in debug mode
             safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
             return {"error": "SAFRSJSONEncoder invalid object"}
-
+        
+        if isinstance(obj, DeclarativeMeta): # pragma: no cover
+            return self.sqla_encode(obj)
+        
         return self.ghetto_encode(obj)
 
     @staticmethod

@@ -24,10 +24,8 @@ from .json_encoder import SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 import json
 
-
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
-
 
 # pylint: disable=protected-access,invalid-name,line-too-long,logging-format-interpolation,fixme,too-many-branches
 class SAFRSAPI(FRSApiBase):

@@ -9,11 +9,12 @@ from flask import request
 import safrs
 from sqlalchemy.exc import DontWrapMixin
 from http import HTTPStatus
-from .config import is_debug
-
+from .config import is_debug, get_config
 
 HIDDEN_LOG = "(debug logging disabled)"
-
+def verbose_errors():
+    # Only reflect error messages when debug logging is enabled
+    return safrs.log.getEffectiveLevel() <= logging.DEBUG
 
 class NotFoundError(Exception, DontWrapMixin):
     """
@@ -26,7 +27,7 @@ class NotFoundError(Exception, DontWrapMixin):
     def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
-        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
+        if verbose_errors():
             self.message += message
             safrs.log.error("Not found: %s", message)
         else:
@@ -44,7 +45,7 @@ class ValidationError(Exception, DontWrapMixin):
     def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
-        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
+        if verbose_errors():
             self.message += message
             safrs.log.error("ValidationError: %s", message)
         else:
@@ -53,7 +54,7 @@ class ValidationError(Exception, DontWrapMixin):
 
 class UnAuthorizedError(Exception, DontWrapMixin):
     """
-    This exception is raised when invalid input has been detected
+    This exception is raised when an authorization error occured
     """
 
     status_code = HTTPStatus.UNAUTHORIZED.value
@@ -62,7 +63,7 @@ class UnAuthorizedError(Exception, DontWrapMixin):
     def __init__(self, message="", status_code=HTTPStatus.UNAUTHORIZED.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
-        if safrs.log.getEffectiveLevel() <= logging.DEBUG:
+        if verbose_errors():
             self.message += message
             safrs.log.error("UnAuthorizedError: %s", message)
         else:
