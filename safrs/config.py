@@ -4,15 +4,24 @@
 import os
 import logging
 from flask import current_app, request
+from functools import lru_cache
 import safrs
 
-
+@lru_cache(maxsize=128)
 def get_config(option):
     """ Retrieve a configuration parameter from the app
         :param option: configuration parameter
         :return: configuration value
         :rtype: string
     """
+    
+    try:
+        result = current_app.config[option]
+    except (KeyError, RuntimeError):
+        #
+        result = getattr(safrs.SAFRS, option, None)
+        if result is not None:
+            return result
     # pylint: disable=invalid-name, unused-variable, pointless-string-statement
     # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
     OBJECT_ID_SUFFIX = os.environ.get("OBJECT_ID_SUFFIX", safrs.SAFRS.OBJECT_ID_SUFFIX)
@@ -63,22 +72,11 @@ def get_config(option):
     # ENABLE_RELATIONSHIPS enables relationships to be included.
     # This may slow down certain queries if the relationships are not properly configured!
     ENABLE_RELATIONSHIPS = bool(os.environ.get("ENABLE_RELATIONSHIPS", safrs.SAFRS.ENABLE_RELATIONSHIPS))
-    if not ENABLE_RELATIONSHIPS:
-        ENABLE_RELATIONSHIPS = True
-
+    
     MAX_TABLE_COUNT = int(os.environ.get("MAX_TABLE_COUNT", safrs.SAFRS.MAX_TABLE_COUNT))
-
-    try:
-        result = current_app.config[option]
-    except (KeyError, RuntimeError):
-        #
-        result = getattr(safrs.SAFRS, option, None)
-        if result is None:
-            result = locals().get(option)
-    except Exception as exc:
-        safrs.log.exception(exc)
-        raise
-
+    
+    result = locals().get(option)
+    
     return result
 
 
@@ -91,7 +89,7 @@ def get_request_param(param, default=0):
         :rtype: Boolean
     """
     result = getattr(request, param, None)
-    if result is None:
+    if result is None: # pragma: no cover
         safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
         result = default
     return result
