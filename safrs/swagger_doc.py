@@ -283,7 +283,8 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             # model = SchemaClassFactory(model_name, [])
             # arg_field = {"schema": model, "type": "string"} # tbd?
             method_field = {"method": method_name, "args": args}
-            fields["meta"] = schema_from_object(model_name, method_field)
+            if getattr(method, "valid_jsonapi", True):
+                fields["meta"] = schema_from_object(model_name, method_field)
 
         for param in parameters:
             if param.get("in") is None:
