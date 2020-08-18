@@ -13,6 +13,7 @@ from .config import is_debug
 
 HIDDEN_LOG = "(debug logging disabled)"
 
+
 class NotFoundError(Exception, DontWrapMixin):
     """
     This exception is raised when an item was not found

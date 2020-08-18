@@ -7,6 +7,7 @@ from flask import current_app, request
 from functools import lru_cache
 import safrs
 
+
 @lru_cache(maxsize=128)
 def get_config(option):
     """ Retrieve a configuration parameter from the app
@@ -14,7 +15,7 @@ def get_config(option):
         :return: configuration value
         :rtype: string
     """
-    
+
     try:
         result = current_app.config[option]
     except (KeyError, RuntimeError):
@@ -72,11 +73,11 @@ def get_config(option):
     # ENABLE_RELATIONSHIPS enables relationships to be included.
     # This may slow down certain queries if the relationships are not properly configured!
     ENABLE_RELATIONSHIPS = bool(os.environ.get("ENABLE_RELATIONSHIPS", safrs.SAFRS.ENABLE_RELATIONSHIPS))
-    
+
     MAX_TABLE_COUNT = int(os.environ.get("MAX_TABLE_COUNT", safrs.SAFRS.MAX_TABLE_COUNT))
-    
+
     result = locals().get(option)
-    
+
     return result
 
 
@@ -89,7 +90,7 @@ def get_request_param(param, default=0):
         :rtype: Boolean
     """
     result = getattr(request, param, None)
-    if result is None: # pragma: no cover
+    if result is None:  # pragma: no cover
         safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
         result = default
     return result
