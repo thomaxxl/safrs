@@ -47,7 +47,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, **kwargs):
+    def init_app(self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs):
         """
             API and application initialization
         """
@@ -66,8 +66,7 @@ class SAFRS:
             log.setLevel(logging.DEBUG)
 
         # Register the API blueprint
-        swaggerui_blueprint = kwargs.get("swaggerui_blueprint", None)
-        if swaggerui_blueprint is None:
+        if swaggerui_blueprint is True:
             swaggerui_blueprint = get_swaggerui_blueprint(
                 prefix, "{}/swagger.json".format(prefix), config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )

@@ -37,7 +37,7 @@ class SAFRSAPI(FRSApiBase):
 
     _operation_ids = {}
 
-    def __init__(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", json_encoder=SAFRSJSONEncoder, **kwargs):
+    def __init__(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs):
         """
             http://jsonapi.org/format/#content-negotiation-servers
             Servers MUST send all JSON:API data in response documents with
@@ -53,7 +53,7 @@ class SAFRSAPI(FRSApiBase):
 
         custom_swagger = kwargs.pop("custom_swagger", {})
         kwargs["default_mediatype"] = "application/vnd.api+json"
-        safrs.SAFRS(app, prefix=prefix, json_encoder=json_encoder)
+        safrs.SAFRS(app, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, **kwargs)
         # the host shown in the swagger ui
         # this host may be different from the hostname of the server and
         # sometimes we don't want to show the port (eg when proxied)
