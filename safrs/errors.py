@@ -25,9 +25,9 @@ class NotFoundError(Exception, DontWrapMixin):
     def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
+        safrs.log.error("Not found: %s", message)
         if is_debug():
             self.message += message
-            safrs.log.error("Not found: %s", message)
         else:
             self.message += HIDDEN_LOG
 
@@ -43,9 +43,9 @@ class ValidationError(Exception, DontWrapMixin):
     def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
+        safrs.log.error("ValidationError: %s", message)
         if is_debug():
             self.message += message
-            safrs.log.error("ValidationError: %s", message)
         else:
             self.message += HIDDEN_LOG
 
@@ -61,9 +61,9 @@ class UnAuthorizedError(Exception, DontWrapMixin):
     def __init__(self, message="", status_code=HTTPStatus.UNAUTHORIZED.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
+        safrs.log.error("UnAuthorizedError: %s", message)
         if is_debug():
             self.message += message
-            safrs.log.error("UnAuthorizedError: %s", message)
         else:
             self.message += HIDDEN_LOG
 
@@ -79,11 +79,13 @@ class GenericError(Exception, DontWrapMixin):
     def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
+        safrs.log.error("Generic Error: %s", message)
         if is_debug():
             safrs.log.info("Error in {}".format(request.url))
-            self.message = str(message)
+            safrs.log.debug(traceback.format_exc(120))
+            self.message += str(message)
         else:
             self.message += HIDDEN_LOG
 
-        safrs.log.debug(traceback.format_exc(120))
-        safrs.log.error("Generic Error: %s", message)
+        
+        
