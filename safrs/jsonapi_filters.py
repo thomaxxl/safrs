@@ -1,6 +1,9 @@
 """
 JSON:API filtering strategy
 """
+import operator
+import re
+
 from .config import get_request_param
 import sqlalchemy
 import safrs
@@ -54,6 +57,23 @@ def jsonapi_filter(cls):
     if expressions:
         _expressions = []
         for column, val in expressions:
+            pat1 = r"(?P<op1>[\>\<\=]+)(?P<val1>.+)(?P<bop1>(and)|(or))(?P<op2>[\>\<\=]+)(?P<val2>.+)"
+            pat2 = r"(?P<op1>[\>\<\=]+)(?P<val1>.+)"
+            op = {'<': operator.lt, '<=': operator.le, '>': operator.gt, '>=': operator.ge}
+            try:
+                m = re.match(pat1, val).groupdict()
+                op_ = sqlalchemy.or_ if m['bop1'].lower() == 'or' else sqlalchemy.and_
+                _expressions.append(op_(op[m['op1']](column, m['val1']), op[m['op2']](column, m['val2'])))
+                continue
+            except Exception as e:
+                pass
+            try:
+                m = re.match(pat2, val).groupdict()
+                _expressions.append(op[m['op1']](column, m['val1']))
+                continue
+            except Exception as e:
+                pass
+
             if hasattr(column, "in_"):
                 _expressions.append(column.in_(val.split(",")))
             else:
