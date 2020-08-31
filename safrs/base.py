@@ -7,6 +7,7 @@ import inspect
 import datetime
 import sqlalchemy
 import json
+import operator
 from http import HTTPStatus
 from urllib.parse import urljoin
 from flask import request, url_for, has_request_context, current_app, g
@@ -989,12 +990,40 @@ class SAFRSBase(Model):
     def _s_filter(cls, *filter_args, **filter_kwargs):
         """
             Apply a filter to this model
-            :param filter_args: filter to apply, passed as a request URL parameter
+            :param filter_args: A list of filters informaiton to apply, passed as a request URL parameter.
+            Each filter object has the following fields:
+              - name: The name of the field you want to filter on.
+              - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
+                  - eq: check if field is equal to something
+                  - ge: check if field is greater than or equal to something
+                  - gt: check if field is greater than to something
+                  - ne: check if field is not equal to something
+                  - is_: check if field is a value
+                  - is_not: check if field is not a value
+                  - le: check if field is less than or equal to something
+                  - lt: check if field is less than to something
+              - val: The value that you want to compare.
             :return: sqla query object
         """
-        safrs.log.info("_s_filter args: {}".format(filter_args))
-        safrs.log.info("override the {}._s_filter classmethod to implement your filtering".format(cls.__name__))
-        return cls._s_query
+        filters = json.loads(filter_args[0])
+        if not isinstance(filters, list):
+            filters = [filters]
+        expressions = []
+        for filt in filters:
+            attr_name = filt['name']
+            if attr_name not in cls._s_jsonapi_attrs:
+                safrs.log.warning('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
+                return cls._s_query
+
+            op_name = filt['op']
+            if not hasattr(operator, op_name):
+                safrs.log.warning('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
+                return cls._s_query
+
+            attr = cls._s_jsonapi_attrs[attr_name]
+            op = getattr(operator, op_name)
+            expressions.append(op(attr, filt['val']))
+        return cls._s_query.filter(*expressions)
 
 
 class Included:
