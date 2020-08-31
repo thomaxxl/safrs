@@ -86,6 +86,3 @@ class GenericError(Exception, DontWrapMixin):
             self.message += str(message)
         else:
             self.message += HIDDEN_LOG
-
-        
-        

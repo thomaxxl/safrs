@@ -793,15 +793,10 @@ class SAFRSBase(Model):
         """
 
         """
-        name = getattr(self, "name", self.__class__.__name__)
+        name = getattr(self, "name", self.jsonapi_id)
         return name
 
-    def __str__(self):
-        """
-
-        """
-        name = getattr(self, "name", self.__class__.__name__)
-        return "<SAFRS {}>".format(name)
+    __str__ = __unicode__
 
     @classmethod
     def _s_count(cls):

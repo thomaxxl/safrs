@@ -47,7 +47,9 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs):
+    def init_app(
+        self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs
+    ):
         """
             API and application initialization
         """

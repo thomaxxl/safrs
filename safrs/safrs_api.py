@@ -37,7 +37,17 @@ class SAFRSAPI(FRSApiBase):
 
     _operation_ids = {}
 
-    def __init__(self, app, host="localhost", port=5000, prefix="", description="SAFRSAPI", json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs):
+    def __init__(
+        self,
+        app,
+        host="localhost",
+        port=5000,
+        prefix="",
+        description="SAFRSAPI",
+        json_encoder=SAFRSJSONEncoder,
+        swaggerui_blueprint=True,
+        **kwargs
+    ):
         """
             http://jsonapi.org/format/#content-negotiation-servers
             Servers MUST send all JSON:API data in response documents with
