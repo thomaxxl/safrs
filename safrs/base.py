@@ -1004,7 +1004,7 @@ class SAFRSBase(Model):
     def _s_filter(cls, *filter_args, **filter_kwargs):
         """
             Apply a filter to this model
-            :param filter_args: A list of filters informaiton to apply, passed as a request URL parameter.
+            :param filter_args: A list of filters information to apply, passed as a request URL parameter.
             Each filter object has the following fields:
               - name: The name of the field you want to filter on.
               - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
@@ -1019,24 +1019,26 @@ class SAFRSBase(Model):
               - val: The value that you want to compare.
             :return: sqla query object
         """
-        filters = json.loads(filter_args[0])
+        try:
+            filters = json.loads(filter_args[0])
+        except json.decoder.JSONDecodeError:
+            raise ValidationError('Invalid filter format (see https://github.com/thomaxxl/safrs/wiki)')
+        
         if not isinstance(filters, list):
             filters = [filters]
         expressions = []
         for filt in filters:
-            attr_name = filt['name']
+            attr_name = filt.get('name')
             if attr_name not in cls._s_jsonapi_attrs:
-                safrs.log.warning('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
-                return cls._s_query
+                raise ValidationError('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
 
-            op_name = filt['op']
+            op_name = filt.get('op','').strip('_')
             if not hasattr(operator, op_name):
-                safrs.log.warning('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
-                return cls._s_query
+                raise ValidationError('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
 
             attr = cls._s_jsonapi_attrs[attr_name]
             op = getattr(operator, op_name)
-            expressions.append(op(attr, filt['val']))
+            expressions.append(op(attr, filt.get('val')))
         return cls._s_query.filter(*expressions)
 
 
