@@ -684,7 +684,14 @@ class SAFRSBase(Model):
 
             All related instances are stored in the `Included` class so we don't have to walk
             the relationships twice
+            
+            Request parameter example:
+                include=friends.books_read,friends.books_written
         """
+        # included_list contains a list of relationships to include
+        # it may have been set previously by Included() when called recursively
+        # if it's not set, parse the include= request param here
+        # included_list example: ['friends.books_read', 'friends.books_written']
         included_list = getattr(self, "included_list", None)
         if included_list is None:
             # Multiple related resources can be requested in a comma-separated list
@@ -695,7 +702,7 @@ class SAFRSBase(Model):
         excluded_list = excluded_csv.split(",")
         # In order to recursively request related resources
         # a dot-separated path for each relationship name can be specified
-        included_rels = {i.split(".")[0]: i for i in included_list}
+        included_rels = {i.split(".")[0] for i in included_list}
         relationships = dict()
 
         for rel_name in included_rels:
@@ -737,10 +744,8 @@ class SAFRSBase(Model):
                 # continue
                 pass
             if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
-                # the relationship instances should be included
-                included_rel = included_rels.get(rel_name)
                 # next_included_list contains the recursive relationship names
-                next_included_list = included_rel.split(".")[1:] if included_rel else []
+                next_included_list = [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
                 if relationship.direction == MANYTOONE:
                     # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
@@ -1022,23 +1027,23 @@ class SAFRSBase(Model):
         try:
             filters = json.loads(filter_args[0])
         except json.decoder.JSONDecodeError:
-            raise ValidationError('Invalid filter format (see https://github.com/thomaxxl/safrs/wiki)')
-        
+            raise ValidationError("Invalid filter format (see https://github.com/thomaxxl/safrs/wiki)")
+
         if not isinstance(filters, list):
             filters = [filters]
         expressions = []
         for filt in filters:
-            attr_name = filt.get('name')
+            attr_name = filt.get("name")
             if attr_name not in cls._s_jsonapi_attrs:
                 raise ValidationError('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
 
-            op_name = filt.get('op','').strip('_')
+            op_name = filt.get("op", "").strip("_")
             if not hasattr(operator, op_name):
                 raise ValidationError('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
 
             attr = cls._s_jsonapi_attrs[attr_name]
             op = getattr(operator, op_name)
-            expressions.append(op(attr, filt.get('val')))
+            expressions.append(op(attr, filt.get("val")))
         return cls._s_query.filter(*expressions)
 
 
@@ -1056,7 +1061,7 @@ class Included:
             :param included_list: the list of relationships that should be included for `instance` (from the url query param)
         """
         self.instance = instance
-        instance.included_list = [".".join(included_list)] if included_list else []
+        instance.included_list = [".".join(inc_rel) for inc_rel in included_list] if included_list else []
         g.ja_included.add(instance)
 
     @hybrid_method
