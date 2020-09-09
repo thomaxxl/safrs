@@ -142,7 +142,7 @@ class Test(SAFRSBase):
         """
             return the included relationships
         """
-        return [cls.books]
+        return {"books" : cls.books}
 
     @property
     def _s_jsonapi_attrs(self):
@@ -187,10 +187,12 @@ app = Flask("SAFRS Demo Application")
 app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)
 
 from flask import jsonify
-@app.route('/tt')
+
+
+@app.route("/tt")
 def test():
-    data = [ {k:v} for k,v in zip(["key1","key2"],["a","b"]) ]
-    return jsonify({"data" : data})
+    data = [{k: v} for k, v in zip(["key1", "key2"], ["a", "b"])]
+    return jsonify({"data": data})
 
 
 if __name__ == "__main__":
