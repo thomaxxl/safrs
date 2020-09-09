@@ -25,9 +25,10 @@
 - [Exposing Existing Databases](#expose-existing)
 - [More Examples and Use Cases](#more-examples-and-use-cases)
 - [Advanced Usage](#advanced-usage)
+    - [Filtering](#filtering)
     - [Custom Serialization](#custom-serialization)
     - [Excluding Attributes and Relationships](#excluding-attrs-rels)
-    - [Custom Decorators](#custom-decorators)
+    - [HTTP Decorators](#http-decorators)
     - [API Methods](#api-methods)
     - [Custom Swagger](#custom-swagger)
     - [Classes Without SQLAlchemy Models](#Classes-Without-Models)
@@ -45,7 +46,7 @@ Class and method descriptions and examples can be provided in yaml syntax in the
 
 The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](https://jsonapi.org) compliant API implementation.
 
-A __[LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, where much of the basic functionality is implemented with a simple [example](examples/demo_pythonanywhere_com.py).
+__A [LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, where much of the basic functionality is implemented with a simple [example](examples/demo_pythonanywhere_com.py).
 
 __UPDATE!__ documentation can be found in the [wiki](https://github.com/thomaxxl/safrs/wiki).
 
@@ -288,7 +289,17 @@ The [examples](examples) folder contains more example scripts:
 A docker image can be found here:
 [https://github.com/thomaxxl/safrs-example](https://github.com/thomaxxl/safrs-example)
 
+<a class="mk-toclify" id="advanced-usage"></a>
 ## Advanced Usage
+
+<a class="mk-toclify" id="filtering"></a>
+### Filtering
+The swagger shows the jsonapi filters that can be used in the url query arguments. Items with an exact match of the specified attribute value can be fetched by specifying the corresponding key-value query parameter. For example, suppose the `User` class, exposed at `/Users` has a `name` attribute, to retrieve all instances with the name "John", you can use a `GET` request to 
+`/Users?filter[name]=John`.
+
+It is also possible to use more generic filters by specifiying a JSON string, for example `filter=[{"name":"timestamp","op":"gt","val":"2020-08-01"},{"name":"timestamp","op":"lt","val":"2020-08-02"}]`.
+
+More info can be found in the [wiki](https://github.com/thomaxxl/safrs/wiki/API-Functionality#filtering).
 
 <a class="mk-toclify" id="custom-serialization"></a>
 ### Custom Serialization
@@ -330,9 +341,9 @@ Examples can be found [here](examples/demo_pythonanywhere_com.py#L81) and [here]
 ### Limiting HTTP Methods
 It is possible to limit the HTTP methods that are allowed by overriding the `http_methods` class attribute. An example can be found [here](examples/demo_http_get.py#L20)
 
-<a class="mk-toclify" id="custom-decorators"></a>
-### Custom Decorators
-The `custom_decorators` class attribute list can be used to add custom decorators to the instance HTTP endpoint. An example of this functionality is implemented
+<a class="mk-toclify" id="HTTP-decorators"></a>
+### HTTP Decorators
+The `decorators` class attribute list can be used to add custom decorators to the HTTP endpoints. An example of this functionality is implemented
 in the [authentication examples](examples/authentication).
 
 
