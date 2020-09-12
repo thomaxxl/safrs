@@ -108,7 +108,7 @@ class SAFRS:
         log = logging.getLogger(__name__)
         if log.level == logging.NOTSET:
             handler = logging.StreamHandler(sys.stderr)
-            formatter = logging.Formatter("[%(asctime)s] %(module)s:%(lineno)d %(levelname)s: %(message)s")
+            formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
             handler.setFormatter(formatter)
             log.setLevel(loglevel)
             log.addHandler(handler)
