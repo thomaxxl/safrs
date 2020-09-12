@@ -94,6 +94,8 @@ class SAFRSAPI(FRSApiBase):
     def expose_object(self, safrs_object, url_prefix="", **properties):
         """ This methods creates the API url endpoints for the SAFRObjects
             :param safrs_object: SAFSBase subclass that we would like to expose
+            :param url_prefix: url prefix
+            :param properties: additional flask-restful properties
 
             creates a class of the form
 
@@ -111,16 +113,16 @@ class SAFRSAPI(FRSApiBase):
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_collection_name]
+        properties["SAFRSObject"] = safrs_object
+        properties["http_methods"] = safrs_object.http_methods
+
         # Expose the methods first
-        self.expose_methods(url_prefix, tags=tags, safrs_object=safrs_object)
+        self.expose_methods(url_prefix, tags, safrs_object, properties)
 
         RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
 
         endpoint = safrs_object.get_endpoint()
-
-        properties["SAFRSObject"] = safrs_object
-        properties["http_methods"] = safrs_object.http_methods
 
         # Expose the collection: Create the class and decorate it
         swagger_decorator = swagger_doc(safrs_object)
@@ -142,9 +144,9 @@ class SAFRSAPI(FRSApiBase):
         self._swagger_object["tags"].append(object_doc)
 
         for rel_name, relationship in safrs_object._s_relationships.items():
-            self.expose_relationship(relationship, url, tags=tags)
+            self.expose_relationship(relationship, url, tags, properties)
 
-    def expose_methods(self, url_prefix, tags, safrs_object):
+    def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """ Expose the safrs "documented_api_method" decorated methods
             :param url_prefix: api url prefix
             :param tags: swagger tags
@@ -170,14 +172,13 @@ class SAFRSAPI(FRSApiBase):
             ENDPOINT_FMT = get_config("ENDPOINT_FMT")
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
-            properties = {"SAFRSObject": safrs_object, "method_name": method_name}
-            properties["http_methods"] = safrs_object.http_methods
+            properties.update({"method_name": method_name, "http_methods": safrs_object.http_methods})
             api_class = api_decorator(type(api_method_class_name, (SAFRSJSONRPCAPI,), properties), swagger_decorator)
             meth_name = safrs_object._s_class_name + "." + api_method.__name__
             safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
 
-    def expose_relationship(self, relationship, url_prefix, tags):
+    def expose_relationship(self, relationship, url_prefix, tags, properties):
         """
             Expose a relationship tp the REST API:
             A relationship consists of a parent and a target class
@@ -204,8 +205,6 @@ class SAFRSAPI(FRSApiBase):
             return
 
         API_CLASSNAME_FMT = "{}_X_{}_API"
-
-        properties = {}
         rel_name = relationship.key
 
         parent_class = relationship.parent.class_
