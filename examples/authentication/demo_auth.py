@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # This application demonstrates how access control can be implemented for
-# safrs API endpoints
+# flask-restful API endpoints
+# see also https://flask-restful.readthedocs.io/en/latest/extending.html#resource-method-decorators
 #
 import sys
 from flask import Flask
@@ -34,14 +35,13 @@ class User(SAFRSBase, db.Model):
     __tablename__ = "users"
     id = db.Column(db.String(32), primary_key=True)
     username = db.Column(db.String(32))
-    # The custom_decorators will be applied to all API endpoints
-    decorators = [auth.login_required]
-
+    
 
 def start_app(app):
 
     api = SAFRSAPI(app, host=HOST)
-    api.expose_object(User)
+    # The method_decorators will be applied to all API endpoints
+    api.expose_object(User, method_decorators = [auth.login_required])
     user = User(username="admin2")
     print("Starting API: http://{}:{}/api".format(HOST, PORT))
     app.run(host=HOST, port=PORT)
