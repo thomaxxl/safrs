@@ -30,9 +30,15 @@ from safrs import jsonapi_attr, ValidationError
 from safrs import jsonapi_rpc  # rpc decorator
 from safrs.api_methods import search, startswith, duplicate  # rpc methods
 from flask import url_for, jsonify
+from flask_httpauth import HTTPBasicAuth
 
 # This html will be rendered in the swagger UI
 description = """
+<pre>
+Login:
+    username: user
+    password: pass
+</pre>
 <a href=http://jsonapi.org>Json:API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a><br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
@@ -227,6 +233,19 @@ def print_db():
 
     print(f"author books_written", test_author.books_written)
 
+# Authentication with flask-httpauth
+# https://flask-httpauth.readthedocs.io/en/latest/
+auth = HTTPBasicAuth()
+
+
+@auth.verify_password
+def verify_password(username_or_token, password):
+    # Implement your authentication here
+    if username_or_token == "user" and password == "pass":
+        return True
+
+    return False
+
 
 def start_api(swagger_host="0.0.0.0", PORT=None):
 
@@ -256,7 +275,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
-            api.expose_object(model)
+            api.expose_object(model, method_decorators=[auth.login_required])
 
         populate_db()
         print_db()
