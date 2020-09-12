@@ -58,10 +58,6 @@ class Resource(FRSResource):
     # Swagger filter spec
     get_swagger_filters = get_swagger_filters
 
-    def ____new__(cls, *args, **kwargs):
-        cls.get_swagger_filters = get_config("filtering_strategy").swagger_gen
-        return super().__new__(*args, **kwargs)
-
     def head(self, *args, **kwargs):
         headers = {}
         headers["Allow"] = " ".join(self.SAFRSObject.http_methods)
