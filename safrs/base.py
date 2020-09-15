@@ -349,6 +349,9 @@ class SAFRSBase(Model):
             cls._col_attr_name_map = {}
             cls._attr_col_name_map = {}
             for attr_name, attr_val in cls.__dict__.items():
+                if attr_name.startswith("__") and attr_name.endswith("__"):
+                    # skip dunder attributes
+                    continue
                 _col_name = getattr(attr_val, "name", attr_name)
                 if attr_name == "type":
                     attr_name = "Type"
