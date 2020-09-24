@@ -58,8 +58,7 @@ SAFRS can be installed as a [pip package](https://pypi.python.org/pypi/safrs/) o
 ```bash
 git clone https://github.com/thomaxxl/safrs
 cd safrs
-pip3 install -r requirements.txt --user
-python3 setup.py install --user
+pip install .
 ```
 
 Once the dependencies are installed, the [examples](examples) can be started with

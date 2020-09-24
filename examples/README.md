@@ -21,7 +21,8 @@ The [demo_pythonanywhere_com.py](demo_pythonanywhere_com.py) example is deployed
 python3 demo_pythonanywhere_com.py 172.16.9.12
 ```
 
-note, you may have to install the [requirements.txt](requirements.txt) dependencies
+note, you may have to install the [requirements.txt](requirements.txt) dependencies, or install safrs with
+`pip install safrs[admin]`
 
 ## Example without SQLAlchemy Model
 The [demo_stateless.py](demo_stateless.py) example demonstrates how to create an exposed object that is not based on an SQLAlchemy instance.
