@@ -9,7 +9,7 @@ def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.10.0"
+    version = "2.10.1"
 
     setup(
         name="safrs",
@@ -39,6 +39,7 @@ def safrs_setup():
             "Programming Language :: Python :: 3.3",
             "Programming Language :: Python :: 3.4",
         ],
+        extras_require = { 'admin' : ['Flask-Admin==1.5.6'] }
     )
 
 safrs_setup() # pragma: no cover
