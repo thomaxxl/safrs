@@ -492,7 +492,7 @@ class SAFRSRestAPI(Resource):
         instance = self.SAFRSObject.get_instance(id)
         instance._s_delete()
 
-        return make_response({}, HTTPStatus.NO_CONTENT)
+        return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
 
 class SAFRSRestRelationshipAPI(Resource):
@@ -780,7 +780,7 @@ class SAFRSRestRelationshipAPI(Resource):
                     relation.append(child)
 
         # we can return result too but it's not necessary per the spec
-        return make_response({}, HTTPStatus.NO_CONTENT)
+        return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
     def delete(self, **kwargs):
         """
@@ -860,7 +860,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 else:
                     safrs.log.warning("Item with id {} not in relation".format(child_id))
 
-        return make_response({}, HTTPStatus.NO_CONTENT)
+        return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
     def parse_args(self, **kwargs):
         """
