@@ -360,7 +360,7 @@ def swagger_doc(cls, tags=None):
             doc["summary"] = "Retrieve a {} object".format(class_name)
             doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
             body, responses = cls._s_get_swagger_doc(http_method)
-            responses[HTTPStatus.OK.value] = {"schema": coll_sample_data}
+            responses[HTTPStatus.OK.value] = {"schema": coll_sample_data, "description": HTTPStatus.OK.description}
 
         elif http_method == "patch":
             post_model, responses = cls._s_get_swagger_doc(http_method)

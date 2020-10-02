@@ -9,6 +9,7 @@ from uuid import UUID
 import safrs
 from .config import is_debug
 from .base import SAFRSBase, Included
+from .jsonapi_formatting import jsonapi_format_response
 
 
 class SAFRSFormattedResponse:
@@ -31,7 +32,7 @@ class SAFRSFormattedResponse:
             :param errors:
             :param count:
         """
-        self.response = safrs.jsonapi_format_response(*args, **kwargs)
+        self.response = jsonapi_format_response(*args, **kwargs)
 
     def to_dict(self):  # pragma: no cover
         """

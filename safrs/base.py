@@ -918,7 +918,6 @@ class SAFRSBase(Model):
                 result.append(method)
         return result
 
-    # pylint: disable=
     @classmethod
     def _s_get_swagger_doc(cls, http_method):
         """
