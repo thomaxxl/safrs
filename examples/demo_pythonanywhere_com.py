@@ -36,6 +36,7 @@ from safrs import jsonapi_attr, ValidationError
 from safrs import jsonapi_rpc  # rpc decorator
 from safrs.api_methods import search, startswith, duplicate  # rpc methods
 from flask import url_for, jsonify
+from functools import wraps
 
 # This html will be rendered in the swagger UI
 description = """
@@ -46,6 +47,14 @@ description = """
 - Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/>
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 """
+
+def testdec(func):
+    @wraps(func)
+    def testd(*args, **kwargs):
+        print(func)
+        result = func(*args, **kwargs)
+        return result
+    return testd
 
 db = SQLAlchemy()
 
@@ -95,9 +104,9 @@ def hiddenRelationship(*args, **kwargs):
 
 friendship = db.Table(
     'friendships', db.metadata,
-    db.Column('friend_a_id', db.String, db.ForeignKey('People.id'),
+    db.Column('friend_a_id', db.Integer, db.ForeignKey('People.id'),
                                         primary_key=True),
-    db.Column('friend_b_id', db.String, db.ForeignKey('People.id'),
+    db.Column('friend_b_id', db.Integer, db.ForeignKey('People.id'),
                                         primary_key=True)
 )
 
@@ -109,8 +118,8 @@ class Book(BaseModel):
     __tablename__ = "Books"
     id = db.Column(db.String, primary_key=True)
     title = db.Column(db.String, default="")
-    reader_id = db.Column(db.String, db.ForeignKey("People.id"))
-    author_id = db.Column(db.String, db.ForeignKey("People.id"))
+    reader_id = db.Column(db.Integer, db.ForeignKey("People.id"))
+    author_id = db.Column(db.Integer, db.ForeignKey("People.id"))
     publisher_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     publisher = db.relationship("Publisher", back_populates="books", cascade="save-update, delete")
     reviews = db.relationship("Review", backref="book", cascade="save-update, delete")
@@ -123,7 +132,7 @@ class Person(BaseModel):
     """
 
     __tablename__ = "People"
-    id = db.Column(db.String, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, default="John Doe")
     email = db.Column(db.String, default="")
     comment = DocumentedColumn(db.Text, default="my empty comment")
@@ -142,7 +151,7 @@ class Person(BaseModel):
 
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
-    def send_mail(self, email):
+    def send_mail(self, email=""):
         """
             description : Send an email
             args:
@@ -160,7 +169,6 @@ class Person(BaseModel):
     @jsonapi_rpc(http_methods=["POST"])
     def my_rpc(cls, *args, **kwargs):
         """
-            description : Invoke my_rpc and return a jsonapi-formatted response
             pageable: false
             parameters:
                 - name : my_query_string_param
@@ -175,20 +183,6 @@ class Person(BaseModel):
         response = SAFRSFormattedResponse(data, {}, {}, {}, 1)
         return response
         
-        result = cls
-        try:
-            instances = result.query
-            links, instances, count = paginate(instances)
-            data = [item for item in instances]
-            meta = {}
-            errors = None
-            response = SAFRSFormattedResponse(data, meta, links, errors, count)
-        except Exception as exc:
-            log.exception(exc)
-            response = SAFRSFormattedResponse({}, {}, {}, {"error": str(exc)}, 0)
-
-        return response
-
 
 class Publisher(BaseModel):
     """
@@ -203,8 +197,7 @@ class Publisher(BaseModel):
     # books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
     books = db.relationship("Book", back_populates="publisher")
     employees = hiddenRelationship(Person, back_populates="employer")
-    data = db.Column(db.JSON, default = {1:1})
-
+    
     def __init__(self, *args, **kwargs):
         custom_field = kwargs.pop("custom_field", None)
         SAFRSBase.__init__(self, **kwargs)
@@ -243,8 +236,8 @@ class Review(BaseModel):
     """
 
     __tablename__ = "Reviews"
-    reader_id = db.Column(db.String, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True)
     book_id = db.Column(db.String, db.ForeignKey("Books.id"), primary_key=True)
+    reader_id = db.Column(db.Integer, db.ForeignKey("People.id", ondelete="CASCADE"), primary_key=True)
     review = db.Column(db.String, default="")
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     http_methods = {"GET", "POST"}  # only allow GET and POST
@@ -270,7 +263,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
             author = Person(name="Author " + str(i), email="author@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
             book = Book(title="book_title" + str(i))
-            review = Review(reader_id=reader.id, book_id=book.id, review="review " + str(i))
+            review = Review(reader_id=2*i+1, book_id=book.id, review=f"review {i}")
             publisher = Publisher(name="publisher" + str(i))
             publisher.books.append(book)
             reader.books_read.append(book)
@@ -283,9 +276,9 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
                 db.session.add(obj)
 
             db.session.commit()
-
+            
         custom_swagger = {
-            "info": {"title": "New Title"},
+            "info": {"title": "My Customized Title"},
             "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
         }  # Customized swagger will be merged
 
@@ -301,7 +294,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
-            api.expose_object(model)
+            api.expose_object(model, method_decorators={"get":[testdec]})
 
         # see if we can add the flask-admin views
         try:
