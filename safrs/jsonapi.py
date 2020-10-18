@@ -405,11 +405,11 @@ class SAFRSRestAPI(Resource):
             # Accept it by default now
             if not request.is_bulk:
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
-            result = []
+            instances = []
             for item in data:
                 instance = self._create_instance(item)
-                result.append(instance)
-            resp_data = jsonify({"data": result})
+                instances.append(instance)
+            resp_data = jsonify({"data": instances})
             location = None
         else:
             instance = self._create_instance(data)
