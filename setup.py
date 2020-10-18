@@ -9,7 +9,7 @@ def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.10.2"
+    version = "2.10.3"
 
     setup(
         name="safrs",
