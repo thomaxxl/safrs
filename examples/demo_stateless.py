@@ -9,7 +9,6 @@ import logging
 from flask import Flask, redirect, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask_cors import CORS
 from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
 from safrs.safrs_types import SAFRSID
 from safrs.util import classproperty
