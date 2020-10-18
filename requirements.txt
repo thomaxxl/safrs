@@ -1,8 +1,5 @@
-Flask-Cors==3.0.7
 flask-restful-swagger-2==0.35
-Flask-SQLAlchemy==2.3.2
+Flask-SQLAlchemy>=2.3.2
 flask-swagger-ui==3.20.9
-inflect==2.1.0
-jsonschema==3.0.1
-PyMySQL==0.9.3
-PyYAML==5.1
+inflect>=2.1.0
+PyYAML>=5.1
