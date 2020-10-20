@@ -115,13 +115,13 @@ class SAFRSAPI(FRSApiBase):
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_collection_name]
-        
+
         # Expose the methods first
         self.expose_methods(url_prefix, tags, safrs_object, properties)
-        
+
         # Expose the collection: Create the class and decorate it
-        api_class_name = "{}_API".format(safrs_object._s_type) # name for dynamically generated classes
-        RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT") # configurable resource collection url formatter
+        api_class_name = "{}_API".format(safrs_object._s_type)  # name for dynamically generated classes
+        RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")  # configurable resource collection url formatter
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
         swagger_decorator = swagger_doc(safrs_object)
         api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
@@ -315,7 +315,7 @@ class SAFRSAPI(FRSApiBase):
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
 
         for url in urls:
-            if not url.startswith("/"): # pragma: no cover
+            if not url.startswith("/"):  # pragma: no cover
                 raise ValidationError("paths must start with a /")
 
             swagger_url = extract_swagger_path(url)
