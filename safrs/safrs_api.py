@@ -148,10 +148,12 @@ class SAFRSAPI(FRSApiBase):
             self.expose_relationship(relationship, url, tags, properties)
 
         for def_name, definition in Schema._references.items():
-            # print(def_name, definition.properties)
+            # add newly created schema references to the "definitions"
+            if self._swagger_object["definitions"].get(def_name):
+                continue
             try:
                 validate_definitions_object(definition.properties)
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 safrs.log.warning("Failed to validate {}:{}".format(definition, exc))
                 continue
             self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
@@ -210,7 +212,7 @@ class SAFRSAPI(FRSApiBase):
         # if the relationship is not an sql sqlalchemy.orm.relationships.RelationshipProperty instance
         # then we should have defined the _target
         target_object = relationship.mapper.class_
-        if not getattr(target_object, "_s_expose", False):
+        if not getattr(target_object, "_s_expose", False):  # todo: add test
             safrs.log.debug("Not exposing {}".format(target_object))
             return
 
@@ -281,13 +283,12 @@ class SAFRSAPI(FRSApiBase):
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
-        self.add_resource(
-            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True
-        )
+        self.add_resource(api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"])
 
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
-        """ :param ordered_methods:
+        """
+            :param ordered_methods:
             :return: the http methods from the SwaggerEndpoint and SAFRS Resources,
             in the order specified by ordered_methods
         """
@@ -318,16 +319,115 @@ class SAFRSAPI(FRSApiBase):
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
 
         path_item = collections.OrderedDict()
-        definitions = {}
-        resource_methods = kwargs.get("methods", HTTP_METHODS)
         kwargs.pop("safrs_object", None)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
-        deprecated = kwargs.pop("deprecated", False)  # TBD!!
+
+        for url in urls:
+            if not url.startswith("/"):
+                raise ValidationError("paths must start with a /")
+            swagger_url = extract_swagger_path(url)
+
+            # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
+            exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
+
+            for method in self.get_resource_methods(resource):
+                if method == "post" and exposing_instance:
+                    # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
+                    # "A server MUST return 403 Forbidden in response to an
+                    # unsupported request to create a resource with a client-generated ID"
+                    # the method has already been added before, remove it & continue
+                    path_item.pop(method, None)
+                    continue
+
+                method_doc = copy.deepcopy(path_item.get(method))
+                if not method_doc:
+                    continue
+
+                collection_summary = method_doc.pop("collection_summary", method_doc.get("summary", None))
+                if not exposing_instance and collection_summary:
+                    method_doc["summary"] = collection_summary
+
+                parameters = []
+                for parameter in method_doc.get("parameters", []):
+                    object_id = "{%s}" % parameter.get("name")
+                    if method == "get":
+                        # Get the jsonapi included resources, ie the exposed relationships
+                        param = resource.get_swagger_include()
+                        parameters.append(param)
+
+                        # Get the jsonapi fields[], ie the exposed attributes/columns
+                        param = resource.get_swagger_fields()
+                        parameters.append(param)
+
+                    #
+                    # Add the sort, filter parameters to the swagger doc when retrieving a collection
+                    #
+                    if method == "get" and not (exposing_instance or is_jsonapi_rpc):
+                        # limit parameter specifies the number of items to return
+                        parameters += default_paging_parameters()
+                        param = resource.get_swagger_sort()
+                        parameters.append(param)
+                        parameters += list(resource.get_swagger_filters())
+
+                    if not (parameter.get("in") == "path" and object_id not in swagger_url) and parameter not in parameters:
+                        # Only if a path param is in path url then we add the param
+                        parameters.append(parameter)
+
+                unique_params = OrderedDict()  # rm duplicates
+                for param in parameters:
+                    unique_params[param["name"]] = param
+                method_doc["parameters"] = list(unique_params.values())
+                method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
+                path_item[method] = method_doc
+
+                instance_schema = method_doc.get("responses", {}).get("200", {})
+                if instance_schema and method_doc["responses"]["200"].get("schema", None):
+                    # add the "example" response schema references
+                    if exposing_instance:
+                        method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
+                    else:
+                        method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
+
+                instance_schema = method_doc.get("responses", {}).get("201", {})
+                if instance_schema and method_doc["responses"]["201"].get("schema", None):
+                    if exposing_instance:
+                        method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
+                    else:
+                        method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
+                try:
+                    validate_path_item_object(path_item)
+                except FRSValidationError as exc:
+                    safrs.log.exception(exc)
+                    safrs.log.critical("Validation failed for {}".format(path_item))
+                    exit()
+
+            self._swagger_object["paths"][swagger_url] = path_item
+            # Check whether we manage to convert to json
+            try:
+                json.dumps(self._swagger_object)
+            except Exception:
+                safrs.log.critical("Json encoding failed for")
+                # safrs.log.debug(self._swagger_object)
+
+        # disable API methods that were not set by the SAFRSObject
+        for http_method in HTTP_METHODS:
+            hm = http_method.lower()
+            if hm not in self.get_resource_methods(resource):
+                setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
+
+        self.add_resource_definitions(resource, path_item)
+        super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
+
+    def add_resource_definitions(self, resource, path_item):
+        """
+            :param resource:
+            :param path_item:
+            add the resource method schema references to the swagger "definitions"
+        """
+        definitions = {}
 
         for method in self.get_resource_methods(resource):
-            if deprecated:
-                continue
-            if not method.upper() in resource_methods:
+            if not method.upper() in HTTP_METHODS:
                 continue
             f = getattr(resource, method, None)
             if not f:
@@ -350,106 +450,10 @@ class SAFRSAPI(FRSApiBase):
 
         self._swagger_object["definitions"].update(definitions)
 
-        if path_item:
-            for url in urls:
-                if not url.startswith("/"):
-                    raise ValidationError("paths must start with a /")
-                swagger_url = extract_swagger_path(url)
-
-                # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
-                exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
-
-                for method in self.get_resource_methods(resource):
-                    if method == "post" and exposing_instance:
-                        # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
-                        # "A server MUST return 403 Forbidden in response to an
-                        # unsupported request to create a resource with a client-generated ID"
-                        # the method has already been added before, remove it & continue
-                        path_item.pop(method, None)
-                        continue
-
-                    method_doc = copy.deepcopy(path_item.get(method))
-                    if not method_doc:
-                        continue
-
-                    collection_summary = method_doc.pop("collection_summary", method_doc.get("summary", None))
-                    if not exposing_instance and collection_summary:
-                        method_doc["summary"] = collection_summary
-
-                    parameters = []
-                    for parameter in method_doc.get("parameters", []):
-                        object_id = "{%s}" % parameter.get("name")
-                        if method == "get":
-                            # Get the jsonapi included resources, ie the exposed relationships
-                            param = resource.get_swagger_include()
-                            parameters.append(param)
-
-                            # Get the jsonapi fields[], ie the exposed attributes/columns
-                            param = resource.get_swagger_fields()
-                            parameters.append(param)
-
-                        #
-                        # Add the sort, filter parameters to the swagger doc when retrieving a collection
-                        #
-                        if method == "get" and not (exposing_instance or is_jsonapi_rpc):
-                            # limit parameter specifies the number of items to return
-                            parameters += default_paging_parameters()
-                            param = resource.get_swagger_sort()
-                            parameters.append(param)
-                            parameters += list(resource.get_swagger_filters())
-
-                        if not (parameter.get("in") == "path" and object_id not in swagger_url) and parameter not in parameters:
-                            # Only if a path param is in path url then we add the param
-                            parameters.append(parameter)
-
-                    unique_params = OrderedDict()  # rm duplicates
-                    for param in parameters:
-                        unique_params[param["name"]] = param
-                    method_doc["parameters"] = list(unique_params.values())
-                    method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
-                    path_item[method] = method_doc
-
-                    instance_schema = method_doc.get("responses", {}).get("200", {})
-                    if instance_schema and method_doc["responses"]["200"].get("schema", None):
-                        if exposing_instance:
-                            method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                        else:
-                            method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
-
-                    instance_schema = method_doc.get("responses", {}).get("201", {})
-                    if instance_schema and method_doc["responses"]["201"].get("schema", None):
-                        if exposing_instance:
-                            method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                        else:
-                            method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
-                    try:
-                        validate_path_item_object(path_item)
-                    except FRSValidationError as exc:
-                        safrs.log.exception(exc)
-                        safrs.log.critical("Validation failed for {}".format(path_item))
-                        exit()
-
-                self._swagger_object["paths"][swagger_url] = path_item
-                # Check whether we manage to convert to json
-                try:
-                    json.dumps(self._swagger_object)
-                except Exception:
-                    safrs.log.critical("Json encoding failed for")
-                    # safrs.log.debug(self._swagger_object)
-
-        # disable API methods that were not set by the SAFRSObject
-        for http_method in HTTP_METHODS:
-            hm = http_method.lower()
-            if hm not in self.get_resource_methods(resource):
-                setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
-
-        # pylint: disable=bad-super-call
-        super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
-
     @classmethod
     def get_operation_id(cls, summary):
         """
-        get_operation_id
+            :param summary:
         """
         summary = "".join(c for c in summary if c.isalnum())
         if summary not in cls._operation_ids:

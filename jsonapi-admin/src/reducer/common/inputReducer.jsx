@@ -4,7 +4,7 @@ import Cookies from 'universal-cookie';
 
 const cookies = new Cookies()
 if(!cookies.get('api_url') ){
-    cookies.set('api_url', 'http://thomaxxl.pythonanywhere.com/api' )
+    cookies.set('api_url', '//thomaxxl.pythonanywhere.com/api' )
 }
 var api_url = cookies.get('api_url')
 

@@ -92,7 +92,7 @@ const Config = {
 }
 
 function get_root(){
-    return "http://thomaxxl.pythonanywhere.com/"
+    return "//thomaxxl.pythonanywhere.com/"
 }
 
 function get_auth(){

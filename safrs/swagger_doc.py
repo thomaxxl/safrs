@@ -31,6 +31,7 @@ debug_responses = {
 }
 
 # List to generate the swagger references / definitions unique name
+# The _references will be added to the swagger in safrs
 Schema._reference_count = []
 Schema._references = {}
 
@@ -358,9 +359,6 @@ def swagger_doc(cls, tags=None):
 
         inst_sample_data = schema_from_object(inst_model_name, {"data": sample_instance})
         inst_sample_data.description = "Auto generated {}".format(inst_model_name)
-
-        cls.swagger_models["instance"] = inst_sample_data
-        cls.swagger_models["collection"] = coll_sample_data
 
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)

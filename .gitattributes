@@ -1,4 +1,4 @@
 swagger-editor/* linguist-vendored
 jsonapi-admin/* linguist-vendored
 codegen/* linguist-vendored
-
+*.py diff=python

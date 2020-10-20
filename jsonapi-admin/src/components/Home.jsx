@@ -2,6 +2,7 @@ import React from 'react';
 import { connect } from 'react-redux'
 import {APP} from '../Config.jsx'
 import {ui_config} from '../Config.jsx'
+import {Disco} from '../disco/disco.jsx'
 
 class DefaultHome extends React.Component {
 
@@ -17,7 +18,8 @@ class DefaultHome extends React.Component {
                 <div className="container">
                     <ul>
                         <li>This framework implements CRUD operations on the jsonapi at <a href={this.props.url}>{this.props.url}</a> </li>
-                        <li>UI Configuration:
+                        
+                        <li>UI Configuration <Disco api_root={this.props.url}/>
                             <pre>{JSON.stringify(APP,null,2)}</pre>
                         </li>
                     </ul>
