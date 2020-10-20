@@ -233,12 +233,12 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
     """
 
     parameters = []
+    fields = {}
     # for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
     for name, method in inspect.getmembers(cls):
         if name != method_name:
             continue
 
-        fields = {}
         rest_doc = get_doc(method)
         description = rest_doc.get("description", "")
         if rest_doc:
@@ -350,7 +350,7 @@ def swagger_doc(cls, tags=None):
         if http_method == "get":
             sample_rels = {}
             for rel_name, val in cls._s_relationships.items():
-                sample_rels[rel_name] = {"data": [] if val.direction is ONETOMANY else None}
+                sample_rels[rel_name] = {"data": [] if val.direction is ONETOMANY else None, "links": {"self": None}}
             sample_instance["relationships"] = sample_rels
 
         coll_sample_data = schema_from_object(coll_model_name, {"data": [sample_instance]})
