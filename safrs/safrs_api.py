@@ -149,8 +149,13 @@ class SAFRSAPI(FRSApiBase):
 
         for def_name, definition in Schema._references.items():
             # print(def_name, definition.properties)
-            validate_definitions_object(definition.properties)
+            try:
+                validate_definitions_object(definition.properties)
+            except Exception as exc:
+                safrs.log.warning("Failed to validate {}:{}".format(definition, exc))
+                continue
             self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
+                
 
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """ Expose the safrs "documented_api_method" decorated methods
