@@ -687,7 +687,7 @@ class SAFRSBase(Model):
 
             All related instances are stored in the `Included` class so we don't have to walk
             the relationships twice
-            
+
             Request parameter example:
                 include=friends.books_read,friends.books_written
         """

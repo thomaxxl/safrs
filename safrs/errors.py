@@ -4,7 +4,6 @@
 # If set to debug, too much sensitive info might be shown !
 #
 import traceback
-import logging
 from flask import request
 import safrs
 from sqlalchemy.exc import DontWrapMixin

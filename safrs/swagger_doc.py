@@ -8,7 +8,7 @@ import json
 import flask
 from http import HTTPStatus
 import yaml
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
+from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY, MANYTOONE
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import ValidationError
 from safrs.config import get_config, is_debug
@@ -345,13 +345,19 @@ def swagger_doc(cls, tags=None):
         sample_dict = cls._s_sample_dict()
 
         # Samples with "id" are used for GET and PATCH
-        coll_sample_data = schema_from_object(
-            coll_model_name, {"data": [{"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}]}
-        )
+        sample_instance = {"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}
 
-        inst_sample_data = schema_from_object(
-            inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}}
-        )
+        if http_method == "get":
+            sample_rels = {}
+            for rel_name, val in cls._s_relationships.items():
+                sample_rels[rel_name] = {"data": [] if val.direction is ONETOMANY else None, "links": {"self": None}}
+            sample_instance["relationships"] = sample_rels
+
+        coll_sample_data = schema_from_object(coll_model_name, {"data": [sample_instance]})
+        coll_sample_data.description = "Auto generated {}".format(coll_model_name)
+
+        inst_sample_data = schema_from_object(inst_model_name, {"data": sample_instance})
+        inst_sample_data.description = "Auto generated {}".format(inst_model_name)
 
         cls.swagger_models["instance"] = inst_sample_data
         cls.swagger_models["collection"] = coll_sample_data
@@ -364,7 +370,6 @@ def swagger_doc(cls, tags=None):
 
         elif http_method == "patch":
             post_model, responses = cls._s_get_swagger_doc(http_method)
-
             parameters.append(
                 {
                     "name": "PATCH body",
@@ -374,10 +379,11 @@ def swagger_doc(cls, tags=None):
                     "required": True,
                 }
             )
+            responses[HTTPStatus.OK.value] = {"schema": inst_sample_data, "description": HTTPStatus.OK.description}
+
         elif http_method == "post":
             _, responses = cls._s_get_swagger_doc(http_method)
             doc["summary"] = "Create a {} object".format(class_name)
-
             # Create the default POST body schema
             sample_dict = cls._s_sample_dict()
             # The POST sample doesn't contain an "id", unless cls.allow_client_generated_ids is True
@@ -395,6 +401,7 @@ def swagger_doc(cls, tags=None):
                     "required": True,
                 }
             )
+            responses[HTTPStatus.CREATED.value] = {"schema": inst_sample_data, "description": HTTPStatus.CREATED.description}
 
         elif http_method == "delete":
             _, responses = cls._s_get_swagger_doc(http_method)
@@ -485,8 +492,13 @@ def swagger_relationship_doc(cls, tags=None):
             data = {"type": child_class._s_type, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
+                # tomany relationships only return a 204 accepted
                 data = [data]
+                responses.pop(HTTPStatus.OK.value, None)
+
             rel_post_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
+            cls.swagger_models["instance"] = rel_post_schema
+            cls.swagger_models["collection"] = rel_post_schema
             parameters.append(
                 {
                     "name": "{} body".format(class_name),
@@ -496,6 +508,10 @@ def swagger_relationship_doc(cls, tags=None):
                     "required": True,
                 }
             )
+
+            if cls.relationship.direction is MANYTOONE:
+                # toone relationships return 200 OK
+                responses[HTTPStatus.OK.value] = {"schema": rel_post_schema, "description": HTTPStatus.OK.description}
 
         elif http_method == "delete":
             child_sample_id = child_class._s_sample_id()

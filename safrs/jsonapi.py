@@ -28,7 +28,6 @@ from .errors import ValidationError, NotFoundError
 from .json_encoder import SAFRSFormattedResponse
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
-from .config import get_config
 
 
 def make_response(*args, **kwargs):
@@ -417,7 +416,7 @@ class SAFRSRestAPI(Resource):
             obj_args = {instance._s_object_id: instance.jsonapi_id}
             # Retrieve the object json and return it to the client
             resp_data = self.get(**obj_args)
-            location = url_for(self.endpoint, **obj_args)
+            location = "{}{}".format(url_for(self.endpoint), instance.jsonapi_id)
 
         response = make_response(resp_data, HTTPStatus.CREATED)
         # Set the Location header to the newly created object(s)
@@ -868,7 +867,7 @@ class SAFRSRestRelationshipAPI(Resource):
         """
             Parse relationship args
             An error is raised if the parent doesn't exist.
-            
+
             :return: parent, child, relation
         """
         parent_id = kwargs.get(self.parent_object_id, None)

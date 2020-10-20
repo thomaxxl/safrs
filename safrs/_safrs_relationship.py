@@ -12,6 +12,7 @@ class SAFRSRelationshipObject:
     _s_class_name = None
     __name__ = "name"
     http_methods = {"GET", "POST", "PATCH", "DELETE"}
+    swagger_models = {"instance": None, "collection": None}
 
     @classmethod
     def _s_get_swagger_doc(cls, http_method):

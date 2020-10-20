@@ -9,7 +9,7 @@ from flask_restful.utils import OrderedDict
 from flask_restful.utils import cors
 from flask_restful_swagger_2 import Api as FRSApiBase
 from flask_restful_swagger_2 import validate_definitions_object, parse_method_doc
-from flask_restful_swagger_2 import validate_path_item_object
+from flask_restful_swagger_2 import validate_path_item_object, Schema
 from flask_restful_swagger_2 import extract_swagger_path, Extractor, ValidationError as FRSValidationError
 from flask import request
 from functools import wraps
@@ -27,7 +27,7 @@ import json
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
 
-# pylint: disable=protected-access,invalid-name,line-too-long,logging-format-interpolation,fixme,too-many-branches
+
 class SAFRSAPI(FRSApiBase):
     """
         Subclass of the flask_restful_swagger API class where we add the expose_object method
@@ -137,14 +137,20 @@ class SAFRSAPI(FRSApiBase):
 
         # Expose the instances
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
+        api_class = api_decorator(type(api_class_name + "___i", (SAFRSRestAPI,), properties), swagger_decorator)
         self.add_resource(api_class, url, endpoint=endpoint)
 
         object_doc = parse_object_doc(safrs_object)
         object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
 
-        for rel_name, relationship in safrs_object._s_relationships.items():
+        for __rel_name, relationship in safrs_object._s_relationships.items():
             self.expose_relationship(relationship, url, tags, properties)
+
+        for def_name, definition in Schema._references.items():
+            # print(def_name, definition.properties)
+            validate_definitions_object(definition.properties)
+            self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
 
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """ Expose the safrs "documented_api_method" decorated methods
@@ -313,6 +319,7 @@ class SAFRSAPI(FRSApiBase):
         kwargs.pop("safrs_object", None)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
         deprecated = kwargs.pop("deprecated", False)  # TBD!!
+
         for method in self.get_resource_methods(resource):
             if deprecated:
                 continue
@@ -324,7 +331,6 @@ class SAFRSAPI(FRSApiBase):
 
             operation = getattr(f, "__swagger_operation_object", None)
             if operation:
-                # operation, definitions_ = self._extract_schemas(operation)
                 operation, definitions_ = Extractor.extract(operation)
                 path_item[method] = operation
                 definitions.update(definitions_)
@@ -384,10 +390,8 @@ class SAFRSAPI(FRSApiBase):
                         if method == "get" and not (exposing_instance or is_jsonapi_rpc):
                             # limit parameter specifies the number of items to return
                             parameters += default_paging_parameters()
-
                             param = resource.get_swagger_sort()
                             parameters.append(param)
-
                             parameters += list(resource.get_swagger_filters())
 
                         if not (parameter.get("in") == "path" and object_id not in swagger_url) and parameter not in parameters:
@@ -402,11 +406,18 @@ class SAFRSAPI(FRSApiBase):
                     path_item[method] = method_doc
 
                     instance_schema = method_doc.get("responses", {}).get("200", {})
-                    if instance_schema and exposing_instance and method_doc["responses"]["200"].get("schema", None):
-                        method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                        # add this later
-                        method_doc["responses"]["200"]["schema"] = {}
+                    if instance_schema and method_doc["responses"]["200"].get("schema", None):
+                        if exposing_instance:
+                            method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
+                        else:
+                            method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
 
+                    instance_schema = method_doc.get("responses", {}).get("201", {})
+                    if instance_schema and method_doc["responses"]["201"].get("schema", None):
+                        if exposing_instance:
+                            method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
+                        else:
+                            method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
                     try:
                         validate_path_item_object(path_item)
                     except FRSValidationError as exc:
@@ -487,16 +498,15 @@ def api_decorator(cls, swagger_decorator):
             decorated_method = cors.crossdomain(origin=cors_domain)(decorated_method)
         # Add exception handling
         decorated_method = http_method_decorator(decorated_method)
-
         setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
 
         try:
             # Add swagger documentation
             decorated_method = swagger_decorator(decorated_method)
-        except RecursionError:
+        except RecursionError:  # pragma: no cover
             # Got this error when exposing WP DB, TODO: investigate where it comes from
             safrs.log.error("Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method))
-        # pylint: disable=broad-except
+
         except Exception as exc:
             safrs.log.exception(exc)
             safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
