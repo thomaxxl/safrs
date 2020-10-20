@@ -350,7 +350,7 @@ def swagger_doc(cls, tags=None):
         if http_method == "get":
             sample_rels = {}
             for rel_name, val in cls._s_relationships.items():
-                sample_rels[rel_name] = {"data": [] if val.direction is ONETOMANY else None, "links": {"self": None}}
+                sample_rels[rel_name] = {"data": [] if val.direction is ONETOMANY else None}
             sample_instance["relationships"] = sample_rels
 
         coll_sample_data = schema_from_object(coll_model_name, {"data": [sample_instance]})
