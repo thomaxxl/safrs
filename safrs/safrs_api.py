@@ -108,23 +108,21 @@ class SAFRSAPI(FRSApiBase):
             tablename/collectionname: safrs_object._s_collection_name, e.g. "Users"
             classname: safrs_object.__name__, e.g. "User"
         """
+        properties["SAFRSObject"] = safrs_object
+        properties["http_methods"] = safrs_object.http_methods
         safrs_object.url_prefix = url_prefix
-        api_class_name = "{}_API".format(safrs_object._s_type)
+        endpoint = safrs_object.get_endpoint()
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_collection_name]
-        properties["SAFRSObject"] = safrs_object
-        properties["http_methods"] = safrs_object.http_methods
-
+        
         # Expose the methods first
         self.expose_methods(url_prefix, tags, safrs_object, properties)
-
-        RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")
-        url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
-
-        endpoint = safrs_object.get_endpoint()
-
+        
         # Expose the collection: Create the class and decorate it
+        api_class_name = "{}_API".format(safrs_object._s_type) # name for dynamically generated classes
+        RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT") # configurable resource collection url formatter
+        url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
         swagger_decorator = swagger_doc(safrs_object)
         api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
 
@@ -137,18 +135,18 @@ class SAFRSAPI(FRSApiBase):
 
         # Expose the instances
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
-        api_class = api_decorator(type(api_class_name + "___i", (SAFRSRestAPI,), properties), swagger_decorator)
+        api_class = api_decorator(type(api_class_name + "_i", (SAFRSRestAPI,), properties), swagger_decorator)
         self.add_resource(api_class, url, endpoint=endpoint)
 
         object_doc = parse_object_doc(safrs_object)
         object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
 
-        for __rel_name, relationship in safrs_object._s_relationships.items():
+        for relationship in safrs_object._s_relationships.values():
             self.expose_relationship(relationship, url, tags, properties)
 
+        # add newly created schema references to the "definitions"
         for def_name, definition in Schema._references.items():
-            # add newly created schema references to the "definitions"
             if self._swagger_object["definitions"].get(def_name):
                 continue
             try:
@@ -218,7 +216,6 @@ class SAFRSAPI(FRSApiBase):
 
         API_CLASSNAME_FMT = "{}_X_{}_API"
         rel_name = relationship.key
-
         parent_class = relationship.parent.class_
         parent_name = parent_class.__name__
 
@@ -306,27 +303,22 @@ class SAFRSAPI(FRSApiBase):
         """
             This method is partly copied from flask_restful_swagger_2/__init__.py
 
-            I changed it because we don't need path id examples when
-            there's no {id} in the path.
+            Changed because we don't need path id examples when there's no {id} in the path.
             We also have to filter out the unwanted parameters
         """
-        #
-        # This function has grown out of proportion and should be refactored, disable lint warning for now
-        #
-        # pylint: disable=too-many-nested-blocks,too-many-statements, too-many-locals
-        #
         kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
 
         path_item = collections.OrderedDict()
+        self.add_resource_definitions(resource, path_item)
         kwargs.pop("safrs_object", None)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
 
         for url in urls:
-            if not url.startswith("/"):
+            if not url.startswith("/"): # pragma: no cover
                 raise ValidationError("paths must start with a /")
-            swagger_url = extract_swagger_path(url)
 
+            swagger_url = extract_swagger_path(url)
             # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
             exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
 
@@ -383,16 +375,16 @@ class SAFRSAPI(FRSApiBase):
                 instance_schema = method_doc.get("responses", {}).get("200", {})
                 if instance_schema and method_doc["responses"]["200"].get("schema", None):
                     # add the "example" response schema references
-                    if exposing_instance:
+                    if exposing_instance and resource.SAFRSObject.swagger_models["instance"]:
                         method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                    else:
+                    elif resource.SAFRSObject.swagger_models["collection"]:
                         method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
 
                 instance_schema = method_doc.get("responses", {}).get("201", {})
                 if instance_schema and method_doc["responses"]["201"].get("schema", None):
-                    if exposing_instance:
+                    if exposing_instance and resource.SAFRSObject.swagger_models["instance"]:
                         method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                    else:
+                    elif resource.SAFRSObject.swagger_models["collection"]:
                         method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
                 try:
                     validate_path_item_object(path_item)
@@ -415,7 +407,6 @@ class SAFRSAPI(FRSApiBase):
             if hm not in self.get_resource_methods(resource):
                 setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
 
-        self.add_resource_definitions(resource, path_item)
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
     def add_resource_definitions(self, resource, path_item):
