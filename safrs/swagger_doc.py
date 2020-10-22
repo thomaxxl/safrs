@@ -351,7 +351,7 @@ def swagger_doc(cls, tags=None):
         if http_method == "get":
             sample_rels = {}
             for rel_name, val in cls._s_relationships.items():
-                sample_rels[rel_name] = {"data": [] if val.direction is ONETOMANY else None, "links": {"self": None}}
+                sample_rels[rel_name] = {"data": None if val.direction is MANYTOONE else [], "links": {"self": None}}
             sample_instance["relationships"] = sample_rels
 
         coll_sample_data = schema_from_object(coll_model_name, {"data": [sample_instance]})
@@ -359,6 +359,9 @@ def swagger_doc(cls, tags=None):
 
         inst_sample_data = schema_from_object(inst_model_name, {"data": sample_instance})
         inst_sample_data.description = "Auto generated {}".format(inst_model_name)
+
+        cls.swagger_models["instance"] = inst_sample_data
+        cls.swagger_models["collection"] = coll_sample_data
 
         if http_method == "get":
             doc["summary"] = "Retrieve a {} object".format(class_name)
