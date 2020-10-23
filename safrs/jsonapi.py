@@ -719,14 +719,14 @@ class SAFRSRestRelationshipAPI(Resource):
 
         if data is None:
             # item removed from relationship => 202 accepted
-            data, code = {}, HTTPStatus.NO_CONTENT
+            data, status_code = {}, HTTPStatus.NO_CONTENT
         elif changed:
             return self.get(**obj_args)
         else:
             # Nothing changed, reflect the data
-            data, code = {"data": data}, HTTPStatus.OK
+            data, status_code = {"data": data}, HTTPStatus.OK
 
-        return make_response(jsonify(data), code)
+        return make_response(jsonify(data), status_code)
 
     # Adding items to a relationship
     def post(self, **kwargs):
@@ -755,6 +755,7 @@ class SAFRSRestRelationshipAPI(Resource):
         parent, relation = self.parse_args(**kwargs)
         payload = request.get_jsonapi_payload()
         data = payload.get("data", None)
+
         if data is None:
             raise ValidationError("Invalid POST payload (no data)")
 
@@ -773,15 +774,18 @@ class SAFRSRestRelationshipAPI(Resource):
             if child_data:
                 child = self._parse_target_data(child_data)
                 setattr(parent, self.rel_name, child)
-
+            data = {"data": child}
+            status_code = HTTPStatus.OK
         else:  # direction is TOMANY => append the items to the relationship
             for child_data in data:
                 child = self._parse_target_data(child_data)
                 if child not in relation:
                     relation.append(child)
+            data = {}
+            status_code = HTTPStatus.NO_CONTENT
 
         # we can return result too but it's not necessary per the spec
-        return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
+        return make_response(jsonify(data), status_code)
 
     def delete(self, **kwargs):
         """

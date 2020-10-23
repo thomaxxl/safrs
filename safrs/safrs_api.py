@@ -330,11 +330,11 @@ class SAFRSAPI(FRSApiBase):
             # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
             exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
             for method in self.get_resource_methods(resource):
-                if kwargs.get("methods",None) and method.upper() not in [m.upper() for m in kwargs.get("methods",[])]:
-                    # only use the 
+                if kwargs.get("methods", None) and method.upper() not in [m.upper() for m in kwargs.get("methods", [])]:
+                    # only use the
                     path_item.pop(method, None)
                     continue
-                
+
                 if method == "post" and exposing_instance:
                     # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
                     # "A server MUST return 403 Forbidden in response to an
