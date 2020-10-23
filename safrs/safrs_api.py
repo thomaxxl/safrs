@@ -1,5 +1,4 @@
 # flask_restful_swagger2 API subclass
-import copy
 from http import HTTPStatus
 import logging
 import werkzeug
@@ -13,7 +12,6 @@ from flask_restful_swagger_2 import validate_path_item_object, Schema
 from flask_restful_swagger_2 import extract_swagger_path, Extractor, ValidationError as FRSValidationError
 from flask import request
 from functools import wraps
-import collections
 import safrs
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
@@ -157,7 +155,8 @@ class SAFRSAPI(FRSApiBase):
             self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
 
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
-        """ Expose the safrs "documented_api_method" decorated methods
+        """
+            Expose the safrs "documented_api_method" decorated methods
             :param url_prefix: api url prefix
             :param tags: swagger tags
             :return: None
@@ -214,7 +213,7 @@ class SAFRSAPI(FRSApiBase):
             safrs.log.debug("Not exposing {}".format(target_object))
             return
 
-        API_CLASSNAME_FMT = "{}_X_{}_API"
+        API_CLASSNAME_FMT = "{}_X_{}_API"  # api class name for generated relationship classes
         rel_name = relationship.key
         parent_class = relationship.parent.class_
         parent_name = parent_class.__name__
@@ -306,15 +305,15 @@ class SAFRSAPI(FRSApiBase):
             Changed because we don't need path id examples when there's no {id} in the path.
             We also have to filter out the unwanted parameters
         """
-        kwargs.pop("relationship", False)  # relationship object
+        relationship = kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
 
-        path_item = collections.OrderedDict()
-        self.add_resource_definitions(resource, path_item)
-        kwargs.pop("safrs_object", None)
+        path_item = {}
+        self._add_oas_resource_definitions(resource, path_item)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
 
         for url in urls:
+            # usually there will only be one url, but flask_restful add_resource does support multiple urls
             if not url.startswith("/"):  # pragma: no cover
                 raise ValidationError("paths must start with a /")
 
@@ -330,76 +329,34 @@ class SAFRSAPI(FRSApiBase):
                     # the method has already been added before, remove it & continue
                     path_item.pop(method, None)
                     continue
-
-                method_doc = copy.deepcopy(path_item.get(method))
+                
+                method_doc = path_item.get(method)
                 if not method_doc:
                     continue
 
+                # exposed objects and methods may specify `collection_summary` in the method docstring yaml
                 collection_summary = method_doc.pop("collection_summary", method_doc.get("summary", None))
                 if not exposing_instance and collection_summary:
                     method_doc["summary"] = collection_summary
 
-                parameters = []
-                for parameter in method_doc.get("parameters", []):
-                    object_id = "{%s}" % parameter.get("name")
-                    if method == "get":
-                        # Get the jsonapi included resources, ie the exposed relationships
-                        param = resource.get_swagger_include()
-                        parameters.append(param)
+                method_doc["operationId"] = self._get_operation_id(path_item.get(method).get("summary", ""))
 
-                        # Get the jsonapi fields[], ie the exposed attributes/columns
-                        param = resource.get_swagger_fields()
-                        parameters.append(param)
+                self._add_oas_req_params(resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url)
+                self._add_oas_references(resource.SAFRSObject, path_item, method, exposing_instance, relationship)
 
-                    #
-                    # Add the sort, filter parameters to the swagger doc when retrieving a collection
-                    #
-                    if method == "get" and not (exposing_instance or is_jsonapi_rpc):
-                        # limit parameter specifies the number of items to return
-                        parameters += default_paging_parameters()
-                        param = resource.get_swagger_sort()
-                        parameters.append(param)
-                        parameters += list(resource.get_swagger_filters())
-
-                    if not (parameter.get("in") == "path" and object_id not in swagger_url) and parameter not in parameters:
-                        # Only if a path param is in path url then we add the param
-                        parameters.append(parameter)
-
-                unique_params = OrderedDict()  # rm duplicates
-                for param in parameters:
-                    unique_params[param["name"]] = param
-                method_doc["parameters"] = list(unique_params.values())
-                method_doc["operationId"] = self.get_operation_id(path_item.get(method).get("summary", ""))
-                path_item[method] = method_doc
-
-                instance_schema = method_doc.get("responses", {}).get("200", {})
-                if instance_schema and method_doc["responses"]["200"].get("schema", None):
-                    # add the "example" response schema references
-                    if exposing_instance and resource.SAFRSObject.swagger_models["instance"]:
-                        method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                    elif resource.SAFRSObject.swagger_models["collection"]:
-                        method_doc["responses"]["200"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
-
-                instance_schema = method_doc.get("responses", {}).get("201", {})
-                if instance_schema and method_doc["responses"]["201"].get("schema", None):
-                    if exposing_instance and resource.SAFRSObject.swagger_models["instance"]:
-                        method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["instance"].reference()
-                    elif resource.SAFRSObject.swagger_models["collection"]:
-                        method_doc["responses"]["201"]["schema"] = resource.SAFRSObject.swagger_models["collection"].reference()
-                try:
+                try:  # pragma: no cover
                     validate_path_item_object(path_item)
                 except FRSValidationError as exc:
                     safrs.log.exception(exc)
                     safrs.log.critical("Validation failed for {}".format(path_item))
-                    exit()
+                    exit(1)
 
             self._swagger_object["paths"][swagger_url] = path_item
             # Check whether we manage to convert to json
             try:
                 json.dumps(self._swagger_object)
-            except Exception:
-                safrs.log.critical("Json encoding failed for")
-                # safrs.log.debug(self._swagger_object)
+            except Exception:  # pragma: no cover
+                safrs.log.critical("Json encoding failed")
 
         # disable API methods that were not set by the SAFRSObject
         for http_method in HTTP_METHODS:
@@ -409,11 +366,99 @@ class SAFRSAPI(FRSApiBase):
 
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
-    def add_resource_definitions(self, resource, path_item):
+    def _add_oas_req_params(self, resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url):
         """
+
+            Add the request parameters to the swagger (filter, sort)
+        """
+        method_doc = path_item[method]
+        parameters = []
+        for parameter in method_doc.get("parameters", []):
+            object_id = "{%s}" % parameter.get("name")
+            if method == "get":
+                # Get the jsonapi included resources, ie the exposed relationships
+                param = resource.get_swagger_include()
+                parameters.append(param)
+
+                # Get the jsonapi fields[], ie the exposed attributes/columns
+                param = resource.get_swagger_fields()
+                parameters.append(param)
+
+            #
+            # Add the sort, filter parameters to the swagger doc when retrieving a collection
+            #
+            if method == "get" and not (exposing_instance or is_jsonapi_rpc):
+                # limit parameter specifies the number of items to return
+                parameters += default_paging_parameters()
+                param = resource.get_swagger_sort()
+                parameters.append(param)
+                parameters += list(resource.get_swagger_filters())
+
+            if not (parameter.get("in") == "path" and object_id not in swagger_url) and parameter not in parameters:
+                # Only if a path param is in path url then we add the param
+                parameters.append(parameter)
+
+        unique_params = OrderedDict()  # rm duplicates
+        for param in parameters:
+            unique_params[param["name"]] = param
+        method_doc["parameters"] = list(unique_params.values())
+        path_item[method] = method_doc
+
+    def _add_oas_references(self, safrs_object, path_item, method, exposing_instance, relationship):
+        """
+            substitute the swagger references in the response objects
+            references are created and added to the safrs_object.swagger_models in swagger_doc
+
+            the params are
+            :param safrs_object:
+            :param path_item:
+
+        """
+        inst_ref = None
+        coll_ref = None
+        
+        if getattr(safrs_object, "swagger_models", {}).get("instance"):
+            # instance reference
+            inst_ref = safrs_object.swagger_models["instance"].reference()
+
+        if getattr(safrs_object, "swagger_models", {}).get("collection"):
+            # collection reference
+            coll_ref = safrs_object.swagger_models["collection"].reference()
+
+        if not inst_ref and not coll_ref:
+            return
+
+        method_doc = path_item[method]
+        response = method_doc.get("responses", {})
+        if "200" in response:
+            # add the "example" response schema references
+            if exposing_instance:
+                response["200"]["schema"] = inst_ref
+            elif coll_ref:
+                response["200"]["schema"] = coll_ref
+            response["200"].pop("type", None)
+
+        if "201" in response:
+            if method == "post":
+                # Posting to a collection returns the instance (except when using bulk post, but this isn't shown atm)
+                response["201"]["schema"] = inst_ref
+            elif exposing_instance:
+                # patching an instance
+                response["201"]["schema"] = inst_ref
+            elif coll_ref:
+                # patching a
+                response["201"]["schema"] = coll_ref
+            response["201"]["schema"].pop("type", None)
+
+        if relationship:
+            print(method_doc.get("responses", {}).get("200", {}))
+            print(relationship.direction)
+
+    def _add_oas_resource_definitions(self, resource, path_item):
+        """
+            add the resource method schema references to the swagger "definitions"
             :param resource:
             :param path_item:
-            add the resource method schema references to the swagger "definitions"
         """
         definitions = {}
 
@@ -442,7 +487,7 @@ class SAFRSAPI(FRSApiBase):
         self._swagger_object["definitions"].update(definitions)
 
     @classmethod
-    def get_operation_id(cls, summary):
+    def _get_operation_id(cls, summary):
         """
             :param summary:
         """
