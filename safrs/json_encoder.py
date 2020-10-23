@@ -14,7 +14,7 @@ from .jsonapi_formatting import jsonapi_format_response
 
 class SAFRSFormattedResponse:
     """
-        Custom response object
+    Custom response object
     """
 
     # pylint: disable=too-few-public-methods
@@ -26,18 +26,18 @@ class SAFRSFormattedResponse:
 
     def __init__(self, *args, **kwargs):
         """
-            :param data:
-            :param meta:
-            :param links:
-            :param errors:
-            :param count:
+        :param data:
+        :param meta:
+        :param links:
+        :param errors:
+        :param count:
         """
         self.response = jsonapi_format_response(*args, **kwargs)
 
     def to_dict(self):  # pragma: no cover
         """
-            create the response payload that will be sent to the browser
-            :return: dict or None
+        create the response payload that will be sent to the browser
+        :return: dict or None
         """
         if self.response is not None:
             return self.response
@@ -53,16 +53,16 @@ class SAFRSFormattedResponse:
 
 class SAFRSJSONEncoder(JSONEncoder):
     """
-        Encodes safrs objs (SAFRSBase subclasses)
+    Encodes safrs objs (SAFRSBase subclasses)
     """
 
     # pylint: disable=too-many-return-statements,logging-format-interpolation
     # pylint: disable=arguments-differ,protected-access,method-hidden
     def default(self, obj, **kwargs):
         """
-            override the default json encoding
-            :param obj: object to be encoded
-            :return: encoded/serizlaized object
+        override the default json encoding
+        :param obj: object to be encoded
+        :return: encoded/serizlaized object
         """
         if obj is Included:
             return Included.encode()
@@ -103,10 +103,10 @@ class SAFRSJSONEncoder(JSONEncoder):
     @staticmethod
     def ghetto_encode(obj):  # pragma: no cover
         """
-            if everything else failed, try to encode the public obj attributes
-            i.e. those attributes without a _ prefix
-            :param obj: object to be encoded
-            :return: encoded/serizlaized object
+        if everything else failed, try to encode the public obj attributes
+        i.e. those attributes without a _ prefix
+        :param obj: object to be encoded
+        :return: encoded/serizlaized object
         """
         try:
             result = {}

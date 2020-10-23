@@ -10,10 +10,10 @@ from .jsonapi_attr import is_jsonapi_attr
 @classmethod
 def jsonapi_filter(cls):
     """
-        https://jsonapi.org/recommendations/#filtering
-        Apply the request.args filters to the object
+    https://jsonapi.org/recommendations/#filtering
+    Apply the request.args filters to the object
 
-        :return: sqla query object
+    :return: sqla query object
     """
 
     # First check if a filter= URL query parameter has been used
@@ -68,14 +68,14 @@ def jsonapi_filter(cls):
 @classmethod
 def get_swagger_filters(cls):
     """
-        :return: JSON:API filters swagger spec
-        create the filter[] swagger doc for all jsonapi attributes + the id
+    :return: JSON:API filters swagger spec
+    create the filter[] swagger doc for all jsonapi attributes + the id
 
-        the columns may have attributes defined that are used for custom formatting:
-        - description
-        - filterable
-        - type
-        - format
+    the columns may have attributes defined that are used for custom formatting:
+    - description
+    - filterable
+    - type
+    - format
     """
     attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
 

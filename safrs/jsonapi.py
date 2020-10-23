@@ -32,7 +32,7 @@ from .jsonapi_filters import get_swagger_filters
 
 def make_response(*args, **kwargs):
     """
-        Customized flask-restful make_response
+    Customized flask-restful make_response
     """
     response = flask_make_response(*args, **kwargs)
     if request.is_jsonapi:
@@ -43,10 +43,10 @@ def make_response(*args, **kwargs):
 
 class Resource(FRSResource):
     """
-        Superclass for the exposed endpoints
-        * Collections and instances : SAFRSRestAPI
-        * Relationships : SAFRSRestRelationshipAPI
-        * RPC methods : SAFRSJSONRPCAPI
+    Superclass for the exposed endpoints
+    * Collections and instances : SAFRSRestAPI
+    * Relationships : SAFRSRestRelationshipAPI
+    * RPC methods : SAFRSJSONRPCAPI
     """
 
     # SAFRSObject: the class that will be returned when a http method is invoked
@@ -66,13 +66,13 @@ class Resource(FRSResource):
 
     def _parse_target_data(self, target_data):
         """
-            Validate the jsonapi payload for patch requests (to self.target):
-            - the payload must contain "id" and "type" keys.
-            - the type must match the target type
-            - an object with the specified id must exist
+        Validate the jsonapi payload for patch requests (to self.target):
+        - the payload must contain "id" and "type" keys.
+        - the type must match the target type
+        - an object with the specified id must exist
 
-            :param target_data: jsonapi instance payload
-            :return: sqla/safrs orm instance
+        :param target_data: jsonapi instance payload
+        :return: sqla/safrs orm instance
         """
         if not isinstance(target_data, dict):
             raise ValidationError("Invalid data type {}".format(target_data))
@@ -94,7 +94,7 @@ class Resource(FRSResource):
     @classmethod
     def get_swagger_include(cls):
         """
-            :return: JSON:API "include" query string swagger spec
+        :return: JSON:API "include" query string swagger spec
         """
         default_include = ",".join(cls.SAFRSObject._s_relationships.keys())
 
@@ -112,7 +112,7 @@ class Resource(FRSResource):
     @classmethod
     def get_swagger_fields(cls):
         """
-            :return: JSON:API fields[] swagger spec (the model instance fields to be included)
+        :return: JSON:API fields[] swagger spec (the model instance fields to be included)
         """
         attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys())
         # Add the fields query string swagger
@@ -131,7 +131,7 @@ class Resource(FRSResource):
     @classmethod
     def get_swagger_sort(cls):
         """
-            :return: JSON:API sort swagger spec (the collection sort key)
+        :return: JSON:API sort swagger spec (the collection sort key)
         """
         attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
 
@@ -149,42 +149,42 @@ class Resource(FRSResource):
 
 class SAFRSRestAPI(Resource):
     """
-        Flask webservice wrapper for the underlying Resource Object:
-        an sqla db model (SAFRSBase subclass : cls.SAFRSObject)
+    Flask webservice wrapper for the underlying Resource Object:
+    an sqla db model (SAFRSBase subclass : cls.SAFRSObject)
 
-        This class implements HTTP Methods (get, post, put, delete, ...) and helpers
+    This class implements HTTP Methods (get, post, put, delete, ...) and helpers
 
-        http://jsonapi.org/format/#document-resource-objects
-        A resource object MUST contain at least the following top-level members:
-        - id
-        - type
+    http://jsonapi.org/format/#document-resource-objects
+    A resource object MUST contain at least the following top-level members:
+    - id
+    - type
 
-        In addition, a resource object MAY contain any of these top-level members:
+    In addition, a resource object MAY contain any of these top-level members:
 
-        attributes: an attributes object representing some of the resource’s data.
-        relationships: a relationships object describing relationships
-                        between the resource and other JSON API resources.
-        links: a links object containing links related to the resource.
-        meta: a meta object containing non-standard meta-information
-                about a resource that can not be represented as an attribute or relationship.
+    attributes: an attributes object representing some of the resource’s data.
+    relationships: a relationships object describing relationships
+                    between the resource and other JSON API resources.
+    links: a links object containing links related to the resource.
+    meta: a meta object containing non-standard meta-information
+            about a resource that can not be represented as an attribute or relationship.
 
-        e.g.
-        {
-            "id": "1f1c0e90-9e93-4242-9b8c-56ac24e505e4",
-            "type": "car",
-            "attributes": {
-                "color": "red"
-            },
-            "relationships": {
-                "driver": {
-                    "data": {
-                        "id": "55550e90-9e93-4242-9b8c-56ac24e505e5",
-                        "type": "person"
-                    }
+    e.g.
+    {
+        "id": "1f1c0e90-9e93-4242-9b8c-56ac24e505e4",
+        "type": "car",
+        "attributes": {
+            "color": "red"
+        },
+        "relationships": {
+            "driver": {
+                "data": {
+                    "id": "55550e90-9e93-4242-9b8c-56ac24e505e5",
+                    "type": "person"
                 }
-        }
+            }
+    }
 
-        A resource object’s attributes and its relationships are collectively called its “fields”.
+    A resource object’s attributes and its relationships are collectively called its “fields”.
     """
 
     default_order = None  # used by sqla order_by
@@ -192,47 +192,47 @@ class SAFRSRestAPI(Resource):
 
     def __init__(self, *args, **kwargs):
         """
-            - object_id is the function used to create the url parameter name
-            (eg "User" -> "UserId" )
-            - this parameter is used in the swagger endpoint spec,
-            eg. /Users/{UserId} where the UserId parameter is the id of
-            the underlying SAFRSObject.
+        - object_id is the function used to create the url parameter name
+        (eg "User" -> "UserId" )
+        - this parameter is used in the swagger endpoint spec,
+        eg. /Users/{UserId} where the UserId parameter is the id of
+        the underlying SAFRSObject.
         """
         self._s_object_id = self.SAFRSObject._s_object_id
         self.target = self.SAFRSObject
 
     def get(self, **kwargs):
         """
-            summary : Retrieve {class_name} instance
-            description : Retrieve {class_name} from {collection_name}
-            responses :
-                200 :
-                    description : Request fulfilled, document follows
-                403 :
-                    description : Forbidden
-                404 :
-                    description : Not Found
-            ---
-            HTTP GET: return instances
-            If no id is given: return all instances
-            If an id is given, get an instance by id
-            If a method is given, call the method on the instance
+        summary : Retrieve {class_name} instance
+        description : Retrieve {class_name} from {collection_name}
+        responses :
+            200 :
+                description : Request fulfilled, document follows
+            403 :
+                description : Forbidden
+            404 :
+                description : Not Found
+        ---
+        HTTP GET: return instances
+        If no id is given: return all instances
+        If an id is given, get an instance by id
+        If a method is given, call the method on the instance
 
-            http://jsonapi.org/format/#document-top-level
+        http://jsonapi.org/format/#document-top-level
 
-            A JSON object MUST be at the root of every JSON API request
-            and response containing data. This object defines a document’s “top level”.
+        A JSON object MUST be at the root of every JSON API request
+        and response containing data. This object defines a document’s “top level”.
 
-            A document MUST contain at least one of the following top-level members:
-            - data: the document’s “primary data”
-            - errors: an array of error objects
-            - meta: a meta object that contains non-standard meta-information.
+        A document MUST contain at least one of the following top-level members:
+        - data: the document’s “primary data”
+        - errors: an array of error objects
+        - meta: a meta object that contains non-standard meta-information.
 
-            A document MAY contain any of these top-level members:
-            - jsonapi: an object describing the server’s implementation
-            - links: a links object related to the primary data.
-            - included: an array of resource objects that are related
-            to the primary data and/or each other (“included resources”).
+        A document MAY contain any of these top-level members:
+        - jsonapi: an object describing the server’s implementation
+        - links: a links object related to the primary data.
+        - included: an array of resource objects that are related
+        to the primary data and/or each other (“included resources”).
         """
         data = None
         meta = {}
@@ -263,24 +263,24 @@ class SAFRSRestAPI(Resource):
 
     def patch(self, **kwargs):
         """
-            summary : Update {class_name}
-            description: Update {class_name} attributes
-            responses:
-                200 :
-                    description : Request fulfilled, document follows
-                202 :
-                    description : Accepted
-                204 :
-                    description : No Content
-                403:
-                    description : Forbidden
-                404 :
-                    description : Not Found
-                409 :
-                    description : Conflict
-            ---
-            https://jsonapi.org/format/#crud-updating-responses
-            Update the object with the specified id
+        summary : Update {class_name}
+        description: Update {class_name} attributes
+        responses:
+            200 :
+                description : Request fulfilled, document follows
+            202 :
+                description : Accepted
+            204 :
+                description : No Content
+            403:
+                description : Forbidden
+            404 :
+                description : Not Found
+            409 :
+                description : Conflict
+        ---
+        https://jsonapi.org/format/#crud-updating-responses
+        Update the object with the specified id
         """
         id = kwargs.get(self._s_object_id, None)
 
@@ -315,10 +315,10 @@ class SAFRSRestAPI(Resource):
 
     def _patch_instance(self, data, id=None):
         """
-            Update the inst
-            :param data: jsonapi payload
-            :param id: jsonapi id
-            :return: instance
+        Update the inst
+        :param data: jsonapi payload
+        :param id: jsonapi id
+        :return: instance
         """
         # validate the jsonapi id in the url path and convert it to a database id
         path_id = self.SAFRSObject.id_type.validate_id(id)
@@ -344,49 +344,49 @@ class SAFRSRestAPI(Resource):
 
     def post(self, **kwargs):
         """
-            summary : Create {class_name}
-            responses :
-                403:
-                    description : Forbidden
-                201:
-                    description: Created
-                202:
-                    description : Accepted
-                404:
-                    description : Not Found
-                409:
-                    description : Conflict
-            ---
-            http://jsonapi.org/format/#crud-creating
-            Creating Resources
-            A resource can be created by sending a POST request to a URL
-            that represents a collection of resources.
-            The request MUST include a single resource object as primary data.
-            The resource object MUST contain at least a type member.
+        summary : Create {class_name}
+        responses :
+            403:
+                description : Forbidden
+            201:
+                description: Created
+            202:
+                description : Accepted
+            404:
+                description : Not Found
+            409:
+                description : Conflict
+        ---
+        http://jsonapi.org/format/#crud-creating
+        Creating Resources
+        A resource can be created by sending a POST request to a URL
+        that represents a collection of resources.
+        The request MUST include a single resource object as primary data.
+        The resource object MUST contain at least a type member.
 
-            If a relationship is provided in the relationships member of the resource object,
-            its value MUST be a relationship object with a data member.
-            The value of this key represents the linkage the new resource is to have.
+        If a relationship is provided in the relationships member of the resource object,
+        its value MUST be a relationship object with a data member.
+        The value of this key represents the linkage the new resource is to have.
 
-            Response:
-            403: This implementation does not accept client-generated IDs
-            201: Created
-            202: Accepted
-            404: Not Found
-            409: Conflict
+        Response:
+        403: This implementation does not accept client-generated IDs
+        201: Created
+        202: Accepted
+        404: Not Found
+        409: Conflict
 
-            Location Header identifying the location of the newly created resource
-            Body : created object
+        Location Header identifying the location of the newly created resource
+        Body : created object
 
-            TODO:
-            409 Conflict
-              A server MUST return 409 Conflict when processing a POST request
-              to create a resource with a client-generated ID that already exists.
-              A server MUST return 409 Conflict when processing a POST request
-              in which the resource object’s type is not among the type(s) that
-              constitute the collection represented by the endpoint.
-              A server SHOULD include error details and provide enough
-              information to recognize the source of the conflict.
+        TODO:
+        409 Conflict
+          A server MUST return 409 Conflict when processing a POST request
+          to create a resource with a client-generated ID that already exists.
+          A server MUST return 409 Conflict when processing a POST request
+          in which the resource object’s type is not among the type(s) that
+          constitute the collection represented by the endpoint.
+          A server SHOULD include error details and provide enough
+          information to recognize the source of the conflict.
         """
         payload = request.get_jsonapi_payload()
         id = kwargs.get(self._s_object_id, None)
@@ -427,9 +427,9 @@ class SAFRSRestAPI(Resource):
 
     def _create_instance(self, data):
         """
-            Create an instance with the
-            :param data: dictionary with {"type": ... , "attributes": ...}
-            :return: created instance
+        Create an instance with the
+        :param data: dictionary with {"type": ... , "attributes": ...}
+        :return: created instance
         """
         if not isinstance(data, dict):
             raise ValidationError("Data is not a dict object")
@@ -449,40 +449,40 @@ class SAFRSRestAPI(Resource):
 
     def delete(self, **kwargs):
         """
-            summary: Delete {class_name} from {collection_name}
-            responses :
-                202 :
-                    description: Accepted
-                204 :
-                    description: Request fulfilled, nothing follows
-                200 :
-                    description: Success
-                403 :
-                    description: Forbidden
-                404 :
-                    description: Not Found
+        summary: Delete {class_name} from {collection_name}
+        responses :
+            202 :
+                description: Accepted
+            204 :
+                description: Request fulfilled, nothing follows
+            200 :
+                description: Success
+            403 :
+                description: Forbidden
+            404 :
+                description: Not Found
 
-            ---
-            Delete an object by id or by filter
+        ---
+        Delete an object by id or by filter
 
-            http://jsonapi.org/format/1.1/#crud-deleting:
-            Responses :
-                202 : Accepted
-                If a deletion request has been accepted for processing,
-                but the processing has not been completed by the time the server
-                responds, the server MUST return a 202 Accepted status code.
+        http://jsonapi.org/format/1.1/#crud-deleting:
+        Responses :
+            202 : Accepted
+            If a deletion request has been accepted for processing,
+            but the processing has not been completed by the time the server
+            responds, the server MUST return a 202 Accepted status code.
 
-                204 No Content
-                A server MUST return a 204 No Content status code if a deletion
-                request is successful and no content is returned.
+            204 No Content
+            A server MUST return a 204 No Content status code if a deletion
+            request is successful and no content is returned.
 
-                200 OK
-                A server MUST return a 200 OK status code if a deletion request
-                is successful and the server responds with only top-level meta data.
+            200 OK
+            A server MUST return a 200 OK status code if a deletion request
+            is successful and the server responds with only top-level meta data.
 
-                404 NOT FOUND
-                A server SHOULD return a 404 Not Found status code
-                if a deletion request fails due to the resource not existing.
+            404 NOT FOUND
+            A server SHOULD return a 404 Not Found status code
+            if a deletion request fails due to the resource not existing.
         """
         id = kwargs.get(self._s_object_id, None)
 
@@ -498,39 +498,39 @@ class SAFRSRestAPI(Resource):
 
 class SAFRSRestRelationshipAPI(Resource):
     """
-        Flask webservice wrapper for the underlying sqla relationships db model
+    Flask webservice wrapper for the underlying sqla relationships db model
 
-        The endpoint url is of the form
-        "/Parents/{ParentId}/children/{ChildId}"
-        (cfr RELATIONSHIP_URL_FMT in API.expose_relationship)
-        where "children" is the relationship attribute of the parent
+    The endpoint url is of the form
+    "/Parents/{ParentId}/children/{ChildId}"
+    (cfr RELATIONSHIP_URL_FMT in API.expose_relationship)
+    where "children" is the relationship attribute of the parent
 
-        3 types of relationships (directions) exist in the sqla orm:
-        MANYTOONE ONETOMANY MANYTOMANY
+    3 types of relationships (directions) exist in the sqla orm:
+    MANYTOONE ONETOMANY MANYTOMANY
 
-        Following attributes are set on this class:
-            - SAFRSObject: the sqla object which has been set with the type
-             constructor in expose_relationship
-            - source_class: class of the parent ( e.g. Parent, __tablename__ : Parents )
-            - target : class of the child
-            - rel_name : name of the relationship ( e.g. children )
-            - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
-            - child_object_id : url parameter name of the child ( e.g. {ChildId} )
+    Following attributes are set on this class:
+        - SAFRSObject: the sqla object which has been set with the type
+         constructor in expose_relationship
+        - source_class: class of the parent ( e.g. Parent, __tablename__ : Parents )
+        - target : class of the child
+        - rel_name : name of the relationship ( e.g. children )
+        - parent_object_id : url parameter name of the parent ( e.g. {ParentId} )
+        - child_object_id : url parameter name of the child ( e.g. {ChildId} )
 
-        http://jsonapi.org/format/#crud-updating-relationships
+    http://jsonapi.org/format/#crud-updating-relationships
 
-        Updating To-Many Relationships
-        A server MUST respond to PATCH, POST, and DELETE requests to a URL
-        from a to-many relationship link as described below.
+    Updating To-Many Relationships
+    A server MUST respond to PATCH, POST, and DELETE requests to a URL
+    from a to-many relationship link as described below.
 
-        For all request types, the body MUST contain a data member
-        whose value is an empty array or an array of resource identifier objects.
+    For all request types, the body MUST contain a data member
+    whose value is an empty array or an array of resource identifier objects.
 
-        If a client makes a PATCH request to a URL from a to-many relationship link,
-        the server MUST either completely replace every member of the relationship,
-        return an appropriate error response if some resources can not be
-        found or accessed, or return a 403 Forbidden response if complete
-        replacement is not allowed by the server.
+    If a client makes a PATCH request to a URL from a to-many relationship link,
+    the server MUST either completely replace every member of the relationship,
+    return an appropriate error response if some resources can not be
+    found or accessed, or return a 403 Forbidden response if complete
+    replacement is not allowed by the server.
     """
 
     SAFRSObject = None
@@ -538,9 +538,9 @@ class SAFRSRestRelationshipAPI(Resource):
     # pylint: disable=unused-argument
     def __init__(self, *args, **kwargs):
         """
-            Initialize the relationship references:
-            - relationship : sqla relationship
-            -
+        Initialize the relationship references:
+        - relationship : sqla relationship
+        -
         """
         self.relationship = self.SAFRSObject.relationship
         self.source_class = self.SAFRSObject.relationship.parent.class_
@@ -558,19 +558,19 @@ class SAFRSRestRelationshipAPI(Resource):
     # Retrieve relationship data
     def get(self, **kwargs):
         """
-            summary : Retrieve {child_name} from {cls.relationship.key}
-            description : Retrieve {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
-            ---
-            https://jsonapi.org/format/#fetching-relationships
+        summary : Retrieve {child_name} from {cls.relationship.key}
+        description : Retrieve {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
+        ---
+        https://jsonapi.org/format/#fetching-relationships
 
-            Retrieve a relationship or list of relationship member ids
+        Retrieve a relationship or list of relationship member ids
 
-            http://jsonapi.org/format/#fetching-relationships-responses :
-            A server MUST respond to a successful request to fetch a
-            relationship with a 200 OK response.The primary data in the response
-            document MUST match the appropriate value for resource linkage.
-            The top-level links object MAY contain self and related links,
-            as described above for relationship objects.
+        http://jsonapi.org/format/#fetching-relationships-responses :
+        A server MUST respond to a successful request to fetch a
+        relationship with a 200 OK response.The primary data in the response
+        document MUST match the appropriate value for resource linkage.
+        The top-level links object MAY contain self and related links,
+        as described above for relationship objects.
         """
         _, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
@@ -617,33 +617,33 @@ class SAFRSRestRelationshipAPI(Resource):
     # Relationship patching
     def patch(self, **kwargs):
         """
-            summary : Update {cls.relationship.key}
-            description : Update the {parent_name} {cls.relationship.key} "{direction}" relationship
-            responses:
-                200 :
-                    description : Accepted
-                204 :
-                    description : No Content
-                403:
-                    description : Forbidden
-                404 :
-                    description : Not Found
-                409 :
-                    description : Conflict
-            ----
-            Update or create a relationship child item
-            to be used to create or update one-to-many mappings
-            but also works for many-to-many etc.
+        summary : Update {cls.relationship.key}
+        description : Update the {parent_name} {cls.relationship.key} "{direction}" relationship
+        responses:
+            200 :
+                description : Accepted
+            204 :
+                description : No Content
+            403:
+                description : Forbidden
+            404 :
+                description : Not Found
+            409 :
+                description : Conflict
+        ----
+        Update or create a relationship child item
+        to be used to create or update one-to-many mappings
+        but also works for many-to-many etc.
 
-            # Updating To-One Relationships
+        # Updating To-One Relationships
 
-            http://jsonapi.org/format/#crud-updating-to-one-relationships:
-            A server MUST respond to PATCH requests to a URL
-            from a to-one relationship link as described below
+        http://jsonapi.org/format/#crud-updating-to-one-relationships:
+        A server MUST respond to PATCH requests to a URL
+        from a to-one relationship link as described below
 
-            The PATCH request MUST include a top-level member named data containing one of:
-            a resource identifier object corresponding to the new related resource.
-            null, to remove the relationship.
+        The PATCH request MUST include a top-level member named data containing one of:
+        a resource identifier object corresponding to the new related resource.
+        null, to remove the relationship.
         """
         changed = False
         parent, relation = self.parse_args(**kwargs)
@@ -670,13 +670,13 @@ class SAFRSRestRelationshipAPI(Resource):
 
         elif isinstance(data, list) and not self.SAFRSObject.relationship.direction == MANYTOONE:
             """
-                http://jsonapi.org/format/#crud-updating-to-many-relationships
+            http://jsonapi.org/format/#crud-updating-to-many-relationships
 
-                If a client makes a PATCH request to a URL from a to-many relationship link,
-                the server MUST either completely replace every member of the relationship,
-                return an appropriate error response if some resourcescan not be found
-                or accessed, or return a 403 Forbidden response if complete
-                replacement is not allowed by the server.
+            If a client makes a PATCH request to a URL from a to-many relationship link,
+            the server MUST either completely replace every member of the relationship,
+            return an appropriate error response if some resourcescan not be found
+            or accessed, or return a 403 Forbidden response if complete
+            replacement is not allowed by the server.
             """
             # first remove all items, then append the new items
             # if the relationship has been configured with lazy="dynamic"
@@ -731,26 +731,26 @@ class SAFRSRestRelationshipAPI(Resource):
     # Adding items to a relationship
     def post(self, **kwargs):
         """
-            summary: Add {child_name} items to {cls.relationship.key}
-            description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
-            responses :
-                202:
-                    description : Accepted
-                204:
-                    description : No Content
-                404:
-                    description : Not Found
-                409:
-                    description : Conflict
-            ---
-            Add a child to a relationship
-            202 Accepted
-            If a relationship update request has been accepted for processing, but the processing has not
-            been completed by the time the server responds, the server MUST return a 202 Accepted status code.
+        summary: Add {child_name} items to {cls.relationship.key}
+        description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
+        responses :
+            202:
+                description : Accepted
+            204:
+                description : No Content
+            404:
+                description : Not Found
+            409:
+                description : Conflict
+        ---
+        Add a child to a relationship
+        202 Accepted
+        If a relationship update request has been accepted for processing, but the processing has not
+        been completed by the time the server responds, the server MUST return a 202 Accepted status code.
 
-            204 No Content
-            A server MUST return a 204 No Content status code if an update is successful and the representation
-            of the resource in the request matches the result.
+        204 No Content
+        A server MUST return a 204 No Content status code if an update is successful and the representation
+        of the resource in the request matches the result.
         """
         parent, relation = self.parse_args(**kwargs)
         payload = request.get_jsonapi_payload()
@@ -785,21 +785,21 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def delete(self, **kwargs):
         """
-            summary : Delete {child_name} from {cls.relationship.key}
-            description : Delete {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
-            responses:
-                202 :
-                    description: Accepted
-                204 :
-                    description: Request fulfilled, nothing follows
-                200 :
-                    description: Success
-                403 :
-                    description: Forbidden
-                404 :
-                    description: Not Found
-            ----
-            Remove an item from a relationship
+        summary : Delete {child_name} from {cls.relationship.key}
+        description : Delete {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
+        responses:
+            202 :
+                description: Accepted
+            204 :
+                description: Request fulfilled, nothing follows
+            200 :
+                description: Success
+            403 :
+                description: Forbidden
+            404 :
+                description: Not Found
+        ----
+        Remove an item from a relationship
         """
         # pylint: disable=unused-variable
         # (parent is unused)
@@ -865,10 +865,10 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def parse_args(self, **kwargs):
         """
-            Parse relationship args
-            An error is raised if the parent doesn't exist.
+        Parse relationship args
+        An error is raised if the parent doesn't exist.
 
-            :return: parent, child, relation
+        :return: parent, child, relation
         """
         parent_id = kwargs.get(self.parent_object_id, None)
         if parent_id is None:
@@ -882,9 +882,9 @@ class SAFRSRestRelationshipAPI(Resource):
 
 class SAFRSJSONRPCAPI(Resource):
     """
-        Route wrapper for the underlying SAFRSBase jsonapi_rpc
+    Route wrapper for the underlying SAFRSBase jsonapi_rpc
 
-        Only HTTP POST is supported
+    Only HTTP POST is supported
     """
 
     SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
@@ -892,33 +892,33 @@ class SAFRSJSONRPCAPI(Resource):
 
     def __init__(self, *args, **kwargs):
         """
-            -object_id is the function used to create the url parameter name
-            (eg "User" -> "UserId" )
-            -this parameter is used in the swagger endpoint spec,
-            eg. /Users/{UserId} where the UserId parameter is the id of the underlying SAFRSObject.
+        -object_id is the function used to create the url parameter name
+        (eg "User" -> "UserId" )
+        -this parameter is used in the swagger endpoint spec,
+        eg. /Users/{UserId} where the UserId parameter is the id of the underlying SAFRSObject.
         """
         self._s_object_id = self.SAFRSObject._s_object_id
         self.target = self.SAFRSObject
 
     def post(self, **kwargs):
         """
-            summary : call
-            responses :
-                403:
-                    description :
-                201:
-                    description: Created
-                202:
-                    description : Accepted
-                403 :
-                    description : Forbidden
-                404:
-                    description : Not Found
-                409:
-                    description : Conflict
-            ---
-            HTTP POST: apply actions, return 200 regardless.
-            The actual jsonapi_rpc method may return other codes
+        summary : call
+        responses :
+            403:
+                description :
+            201:
+                description: Created
+            202:
+                description : Accepted
+            403 :
+                description : Forbidden
+            404:
+                description : Not Found
+            409:
+                description : Conflict
+        ---
+        HTTP POST: apply actions, return 200 regardless.
+        The actual jsonapi_rpc method may return other codes
         """
         id = kwargs.get(self._s_object_id, None)
 
@@ -952,13 +952,13 @@ class SAFRSJSONRPCAPI(Resource):
 
     def get(self, **kwargs):
         """
-            responses :
-                404 :
-                    description : Not Found
-                403 :
-                    description : Forbidden
+        responses :
+            404 :
+                description : Not Found
+            403 :
+                description : Forbidden
 
-            ---
+        ---
         """
         id = kwargs.get(self._s_object_id, None)
 

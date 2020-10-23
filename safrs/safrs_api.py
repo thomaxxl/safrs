@@ -28,9 +28,9 @@ DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
 
 class SAFRSAPI(FRSApiBase):
     """
-        Subclass of the flask_restful_swagger API class where we add the expose_object method
-        this method creates an API endpoint for the SAFRSBase object and corresponding swagger
-        documentation
+    Subclass of the flask_restful_swagger API class where we add the expose_object method
+    this method creates an API endpoint for the SAFRSBase object and corresponding swagger
+    documentation
     """
 
     _operation_ids = {}
@@ -47,16 +47,16 @@ class SAFRSAPI(FRSApiBase):
         **kwargs
     ):
         """
-            http://jsonapi.org/format/#content-negotiation-servers
-            Servers MUST send all JSON:API data in response documents with
-            the header Content-Type: application/vnd.api+json without any media type parameters.
+        http://jsonapi.org/format/#content-negotiation-servers
+        Servers MUST send all JSON:API data in response documents with
+        the header Content-Type: application/vnd.api+json without any media type parameters.
 
-            Servers MUST respond with a 415 Unsupported Media Type status code if
-            a request specifies the header Content-Type: application/vnd.api+json with any media type parameters.
+        Servers MUST respond with a 415 Unsupported Media Type status code if
+        a request specifies the header Content-Type: application/vnd.api+json with any media type parameters.
 
-            Servers MUST respond with a 406 Not Acceptable status code if
-            a request’s Accept header contains the JSON:API media type and
-            all instances of that media type are modified with media type parameters.
+        Servers MUST respond with a 406 Not Acceptable status code if
+        a request’s Accept header contains the JSON:API media type and
+        all instances of that media type are modified with media type parameters.
         """
 
         custom_swagger = kwargs.pop("custom_swagger", {})
@@ -84,27 +84,27 @@ class SAFRSAPI(FRSApiBase):
 
     def update_spec(self, custom_swagger):
         """
-            :param custom_swagger: swagger spec to be added to the swagger.json
+        :param custom_swagger: swagger spec to be added to the swagger.json
         """
         _swagger_doc = self.get_swagger_doc()
         safrs.dict_merge(_swagger_doc, custom_swagger)
 
     def expose_object(self, safrs_object, url_prefix="", **properties):
-        """ This methods creates the API url endpoints for the SAFRObjects
-            :param safrs_object: SAFSBase subclass that we would like to expose
-            :param url_prefix: url prefix
-            :param properties: additional flask-restful properties
+        """This methods creates the API url endpoints for the SAFRObjects
+        :param safrs_object: SAFSBase subclass that we would like to expose
+        :param url_prefix: url prefix
+        :param properties: additional flask-restful properties
 
-            creates a class of the form
+        creates a class of the form
 
-            @api_decorator
-            class Class_API(SAFRSRestAPI):
-                SAFRSObject = safrs_object
+        @api_decorator
+        class Class_API(SAFRSRestAPI):
+            SAFRSObject = safrs_object
 
-            add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
+        add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
 
-            tablename/collectionname: safrs_object._s_collection_name, e.g. "Users"
-            classname: safrs_object.__name__, e.g. "User"
+        tablename/collectionname: safrs_object._s_collection_name, e.g. "Users"
+        classname: safrs_object.__name__, e.g. "User"
         """
         properties["SAFRSObject"] = safrs_object
         properties["http_methods"] = safrs_object.http_methods
@@ -156,10 +156,10 @@ class SAFRSAPI(FRSApiBase):
 
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """
-            Expose the safrs "documented_api_method" decorated methods
-            :param url_prefix: api url prefix
-            :param tags: swagger tags
-            :return: None
+        Expose the safrs "documented_api_method" decorated methods
+        :param url_prefix: api url prefix
+        :param tags: swagger tags
+        :return: None
         """
 
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
@@ -189,20 +189,20 @@ class SAFRSAPI(FRSApiBase):
 
     def expose_relationship(self, relationship, url_prefix, tags, properties):
         """
-            Expose a relationship tp the REST API:
-            A relationship consists of a parent and a target class
-            creates a class of the form
+        Expose a relationship tp the REST API:
+        A relationship consists of a parent and a target class
+        creates a class of the form
 
-            @api_decorator
-            class Parent_X_target_API(SAFRSRestAPI):
-                SAFRSObject = safrs_object
+        @api_decorator
+        class Parent_X_target_API(SAFRSRestAPI):
+            SAFRSObject = safrs_object
 
-            add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
+        add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
 
-            :param relationship: relationship
-            :param url_prefix: api url prefix
-            :param tags: swagger tags
-            :return: None
+        :param relationship: relationship
+        :param url_prefix: api url prefix
+        :param tags: swagger tags
+        :return: None
         """
         # safrs_object is the target class, if this is not a SAFRSBase class, then we shouldn't expose it
         # the _s_expose attribute indicates we're dealing with a SAFRSBase instance
@@ -286,9 +286,9 @@ class SAFRSAPI(FRSApiBase):
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
         """
-            :param ordered_methods:
-            :return: the http methods from the SwaggerEndpoint and SAFRS Resources,
-            in the order specified by ordered_methods
+        :param ordered_methods:
+        :return: the http methods from the SwaggerEndpoint and SAFRS Resources,
+        in the order specified by ordered_methods
         """
         if ordered_methods is None:
             ordered_methods = HTTP_METHODS
@@ -302,10 +302,10 @@ class SAFRSAPI(FRSApiBase):
 
     def add_resource(self, resource, *urls, **kwargs):
         """
-            This method is partly copied from flask_restful_swagger_2/__init__.py
+        This method is partly copied from flask_restful_swagger_2/__init__.py
 
-            Changed because we don't need path id examples when there's no {id} in the path.
-            We also have to filter out the unwanted parameters
+        Changed because we don't need path id examples when there's no {id} in the path.
+        We also have to filter out the unwanted parameters
         """
         relationship = kwargs.pop("relationship", False)  # relationship object
         SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
@@ -377,7 +377,7 @@ class SAFRSAPI(FRSApiBase):
     def _add_oas_req_params(self, resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url):
         """
 
-            Add the request parameters to the swagger (filter, sort)
+        Add the request parameters to the swagger (filter, sort)
         """
         method_doc = path_item[method]
         parameters = []
@@ -414,12 +414,12 @@ class SAFRSAPI(FRSApiBase):
 
     def _add_oas_references(self, safrs_object, path_item, method, exposing_instance, relationship):
         """
-            substitute the swagger references in the response objects
-            references are created and added to the safrs_object.swagger_models in swagger_doc
+        substitute the swagger references in the response objects
+        references are created and added to the safrs_object.swagger_models in swagger_doc
 
-            the params are
-            :param safrs_object:
-            :param path_item:
+        the params are
+        :param safrs_object:
+        :param path_item:
 
         """
         inst_ref = None
@@ -464,9 +464,9 @@ class SAFRSAPI(FRSApiBase):
 
     def _add_oas_resource_definitions(self, resource, path_item):
         """
-            add the resource method schema references to the swagger "definitions"
-            :param resource:
-            :param path_item:
+        add the resource method schema references to the swagger "definitions"
+        :param resource:
+        :param path_item:
         """
         definitions = {}
 
@@ -497,7 +497,7 @@ class SAFRSAPI(FRSApiBase):
     @classmethod
     def _get_operation_id(cls, summary):
         """
-            :param summary:
+        :param summary:
         """
         summary = "".join(c for c in summary if c.isalnum())
         if summary not in cls._operation_ids:
@@ -508,17 +508,17 @@ class SAFRSAPI(FRSApiBase):
 
 
 def api_decorator(cls, swagger_decorator):
-    """ Decorator for the API views:
-            - add swagger documentation ( swagger_decorator )
-            - add cors
-            - add generic exception handling
+    """Decorator for the API views:
+        - add swagger documentation ( swagger_decorator )
+        - add cors
+        - add generic exception handling
 
-        We couldn't use inheritance because the rest method decorator
-        references the cls.SAFRSObject which isn't known
+    We couldn't use inheritance because the rest method decorator
+    references the cls.SAFRSObject which isn't known
 
-        :param cls: The class that will be decorated (e.g. SAFRSRestAPI, SAFRSRestRelationshipAPI)
-        :param swagger_decorator: function that will generate the swagger
-        :return: decorated class
+    :param cls: The class that will be decorated (e.g. SAFRSRestAPI, SAFRSRestRelationshipAPI)
+    :param swagger_decorator: function that will generate the swagger
+    :return: decorated class
     """
 
     cors_domain = get_config("cors_domain")
@@ -576,21 +576,21 @@ def api_decorator(cls, swagger_decorator):
 
 
 def http_method_decorator(fun):
-    """ Decorator for the supported jsonapi HTTP methods (get, post, patch, delete)
-        - commit the database
-        - convert all exceptions to a JSON serializable GenericError
+    """Decorator for the supported jsonapi HTTP methods (get, post, patch, delete)
+    - commit the database
+    - convert all exceptions to a JSON serializable GenericError
 
-        This method will be called for all requests
-        :param fun:
-        :return: wrapped fun
+    This method will be called for all requests
+    :param fun:
+    :return: wrapped fun
     """
 
     @wraps(fun)
     def method_wrapper(*args, **kwargs):
-        """ Wrap the method and perform error handling
-            :param *args:
-            :param **kwargs:
-            :return: result of the wrapped method
+        """Wrap the method and perform error handling
+        :param *args:
+        :param **kwargs:
+        :return: result of the wrapped method
         """
         safrs_exception = None
         try:

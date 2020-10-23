@@ -18,10 +18,10 @@ from .config import get_config, get_request_param
 
 def jsonapi_filter_list(relation):
     """
-        :param relation: InstrumentedList
-        :return: list of instances filtered using the jsonapi filters in the url query args
+    :param relation: InstrumentedList
+    :return: list of instances filtered using the jsonapi filters in the url query args
 
-        Called when filtering a relationship collection
+    Called when filtering a relationship collection
     """
     result = set()
     for instance in relation:
@@ -37,11 +37,11 @@ def jsonapi_filter_list(relation):
 
 def jsonapi_filter_query(object_query, safrs_object):
     """
-        :param object_query: query to be filtered (lazy='dynamic' relationships AppenderBaseQuery)
-        :param safrs_object: sqla object to be queried
-        :return: sqla query object
+    :param object_query: query to be filtered (lazy='dynamic' relationships AppenderBaseQuery)
+    :param safrs_object: sqla object to be queried
+    :return: sqla query object
 
-        Called when filtering a relationship query
+    Called when filtering a relationship query
     """
     filter_query = safrs_object.jsonapi_filter()
     result = object_query.intersect(filter_query)
@@ -50,11 +50,11 @@ def jsonapi_filter_query(object_query, safrs_object):
 
 def jsonapi_sort(object_query, safrs_object):
     """
-        http://jsonapi.org/format/#fetching-sorting
-        sort by csv sort= values
-        :param object_query: sqla query object
-        :param safrs_object: SAFRSObject
-        :return: sqla query object
+    http://jsonapi.org/format/#fetching-sorting
+    sort by csv sort= values
+    :param object_query: sqla query object
+    :param safrs_object: SAFRSObject
+    :return: sqla query object
     """
     sort_attrs = request.args.get("sort", None)
     if sort_attrs is not None:
@@ -96,32 +96,32 @@ def jsonapi_sort(object_query, safrs_object):
 
 def paginate(object_query, SAFRSObject=None):
     """
-        this is where the query is executed, hence it's the bottleneck of the queries
+    this is where the query is executed, hence it's the bottleneck of the queries
 
-        http://jsonapi.org/format/#fetching-pagination
+    http://jsonapi.org/format/#fetching-pagination
 
-        A server MAY choose to limit the number of resources returned
-        in a response to a subset (“page”) of the whole set available.
-        A server MAY provide links to traverse a paginated data set (“pagination links”).
-        Pagination links MUST appear in the links object that corresponds
-        to a collection. To paginate the primary data, supply pagination links
-        in the top-level links object. To paginate an included collection
-        returned in a compound document, supply pagination links in the
-        corresponding links object.
+    A server MAY choose to limit the number of resources returned
+    in a response to a subset (“page”) of the whole set available.
+    A server MAY provide links to traverse a paginated data set (“pagination links”).
+    Pagination links MUST appear in the links object that corresponds
+    to a collection. To paginate the primary data, supply pagination links
+    in the top-level links object. To paginate an included collection
+    returned in a compound document, supply pagination links in the
+    corresponding links object.
 
-        The following keys MUST be used for pagination links:
+    The following keys MUST be used for pagination links:
 
-        first: the first page of data
-        last: the last page of data
-        prev: the previous page of data
-        next: the next page of data
+    first: the first page of data
+    last: the last page of data
+    prev: the previous page of data
+    next: the next page of data
 
-        We use page[offset] and page[limit], where
-        offset is the number of records to offset by prior to returning resources
+    We use page[offset] and page[limit], where
+    offset is the number of records to offset by prior to returning resources
 
-        :param object_query: SQLAalchemy query object
-        :param SAFRSObject: optional
-        :return: links, instances, count
+    :param object_query: SQLAalchemy query object
+    :param SAFRSObject: optional
+    :return: links, instances, count
     """
 
     def get_link(count, limit):
@@ -213,9 +213,9 @@ def paginate(object_query, SAFRSObject=None):
 
 def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count=None, include=None):
     """
-        Create a response dict according to the json:api schema spec
-        :param data : the objects that will be serialized
-        :return: jsonapi formatted dictionary
+    Create a response dict according to the json:api schema spec
+    :param data : the objects that will be serialized
+    :return: jsonapi formatted dictionary
     """
     limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
     try:

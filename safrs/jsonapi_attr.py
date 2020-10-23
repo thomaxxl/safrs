@@ -9,15 +9,15 @@ JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
 
 class jsonapi_attr(hybrid_property):
     """
-       hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy
+    hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy
     """
 
     def __init__(self, *args, **kwargs):
         """
-            :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
-            :return: jsonapi attribute decorator
+        :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
+        :return: jsonapi attribute decorator
 
-            set `swagger_type` and `default` to customize the swagger
+        set `swagger_type` and `default` to customize the swagger
         """
         setattr(self, JSONAPI_ATTR_TAG, True)
 
@@ -36,14 +36,14 @@ class jsonapi_attr(hybrid_property):
 
     def getter(self, fget):
         """
-            Provide a decorator that defines a getter method.
+        Provide a decorator that defines a getter method.
         """
 
         return self._copy(fget=fget)
 
     def setter(self, fset):
         """
-            Provide a decorator that defines a setter method.
+        Provide a decorator that defines a setter method.
         """
 
         return self._copy(fset=fset)
@@ -51,7 +51,7 @@ class jsonapi_attr(hybrid_property):
 
 def is_jsonapi_attr(attr):
     """
-        :param attr: `SAFRSBase` `jsonapi_attr` decorated attribute
-        :return: boolean
+    :param attr: `SAFRSBase` `jsonapi_attr` decorated attribute
+    :return: boolean
     """
     return getattr(attr, JSONAPI_ATTR_TAG, False) is True

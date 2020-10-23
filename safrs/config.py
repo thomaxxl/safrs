@@ -10,10 +10,10 @@ import safrs
 
 @lru_cache(maxsize=128)
 def get_config(option):
-    """ Retrieve a configuration parameter from the app
-        :param option: configuration parameter
-        :return: configuration value
-        :rtype: string
+    """Retrieve a configuration parameter from the app
+    :param option: configuration parameter
+    :return: configuration value
+    :rtype: string
     """
 
     try:
@@ -82,12 +82,12 @@ def get_config(option):
 
 
 def get_request_param(param, default=0):
-    """ Retrieve request parameters
-        Used for backwards compatibility (with safrs < 2.x)
-        :param param: parameter to retrieve
-        :param default:
-        :return: prequest parameter or None
-        :rtype: Boolean
+    """Retrieve request parameters
+    Used for backwards compatibility (with safrs < 2.x)
+    :param param: parameter to retrieve
+    :param default:
+    :return: prequest parameter or None
+    :rtype: Boolean
     """
     result = getattr(request, param, None)
     if result is None:  # pragma: no cover
@@ -98,8 +98,8 @@ def get_request_param(param, default=0):
 
 def is_debug():
     """
-        We use the loglevel to check whether we're running in debug mode
-        :return: whether the app is in debug mode
-        :rtype: Boolean
+    We use the loglevel to check whether we're running in debug mode
+    :return: whether the app is in debug mode
+    :rtype: Boolean
     """
     return safrs.log.getEffectiveLevel() < logging.INFO

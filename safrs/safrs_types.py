@@ -16,12 +16,12 @@ STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
 
 class SAFRSID:
     """
-        This class creates a jsonapi "id" from the classes PKs
-        In case of a composite PK, the pks are joined with the delimiter
-        eg.
-        pkA = 1, pkB = 2, delimiter = '_' => jsonapi_id = '1_2'
+    This class creates a jsonapi "id" from the classes PKs
+    In case of a composite PK, the pks are joined with the delimiter
+    eg.
+    pkA = 1, pkB = 2, delimiter = '_' => jsonapi_id = '1_2'
 
-        If you want to create a custom id_type, you can subclass SAFRSID
+    If you want to create a custom id_type, you can subclass SAFRSID
     """
 
     primary_keys = ["id"]
@@ -38,7 +38,7 @@ class SAFRSID:
     @classmethod
     def gen_id(cls):
         """
-            Generate a jsonapi id
+        Generate a jsonapi id
         """
         # This is the case if an autoincrement id is expected:
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
@@ -51,7 +51,7 @@ class SAFRSID:
     @classmethod
     def validate_id(cls, id):
         """
-            Validate a given id (eg. check if it's a valid uuid, email etc.)
+        Validate a given id (eg. check if it's a valid uuid, email etc.)
         """
         result = id
         if len(cls.columns) == 1:
@@ -68,14 +68,14 @@ class SAFRSID:
     @property
     def name(self):
         """
-            name
+        name
         """
         return self.delimiter.join(self.primary_keys)
 
     @classmethod
     def get_id(cls, obj):
         """
-            Retrieve the id string derived from the pks of obj
+        Retrieve the id string derived from the pks of obj
         """
         if cls.columns and len(cls.columns) > 1:
             values = [str(getattr(obj, pk.name)) for pk in cls.columns]
@@ -86,7 +86,7 @@ class SAFRSID:
     @classmethod
     def get_pks(cls, id):
         """
-            Convert the id string to a pk dict
+        Convert the id string to a pk dict
         """
         values = str(id).split(cls.delimiter)
         result = dict()
@@ -114,7 +114,7 @@ class SAFRSID:
     @classproperty
     def column_names(self):
         """
-            :return: a list of columns names of this id type
+        :return: a list of columns names of this id type
         """
         return [c.name for c in self.columns]
 
@@ -136,7 +136,7 @@ class SAFRSID:
 
 def get_id_type(cls, Super=SAFRSID):
     """
-        get_id_type
+    get_id_type
     """
     columns = [col for col in cls.__table__.columns if col.primary_key]
     primary_keys = [col.name for col in columns]
@@ -147,15 +147,15 @@ def get_id_type(cls, Super=SAFRSID):
 
 class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
     """
-        SAFRSSHA256HashID class for a hash based id
+    SAFRSSHA256HashID class for a hash based id
     """
 
     @classmethod
     def gen_id(cls):
         """
-            Create a hash based on the current time
-            This is just an example
-            Not cryptographically secure and might cause collisions!
+        Create a hash based on the current time
+        This is just an example
+        Not cryptographically secure and might cause collisions!
         """
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")
         return hashlib.sha256(now).hexdigest()
@@ -171,7 +171,7 @@ class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
 
 class JSONType(PickleType):  # pragma: no cover
     """
-        JSON DB type is used to store JSON objects in the database
+    JSON DB type is used to store JSON objects in the database
     """
 
     impl = BLOB
@@ -196,7 +196,7 @@ class JSONType(PickleType):  # pragma: no cover
 
 class SafeString(TypeDecorator):  # pragma: no cover
     """
-        DB String Type class strips special chars when bound
+    DB String Type class strips special chars when bound
     """
 
     impl = String(767)
@@ -220,7 +220,7 @@ class SafeString(TypeDecorator):  # pragma: no cover
 
 class UUIDType(TypeDecorator):  # pragma: no cover
     """
-        UUIDType
+    UUIDType
     """
 
     impl = String(40)

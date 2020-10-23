@@ -76,15 +76,15 @@ SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean":
 # SAFRSBase superclass
 #
 class SAFRSBase(Model):
-    """ This SQLAlchemy mixin implements Json Serialization for SAFRS SQLalchemy Persistent Objects
-        Serialization itself is performed by the ``to_dict`` method
-        Initialization and instantiation are quite complex because we rely on the DB schema
+    """This SQLAlchemy mixin implements Json Serialization for SAFRS SQLalchemy Persistent Objects
+    Serialization itself is performed by the ``to_dict`` method
+    Initialization and instantiation are quite complex because we rely on the DB schema
 
-        The jsonapi id is generated from the primary keys of the columns
+    The jsonapi id is generated from the primary keys of the columns
 
-        This class is mostly used as a sqla model mixin therefore the object attributes should not
-        match column names or sqla attribute names, this is why most of the methods & properties have
-        (or should have, hindsight is great :/) the distinguishing `_s_` prefix
+    This class is mostly used as a sqla model mixin therefore the object attributes should not
+    match column names or sqla attribute names, this is why most of the methods & properties have
+    (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
 
     db_commit = True  # commit instances automatically, see also _s_auto_commit property below
@@ -106,7 +106,7 @@ class SAFRSBase(Model):
 
     def __new__(cls, *args, **kwargs):
         """
-            If an object with given arguments already exists, this object is instantiated
+        If an object with given arguments already exists, this object is instantiated
         """
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs.get("id", ""))
@@ -124,11 +124,11 @@ class SAFRSBase(Model):
 
     def __init__(self, *args, **kwargs):
         """
-            Object initialization, called from backend or `_s_post`
-            - set the named attributes and add the object to the database
-            - create relationships
-            :param args:
-            :param kwargs: model attributes (column & relationship values)
+        Object initialization, called from backend or `_s_post`
+        - set the named attributes and add the object to the database
+        - create relationships
+        :param args:
+        :param kwargs: model attributes (column & relationship values)
         """
         # All SAFRSBase subclasses have a jsonapi id, passed as "id" in web requests
         # if no id is supplied, generate a new safrs id (uuid4)
@@ -179,7 +179,7 @@ class SAFRSBase(Model):
 
     def __setattr__(self, attr_name, attr_val):
         """
-            setattr behaves differently for `jsonapi_attr` decorated attributes
+        setattr behaves differently for `jsonapi_attr` decorated attributes
         """
         if is_jsonapi_attr(getattr(self.__class__, attr_name, False)):
             getattr(self.__class__, attr_name).setter(attr_val)
@@ -188,10 +188,10 @@ class SAFRSBase(Model):
 
     def _s_parse_attr_value(self, attr_name, attr_val):
         """
-            Parse the given jsonapi attribute value so it can be stored in the db
-            :param attr_name: attribute name
-            :param attr_val: attribute value
-            :return: parsed value
+        Parse the given jsonapi attribute value so it can be stored in the db
+        :param attr_name: attribute name
+        :param attr_val: attribute value
+        :return: parsed value
         """
         # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
         if not has_request_context():
@@ -215,13 +215,13 @@ class SAFRSBase(Model):
     @classmethod
     def _s_post(cls, id=None, **attributes):
         """
-            This method is called when a new item is created with a POST to the json api
+        This method is called when a new item is created with a POST to the json api
 
-            :param attributes: the jsonapi "data" attributes
-            :return: new `cls` instance
+        :param attributes: the jsonapi "data" attributes
+        :return: new `cls` instance
 
-            `_s_post` performs attribute sanitization and calls `cls.__init__`
-            The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
+        `_s_post` performs attribute sanitization and calls `cls.__init__`
+        The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
         """
         # remove attributes that are not declared in _s_jsonapi_attrs
         attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name in cls._s_jsonapi_attrs}
@@ -258,8 +258,8 @@ class SAFRSBase(Model):
 
     def _s_patch(self, **attributes):
         """
-            Update the object attributes
-            :param **attributes:
+        Update the object attributes
+        :param **attributes:
         """
         for attr_name, attr_val in attributes.items():
             if attr_name not in self.__class__._s_jsonapi_attrs:
@@ -272,21 +272,21 @@ class SAFRSBase(Model):
 
     def _s_delete(self):
         """
-           Delete the instance from the database
+        Delete the instance from the database
         """
         safrs.DB.session.delete(self)
 
     @hybrid_property
     def http_methods(self):
         """
-            :return: list of allowed HTTP methods
+        :return: list of allowed HTTP methods
         """
         return self.__class__.http_methods
 
     @http_methods.expression
     def http_methods(self):
         """
-            :return: list of allowed HTTP methods
+        :return: list of allowed HTTP methods
         """
         return ["GET", "POST", "PATCH", "DELETE", "PUT", "HEAD", "OPTIONS"]
 
@@ -294,7 +294,7 @@ class SAFRSBase(Model):
     @lru_cache(maxsize=32)
     def _s_columns(cls):
         """
-            :return: list of columns that are exposed by the api
+        :return: list of columns that are exposed by the api
         """
         mapper = getattr(cls, "__mapper__", None)
         if mapper is None:
@@ -313,7 +313,7 @@ class SAFRSBase(Model):
     @lru_cache(maxsize=32)
     def _s_relationships(self):
         """
-            :return: the relationships used for jsonapi (de/)serialization
+        :return: the relationships used for jsonapi (de/)serialization
         """
         rels = {rel.key: rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)}
         return rels
@@ -321,7 +321,7 @@ class SAFRSBase(Model):
     @_s_relationships.expression
     def _s_relationships(cls):
         """
-            :return: the relationships used for jsonapi (de/)serialization
+        :return: the relationships used for jsonapi (de/)serialization
         """
         rels = {rel.key: rel for rel in cls.__mapper__.relationships if cls._s_check_perm(rel.key)}
         return rels
@@ -329,7 +329,7 @@ class SAFRSBase(Model):
     @classmethod
     def colname_to_attrname(cls, col_name):
         """
-            Map column name to model attribute name
+        Map column name to model attribute name
         """
 
         """
@@ -363,10 +363,10 @@ class SAFRSBase(Model):
     @hybrid_method
     def _s_check_perm(self, property_name, permission="r"):
         """
-            Check the (instance-level) column permission
-            :param column_name: column name
-            :param permission: permission string (read/write)
-            :return: Boolean indicating whether access is allowed
+        Check the (instance-level) column permission
+        :param column_name: column name
+        :param permission: permission string (read/write)
+        :return: Boolean indicating whether access is allowed
         """
 
         return self.__class__._s_check_perm(property_name, permission)
@@ -375,10 +375,10 @@ class SAFRSBase(Model):
     @lru_cache(maxsize=128)
     def _s_check_perm(cls, property_name, permission="r"):
         """
-            Check the (class-level) column permission
-            :param column_name: column name
-            :param permission: permission string (read/write)
-            :return: Boolean indicating whether access is allowed
+        Check the (class-level) column permission
+        :param column_name: column name
+        :param permission: permission string (read/write)
+        :return: Boolean indicating whether access is allowed
         """
         if property_name.startswith("_"):
             return False
@@ -418,7 +418,7 @@ class SAFRSBase(Model):
     @hybrid_property
     def _s_jsonapi_attrs(self):
         """
-            :return: dictionary of exposed attribute names and values
+        :return: dictionary of exposed attribute names and values
         """
 
         """
@@ -464,10 +464,10 @@ class SAFRSBase(Model):
     @lru_cache(maxsize=32)
     def _s_jsonapi_attrs(cls):
         """
-            :return: dict of jsonapi attributes
-            At the moment we expect the column name to be equal to the column name
-            Things will go south if this isn't the case and we should use
-            the cls.__mapper__._polymorphic_properties instead
+        :return: dict of jsonapi attributes
+        At the moment we expect the column name to be equal to the column name
+        Things will go south if this isn't the case and we should use
+        the cls.__mapper__._polymorphic_properties instead
         """
         # Cache this for better performance (a bit faster than lru_cache :)
         cached_attrs = getattr(cls, "_cached_jsonapi_attrs", None)
@@ -496,7 +496,7 @@ class SAFRSBase(Model):
 
     def _s_expunge(self):
         """
-            expunge an object from its session
+        expunge an object from its session
         """
         session = sqla_inspect(self).session
         session.expunge(self)
@@ -504,24 +504,24 @@ class SAFRSBase(Model):
     @classproperty
     def _s_auto_commit(self):
         """
-            :return: whether the instance should be automatically commited.
-            :rtype: boolen
-            fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
+        :return: whether the instance should be automatically commited.
+        :rtype: boolen
+        fka db_commit: auto_commit is a beter name, but keep db_commit for backwards compatibility
         """
         return self.db_commit
 
     @_s_auto_commit.setter
     def _s_auto_commit(self, value):
         """
-            :param value:
-            auto_commit setter
+        :param value:
+        auto_commit setter
         """
         self.db_commit = value
 
     def _s_clone(self, **kwargs):
         """
-            Clone an object: copy the parameters and create a new id
-            :param *kwargs: TBD
+        Clone an object: copy the parameters and create a new id
+        :param *kwargs: TBD
         """
         make_transient(self)
         # pylint: disable=attribute-defined-outside-init
@@ -538,9 +538,9 @@ class SAFRSBase(Model):
     @classmethod
     def get_instance(cls, item=None, failsafe=False):
         """
-            :param item: instance id or dict { "id" : .. "type" : ..}
-            :param failsafe: indicates whether we want an exception to be raised in case the id is not found
-            :return: Instance or None. An error is raised if an invalid id is used
+        :param item: instance id or dict { "id" : .. "type" : ..}
+        :param failsafe: indicates whether we want an exception to be raised in case the id is not found
+        :return: Instance or None. An error is raised if an invalid id is used
         """
         instance = None
         # pylint: disable=invalid-name,redefined-builtin
@@ -573,8 +573,8 @@ class SAFRSBase(Model):
     @classmethod
     def _s_get_instance_by_id(cls, id):
         """
-            :param id: jsonapi_id
-            :return: query obj
+        :param id: jsonapi_id
+        :return: query obj
         """
         primary_keys = cls.id_type.get_pks(id)
         return cls._s_query.filter_by(**primary_keys)
@@ -582,13 +582,13 @@ class SAFRSBase(Model):
     @property
     def jsonapi_id(self):
         """
-            :return: json:api id
-            :rtype: str
+        :return: json:api id
+        :rtype: str
 
-            if the table/object has a single primary key "id", it will return this id.
-            In the other cases, the jsonapi "id" will be generated by the cls.id_type (typically by combining the PKs)
+        if the table/object has a single primary key "id", it will return this id.
+        In the other cases, the jsonapi "id" will be generated by the cls.id_type (typically by combining the PKs)
 
-            The id has to be of type string according to the jsonapi json validation schema
+        The id has to be of type string according to the jsonapi json validation schema
         """
         return str(self.id_type.get_id(self))
 
@@ -596,7 +596,7 @@ class SAFRSBase(Model):
     @lru_cache(maxsize=32)
     def id_type(obj):
         """
-            :return: the object's id type
+        :return: the object's id type
         """
         id_type = get_id_type(obj)
         # monkey patch so we don't have to look it up next time
@@ -606,7 +606,7 @@ class SAFRSBase(Model):
     @classproperty
     def _s_query(cls):
         """
-            :return: sqla query object
+        :return: sqla query object
         """
         _table = getattr(cls, "_table", None)
         if _table:
@@ -617,45 +617,45 @@ class SAFRSBase(Model):
 
     def to_dict(self, *args, **kwargs):
         """
-            Create a dictionary with all the instance "attributes"
-            this method will be called by SAFRSJSONEncoder to serialize objects
+        Create a dictionary with all the instance "attributes"
+        this method will be called by SAFRSJSONEncoder to serialize objects
 
-            :return: dictionary with jsonapi attributes
+        :return: dictionary with jsonapi attributes
         """
         return self._s_jsonapi_attrs
 
     @classproperty
     def _s_class_name(cls):
         """
-            :return: the name of the instances
+        :return: the name of the instances
         """
         return cls.__name__
 
     @classproperty
     def _s_collection_name(cls):
         """
-            :return: the name of the collection, this will be used to construct the endpoint
+        :return: the name of the collection, this will be used to construct the endpoint
         """
         return getattr(cls, "__tablename__", cls.__name__)
 
     @classproperty
     def _s_type(cls):
         """
-            :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
+        :return: the jsonapi "type", i.e. the tablename if this is a db model, the classname otherwise
         """
         return cls.__name__
 
     @hybrid_method
     def _s_jsonapi_encode(self):
         """
-            :return: Encoded object according to the jsonapi specification:
-            `data = {
-                    "attributes": { ... },
-                    "id": "...",
-                    "links": { ... },
-                    "relationships": { ... },
-                    "type": "..."
-                    }`
+        :return: Encoded object according to the jsonapi specification:
+        `data = {
+                "attributes": { ... },
+                "id": "...",
+                "links": { ... },
+                "relationships": { ... },
+                "type": "..."
+                }`
         """
         # params = { self.object_id : self.id }
         # obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
@@ -673,23 +673,23 @@ class SAFRSBase(Model):
 
     def _s_get_related(self):
         """
-            :return: dict of relationship names -> [related instances]
+        :return: dict of relationship names -> [related instances]
 
-            http://jsonapi.org/format/#fetching-includes
+        http://jsonapi.org/format/#fetching-includes
 
-            Inclusion of Related Resources
-            Multiple related resources can be requested in a comma-separated list:
-            An endpoint MAY return resources related to the primary data by default.
-            An endpoint MAY also support an include request parameter to allow
-            the client to customize which related resources should be returned.
-            In order to request resources related to other resources,
-            a dot-separated path for each relationship name can be specified
+        Inclusion of Related Resources
+        Multiple related resources can be requested in a comma-separated list:
+        An endpoint MAY return resources related to the primary data by default.
+        An endpoint MAY also support an include request parameter to allow
+        the client to customize which related resources should be returned.
+        In order to request resources related to other resources,
+        a dot-separated path for each relationship name can be specified
 
-            All related instances are stored in the `Included` class so we don't have to walk
-            the relationships twice
+        All related instances are stored in the `Included` class so we don't have to walk
+        the relationships twice
 
-            Request parameter example:
-                include=friends.books_read,friends.books_written
+        Request parameter example:
+            include=friends.books_read,friends.books_written
         """
         # included_list contains a list of relationships to include
         # it may have been set previously by Included() when called recursively
@@ -710,34 +710,34 @@ class SAFRSBase(Model):
 
         for rel_name in included_rels:
             """
-                If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
-                it MUST respond with 400 Bad Request.
+            If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
+            it MUST respond with 400 Bad Request.
             """
             if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
                 raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
 
         for rel_name, relationship in self._s_relationships.items():
             """
-                http://jsonapi.org/format/#document-resource-object-relationships:
+            http://jsonapi.org/format/#document-resource-object-relationships:
 
-                The value of the relationships key MUST be an object (a “relationships object”).
-                Members of the relationships object (“relationships”) represent
-                references from the resource object in which it’s defined to other resource objects.
+            The value of the relationships key MUST be an object (a “relationships object”).
+            Members of the relationships object (“relationships”) represent
+            references from the resource object in which it’s defined to other resource objects.
 
-                Relationships may be to-one or to-many.
+            Relationships may be to-one or to-many.
 
-                A “relationship object” MUST contain at least one of the following:
+            A “relationship object” MUST contain at least one of the following:
 
-                - links: a links object containing at least one of the following:
-                    - self: a link for the relationship itself (a “relationship link”).
-                    This link allows the client to directly manipulate the relationship.
-                    - related: a related resource link
-                - data: resource linkage
-                - meta: a meta object that contains non-standard meta-information
-                        about the relationship.
-                A relationship object that represents a to-many relationship
-                MAY also contain pagination links under the links member, as described below.
-                SAFRS currently implements links with self
+            - links: a links object containing at least one of the following:
+                - self: a link for the relationship itself (a “relationship link”).
+                This link allows the client to directly manipulate the relationship.
+                - related: a related resource link
+            - data: resource linkage
+            - meta: a meta object that contains non-standard meta-information
+                    about the relationship.
+            A relationship object that represents a to-many relationship
+            MAY also contain pagination links under the links member, as described below.
+            SAFRS currently implements links with self
             """
             meta = {}
             rel_name = relationship.key
@@ -799,9 +799,7 @@ class SAFRSBase(Model):
         return relationships
 
     def __unicode__(self):
-        """
-
-        """
+        """"""
         name = getattr(self, "name", self.jsonapi_id)
         return name
 
@@ -810,8 +808,8 @@ class SAFRSBase(Model):
     @classmethod
     def _s_count(cls):
         """
-            returning None will cause our jsonapi to perform a count() on the result
-            this can be overridden with a cached value for performance on large tables (>1G)
+        returning None will cause our jsonapi to perform a count() on the result
+        this can be overridden with a cached value for performance on large tables (>1G)
         """
         return None
 
@@ -821,7 +819,7 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample_id(cls):
         """
-            :return: a sample id for the API documentation
+        :return: a sample id for the API documentation
         """
         sample = None
         try:
@@ -842,7 +840,7 @@ class SAFRSBase(Model):
     @classmethod
     def _s_sample_dict(cls):
         """
-            :return: a sample to be used as an example "attributes" payload in the swagger example
+        :return: a sample to be used as an example "attributes" payload in the swagger example
         """
         # create a swagger example based on the jsonapi attributes (reflecting the database column schema)
         sample = {}
@@ -892,8 +890,8 @@ class SAFRSBase(Model):
     @classproperty
     def _s_object_id(cls):
         """
-            :return: the Flask url parameter name of the object, e.g. UserId
-            :rtype: string
+        :return: the Flask url parameter name of the object, e.g. UserId
+        :rtype: string
         """
         # pylint: disable=no-member
         return cls.__name__ + get_config("OBJECT_ID_SUFFIX")
@@ -901,8 +899,8 @@ class SAFRSBase(Model):
     @classmethod
     def _s_get_jsonapi_rpc_methods(cls):
         """
-            :return: a list of jsonapi_rpc methods for this class
-            :rtype: list
+        :return: a list of jsonapi_rpc methods for this class
+        :rtype: list
         """
         result = []
         try:
@@ -921,10 +919,10 @@ class SAFRSBase(Model):
     @classmethod
     def _s_get_swagger_doc(cls, http_method):
         """
-            :param http_method: the http method for which to retrieve the documentation
-            :return: swagger `body` and `response` dictionaries
-            :rtype: tuple
-            Create a swagger api model based on the sqlalchemy schema.
+        :param http_method: the http method for which to retrieve the documentation
+        :return: swagger `body` and `response` dictionaries
+        :rtype: tuple
+        Create a swagger api model based on the sqlalchemy schema.
         """
         body = {}
         responses = {}
@@ -940,10 +938,10 @@ class SAFRSBase(Model):
     @classmethod
     def get_endpoint(cls, url_prefix=None, type=None):
         """
-            :param url_prefix: URL prefix used by the app
-            :param type: endpoint type, e.g. "instance"
-            :return: the API endpoint
-            :rtype: str
+        :param url_prefix: URL prefix used by the app
+        :param type: endpoint type, e.g. "instance"
+        :return: the API endpoint
+        :rtype: str
         """
         if url_prefix is None:
             url_prefix = cls.url_prefix
@@ -957,8 +955,8 @@ class SAFRSBase(Model):
     @hybrid_property
     def _s_url(self, url_prefix=""):
         """
-            :param url_prefix:
-            :return: endpoint url of this instance
+        :param url_prefix:
+        :return: endpoint url of this instance
         """
         try:
             params = {self._s_object_id: self.jsonapi_id}
@@ -982,18 +980,18 @@ class SAFRSBase(Model):
     @classmethod
     def _s_meta(cls):
         """
-            What is returned in the "meta" part
-            may be implemented by the app
+        What is returned in the "meta" part
+        may be implemented by the app
         """
         return {}
 
     @property
     def Type(self):
         """
-            jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
-            we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
-            This may cause other errors too, for ex when sorting
-            :return: renamed type
+        jsonapi spec doesn't allow "type" as an attribute nmae, but this is a pretty common column name
+        we rename type to Type so we can support it. A bit hacky but better than not supporting "type" at all
+        This may cause other errors too, for ex when sorting
+        :return: renamed type
         """
         safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
         return self.type
@@ -1001,7 +999,7 @@ class SAFRSBase(Model):
     @Type.setter
     def Type(self, value):
         """
-            Type property setter, see comment in the type property
+        Type property setter, see comment in the type property
         """
         if not self.Type == value:
             self.Type = value
@@ -1010,21 +1008,21 @@ class SAFRSBase(Model):
     @classmethod
     def _s_filter(cls, *filter_args, **filter_kwargs):
         """
-            Apply a filter to this model
-            :param filter_args: A list of filters information to apply, passed as a request URL parameter.
-            Each filter object has the following fields:
-              - name: The name of the field you want to filter on.
-              - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
-                  - eq: check if field is equal to something
-                  - ge: check if field is greater than or equal to something
-                  - gt: check if field is greater than to something
-                  - ne: check if field is not equal to something
-                  - is_: check if field is a value
-                  - is_not: check if field is not a value
-                  - le: check if field is less than or equal to something
-                  - lt: check if field is less than to something
-              - val: The value that you want to compare.
-            :return: sqla query object
+        Apply a filter to this model
+        :param filter_args: A list of filters information to apply, passed as a request URL parameter.
+        Each filter object has the following fields:
+          - name: The name of the field you want to filter on.
+          - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
+              - eq: check if field is equal to something
+              - ge: check if field is greater than or equal to something
+              - gt: check if field is greater than to something
+              - ne: check if field is not equal to something
+              - is_: check if field is a value
+              - is_not: check if field is not a value
+              - le: check if field is less than or equal to something
+              - lt: check if field is less than to something
+          - val: The value that you want to compare.
+        :return: sqla query object
         """
         try:
             filters = json.loads(filter_args[0])
@@ -1051,16 +1049,16 @@ class SAFRSBase(Model):
 
 class Included:
     """
-        This class is used to serialize instances that will be included in the jsonapi response
-        we keep a set of instances in `flask.g` to avoid storing duplicates
+    This class is used to serialize instances that will be included in the jsonapi response
+    we keep a set of instances in `flask.g` to avoid storing duplicates
     """
 
     instance = None
 
     def __init__(self, instance, included_list):
         """
-            :param instance: the instance to be included
-            :param included_list: the list of relationships that should be included for `instance` (from the url query param)
+        :param instance: the instance to be included
+        :param included_list: the list of relationships that should be included for `instance` (from the url query param)
         """
         self.instance = instance
         instance.included_list = [".".join(inc_rel) for inc_rel in included_list] if included_list else []
@@ -1069,14 +1067,14 @@ class Included:
     @hybrid_method
     def encode(self):
         """
-            jsonapi encoding of the instance in the relationship dictionary
+        jsonapi encoding of the instance in the relationship dictionary
         """
         return {"id": str(self.instance.jsonapi_id), "type": self.instance._s_type}
 
     @encode.expression
     def encode(cls):
         """
-            encoding of all included instances (in the included[] part of the jsonapi response)
+        encoding of all included instances (in the included[] part of the jsonapi response)
         """
         already_included = set()
         result = []

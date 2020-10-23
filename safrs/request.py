@@ -21,10 +21,10 @@ from .safrs_api import HTTP_METHODS
 # pylint: disable=too-many-ancestors, logging-format-interpolation
 class SAFRSRequest(Request):
     """
-        Parse jsonapi-related the request arguments:
-        - header: Content-Type should be "application/vnd.api+json"
-        - query args: page[limit], page[offset], fields
-        - body: valid json
+    Parse jsonapi-related the request arguments:
+    - header: Content-Type should be "application/vnd.api+json"
+    - query args: page[limit], page[offset], fields
+    - body: valid json
     """
 
     jsonapi_content_types = ["application/json", "application/vnd.api+json"]
@@ -39,7 +39,7 @@ class SAFRSRequest(Request):
 
     def __init__(self, *args, **kwargs):
         """
-            constructor
+        constructor
         """
         super().__init__(*args, **kwargs)
         self.parse_content_type()
@@ -47,7 +47,7 @@ class SAFRSRequest(Request):
 
     def parse_content_type(self):
         """
-            Check if the request content type is jsonapi and any requested extensions
+        Check if the request content type is jsonapi and any requested extensions
         """
         if not isinstance(self.content_type, str):  # pragma: no cover
             return
@@ -69,13 +69,13 @@ class SAFRSRequest(Request):
     @property
     def is_bulk(self):
         """
-            jsonapi bulk extension, http://springbot.github.io/json-api/extensions/bulk/
+        jsonapi bulk extension, http://springbot.github.io/json-api/extensions/bulk/
         """
         return "bulk" in self._extensions
 
     def get_jsonapi_payload(self):
         """
-            :return: jsonapi request payload
+        :return: jsonapi request payload
         """
         if not self.is_jsonapi:  # pragma: no cover
             safrs.log.warning('Invalid Media Type! "{}"'.format(self.content_type))
@@ -91,11 +91,11 @@ class SAFRSRequest(Request):
 
     def parse_jsonapi_args(self):
         """
-            parse the jsonapi request arguments:
-            - page[offset]
-            - page[limit]
-            - filter[]
-            - fields[]
+        parse the jsonapi request arguments:
+        - page[offset]
+        - page[limit]
+        - filter[]
+        - fields[]
         """
 
         self.page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)

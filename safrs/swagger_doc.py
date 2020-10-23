@@ -39,7 +39,7 @@ Schema._references = {}
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
 def parse_object_doc(object):
     """
-        Parse the yaml description from the documented methods
+    Parse the yaml description from the documented methods
     """
     api_doc = {}
     obj_doc = str(inspect.getdoc(object))
@@ -62,20 +62,20 @@ def parse_object_doc(object):
 
 def jsonapi_rpc(http_methods, valid_jsonapi=True):
     """
-        Decorator to expose functions in the REST API:
-        When a method is decorated with jsonapi_rpc, this means
-        it becomes available for use through HTTP POST (i.e. public)
+    Decorator to expose functions in the REST API:
+    When a method is decorated with jsonapi_rpc, this means
+    it becomes available for use through HTTP POST (i.e. public)
 
-        :param http_methods:
-        :return: function
+    :param http_methods:
+    :return: function
     """
 
     def _documented_api_method(method):
         """
-            :param method:
-            add metadata to the method:
-                REST_DOC: swagger documentation
-                HTTP_METHODS: the http methods (GET/POST/..) used to call this method
+        :param method:
+        add metadata to the method:
+            REST_DOC: swagger documentation
+            HTTP_METHODS: the http methods (GET/POST/..) used to call this method
         """
         USE_API_METHODS = get_config("USE_API_METHODS")
         if USE_API_METHODS:
@@ -93,8 +93,8 @@ def jsonapi_rpc(http_methods, valid_jsonapi=True):
 
 def is_public(method):
     """
-        :param method:
-        :return: True or False, whether the method is to be exposed
+    :param method:
+    :return: True or False, whether the method is to be exposed
     """
 
     return hasattr(method, REST_DOC)
@@ -102,8 +102,8 @@ def is_public(method):
 
 def get_doc(method):
     """
-        :param  method:
-        :return: OAS documentation
+    :param  method:
+    :return: OAS documentation
     """
 
     return getattr(method, REST_DOC, None)
@@ -111,8 +111,8 @@ def get_doc(method):
 
 def get_http_methods(method):
     """
-        :param method:
-        :return: a list of http methods used to call this method
+    :param method:
+    :return: a list of http methods used to call this method
     """
 
     return getattr(method, HTTP_METHODS, ["POST"])
@@ -120,10 +120,10 @@ def get_http_methods(method):
 
 def SchemaClassFactory(name, properties):
     """
-        Generate a Schema class, used to describe swagger schemas
-        :param name: schema class name
-        :param properties: class attributes
-        :return: class
+    Generate a Schema class, used to describe swagger schemas
+    :param name: schema class name
+    :param properties: class attributes
+    :return: class
     """
 
     # generate a unique name to be used as a reference
@@ -148,9 +148,9 @@ def SchemaClassFactory(name, properties):
 
 def encode_schema(obj):
     """
-        None aka "null" is invalid in swagger schema definition
-        This breaks our samples :/
-        We don't add the item to the schema if it's None
+    None aka "null" is invalid in swagger schema definition
+    This breaks our samples :/
+    We don't add the item to the schema if it's None
     """
     result = ""
 
@@ -167,9 +167,9 @@ def encode_schema(obj):
 # pylint: disable=redefined-builtin
 def schema_from_object(name, object):
     """
-        :param name:
-        :param object:
-        :return: swagger schema object
+    :param name:
+    :param object:
+    :return: swagger schema object
     """
 
     properties = {}
@@ -209,28 +209,28 @@ def schema_from_object(name, object):
 
 def get_swagger_doc_arguments(cls, method_name, http_method):
     """
-        :param cls: class containing the method to be exposed
-        :param method_name: name of the method to be exposed
-        :param http_method: HTTP method used to invoke
-        :return: parameters, fields, description, method
+    :param cls: class containing the method to be exposed
+    :param method_name: name of the method to be exposed
+    :param http_method: HTTP method used to invoke
+    :return: parameters, fields, description, method
 
-        create a schema for all methods which can be called through the
-        REST POST interface
+    create a schema for all methods which can be called through the
+    REST POST interface
 
-        A method is called with following JSON payload:
-        ```{
-            "meta"   : {
-                         "args" : {
-                                    "parameter1" : "value1" ,
-                                    "parameter2" : "value2" ,
-                                  }
-                       }
-        }```
+    A method is called with following JSON payload:
+    ```{
+        "meta"   : {
+                     "args" : {
+                                "parameter1" : "value1" ,
+                                "parameter2" : "value2" ,
+                              }
+                   }
+    }```
 
-        The schema is created using the values from the documented_api_method decorator,
-        returned by get_doc()
+    The schema is created using the values from the documented_api_method decorator,
+    returned by get_doc()
 
-        We use "meta" to remain compliant with the jsonapi schema
+    We use "meta" to remain compliant with the jsonapi schema
     """
 
     parameters = []
@@ -248,7 +248,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
             if method_args and isinstance(method_args, dict):
                 if http_method == "post":
                     """
-                        Post arguments, these require us to build a schema
+                    Post arguments, these require us to build a schema
                     """
                     model_name = "{}_{}".format(cls.__name__, method_name)
                     method_field = {"method": method_name, "args": method_args}
@@ -307,7 +307,7 @@ def swagger_doc(cls, tags=None):
 
     def swagger_doc_gen(func, instance=False):
         """
-            Decorator used to document SAFRSRestAPI HTTP methods exposed in the API
+        Decorator used to document SAFRSRestAPI HTTP methods exposed in the API
         """
         default_id = cls._s_sample_id()
         class_name = cls.__name__
@@ -432,7 +432,7 @@ def swagger_relationship_doc(cls, tags=None):
 
     def swagger_doc_gen(func):
         """
-            Decorator used to document relationship methods exposed in the API
+        Decorator used to document relationship methods exposed in the API
         """
 
         parent_class = cls.relationship.parent.class_
@@ -557,12 +557,12 @@ def swagger_relationship_doc(cls, tags=None):
 
 def swagger_method_doc(cls, method_name, tags=None):
     """
-        Generate decorator used to document SAFRSJSONRPCAPI instances
+    Generate decorator used to document SAFRSJSONRPCAPI instances
     """
 
     def swagger_doc_gen(func):
         """
-            decorator
+        decorator
         """
         method = getattr(cls, method_name, None)
         method_doc = parse_object_doc(method)
@@ -620,7 +620,7 @@ def swagger_method_doc(cls, method_name, tags=None):
 
 def default_paging_parameters():
     """
-        default_paging_parameters
+    default_paging_parameters
     """
 
     parameters = []
@@ -650,7 +650,7 @@ def default_paging_parameters():
 
 def apply_fstring(swagger_obj, vars, k=None):
     """
-        Format the f-strings in the swagger object
+    Format the f-strings in the swagger object
     """
     if isinstance(swagger_obj, str):
         result = swagger_obj

@@ -12,7 +12,7 @@ from .errors import GenericError, ValidationError
 @jsonapi_rpc(http_methods=["POST"])
 def duplicate(self):
     """
-        description: Duplicate an object - copy it and give it a new id
+    description: Duplicate an object - copy it and give it a new id
     """
     session = safrs.DB.session
     session.expunge(self)
@@ -28,10 +28,10 @@ def duplicate(self):
 @jsonapi_rpc(http_methods=["POST"])
 def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
     """
-        pageable: True
-        description : Regex search all matching objects (works only in MySQL!!!)
-        args:
-            name: thom.*
+    pageable: True
+    description : Regex search all matching objects (works only in MySQL!!!)
+    args:
+        name: thom.*
     """
     result = cls
     for key, value in kwargs.items():
@@ -50,10 +50,10 @@ def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
 @jsonapi_rpc(http_methods=["POST"])
 def startswith(cls, **kwargs):  # pragma: no cover
     """
-        pageable: True
-        summary : lookup items where specified attributes starts with the argument string
-        args:
-            attr_name: value
+    pageable: True
+    summary : lookup items where specified attributes starts with the argument string
+    args:
+        attr_name: value
     """
     result = cls
     response = SAFRSFormattedResponse()
@@ -88,10 +88,10 @@ def startswith(cls, **kwargs):  # pragma: no cover
 @jsonapi_rpc(http_methods=["POST"])
 def search(cls, **kwargs):  # pragma: no cover
     """
-        pageable: True
-        description : lookup column names
-        args:
-            col_name: value
+    pageable: True
+    description : lookup column names
+    args:
+        col_name: value
     """
     query = kwargs.get("query", "")
     if ":" in query:
@@ -112,10 +112,10 @@ def search(cls, **kwargs):  # pragma: no cover
 @jsonapi_rpc(http_methods=["POST"])
 def re_search(cls, **kwargs):  # pragma: no cover
     """
-        pageable: True
-        description : lookup column names
-        args:
-            query: search.*all
+    pageable: True
+    description : lookup column names
+    args:
+        query: search.*all
     """
     query = kwargs.get("query", "")
     result = cls.query.filter(or_(column.op("regexp")(query) for column in cls._s_columns))

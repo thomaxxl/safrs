@@ -5,11 +5,11 @@ import sqlalchemy
 
 def parse_attr(column, attr_val):
     """
-        Parse the supplied `attr_val` so it can be saved in the SQLAlchemy `column`
+    Parse the supplied `attr_val` so it can be saved in the SQLAlchemy `column`
 
-        :param attr: SQLAlchemy column
-        :param attr_val: jsonapi attribute value
-        :return: processed value
+    :param attr: SQLAlchemy column
+    :param attr_val: jsonapi attribute value
+    :return: processed value
     """
     if attr_val is None and column.default:
         attr_val = column.default.arg
@@ -20,7 +20,7 @@ def parse_attr(column, attr_val):
 
     if getattr(column, "python_type", None):
         """
-            It's possible for a column to specify a custom python_type to use for deserialization
+        It's possible for a column to specify a custom python_type to use for deserialization
         """
         attr_val = column.python_type(attr_val)
 
@@ -28,11 +28,11 @@ def parse_attr(column, attr_val):
         column.type.python_type
     except NotImplementedError as exc:
         """
-            This happens when a custom type has been implemented, in which case the user/dev should know how to handle it:
-            override this method and implement the parsing
-            https://docs.python.org/2/library/exceptions.html#exceptions.NotImplementedError :
-            In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
-            => simply return the attr_val for user-defined classes
+        This happens when a custom type has been implemented, in which case the user/dev should know how to handle it:
+        override this method and implement the parsing
+        https://docs.python.org/2/library/exceptions.html#exceptions.NotImplementedError :
+        In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
+        => simply return the attr_val for user-defined classes
         """
         safrs.log.debug(exc)
         return attr_val

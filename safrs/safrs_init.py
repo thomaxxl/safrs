@@ -12,7 +12,7 @@ from .jsonapi_filters import FilteringStrategy
 
 
 class SAFRS:
-    """ This class configures the Flask application to serve SAFRSBase instances
+    """This class configures the Flask application to serve SAFRSBase instances
     :param app: a Flask application.
     :param prefix: URL prefix where the swagger should be hosted. Default is '/api'
     :param LOGLEVEL: loglevel configuration variable, values from logging module (0: trace, .. 50: critical)
@@ -41,7 +41,7 @@ class SAFRS:
 
     def __init__(self, app, *args, **kwargs):
         """
-            Constructor
+        Constructor
         """
         self.app = app
         if app is not None:
@@ -51,7 +51,7 @@ class SAFRS:
         self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs
     ):
         """
-            API and application initialization
+        API and application initialization
         """
         if not isinstance(app, Flask):
             raise TypeError("'app' should be Flask.")
@@ -102,8 +102,8 @@ class SAFRS:
     @staticmethod
     def init_logging(cls, loglevel=logging.WARNING):
         """
-            Specify the log format used in the webserver logs
-            The webserver will catch stdout so we redirect eveything to sys.stdout
+        Specify the log format used in the webserver logs
+        The webserver will catch stdout so we redirect eveything to sys.stdout
         """
         log = logging.getLogger(__name__)
         if log.level == logging.NOTSET:
@@ -116,13 +116,13 @@ class SAFRS:
 
 
 def dict_merge(dct, merge_dct):
-    """ Recursive dict merge used for creating the swagger spec.
-        Inspired by :meth:``dict.update()``, instead of updating only
-        top-level keys, dict_merge recurses down into dicts nested
-        to an arbitrary depth, updating keys. The ``merge_dct`` is merged into ``dct``.
-        :param dct: dict onto which the merge is executed
-        :param merge_dct: dct merged into dct
-        :return: None
+    """Recursive dict merge used for creating the swagger spec.
+    Inspired by :meth:``dict.update()``, instead of updating only
+    top-level keys, dict_merge recurses down into dicts nested
+    to an arbitrary depth, updating keys. The ``merge_dct`` is merged into ``dct``.
+    :param dct: dict onto which the merge is executed
+    :param merge_dct: dct merged into dct
+    :return: None
     """
     for k in merge_dct:
         if k in dct and isinstance(dct[k], dict):
@@ -133,8 +133,8 @@ def dict_merge(dct, merge_dct):
 
 
 def test_decorator(func):
-    """ Example flask-restful decorator that can be used in the "decorators" Api argument
-        cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
+    """Example flask-restful decorator that can be used in the "decorators" Api argument
+    cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     """
 
     def api_wrapper(*args, **kwargs):

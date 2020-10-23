@@ -5,8 +5,8 @@ from .util import classproperty
 # pylint: disable=too-few-public-methods
 class SAFRSRelationshipObject:
     """
-        Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
-        so we can call the same methods on a relationship target as we do when using SAFRSBase
+    Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
+    so we can call the same methods on a relationship target as we do when using SAFRSBase
     """
 
     _s_class_name = None
@@ -16,10 +16,10 @@ class SAFRSRelationshipObject:
 
     @classmethod
     def _s_get_swagger_doc(cls, http_method):
-        """ Create a swagger api model based on the sqlalchemy schema
-            if an instance exists in the DB, the first entry is used as example
-            :param http_method: HTTP method for which to generate the doc
-            :return: swagger body, responses
+        """Create a swagger api model based on the sqlalchemy schema
+        if an instance exists in the DB, the first entry is used as example
+        :param http_method: HTTP method for which to generate the doc
+        :return: swagger body, responses
         """
         body = {}
         responses = {}
@@ -39,27 +39,27 @@ class SAFRSRelationshipObject:
     @classproperty
     def _s_relationships(cls):
         """
-            :return: The relationship names of the target
+        :return: The relationship names of the target
         """
         return cls._target._s_relationships
 
     @classproperty
     def _s_jsonapi_attrs(cls):
         """
-            :return: target JSON:API attributes
+        :return: target JSON:API attributes
         """
         return cls._target._s_jsonapi_attrs
 
     @classproperty
     def _s_type(cls):
         """
-            :return: JSON:API type
+        :return: JSON:API type
         """
         return cls._target._s_type
 
     @classproperty
     def _s_class_name(cls):
         """
-            :return: name of the target class
+        :return: name of the target class
         """
         return cls._target.__name__
