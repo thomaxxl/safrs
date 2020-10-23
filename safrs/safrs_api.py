@@ -279,7 +279,9 @@ class SAFRSAPI(FRSApiBase):
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
-        self.add_resource(api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True)
+        self.add_resource(
+            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True
+        )
 
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
@@ -311,17 +313,17 @@ class SAFRSAPI(FRSApiBase):
         path_item = {}
         self._add_oas_resource_definitions(resource, path_item)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
-        deprecated = kwargs.pop("deprecated", False) # deprecated functionality: still working but not shown in swagger
+        deprecated = kwargs.pop("deprecated", False)  # deprecated functionality: still working but not shown in swagger
 
         # this loop builds the swagger for the specified url(s) by adding it to
         # self._swagger_object["paths"][swagger_url], so if the loop continues,
-        # there will be no swagger  
+        # there will be no swagger
         # usually there will only be one url, but flask_restful add_resource does support multiple urls
         for url in urls:
             if deprecated:
                 # functionality still works, but there will be no swagger
                 continue
-            if not url.startswith("/"): # pragma: no cover
+            if not url.startswith("/"):  # pragma: no cover
                 raise ValidationError("paths must start with a /")
 
             swagger_url = extract_swagger_path(url)
@@ -335,7 +337,7 @@ class SAFRSAPI(FRSApiBase):
                     # the method has already been added before, remove it & continue
                     path_item.pop(method, None)
                     continue
-                
+
                 method_doc = path_item.get(method)
                 if not method_doc:
                     continue
@@ -422,7 +424,7 @@ class SAFRSAPI(FRSApiBase):
         """
         inst_ref = None
         coll_ref = None
-        
+
         if getattr(safrs_object, "swagger_models", {}).get("instance"):
             # instance reference
             inst_ref = safrs_object.swagger_models["instance"].reference()
@@ -458,7 +460,7 @@ class SAFRSAPI(FRSApiBase):
 
         if relationship:
             print(method_doc.get("responses", {}).get("200", {}))
-            #print(relationship.direction)
+            # print(relationship.direction)
 
     def _add_oas_resource_definitions(self, resource, path_item):
         """
