@@ -124,7 +124,7 @@ class SAFRSAPI(FRSApiBase):
         swagger_decorator = swagger_doc(safrs_object)
         api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
 
-        safrs.log.info("Exposing {} on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
+        safrs.log.info("Exposing {} on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
@@ -132,7 +132,7 @@ class SAFRSAPI(FRSApiBase):
         endpoint = safrs_object.get_endpoint(type="instance")
 
         # Expose the instances
-        safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
+        safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
         api_class = api_decorator(type(api_class_name + "_i", (SAFRSRestAPI,), properties), swagger_decorator)
         self.add_resource(api_class, url, endpoint=endpoint)
 
@@ -279,7 +279,7 @@ class SAFRSAPI(FRSApiBase):
         endpoint = "{}api.{}Id".format(url_prefix, rel_name)
 
         safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
-        self.add_resource(api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"])
+        self.add_resource(api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "DELETE"], deprecated=True)
 
     @staticmethod
     def get_resource_methods(resource, ordered_methods=None):
@@ -311,16 +311,22 @@ class SAFRSAPI(FRSApiBase):
         path_item = {}
         self._add_oas_resource_definitions(resource, path_item)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
+        deprecated = kwargs.pop("deprecated", False) # deprecated functionality: still working but not shown in swagger
 
+        # this loop builds the swagger for the specified url(s) by adding it to
+        # self._swagger_object["paths"][swagger_url], so if the loop continues,
+        # there will be no swagger  
+        # usually there will only be one url, but flask_restful add_resource does support multiple urls
         for url in urls:
-            # usually there will only be one url, but flask_restful add_resource does support multiple urls
-            if not url.startswith("/"):  # pragma: no cover
+            if deprecated:
+                # functionality still works, but there will be no swagger
+                continue
+            if not url.startswith("/"): # pragma: no cover
                 raise ValidationError("paths must start with a /")
 
             swagger_url = extract_swagger_path(url)
             # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
             exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
-
             for method in self.get_resource_methods(resource):
                 if method == "post" and exposing_instance:
                     # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
@@ -452,7 +458,7 @@ class SAFRSAPI(FRSApiBase):
 
         if relationship:
             print(method_doc.get("responses", {}).get("200", {}))
-            print(relationship.direction)
+            #print(relationship.direction)
 
     def _add_oas_resource_definitions(self, resource, path_item):
         """
