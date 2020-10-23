@@ -23,7 +23,6 @@ import datetime
 import hashlib
 from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
 try:
     from flask_admin import Admin
     from flask_admin.contrib import sqla
@@ -308,7 +307,6 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 API_PREFIX = "/api"  # swagger location
 app = Flask("SAFRS Demo App", template_folder="/home/thomaxxl/mysite/templates")
 app.secret_key = "not so secret"
-CORS(app, origins="*", allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"], supports_credentials=True)
 
 app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
 
