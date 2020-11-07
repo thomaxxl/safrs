@@ -60,7 +60,7 @@ def create_app(config_filename=None, host="localhost"):
         # Populate the db with users and a books and add the book to the user.books relationship
         for i in range(200):
             user = User(name=f"user{i}", email=f"email{i}@email.com")
-            book = Book(name="test_book")
+            book = Book(name=f"test book {i}")
             user.books.append(book)
 
         create_api(app, host)
