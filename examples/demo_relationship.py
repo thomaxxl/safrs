@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
   This demo application demonstrates the functionality of the safrs documented REST API
-  After installing safrs with pip, you can run this app standalone:
+  WHen safrs is installed, you can run this app:
   $ python3 demo_relationship.py [Listener-IP]
 
   This will run the example on http://Listener-Ip:5000
 
-  - A database is created and a user is added
-  - A rest api is available
-  - swagger documentation is generated
+  - An sqlite database is created and populated
+  - A jsonapi rest API is created
+  - Swagger documentation is generated
 
 """
 import sys
@@ -19,7 +19,7 @@ from safrs import SAFRSBase, SAFRSAPI
 db = SQLAlchemy()
 
 
-# Example sqla database object
+# Example sqla database objects
 class User(SAFRSBase, db.Model):
     """
         description: User description
@@ -43,13 +43,12 @@ class Book(SAFRSBase, db.Model):
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
 
-
+# create the api endpoints
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     api.expose_object(Book)
-    print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
-
+    
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
@@ -65,6 +64,8 @@ def create_app(config_filename=None, host="localhost"):
             user.books.append(book)
 
         create_api(app, host)
+    
+    print("Created API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
     return app
 
 # address where the api will be hosted, change this if you're not running the app on localhost!
