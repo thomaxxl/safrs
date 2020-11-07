@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# `to_dict` example
+# hidden relationship example
 #
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -10,7 +10,7 @@ db = SQLAlchemy()
 
 class SecretData(db.Model):
     """
-        Secret data
+        Secret model: not accessible through the api
     """
     
     __tablename__ = "SecretData"

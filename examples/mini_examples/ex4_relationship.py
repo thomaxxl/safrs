@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# `to_dict` example
+# relationship example
 #
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# `to_dict` example
+# `jsonapi_attr` example
 #
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy

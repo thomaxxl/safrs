@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# `to_dict` example
+# column type example: declare a column type for input validation and serialization
 #
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
