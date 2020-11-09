@@ -868,7 +868,7 @@ class SAFRSBase(Model):
                         if column.type.python_type == int:
                             arg = 0
                         if column.type.python_type == datetime.datetime:
-                            arg = str(datetime.datetime.now())
+                            arg = str(datetime.datetime.min)
                         elif column.type.python_type == datetime.date:
                             arg = str(datetime.date.today())
                         else:
