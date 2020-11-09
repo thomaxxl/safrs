@@ -870,7 +870,7 @@ class SAFRSBase(Model):
                         if column.type.python_type == datetime.datetime:
                             arg = str(datetime.datetime.min)
                         elif column.type.python_type == datetime.date:
-                            arg = str(datetime.date.today())
+                            arg = str(datetime.datetime.min.date())
                         else:
                             arg = column.type.python_type()
                     except NotImplementedError:
