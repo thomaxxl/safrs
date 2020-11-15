@@ -93,7 +93,7 @@ def jsonapi_rpc(http_methods, valid_jsonapi=True):
 
 def is_public(method):
     """
-    :param method:
+    :param method: SAFRSBase method
     :return: True or False, whether the method is to be exposed
     """
 
@@ -102,19 +102,19 @@ def is_public(method):
 
 def get_doc(method):
     """
-    :param  method:
+    :param  method: SAFRSBase method
     :return: OAS documentation
     """
-
+    
     return getattr(method, REST_DOC, None)
 
 
 def get_http_methods(method):
     """
-    :param method:
-    :return: a list of http methods used to call this method
+    :param method: SAFRSBase jsonapi_rpc method
+    :return: a list of http methods used to call the method (e.g. POST)
     """
-
+    
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
@@ -125,12 +125,19 @@ def SchemaClassFactory(name, properties):
     :param properties: class attributes
     :return: class
     """
-
     # generate a unique name to be used as a reference
     idx = Schema._reference_count.count(name)
     if idx:
+        if Schema._references[name].properties == properties:
+            return Schema._references[name]
         name = name + str(idx)
-    # name = urllib.parse.quote(name)
+    
+    for s_name, schema in Schema._references.items(): 
+        if schema.properties == properties:
+            # this detect duplicate schemas
+            # ignore these for now
+            pass
+            
     Schema._reference_count.append(name)
 
     def __init__(self, **kwargs):
@@ -142,6 +149,7 @@ def SchemaClassFactory(name, properties):
             setattr(self, key, value)
 
     new_schema_cls = type(name, (Schema,), {"__init__": __init__, "properties": properties})
+    new_schema_cls.description = ""
     Schema._references[name] = new_schema_cls
     return new_schema_cls
 
@@ -227,7 +235,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                    }
     }```
 
-    The schema is created using the values from the documented_api_method decorator,
+    The schema is created using the values from the jsonapi_rpc decorator,
     returned by get_doc()
 
     We use "meta" to remain compliant with the jsonapi schema
@@ -340,8 +348,8 @@ def swagger_doc(cls, tags=None):
         responses = {}
         # adhere to open api
         # the model_name will hold the OAS "$ref" schema reference
-        coll_model_name = "{}_{}_coll".format(class_name, http_method)  # collection model name
-        inst_model_name = "{}_{}_inst".format(class_name, http_method)  # instance model name
+        coll_model_name = "{}_coll".format(class_name)  # collection model name
+        inst_model_name = "{}_inst".format(class_name)  # instance model name
 
         sample_dict = cls._s_sample_dict()
 
@@ -355,10 +363,10 @@ def swagger_doc(cls, tags=None):
             sample_instance["relationships"] = sample_rels
 
         coll_sample_data = schema_from_object(coll_model_name, {"data": [sample_instance]})
-        coll_sample_data.description = "Auto generated {}".format(coll_model_name)
+        coll_sample_data.description += "{} {};".format(class_name, http_method)
 
         inst_sample_data = schema_from_object(inst_model_name, {"data": sample_instance})
-        inst_sample_data.description = "Auto generated {}".format(inst_model_name)
+        inst_sample_data.description += "{} {};".format(class_name, http_method)
 
         cls.swagger_models["instance"] = inst_sample_data
         cls.swagger_models["collection"] = coll_sample_data
@@ -388,11 +396,15 @@ def swagger_doc(cls, tags=None):
             # Create the default POST body schema
             sample_dict = cls._s_sample_dict()
             # The POST sample doesn't contain an "id", unless cls.allow_client_generated_ids is True
-            sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
             if cls.allow_client_generated_ids:
                 sample_data = schema_from_object(
                     inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type, "id": "client_generated"}}
                 )
+            else:
+                sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
+            
+            sample_data.description += "{} {};".format(class_name, http_method)
+            
             parameters.append(
                 {
                     "name": "POST body",
@@ -423,6 +435,8 @@ def swagger_doc(cls, tags=None):
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
+
+
 
 
 def swagger_relationship_doc(cls, tags=None):
@@ -491,13 +505,16 @@ def swagger_relationship_doc(cls, tags=None):
 
             _, responses = child_class._s_get_swagger_doc("patch")
             data = {"type": child_class._s_type, "id": child_sample_id}
-
+            model_name = "{}_inst".format(class_name)  # instance model name
+            
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 # tomany relationships only return a 204 accepted
                 data = [data]
                 responses.pop(HTTPStatus.OK.value, None)
+                model_name = "{}_coll".format(class_name)  # collection model name
 
-            rel_post_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
+            rel_post_schema = schema_from_object(model_name, {"data": data})
+            rel_post_schema.description += "{} {} relationship;".format(class_name, http_method)
             cls.swagger_models["instance"] = rel_post_schema
             cls.swagger_models["collection"] = rel_post_schema
             parameters.append(
