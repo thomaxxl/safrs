@@ -105,7 +105,7 @@ def get_doc(method):
     :param  method: SAFRSBase method
     :return: OAS documentation
     """
-    
+
     return getattr(method, REST_DOC, None)
 
 
@@ -114,7 +114,7 @@ def get_http_methods(method):
     :param method: SAFRSBase jsonapi_rpc method
     :return: a list of http methods used to call the method (e.g. POST)
     """
-    
+
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
@@ -131,13 +131,13 @@ def SchemaClassFactory(name, properties):
         if Schema._references[name].properties == properties:
             return Schema._references[name]
         name = name + str(idx)
-    
-    for s_name, schema in Schema._references.items(): 
+
+    for s_name, schema in Schema._references.items():
         if schema.properties == properties:
             # this detect duplicate schemas
             # ignore these for now
             pass
-            
+
     Schema._reference_count.append(name)
 
     def __init__(self, **kwargs):
@@ -402,9 +402,9 @@ def swagger_doc(cls, tags=None):
                 )
             else:
                 sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
-            
+
             sample_data.description += "{} {};".format(class_name, http_method)
-            
+
             parameters.append(
                 {
                     "name": "POST body",
@@ -435,8 +435,6 @@ def swagger_doc(cls, tags=None):
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
-
-
 
 
 def swagger_relationship_doc(cls, tags=None):
@@ -506,7 +504,7 @@ def swagger_relationship_doc(cls, tags=None):
             _, responses = child_class._s_get_swagger_doc("patch")
             data = {"type": child_class._s_type, "id": child_sample_id}
             model_name = "{}_inst".format(class_name)  # instance model name
-            
+
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 # tomany relationships only return a 204 accepted
                 data = [data]
