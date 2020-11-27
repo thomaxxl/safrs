@@ -27,7 +27,7 @@ FILTERABLE = "filterable"
 debug_responses = {
     HTTPStatus.METHOD_NOT_ALLOWED.value: {"description": HTTPStatus.METHOD_NOT_ALLOWED.description},
     HTTPStatus.BAD_REQUEST.value: {"description": HTTPStatus.BAD_REQUEST.description},
-    HTTPStatus.INTERNAL_SERVER_ERROR.value: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.description},
+    HTTPStatus.INTERNAL_SERVER_ERROR.value: {"description": "Internal Server Error"},
 }
 
 # List to generate the swagger references / definitions unique name
@@ -213,6 +213,18 @@ def schema_from_object(name, object):
     properties = encode_schema(properties)
     schema = SchemaClassFactory(name, properties)
     return schema
+
+
+def update_response_schema(responses):
+    """
+        Add predefined response schemas if none is available yet
+    """
+    http_codes = {str(status.value): status.description for status in HTTPStatus}
+    for code, response in responses.items():
+        if response and not response.get("schema") and int(code) >= 400:
+            jsonapi_error = {"errors": [{"title": http_codes.get(code, ""), "detail": "", "code": code}]}
+            err_schema = schema_from_object("jsonapi_error_{}".format(code), jsonapi_error)
+            responses[code]["schema"] = err_schema
 
 
 def get_swagger_doc_arguments(cls, method_name, http_method):
@@ -432,6 +444,7 @@ def swagger_doc(cls, tags=None):
         method_doc = parse_object_doc(func)
         safrs.dict_merge(doc, method_doc)
         apply_fstring(doc, locals())
+        update_response_schema(doc["responses"])
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
@@ -562,9 +575,11 @@ def swagger_relationship_doc(cls, tags=None):
         doc["responses"] = responses
 
         direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
-        parent_name = parent_class.__name__  # to be used by f-string
+        parent_name = parent_class.__name__  # referenced by f-string in the jsonapi.py method docstring
         child_name = child_class.__name__  # to be used by f-string
         apply_fstring(doc, locals())
+        update_response_schema(doc["responses"])
+
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen

@@ -3,6 +3,13 @@
 # The application loglevel determines the level of detail dhown to the user.
 # If set to debug, too much sensitive info might be shown !
 #
+# The exceptions will be caught in http_method_decorator and formatted, for example:
+# {
+#      "title": "Authorization Error: ",
+#      "detail": "Authorization Error: ",
+#      "code": 401
+# }
+#
 import traceback
 from flask import request
 import safrs
@@ -13,7 +20,11 @@ from .config import is_debug
 HIDDEN_LOG = "(debug logging disabled)"
 
 
-class NotFoundError(Exception, DontWrapMixin):
+class JsonapiError(Exception, DontWrapMixin):
+    pass
+
+
+class NotFoundError(JsonapiError):
     """
     This exception is raised when an item was not found
     """
@@ -31,7 +42,7 @@ class NotFoundError(Exception, DontWrapMixin):
             self.message += HIDDEN_LOG
 
 
-class ValidationError(Exception, DontWrapMixin):
+class ValidationError(JsonapiError):
     """
     This exception is raised when invalid input has been detected
     """
@@ -49,15 +60,16 @@ class ValidationError(Exception, DontWrapMixin):
             self.message += HIDDEN_LOG
 
 
-class UnAuthorizedError(Exception, DontWrapMixin):
+class UnAuthorizedError(JsonapiError):
     """
     This exception is raised when an authorization error occured
+    we use FORBIDDEN(403) instead of UNAUTHORIZED(401) (old http status code descriptions were not clear)
     """
 
-    status_code = HTTPStatus.UNAUTHORIZED.value
+    status_code = HTTPStatus.FORBIDDEN.value
     message = "Authorization Error: "
 
-    def __init__(self, message="", status_code=HTTPStatus.UNAUTHORIZED.value, api_code=None):
+    def __init__(self, message="", status_code=HTTPStatus.FORBIDDEN.value, api_code=None):
         Exception.__init__(self)
         self.status_code = status_code
         safrs.log.error("UnAuthorizedError: %s", message)
@@ -67,12 +79,12 @@ class UnAuthorizedError(Exception, DontWrapMixin):
             self.message += HIDDEN_LOG
 
 
-class GenericError(Exception, DontWrapMixin):
+class GenericError(JsonapiError):
     """
     This exception is raised when an error has been detected
     """
 
-    status_code = 403  # HTTPStatus.INTERNAL_SERVER_ERROR.value
+    status_code = 500  # HTTPStatus.INTERNAL_SERVER_ERROR.value
     message = "Generic Error: "
 
     def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code=None):
