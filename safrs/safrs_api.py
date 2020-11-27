@@ -15,7 +15,7 @@ from functools import wraps
 import safrs
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
-from .errors import JsonapiError
+from .errors import JsonapiError, ValidationError, GenericError
 from .config import get_config
 from .jsonapi import SAFRSRestAPI, SAFRSJSONRPCAPI, SAFRSRestRelationshipAPI
 from .json_encoder import SAFRSJSONEncoder
@@ -599,9 +599,9 @@ def http_method_decorator(fun):
         """
         safrs_exception = None
         try:
-            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options"]:
+            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options"]: # pragma: no cover
                 # reuire jsonapi content type for requests to these routes
-                raise GenericError("Unsupported Content-Type", 415)
+                raise GenericError( HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
             result = fun(*args, **kwargs)
             safrs.DB.session.commit()
             return result
