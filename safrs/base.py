@@ -19,7 +19,8 @@ from sqlalchemy.sql.schema import Column
 from functools import lru_cache
 
 # safrs dependencies:
-import safrs, safrs.jsonapi
+import safrs
+import safrs.jsonapi
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
 from .attr_parse import parse_attr
