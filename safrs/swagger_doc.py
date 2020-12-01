@@ -217,7 +217,7 @@ def schema_from_object(name, object):
 
 def update_response_schema(responses):
     """
-        Add predefined response schemas if none is available yet
+    Add predefined response schemas if none is available yet
     """
     http_codes = {str(status.value): status.description for status in HTTPStatus}
     for code, response in responses.items():

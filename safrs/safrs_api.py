@@ -17,7 +17,6 @@ from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_paramet
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import JsonapiError, ValidationError, GenericError
 from .config import get_config
-from .jsonapi import SAFRSRestAPI, SAFRSJSONRPCAPI, SAFRSRestRelationshipAPI
 from .json_encoder import SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 import json
@@ -106,6 +105,8 @@ class SAFRSAPI(FRSApiBase):
         tablename/collectionname: safrs_object._s_collection_name, e.g. "Users"
         classname: safrs_object.__name__, e.g. "User"
         """
+        rest_api = safrs_object._rest_api  # => SAFRSRestAPI
+
         properties["SAFRSObject"] = safrs_object
         properties["http_methods"] = safrs_object.http_methods
         safrs_object.url_prefix = url_prefix
@@ -122,7 +123,7 @@ class SAFRSAPI(FRSApiBase):
         RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")  # configurable resource collection url formatter
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
         swagger_decorator = swagger_doc(safrs_object)
-        api_class = api_decorator(type(api_class_name, (SAFRSRestAPI,), properties), swagger_decorator)
+        api_class = api_decorator(type(api_class_name, (rest_api,), properties), swagger_decorator)
 
         safrs.log.info("Exposing {} on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
@@ -133,7 +134,7 @@ class SAFRSAPI(FRSApiBase):
 
         # Expose the instances
         safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
-        api_class = api_decorator(type(api_class_name + "_i", (SAFRSRestAPI,), properties), swagger_decorator)
+        api_class = api_decorator(type(api_class_name + "_i", (rest_api,), properties), swagger_decorator)
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "PATCH", "DELETE"])
 
         object_doc = parse_object_doc(safrs_object)
@@ -161,7 +162,7 @@ class SAFRSAPI(FRSApiBase):
         :param tags: swagger tags
         :return: None
         """
-
+        rpc_api = safrs_object._rpc_api  # => SAFRSJSONRPCAPI
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
@@ -182,7 +183,7 @@ class SAFRSAPI(FRSApiBase):
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties.update({"method_name": method_name, "http_methods": safrs_object.http_methods})
-            api_class = api_decorator(type(api_method_class_name, (SAFRSJSONRPCAPI,), properties), swagger_decorator)
+            api_class = api_decorator(type(api_method_class_name, (rpc_api,), properties), swagger_decorator)
             meth_name = safrs_object._s_class_name + "." + api_method.__name__
             safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
@@ -194,7 +195,7 @@ class SAFRSAPI(FRSApiBase):
         creates a class of the form
 
         @api_decorator
-        class Parent_X_target_API(SAFRSRestAPI):
+        class Parent_X_target_API(SAFRSRestRelationshipAPI):
             SAFRSObject = safrs_object
 
         add the class as an api resource to /SAFRSObject and /SAFRSObject/{id}
@@ -209,6 +210,7 @@ class SAFRSAPI(FRSApiBase):
         # if the relationship is not an sql sqlalchemy.orm.relationships.RelationshipProperty instance
         # then we should have defined the _target
         target_object = relationship.mapper.class_
+        relationship_api = target_object._relationship_api  # => SAFRSRestRelationshipAPI
         if not getattr(target_object, "_s_expose", False):  # todo: add test
             safrs.log.debug("Not exposing {}".format(target_object))
             return
@@ -249,7 +251,7 @@ class SAFRSAPI(FRSApiBase):
         properties["SAFRSObject"] = rel_object
         properties["http_methods"] = target_object.http_methods
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
-        api_class = api_decorator(type(api_class_name, (SAFRSRestRelationshipAPI,), properties), swagger_decorator)
+        api_class = api_decorator(type(api_class_name, (relationship_api,), properties), swagger_decorator)
 
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
@@ -599,9 +601,9 @@ def http_method_decorator(fun):
         """
         safrs_exception = None
         try:
-            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options"]: # pragma: no cover
+            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options"]:  # pragma: no cover
                 # reuire jsonapi content type for requests to these routes
-                raise GenericError( HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
+                raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
             result = fun(*args, **kwargs)
             safrs.DB.session.commit()
             return result

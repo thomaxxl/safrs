@@ -22,10 +22,8 @@ from flask import jsonify, make_response as flask_make_response, url_for, reques
 from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
 from sqlalchemy.orm.interfaces import MANYTOONE
-from .base import SAFRSBase
 from .swagger_doc import is_public
 from .errors import ValidationError, NotFoundError
-from .json_encoder import SAFRSFormattedResponse
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
 
@@ -594,7 +592,7 @@ class SAFRSRestRelationshipAPI(Resource):
             links = {"self": child._s_url}
             # If {ChildId} is passed in the url, return the child object
             # there's a difference between to-one and -to-many relationships:
-            if isinstance(relation, SAFRSBase) and child != relation:
+            if isinstance(relation, safrs.SAFRSBase) and child != relation:
                 raise NotFoundError()
             elif child not in relation:
                 raise NotFoundError()
@@ -993,7 +991,7 @@ class SAFRSJSONRPCAPI(Resource):
         safrs.log.debug("method {} args {}".format(self.method_name, args))
         result = method(**args)
 
-        if isinstance(result, SAFRSFormattedResponse):
+        if isinstance(result, safrs.SAFRSFormattedResponse):
             response = result
         elif getattr(method, "valid_jsonapi", None) is False:
             response = result

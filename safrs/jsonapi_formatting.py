@@ -10,7 +10,6 @@ import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
 import safrs
 from flask import request
-from .base import Included
 from .jsonapi_attr import is_jsonapi_attr
 from .errors import ValidationError, GenericError
 from .config import get_config, get_request_param
@@ -240,6 +239,6 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     if links:
         result["links"] = links
 
-    result["included"] = Included
+    result["included"] = safrs.base.Included
 
     return result

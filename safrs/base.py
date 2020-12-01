@@ -19,15 +19,15 @@ from sqlalchemy.sql.schema import Column
 from functools import lru_cache
 
 # safrs dependencies:
-import safrs
+import safrs, safrs.jsonapi
 from .errors import GenericError, NotFoundError, ValidationError
 from .safrs_types import get_id_type
-from .util import classproperty
+from .attr_parse import parse_attr
 from .config import get_config
 from .jsonapi_filters import jsonapi_filter
-from .attr_parse import parse_attr
 from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
+from .util import classproperty
 
 #
 # Map SQLA types to swagger2 json types
@@ -103,6 +103,12 @@ class SAFRSBase(Model):
     # Cached lookup tables
     _col_attr_name_map = None
     _attr_col_name_map = None
+
+    # Resource classes for the collections, relationships and methods
+    # overriding these allows you to extend the Resource http methods: get(), post(), patch(), delete()
+    _rest_api = safrs.jsonapi.SAFRSRestAPI
+    _relationship_api = safrs.jsonapi.SAFRSRestRelationshipAPI
+    _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
 
     def __new__(cls, *args, **kwargs):
         """
