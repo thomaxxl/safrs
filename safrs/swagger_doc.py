@@ -576,7 +576,7 @@ def swagger_relationship_doc(cls, tags=None):
 
         direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
         parent_name = parent_class.__name__  # referenced by f-string in the jsonapi.py method docstring
-        child_name = child_class.__name__  # to be used by f-string
+        child_name = child_class.__name__  # referenced by f-string
         apply_fstring(doc, locals())
         update_response_schema(doc["responses"])
 
