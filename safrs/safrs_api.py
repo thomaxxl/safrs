@@ -19,6 +19,7 @@ from .errors import JsonapiError, ValidationError, GenericError
 from .config import get_config
 from .json_encoder import SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
+from sqlalchemy.orm.interfaces import MANYTOONE
 import json
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
@@ -258,7 +259,7 @@ class SAFRSAPI(FRSApiBase):
         safrs.log.info("Exposing relationship {} on {}, endpoint: {}".format(rel_name, url, endpoint))
         # Check if there are custom http methods specified
         methods = getattr(relationship, "http_methods", parent_class.http_methods)
-        self.add_resource(api_class, url, endpoint=endpoint, methods=methods)
+        self.add_resource(api_class, url, endpoint=endpoint, methods=methods, relationship=relationship)
 
         try:
             target_object_id = target_object._s_object_id
@@ -331,6 +332,8 @@ class SAFRSAPI(FRSApiBase):
             swagger_url = extract_swagger_path(url)
             # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
             exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
+            if relationship:
+                exposing_instance = relationship.direction == MANYTOONE
             for method in self.get_resource_methods(resource):
                 if kwargs.get("methods", None) and method.upper() not in [m.upper() for m in kwargs.get("methods", [])]:
                     # only use the
@@ -383,7 +386,6 @@ class SAFRSAPI(FRSApiBase):
 
     def _add_oas_req_params(self, resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url):
         """
-
         Add the request parameters to the swagger (filter, sort)
         """
         method_doc = path_item[method]
@@ -396,6 +398,7 @@ class SAFRSAPI(FRSApiBase):
                 parameters.append(param)
 
                 # Get the jsonapi fields[], ie the exposed attributes/columns
+                # only required for collections though
                 param = resource.get_swagger_fields()
                 parameters.append(param)
 
@@ -464,10 +467,6 @@ class SAFRSAPI(FRSApiBase):
                 # patching a
                 response["201"]["schema"] = coll_ref
             response["201"]["schema"].pop("type", None)
-
-        if relationship:
-            print(method_doc.get("responses", {}).get("200", {}))
-            # print(relationship.direction)
 
     def _add_oas_resource_definitions(self, resource, path_item):
         """

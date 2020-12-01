@@ -508,6 +508,12 @@ def swagger_relationship_doc(cls, tags=None):
         doc.update(parse_object_doc(func))
 
         responses = {}
+
+        # Shema names (for the swagger "references")
+        model_name = "{}_rel_inst".format(class_name)  # instance model name
+        if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
+            model_name = "{}_rel_coll".format(class_name)  # collection model name
+
         if http_method == "get":
             _, responses = cls._s_get_swagger_doc(http_method)
         elif http_method in ("post", "patch"):
@@ -516,13 +522,11 @@ def swagger_relationship_doc(cls, tags=None):
 
             _, responses = child_class._s_get_swagger_doc("patch")
             data = {"type": child_class._s_type, "id": child_sample_id}
-            model_name = "{}_inst".format(class_name)  # instance model name
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 # tomany relationships only return a 204 accepted
                 data = [data]
                 responses.pop(HTTPStatus.OK.value, None)
-                model_name = "{}_coll".format(class_name)  # collection model name
 
             rel_post_schema = schema_from_object(model_name, {"data": data})
             rel_post_schema.description += "{} {} relationship;".format(class_name, http_method)
@@ -550,7 +554,7 @@ def swagger_relationship_doc(cls, tags=None):
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 data = [data]
-            rel_del_schema = schema_from_object("{}_Relationship".format(class_name), {"data": data})
+            rel_del_schema = schema_from_object(model_name, {"data": data})
             parameters.append(
                 {
                     "name": "{} body".format(class_name),
