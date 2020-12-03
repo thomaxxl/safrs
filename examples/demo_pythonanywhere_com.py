@@ -21,20 +21,20 @@ import sys
 import os
 import datetime
 import hashlib
-from flask import Flask, redirect, send_from_directory, request
+from flask import Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
+
 try:
     from flask_admin import Admin
     from flask_admin.contrib import sqla
 except:
     print("Failed to import flask-admin")
-from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
+from safrs import SAFRSAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
-from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate
-from safrs import jsonapi_attr, ValidationError
+from safrs import SAFRSFormattedResponse
+from safrs import jsonapi_attr
 from safrs import jsonapi_rpc  # rpc decorator
-from safrs.api_methods import search, startswith, duplicate  # rpc methods
-from flask import url_for, jsonify
+from safrs.api_methods import startswith  # rpc methods
 from functools import wraps
 
 # This html will be rendered in the swagger UI
@@ -47,13 +47,16 @@ description = """
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 """
 
+
 def testdec(func):
     @wraps(func)
     def testd(*args, **kwargs):
         print(func)
         result = func(*args, **kwargs)
         return result
+
     return testd
+
 
 db = SQLAlchemy()
 
@@ -72,6 +75,7 @@ class WriteOnlyColumn(db.Column):
         The "permissions" attribute set to "w" indicates that the column shouldn't be readable
         in this case it's write-only
     """
+
     permissions = "w"
 
 
@@ -79,6 +83,7 @@ class DocumentedColumn(db.Column):
     """
         The class attributes are used for the swagger
     """
+
     description = "My custom column description"
     swagger_type = "string"
     swagger_format = "string"
@@ -99,15 +104,16 @@ def hiddenRelationship(*args, **kwargs):
     relationship.expose = False
     return relationship
 
+
 # SQLA objects that will be exposed
 
 friendship = db.Table(
-    'friendships', db.metadata,
-    db.Column('friend_a_id', db.Integer, db.ForeignKey('People.id'),
-                                        primary_key=True),
-    db.Column('friend_b_id', db.Integer, db.ForeignKey('People.id'),
-                                        primary_key=True)
+    "friendships",
+    db.metadata,
+    db.Column("friend_a_id", db.Integer, db.ForeignKey("People.id"), primary_key=True),
+    db.Column("friend_b_id", db.Integer, db.ForeignKey("People.id"), primary_key=True),
 )
+
 
 class Book(BaseModel):
     """
@@ -123,7 +129,7 @@ class Book(BaseModel):
     publisher = db.relationship("Publisher", back_populates="books", cascade="save-update, delete")
     reviews = db.relationship("Review", backref="book", cascade="save-update, delete")
     published = db.Column(db.Time)
-    
+
 
 class Person(BaseModel):
     """
@@ -143,9 +149,8 @@ class Person(BaseModel):
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
     _salary = db.Column(db.String, default="")  # hidden column
-    friends = db.relationship("Person", secondary=friendship,
-                           primaryjoin=id==friendship.c.friend_a_id,
-                           secondaryjoin=id==friendship.c.friend_b_id,
+    friends = db.relationship(
+        "Person", secondary=friendship, primaryjoin=id == friendship.c.friend_a_id, secondaryjoin=id == friendship.c.friend_b_id
     )
 
     # Following methods are exposed through the REST API
@@ -178,10 +183,10 @@ class Person(BaseModel):
         o1 = cls.query.first()
         o2 = cls.query.first()
         o1.friends.append(o2)
-        data = [o1,o2]
+        data = [o1, o2]
         response = SAFRSFormattedResponse(data, {}, {}, {}, 1)
         return response
-        
+
 
 class Publisher(BaseModel):
     """
@@ -196,7 +201,7 @@ class Publisher(BaseModel):
     # books = db.relationship("Book", back_populates="publisher", lazy="dynamic")
     books = db.relationship("Book", back_populates="publisher")
     employees = hiddenRelationship(Person, back_populates="employer")
-    
+
     def __init__(self, *args, **kwargs):
         custom_field = kwargs.pop("custom_field", None)
         SAFRSBase.__init__(self, **kwargs)
@@ -216,7 +221,7 @@ class Publisher(BaseModel):
             GET /Publishers/?filter=some_filter
         """
         print(arg)
-        return {1:1}
+        return {1: 1}
         return cls.query.filter_by(name=arg)
 
     @jsonapi_attr
@@ -262,7 +267,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
             author = Person(name="Author " + str(i), email="author@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
             book = Book(title="book_title" + str(i))
-            review = Review(reader_id=2*i+1, book_id=book.id, review=f"review {i}")
+            review = Review(reader_id=2 * i + 1, book_id=book.id, review=f"review {i}")
             publisher = Publisher(name="publisher" + str(i))
             publisher.books.append(book)
             reader.books_read.append(book)
@@ -275,7 +280,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
                 db.session.add(obj)
 
             db.session.commit()
-            
+
         custom_swagger = {
             "info": {"title": "My Customized Title"},
             "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
@@ -293,7 +298,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
-            api.expose_object(model, method_decorators={"get":[testdec]})
+            api.expose_object(model, method_decorators={"get": [testdec]})
 
         # see if we can add the flask-admin views
         try:
