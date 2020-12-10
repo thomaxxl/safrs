@@ -317,7 +317,6 @@ class SAFRSBase(Model):
         return result
 
     @hybrid_property
-    @lru_cache(maxsize=32)
     def _s_relationships(self):
         """
         :return: the relationships used for jsonapi (de/)serialization
@@ -379,7 +378,7 @@ class SAFRSBase(Model):
         return self.__class__._s_check_perm(property_name, permission)
 
     @_s_check_perm.expression
-    @lru_cache(maxsize=128)
+    @lru_cache(maxsize=256)
     def _s_check_perm(cls, property_name, permission="r"):
         """
         Check the (class-level) column permission
@@ -808,7 +807,7 @@ class SAFRSBase(Model):
     def __unicode__(self):
         """"""
         name = getattr(self, "name", self.jsonapi_id)
-        return name
+        return name if name is not None else ''
 
     __str__ = __unicode__
 
