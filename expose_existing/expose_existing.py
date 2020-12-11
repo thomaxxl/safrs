@@ -127,7 +127,7 @@ import models
 
 def start_api(HOST="0.0.0.0", PORT=5000):
 
-    OAS_PREFIX = "/api"  # swagger prefix
+    OAS_PREFIX = ""  # swagger prefix
     with app.app_context():
         api = SAFRSAPI(
             app,
