@@ -60,7 +60,7 @@ def parse_object_doc(object):
     return api_doc
 
 
-def jsonapi_rpc(http_methods=["POST"], valid_jsonapi=True):
+def jsonapi_rpc(http_methods=None, valid_jsonapi=True):
     """
     Decorator to expose functions in the REST API:
     When a method is decorated with jsonapi_rpc, this means
@@ -69,7 +69,8 @@ def jsonapi_rpc(http_methods=["POST"], valid_jsonapi=True):
     :param http_methods:
     :return: function
     """
-
+    if http_methods is None:
+        http_methods = ["POST"]
     def _documented_api_method(method):
         """
         :param method:
