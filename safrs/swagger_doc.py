@@ -60,7 +60,7 @@ def parse_object_doc(object):
     return api_doc
 
 
-def jsonapi_rpc(http_methods, valid_jsonapi=True):
+def jsonapi_rpc(http_methods=["POST"], valid_jsonapi=True):
     """
     Decorator to expose functions in the REST API:
     When a method is decorated with jsonapi_rpc, this means
@@ -259,7 +259,6 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
     for name, method in inspect.getmembers(cls):
         if name != method_name:
             continue
-
         rest_doc = get_doc(method)
         description = rest_doc.get("description", "")
         if rest_doc:
@@ -292,7 +291,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                             "description": description,
                         }
                         parameters += param
-        else:
+        elif http_method != "options":
             safrs.log.warning('No documentation for method "{}"'.format(method_name))
             # jsonapi_rpc method has no documentation, generate it w/ inspect
             f_args = inspect.getfullargspec(method).args
@@ -430,7 +429,7 @@ def swagger_doc(cls, tags=None):
 
         elif http_method == "delete":
             _, responses = cls._s_get_swagger_doc(http_method)
-        else:
+        elif http_method != "options":
             # one of 'options', 'head', 'delete'
             safrs.log.debug('no additional documentation for "{}" '.format(func))
 
@@ -565,7 +564,7 @@ def swagger_relationship_doc(cls, tags=None):
                 }
             )
 
-        else:
+        elif http_method != "options":
             # one of 'options', 'head', 'patch'
             safrs.log.info('no documentation for "{}" '.format(http_method))
 
