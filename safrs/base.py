@@ -807,7 +807,7 @@ class SAFRSBase(Model):
     def __unicode__(self):
         """"""
         name = getattr(self, "name", self.jsonapi_id)
-        return name if name is not None else ''
+        return name if name is not None else ""
 
     __str__ = __unicode__
 

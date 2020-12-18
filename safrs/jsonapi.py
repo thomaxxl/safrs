@@ -56,10 +56,25 @@ class Resource(FRSResource):
     get_swagger_filters = get_swagger_filters
 
     def head(self, *args, **kwargs):
-        headers = {}
-        headers["Allow"] = " ".join(self.SAFRSObject.http_methods)
-        response = make_response()
-        response.headers = headers
+        """
+            HTTP HEAD
+        """
+        _super = super()
+        if hasattr(_super, "head"):
+            response = _super.head(*args, **kwargs)
+        else:
+            response = make_response()
+        return response
+
+    def options(self, *args, **kwargs):
+        """
+            HTTP OPTIONS
+        """
+        _super = super()
+        if hasattr(_super, "options"):
+            response = _super.options(*args, **kwargs)
+        else:
+            response = make_response()
         return response
 
     def _parse_target_data(self, target_data):
@@ -390,6 +405,7 @@ class SAFRSRestAPI(Resource):
         id = kwargs.get(self._s_object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
+            # to do: modify Allow header
             raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         # Create a new instance of the SAFRSObject
