@@ -9,7 +9,7 @@ def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.10.6"
+    version = "2.10.7"
 
     setup(
         name="safrs",
@@ -33,14 +33,15 @@ def safrs_setup():
             "Topic :: Software Development :: Libraries",
             "Environment :: Web Environment",
             "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.5",
             "Programming Language :: Python :: 3.3",
             "Programming Language :: Python :: 3.4",
         ],
-        extras_require = { 'admin' : ['Flask-Admin==1.5.6'] },
-        scripts = "expose_existing/db2api"
+        extras_require = { 'admin' : ['Flask-Admin==1.5.6'] }
     )
 
 safrs_setup() # pragma: no cover
