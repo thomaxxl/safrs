@@ -34,6 +34,7 @@ from safrs import jsonapi_attr
 from safrs import jsonapi_rpc  # rpc decorator
 from safrs.api_methods import startswith, search  # rpc methods
 from functools import wraps
+from pathlib import Path
 
 # This html will be rendered in the swagger UI
 description = """
@@ -44,17 +45,6 @@ description = """
 - Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/>
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 """
-
-
-def testdec(func):
-    @wraps(func)
-    def testd(*args, **kwargs):
-        print(func)
-        result = func(*args, **kwargs)
-        return result
-
-    return testd
-
 
 db = SQLAlchemy()
 
@@ -292,7 +282,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
-            api.expose_object(model, method_decorators={"get": [testdec]})
+            api.expose_object(model)
 
         # see if we can add the flask-admin views
         try:
@@ -305,16 +295,16 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
 app = Flask("SAFRS Demo App")
 
-
+# app routes
 @app.route("/ja")  # React jsonapi frontend
 @app.route("/ja/<path:path>", endpoint="jsonapi_admin")
 def send_ja(path="index.html"):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "jsonapi-admin/build"), path)
+    return send_from_directory(Path(__file__).parent.parent / "jsonapi-admin/build", path)
 
 
 @app.route("/swagger_editor/<path:path>", endpoint="swagger_editor")
 def send_swagger_editor(path="index.html"):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "swagger-editor"), path)
+    return send_from_directory(Path(__file__).parent.parent / "swagger-editor", path)
 
 
 @app.route("/")
