@@ -283,14 +283,11 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             # Create an API endpoint
             api.expose_object(model)
 
-        # see if we can add the flask-admin views
-        try:
-            admin = Admin(app, url="/admin")
-            for model in [Person, Book, Review, Publisher]:
-                admin.add_view(sqla.ModelView(model, db.session))
-        except Exception as exc:
-            print(f"Failed to add flask-admin view {exc}")
-
+        # add the flask-admin views
+        admin = Admin(app, url="/admin")
+        for model in [Person, Book, Review, Publisher]:
+            admin.add_view(sqla.ModelView(model, db.session))
+    
 
 app = Flask("SAFRS Demo App")
 
