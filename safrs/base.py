@@ -190,7 +190,7 @@ class SAFRSBase(Model):
         """
         attr = getattr(self.__class__, attr_name, False)
         if is_jsonapi_attr(attr) and not hasattr(attr, 'setter'):
-            log.debug("No setter defined for {}".format(attr_name))
+            safrs.log.debug("No setter defined for {}".format(attr_name))
             return
         else:
             super().__setattr__(attr_name, attr_val)
