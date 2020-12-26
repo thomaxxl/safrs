@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # This script is deployed on thomaxxl.pythonanywhere.com
-#
+# 
 # This is a demo application to demonstrate the functionality of the safrs REST API
-#
+# The script depends on
+# $ pip install flask_admin flask_cors
 # It can be ran standalone like this:
-# python demo_relationship.py [Listener-IP]
+# $ python demo_relationship.py [Listener-IP]
 #
 # This will run the example on http://Listener-Ip:5000
 #
@@ -23,19 +24,17 @@ import datetime
 import hashlib
 from flask import Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-
-try:
-    from flask_admin import Admin
-    from flask_admin.contrib import sqla
-except:
-    print("Failed to import flask-admin")
+from flask_cors import CORS
+from flask_admin import Admin
+from flask_admin.contrib import sqla
 from safrs import SAFRSAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse
 from safrs import jsonapi_attr
 from safrs import jsonapi_rpc  # rpc decorator
-from safrs.api_methods import startswith  # rpc methods
+from safrs.api_methods import startswith, search  # rpc methods
 from functools import wraps
+from pathlib import Path
 
 # This html will be rendered in the swagger UI
 description = """
@@ -43,40 +42,18 @@ description = """
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a><br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - <a href="/admin/person">Flask-Admin frontend</a>
-- Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/>
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 """
-
-
-def testdec(func):
-    @wraps(func)
-    def testd(*args, **kwargs):
-        print(func)
-        result = func(*args, **kwargs)
-        return result
-
-    return testd
-
 
 db = SQLAlchemy()
 
 # SQLAlchemy Mixin Superclass with multiple inheritance
-
-
 class BaseModel(SAFRSBase, db.Model):
     __abstract__ = True
-
-
-# Customized columns
-
-
-class WriteOnlyColumn(db.Column):
-    """
-        The "permissions" attribute set to "w" indicates that the column shouldn't be readable
-        in this case it's write-only
-    """
-
-    permissions = "w"
+    # Add startswith methods so we can perform lookups from the frontend
+    SAFRSBase.search = search
+    # Needed because we don't want to implicitly commit when using flask-admin
+    SAFRSBase.db_commit = False
 
 
 class DocumentedColumn(db.Column):
@@ -94,8 +71,6 @@ class DocumentedColumn(db.Column):
 
 
 # Customized relationships
-
-
 def hiddenRelationship(*args, **kwargs):
     """
         To hide a relationship, set the expose attribute to False
@@ -105,8 +80,7 @@ def hiddenRelationship(*args, **kwargs):
     return relationship
 
 
-# SQLA objects that will be exposed
-
+# SQLA models that will be exposed
 friendship = db.Table(
     "friendships",
     db.metadata,
@@ -145,13 +119,26 @@ class Person(BaseModel):
     books_read = db.relationship("Book", backref="reader", foreign_keys=[Book.reader_id], cascade="save-update, merge")
     books_written = db.relationship("Book", backref="author", foreign_keys=[Book.author_id])
     reviews = db.relationship("Review", backref="reader", cascade="save-update, delete")
-    password = WriteOnlyColumn(db.String, default="")
     employer_id = db.Column(db.Integer, db.ForeignKey("Publishers.id"))
     employer = hiddenRelationship("Publisher", back_populates="employees", cascade="save-update, delete")
-    _salary = db.Column(db.String, default="")  # hidden column
+    _password = db.Column(db.String, default="")  # hidden column
     friends = db.relationship(
         "Person", secondary=friendship, primaryjoin=id == friendship.c.friend_a_id, secondaryjoin=id == friendship.c.friend_b_id
     )
+
+    @jsonapi_attr
+    def password(self):
+        """---
+            "_password" is hidden because of the "_" prefix, provide a custom attribute "password" the Person fields
+        """
+        return "hidden, check _password"
+
+    @password.setter
+    def password(self, val):
+        """
+            Allow setting _password
+        """
+        self._password = hashlib.sha256(val.encode("utf-8")).hexdigest()
 
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
@@ -184,6 +171,7 @@ class Person(BaseModel):
         o2 = cls.query.first()
         o1.friends.append(o2)
         data = [o1, o2]
+        # build a jsonapi response object
         response = SAFRSFormattedResponse(data, {}, {}, {}, 1)
         return response
 
@@ -219,10 +207,12 @@ class Publisher(BaseModel):
 
             This method will be called when the filter= url query argument is provided, eg.
             GET /Publishers/?filter=some_filter
+
+            you can use the argument to create custom filtering, f.i.
+            cls.query.filter_by(name=arg)
         """
         print(arg)
-        return {1: 1}
-        return cls.query.filter_by(name=arg)
+        return {"provided": arg}
 
     @jsonapi_attr
     def stock(self):
@@ -249,14 +239,7 @@ class Review(BaseModel):
 
 # API app initialization:
 # Create the instances and exposes the classes
-
-
 def start_api(swagger_host="0.0.0.0", PORT=None):
-
-    # Add startswith methods so we can perform lookups from the frontend
-    SAFRSBase.startswith = startswith
-    # Needed because we don't want to implicitly commit when using flask-admin
-    SAFRSBase.db_commit = False
 
     with app.app_context():
         db.init_app(app)
@@ -264,8 +247,8 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         # populate the database
         NR_INSTANCES = 200
         for i in range(NR_INSTANCES):
-            reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
-            author = Person(name="Author " + str(i), email="author@email" + str(i), password=hashlib.sha256(bytes(i)).hexdigest())
+            reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=str(i))
+            author = Person(name="Author " + str(i), email="author@email" + str(i), password=str(i))
             book = Book(title="book_title" + str(i))
             review = Review(reader_id=2 * i + 1, book_id=book.id, review=f"review {i}")
             publisher = Publisher(name="publisher" + str(i))
@@ -298,33 +281,26 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
-            api.expose_object(model, method_decorators={"get": [testdec]})
+            api.expose_object(model)
 
-        # see if we can add the flask-admin views
-        try:
-            admin = Admin(app, url="/admin")
-            for model in [Person, Book, Review, Publisher]:
-                admin.add_view(sqla.ModelView(model, db.session))
-        except Exception as exc:
-            print(f"Failed to add flask-admin view {exc}")
+        # add the flask-admin views
+        admin = Admin(app, url="/admin")
+        for model in [Person, Book, Review, Publisher]:
+            admin.add_view(sqla.ModelView(model, db.session))
+    
 
+app = Flask("SAFRS Demo App")
 
-API_PREFIX = "/api"  # swagger location
-app = Flask("SAFRS Demo App", template_folder="/home/thomaxxl/mysite/templates")
-app.secret_key = "not so secret"
-
-app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
-
-
+# app routes
 @app.route("/ja")  # React jsonapi frontend
 @app.route("/ja/<path:path>", endpoint="jsonapi_admin")
 def send_ja(path="index.html"):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "jsonapi-admin/build"), path)
+    return send_from_directory(Path(__file__).parent.parent / "jsonapi-admin/build", path)
 
 
 @app.route("/swagger_editor/<path:path>", endpoint="swagger_editor")
 def send_swagger_editor(path="index.html"):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "swagger-editor"), path)
+    return send_from_directory(Path(__file__).parent.parent / "swagger-editor", path)
 
 
 @app.route("/")
@@ -332,8 +308,19 @@ def goto_api():
     return redirect(API_PREFIX)
 
 
+app.secret_key = "not so secret"
+app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
+cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+API_PREFIX = "/api"
+HOST = "thomaxxl.pythonanywhere.com"
+PORT = 5000
+
 if __name__ == "__main__":
-    HOST = sys.argv[1] if len(sys.argv) > 1 else "thomaxxl.pythonanywhere.com"
-    PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
+    if len(sys.argv) > 1:
+        HOST = sys.argv[1]
+    if len(sys.argv) > 2:
+        PORT = int(sys.argv[2])
     start_api(HOST, PORT)
     app.run(host=HOST, port=PORT, threaded=False)
+else:
+    start_api(HOST, PORT)
