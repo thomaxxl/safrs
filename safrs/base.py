@@ -189,12 +189,12 @@ class SAFRSBase(Model):
         setattr behaves differently for `jsonapi_attr` decorated attributes
         """
         attr = getattr(self.__class__, attr_name, False)
-        if is_jsonapi_attr(attr) and not hasattr(attr, 'setter'):
-            safrs.log.debug("No setter defined for {}".format(attr_name))
-            return
+        if is_jsonapi_attr(attr) and attr.fset is None:
+            # jsonapi_attr.setter not implemented for attr
+            return attr_val
         else:
-            super().__setattr__(attr_name, attr_val)
-
+            return super().__setattr__(attr_name, attr_val)
+            
     def _s_parse_attr_value(self, attr_name, attr_val):
         """
         Parse the given jsonapi attribute value so it can be stored in the db
