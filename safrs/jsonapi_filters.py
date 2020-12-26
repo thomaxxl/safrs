@@ -34,6 +34,7 @@ def jsonapi_filter(cls):
     expressions = []
     filters = get_request_param("filters", {})
     if isinstance(cls, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        safrs.log.debug("Filtering not implemented for {}".format(cls))
         return cls
 
     for attr_name, val in filters.items():
