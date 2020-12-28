@@ -77,7 +77,7 @@ SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean":
 # SAFRSBase superclass
 #
 class SAFRSBase(Model):
-    """This SQLAlchemy mixin implements Json Serialization for SAFRS SQLalchemy Persistent Objects
+    """This SQLAlchemy mixin implements json:api serialization for SAFRS SQLalchemy Persistent Objects
     Serialization itself is performed by the ``to_dict`` method
     Initialization and instantiation are quite complex because we rely on the DB schema
 
@@ -188,7 +188,7 @@ class SAFRSBase(Model):
         """
         setattr behaves differently for `jsonapi_attr` decorated attributes
         """
-        attr = getattr(self.__class__, attr_name, False)
+        attr = self.__class__.__dict__.get(attr_name, None)
         if is_jsonapi_attr(attr) and attr.fset is None:
             # jsonapi_attr.setter not implemented for attr
             return attr_val
@@ -862,8 +862,9 @@ class SAFRSBase(Model):
                     arg = getattr(column, "sample")
                 elif hasattr(column, "default") and column.default:
                     if callable(column.default.arg):
-                        # todo: check how to display the default args
-                        safrs.log.warning("Not implemented: {}".format(column.default.arg))
+                        # We're not executing the default when it's a callable to avoid side-effects,
+                        # user may add a sample attribute to the column to have it show up in the swagger
+                        safrs.log.debug("No OAS sample implemented for column default '{}.{}'".format(column.name, column.default.arg))
                         arg = ""
                     elif isinstance(column.type, sqlalchemy.sql.sqltypes.JSON):
                         arg = column.default.arg
