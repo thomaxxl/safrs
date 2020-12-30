@@ -57,7 +57,7 @@ class Resource(FRSResource):
 
     def head(self, *args, **kwargs):
         """
-            HTTP HEAD
+        HTTP HEAD
         """
         _super = super()
         if hasattr(_super, "head"):
@@ -68,7 +68,7 @@ class Resource(FRSResource):
 
     def options(self, *args, **kwargs):
         """
-            HTTP OPTIONS
+        HTTP OPTIONS
         """
         _super = super()
         if hasattr(_super, "options"):

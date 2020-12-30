@@ -71,6 +71,7 @@ def jsonapi_rpc(http_methods=None, valid_jsonapi=True):
     """
     if http_methods is None:
         http_methods = ["POST"]
+
     def _documented_api_method(method):
         """
         :param method:

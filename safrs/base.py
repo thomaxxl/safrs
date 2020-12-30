@@ -115,8 +115,12 @@ class SAFRSBase(Model):
         """
         If an object with given arguments already exists, this object is instantiated
         """
+        if "id" not in kwargs:
+            return object.__new__(cls)
+
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs.get("id", ""))
+
         # Lookup the object with the PKs
         instance = None
         try:
@@ -194,7 +198,7 @@ class SAFRSBase(Model):
             return attr_val
         else:
             return super().__setattr__(attr_name, attr_val)
-            
+
     def _s_parse_attr_value(self, attr_name, attr_val):
         """
         Parse the given jsonapi attribute value so it can be stored in the db
@@ -305,8 +309,7 @@ class SAFRSBase(Model):
         """
         :return: list of columns that are exposed by the api
         """
-        mapper = getattr(cls, "__mapper__", None)
-        if mapper is None:
+        if not hasattr(cls, "__mapper__"):
             return []
 
         result = cls.__mapper__.columns
@@ -600,7 +603,7 @@ class SAFRSBase(Model):
         """
         return str(self.id_type.get_id(self))
 
-    @hybrid_property
+    @classproperty
     @lru_cache(maxsize=32)
     def id_type(obj):
         """
