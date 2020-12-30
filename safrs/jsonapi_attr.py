@@ -19,7 +19,7 @@ class jsonapi_attr(hybrid_property):
 
         set `swagger_type` and `default` to customize the swagger
         """
-        setattr(self, JSONAPI_ATTR_TAG, True)
+        setattr(self, JSONAPI_ATTR_TAG, True) # checked by is_jsonapi_attr()
 
         if args:
             # called when the app starts
