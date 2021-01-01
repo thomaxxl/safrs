@@ -115,7 +115,7 @@ class SAFRSBase(Model):
         """
         If an object with given arguments already exists, this object is instantiated
         """
-        if not "id" in kwargs:
+        if "id" not in kwargs:
             return object.__new__(cls)
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs["id"])
