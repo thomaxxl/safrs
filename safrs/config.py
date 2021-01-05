@@ -21,8 +21,8 @@ def get_config(option):
     except (KeyError, RuntimeError):
         #
         result = getattr(safrs.SAFRS, option, None)
-        if result is not None:
-            return result
+    if result is not None:
+        return result
     # pylint: disable=invalid-name, unused-variable, pointless-string-statement
     # The suffix of the url path parameter shown in the swagger UI, eg Id => /Users/{UserId}
     OBJECT_ID_SUFFIX = os.environ.get("OBJECT_ID_SUFFIX", safrs.SAFRS.OBJECT_ID_SUFFIX)
