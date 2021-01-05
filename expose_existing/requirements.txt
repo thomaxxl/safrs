@@ -1,0 +1,3 @@
+Flask-Cors==3.0.9
+inflect==5.0.2
+safrs==2.10.7
