@@ -241,8 +241,8 @@ class SAFRSBase(Model):
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
         # SAFRSObject allow_client_generated_ids attribute
         if cls.allow_client_generated_ids:
-            # this isn't required per the jsonapi spec, doesn't work well and isn't documented, maybe later
-            # also, the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
+            # this isn't required per the jsonapi spec
+            # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
             attributes["id"] = id
         else:
             attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in cls.id_type.column_names}
@@ -319,6 +319,10 @@ class SAFRSBase(Model):
             # and the "r" flag is in the permissions
             result = [c for c in result if cls._s_check_perm(cls.colname_to_attrname(c.name))]
         return result
+
+    @classproperty
+    def _s_column_dict(cls):
+        return {cls.colname_to_attrname(c.name): c for c in cls._s_collumns}
 
     @hybrid_property
     def _s_relationships(self):

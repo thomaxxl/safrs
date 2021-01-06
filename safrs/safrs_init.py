@@ -53,7 +53,7 @@ class SAFRS:
         """
         API and application initialization
         """
-        if not isinstance(app, Flask):
+        if not isinstance(app, Flask):  # pragma: no cover
             raise TypeError("'app' should be Flask.")
 
         if app_db is None:
@@ -132,7 +132,7 @@ def dict_merge(dct, merge_dct):
             dct[str(k)] = merge_dct[k]
 
 
-def test_decorator(func):
+def test_decorator(func):  # pragma: no cover
     """Example flask-restful decorator that can be used in the "decorators" Api argument
     cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     """
@@ -140,7 +140,7 @@ def test_decorator(func):
     def api_wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
-    if func.__name__.lower() == "get":  # pragma : no cover
+    if func.__name__.lower() == "get":
         result = api_wrapper
         result.__name__ = func.__name__  # make sure to to reset the __name__ !
         return result
@@ -156,7 +156,7 @@ DB = SQLAlchemy()
 try:
     DEBUG = os.getenv("DEBUG", logging.WARNING)
     LOGLEVEL = int(DEBUG)
-except ValueError:  # pragma : no cover
+except ValueError:  # pragma: no cover
     print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
     LOGLEVEL = logging.INFO
 

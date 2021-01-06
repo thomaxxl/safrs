@@ -97,7 +97,7 @@ class SAFRSID:
             try:
                 col_name = str(pk_col.name)
                 result[col_name] = pk_col.type.python_type(val)
-            except (ValueError, TypeError):
+            except (ValueError, TypeError):  # pragma: no cover
                 # This may happen when val is empty '' or
                 # if when the swagger doc is generated with default uuids
                 # todo: fix

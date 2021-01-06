@@ -20,7 +20,7 @@ def get_config(option):
         result = current_app.config[option]
     except (KeyError, RuntimeError):
         #
-        result = getattr(safrs.SAFRS, option, None)
+        result = getattr(safrs.SAFRS, option, os.environ.get(option, None))
     if result is not None:
         return result
     # pylint: disable=invalid-name, unused-variable, pointless-string-statement
