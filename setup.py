@@ -41,7 +41,7 @@ def safrs_setup():
             "Programming Language :: Python :: 3.3",
             "Programming Language :: Python :: 3.4",
         ],
-        extras_require = { 'admin' : ['Flask-Admin==1.5.6', 'Flask-Cors>=3.0.9'] }
+        extras_require = { 'admin' : ['Flask-Admin==1.5.6', 'Flask-Cors>=3.0.9'] , 'db2api' : ['inflect==5.0.2', 'Flask-Cors>=3.0.9'] }
     )
 
 safrs_setup() # pragma: no cover
