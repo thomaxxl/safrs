@@ -7,7 +7,7 @@ import safrs
 from .jsonapi import paginate, jsonapi_sort
 from .json_encoder import SAFRSFormattedResponse
 from .swagger_doc import jsonapi_rpc
-from .errors import GenericError, ValidationError
+from .errors import GenericError, SystemValidationError
 
 
 @jsonapi_rpc(http_methods=["POST"])
@@ -38,7 +38,7 @@ def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
     for key, value in kwargs.items():
         column = getattr(cls, key, None)
         if not column:
-            raise ValidationError('Invalid Column "{}"'.format(key))
+            raise SystemValidationError('Invalid Column "{}"'.format(key))
         try:
             result = result.query.filter(column.op("regexp")(value))
         except Exception as exc:
@@ -71,7 +71,7 @@ def startswith(cls, **kwargs):  # pragma: no cover
     for key, value in kwargs.items():
         column = getattr(cls, key, None)
         if not column:
-            raise ValidationError('Invalid Column "{}"'.format(key))
+            raise SystemValidationError('Invalid Column "{}"'.format(key))
         try:
             instances = result.query.filter(column.like(value + "%"))
             links, instances, count = paginate(instances)

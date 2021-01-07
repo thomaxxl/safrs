@@ -21,7 +21,7 @@ from functools import lru_cache
 # safrs dependencies:
 import safrs
 import safrs.jsonapi
-from .errors import GenericError, NotFoundError, ValidationError
+from .errors import GenericError, NotFoundError, ValidationError, SystemValidationError
 from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
@@ -110,12 +110,14 @@ class SAFRSBase(Model):
     _rest_api = safrs.jsonapi.SAFRSRestAPI
     _relationship_api = safrs.jsonapi.SAFRSRestRelationshipAPI
     _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
-
+    
+    _s_upsert = True # indicates we want to lookup and use existing objects
+    
     def __new__(cls, *args, **kwargs):
         """
         If an object with given arguments already exists, this object is instantiated
         """
-        if "id" not in kwargs:
+        if "id" not in kwargs or not cls._s_upsert:
             return object.__new__(cls)
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.get_pks(kwargs["id"])
@@ -220,7 +222,7 @@ class SAFRSBase(Model):
 
         # attr is a sqlalchemy.sql.schema.Column now
         if not isinstance(attr, Column):  # pragma: no cover
-            raise ValidationError("Not a column: {}".format(attr))
+            raise SystemValidationError("Not a column: {}".format(attr))
 
         return parse_attr(attr, attr_val)
 
@@ -427,7 +429,7 @@ class SAFRSBase(Model):
         if is_jsonapi_attr(cls.__dict__.get(property_name, None)):  # avoid getattr here
             return True
 
-        raise ValidationError("Invalid property {}".format(property_name))
+        raise SystemValidationError("Invalid property {}".format(property_name))
 
     @hybrid_property
     def _s_jsonapi_attrs(self):

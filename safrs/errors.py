@@ -42,24 +42,6 @@ class NotFoundError(JsonapiError):
             self.message += HIDDEN_LOG
 
 
-class ValidationError(JsonapiError):
-    """
-    This exception is raised when invalid input has been detected
-    """
-
-    status_code = HTTPStatus.BAD_REQUEST.value
-    message = "Validation Error: "
-
-    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
-        Exception.__init__(self)
-        self.status_code = status_code
-        safrs.log.error("ValidationError: %s", message)
-        if is_debug():
-            self.message += message
-        else:
-            self.message += HIDDEN_LOG
-
-
 class UnAuthorizedError(JsonapiError):
     """
     This exception is raised when an authorization error occured
@@ -84,7 +66,7 @@ class GenericError(JsonapiError):
     This exception is raised when an error has been detected
     """
 
-    status_code = 500  # HTTPStatus.INTERNAL_SERVER_ERROR.value
+    status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value  # 500
     message = "Generic Error: "
 
     def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code=None):
@@ -97,3 +79,37 @@ class GenericError(JsonapiError):
             self.message += str(message)
         else:
             self.message += HIDDEN_LOG
+
+
+class SystemValidationError(JsonapiError):  # pragma: no cover
+    """
+    This exception is raised when invalid input has been detected (server side input)
+    """
+
+    status_code = HTTPStatus.BAD_REQUEST.value
+    message = "Validation Error: "
+
+    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
+        Exception.__init__(self)
+        self.status_code = status_code
+        safrs.log.error("ValidationError: %s", message)
+        if is_debug():
+            self.message += message
+        else:
+            self.message += HIDDEN_LOG
+
+
+class ValidationError(JsonapiError):
+    """
+    This exception is raised when invalid input has been detected (client side input)
+    Always send back the message to the client in the response
+    """
+
+    status_code = HTTPStatus.BAD_REQUEST.value
+    message = "Validation Error: "
+
+    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
+        Exception.__init__(self)
+        self.status_code = status_code
+        safrs.log.warning("ValidationError: %s", message)
+        self.message += message

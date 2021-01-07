@@ -15,7 +15,7 @@ from functools import wraps
 import safrs
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
-from .errors import JsonapiError, ValidationError, GenericError
+from .errors import JsonapiError, SystemValidationError, GenericError
 from .config import get_config
 from .json_encoder import SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
@@ -327,7 +327,7 @@ class SAFRSAPI(FRSApiBase):
                 # functionality still works, but there will be no swagger
                 continue
             if not url.startswith("/"):  # pragma: no cover
-                raise ValidationError("paths must start with a /")
+                raise SystemValidationError("paths must start with a /")
 
             swagger_url = extract_swagger_path(url)
             # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
@@ -558,24 +558,25 @@ def api_decorator(cls, swagger_decorator):
         decorated_method = http_method_decorator(decorated_method)
         setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
 
-        try:
-            # Add swagger documentation
-            decorated_method = swagger_decorator(decorated_method)
-        except RecursionError:  # pragma: no cover
-            # Got this error when exposing WP DB, TODO: investigate where it comes from
-            safrs.log.error("Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method))
+        if method_name != "options":
+            try:
+                # Add swagger documentation
+                decorated_method = swagger_decorator(decorated_method)
+            except RecursionError:  # pragma: no cover
+                # Got this error when exposing WP DB, TODO: investigate where it comes from
+                safrs.log.error("Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method))
 
-        except Exception as exc:
-            safrs.log.exception(exc)
-            safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
+            except Exception as exc:
+                safrs.log.exception(exc)
+                safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
 
-        # The user can add custom decorators
-        # Apply the custom decorators, specified as class variable list
-        for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []) + getattr(cls.SAFRSObject, "decorators", []):
-            # update_wrapper(custom_decorator, decorated_method)
-            swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
-            decorated_method = custom_decorator(decorated_method)
-            decorated_method.__swagger_operation_object = swagger_operation_object
+            # The user can add custom decorators
+            # Apply the custom decorators, specified as class variable list
+            for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []) + getattr(cls.SAFRSObject, "decorators", []):
+                # update_wrapper(custom_decorator, decorated_method)
+                swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
+                decorated_method = custom_decorator(decorated_method)
+                decorated_method.__swagger_operation_object = swagger_operation_object
 
         setattr(cls, method_name, decorated_method)
     return cls

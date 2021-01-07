@@ -10,7 +10,7 @@ from http import HTTPStatus
 import yaml
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY, MANYTOONE
 from flask_restful_swagger_2 import Schema, swagger
-from safrs.errors import ValidationError
+from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
 import safrs
 
@@ -52,7 +52,7 @@ def parse_object_doc(object):
         safrs.log.error("Failed to parse documentation {} ({})".format(raw_doc, exc))
         yaml_doc = {"description": raw_doc}
     except Exception:
-        raise ValidationError("Failed to parse api doc")
+        raise SystemValidationError("Failed to parse api doc")
 
     if isinstance(yaml_doc, dict):
         api_doc.update(yaml_doc)
@@ -147,7 +147,7 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise ValidationError("Argument {} not valid for {}".format(key, self.__class__.__name__))
+                raise SystemValidationError("Argument {} not valid for {}".format(key, self.__class__.__name__))
             setattr(self, key, value)
 
     new_schema_cls = type(name, (Schema,), {"__init__": __init__, "properties": properties})
@@ -210,7 +210,7 @@ def schema_from_object(name, object):
                 properties = {"example": str(k), "type": "string"}
                 safrs.log.warning("Invalid schema object type %s", type(object))
     else:
-        raise ValidationError("Invalid schema object type {}".format(type(object)))
+        raise SystemValidationError("Invalid schema object type {}".format(type(object)))
 
     properties = encode_schema(properties)
     schema = SchemaClassFactory(name, properties)
@@ -259,62 +259,65 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
     fields = {}
     # for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
     for name, method in inspect.getmembers(cls):
-        if name != method_name:
-            continue
-        rest_doc = get_doc(method)
-        description = rest_doc.get("description", "")
-        if rest_doc:
-            method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
-            parameters = rest_doc.get("parameters", [])  # query string parameters
-            if method_args and isinstance(method_args, dict):
-                if http_method == "post":
-                    """
-                    Post arguments, these require us to build a schema
-                    """
-                    model_name = "{}_{}".format(cls.__name__, method_name)
-                    method_field = {"method": method_name, "args": method_args}
-                    fields["meta"] = schema_from_object(model_name, method_field)
-            if rest_doc.get(PAGEABLE):
-                parameters += default_paging_parameters()
-            if rest_doc.get(FILTERABLE):
-                for column_name, column in cls._s_column_dict.items():
-                    # Expose a column if it doesn't have the "expose" attribute
-                    # Standard SQLA columns don't have this attibute
-                    # but this may have been customized by a subclass
-                    if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
-                        description = getattr(column, "description", "{} attribute filter (csv)".format(column_name))
-                        param = {
-                            "default": "",
-                            "type": "string",
-                            "name": "filter[{}]".format(column_name),
-                            "in": "query",
-                            "format": "string",
-                            "required": False,
-                            "description": description,
-                        }
-                        parameters += param
-        elif http_method != "options":
-            safrs.log.warning('No documentation for method "{}"'.format(method_name))
-            # jsonapi_rpc method has no documentation, generate it w/ inspect
-            f_args = inspect.getfullargspec(method).args
-            f_defaults = inspect.getfullargspec(method).defaults or []
-            if f_args[0] in ("cls", "self"):
-                f_args = f_args[1:]
-            args = dict(zip(f_args, f_defaults))
-            model_name = "{}_{}".format(cls.__name__, method_name)
-            # model = SchemaClassFactory(model_name, [])
-            # arg_field = {"schema": model, "type": "string"} # tbd?
-            method_field = {"method": method_name, "args": args}
-            if getattr(method, "valid_jsonapi", True):
+        if name == method_name:
+            break
+    else:
+        raise SystemValidationError("method {} not found".format(method_name))
+
+    rest_doc = get_doc(method)
+    description = rest_doc.get("description", "")
+    if rest_doc:
+        method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
+        parameters = rest_doc.get("parameters", [])  # query string parameters
+        if method_args and isinstance(method_args, dict):
+            if http_method == "post":
+                """
+                Post arguments, these require us to build a schema
+                """
+                model_name = "{}_{}".format(cls.__name__, method_name)
+                method_field = {"method": method_name, "args": method_args}
                 fields["meta"] = schema_from_object(model_name, method_field)
+        if rest_doc.get(PAGEABLE):
+            parameters += default_paging_parameters()
+        if rest_doc.get(FILTERABLE):
+            for column_name, column in cls._s_column_dict.items():
+                # Expose a column if it doesn't have the "expose" attribute
+                # Standard SQLA columns don't have this attibute
+                # but this may have been customized by a subclass
+                if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
+                    description = getattr(column, "description", "{} attribute filter (csv)".format(column_name))
+                    param = {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[{}]".format(column_name),
+                        "in": "query",
+                        "format": "string",
+                        "required": False,
+                        "description": description,
+                    }
+                    parameters += param
+    elif http_method != "options":
+        safrs.log.warning('No documentation for method "{}"'.format(method_name))
+        # jsonapi_rpc method has no documentation, generate it w/ inspect
+        f_args = inspect.getfullargspec(method).args
+        f_defaults = inspect.getfullargspec(method).defaults or []
+        if f_args[0] in ("cls", "self"):
+            f_args = f_args[1:]
+        args = dict(zip(f_args, f_defaults))
+        model_name = "{}_{}".format(cls.__name__, method_name)
+        # model = SchemaClassFactory(model_name, [])
+        # arg_field = {"schema": model, "type": "string"} # tbd?
+        method_field = {"method": method_name, "args": args}
+        if getattr(method, "valid_jsonapi", True):
+            fields["meta"] = schema_from_object(model_name, method_field)
 
-        for param in parameters:
-            if param.get("in") is None:
-                param["in"] = "query"
-            if param.get("type") is None:
-                param["type"] = "string"
+    for param in parameters:
+        if param.get("in") is None:
+            param["in"] = "query"
+        if param.get("type") is None:
+            param["type"] = "string"
 
-        return parameters, fields, description, method
+    return parameters, fields, description, method
 
 
 #
