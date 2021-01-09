@@ -30,6 +30,7 @@ from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
 from .util import classproperty
 
+
 #
 # Map SQLA types to swagger2 json types
 # json supports only a couple of basic data types, which makes our job pretty easy :)
@@ -113,6 +114,8 @@ class SAFRSBase(Model):
     
     _s_upsert = True # indicates we want to lookup and use existing objects
     
+    included_list = None
+
     def __new__(cls, *args, **kwargs):
         """
         If an object with given arguments already exists, this object is instantiated
@@ -283,6 +286,7 @@ class SAFRSBase(Model):
                 continue
             attr_val = self._s_parse_attr_value(attr_name, attr_val)
             setattr(self, attr_name, attr_val)
+        safrs.DB.session.commit()
 
     def _s_delete(self):
         """
@@ -620,14 +624,17 @@ class SAFRSBase(Model):
         return id_type
 
     @classproperty
-    def _s_query(cls):
+    def _s_query(cls_or_self):
         """
         :return: sqla query object
         """
-        _table = getattr(cls, "_table", None)
+
+        _table = getattr(cls_or_self, "_table", None)
+        result = safrs.DB.session.query(cls_or_self)
         if _table:
-            return safrs.DB.session.query(_table)
-        return safrs.DB.session.query(cls)
+            result = safrs.DB.session.query(_table)
+
+        return result
 
     query = _s_query
 
@@ -716,7 +723,7 @@ class SAFRSBase(Model):
             # Multiple related resources can be requested in a comma-separated list
             included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
             included_list = [inc for inc in included_csv.split(",") if inc]
-
+            
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
         # In order to recursively request related resources
@@ -851,7 +858,7 @@ class SAFRSBase(Model):
                 safrs.log.warning("Failed to retrieve sample id for {}".format(cls))
 
         sample_id = cls.id_type.sample_id(cls)
-        return sample_id
+        return str(sample_id) # jsonapi ids must always be strings
 
     @classmethod
     def _s_sample_dict(cls):
