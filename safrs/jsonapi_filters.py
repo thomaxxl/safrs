@@ -5,7 +5,43 @@ from .config import get_request_param
 import sqlalchemy
 import safrs
 from .jsonapi_attr import is_jsonapi_attr
+from flask import request
+from sqlalchemy.orm import joinedload
 
+
+def create_query(cls):
+    """
+        Create a query for the target collection `cls`.
+        If `include=` query parameters are given, the corresponding relationships will be joined loaded if possible
+        See: https://docs.sqlalchemy.org/en/13/orm/loading_relationships.html
+        
+        :param cls: class (collection) we want to query
+    """
+    query = cls._s_query
+    
+    if not safrs.SAFRS.OPTIMIZED_LOADING:
+        return
+    included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+    included_list = [inc for inc in included_csv.split(",") if inc]
+    
+    for inc in included_list:
+        current_cls = cls
+        options = None
+        for inc_rel_name in inc.split('.'):
+            if inc_rel_name not in current_cls._s_relationships:
+                safrs.log.error("Invalid relationship : {}.{}".format(current_cls, inc_rel_name))
+                break
+            inc_rel = getattr(current_cls, inc_rel_name) 
+            if current_cls._s_relationships[inc_rel_name].lazy not in ['select', 'joined', 'subquery', 'selectin']:
+                # we can't set options for lazy_load 'dynamic'/'eager'/'raise' relationships
+                # not setting them on 'noload' either
+                break
+            options = options.joinedload(inc_rel) if options else joinedload(inc_rel)
+            current_cls = inc_rel.mapper.class_
+        if options:
+            query = query.options(options)
+            
+    return query
 
 @classmethod
 def jsonapi_filter(cls):
@@ -52,6 +88,7 @@ def jsonapi_filter(cls):
         else:
             expressions.append((attr, val))
 
+    result_query = create_query(cls)
     if expressions:
         _expressions = []
         for column, val in expressions:
@@ -59,11 +96,9 @@ def jsonapi_filter(cls):
                 _expressions.append(column.in_(val.split(",")))
             else:
                 safrs.log.warning("'{}.{}' is not a column ({})".format(cls, column, type(column)))
-        result = cls._s_query.filter(*_expressions)
-    else:
-        result = cls._s_query
+        result_query = result_query.filter(*_expressions)
 
-    return result
+    return result_query
 
 
 @classmethod
