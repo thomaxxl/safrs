@@ -9,6 +9,7 @@ from .request import SAFRSRequest
 from .response import SAFRSResponse
 from .json_encoder import SAFRSJSONEncoder
 from .jsonapi_filters import FilteringStrategy
+from functools import wraps
 
 
 class SAFRS:
@@ -38,6 +39,8 @@ class SAFRS:
     #
     config = {}
     filtering_strategy = FilteringStrategy()
+    
+    OPTIMIZED_LOADING=True
 
     def __init__(self, app, *args, **kwargs):
         """
@@ -136,13 +139,12 @@ def test_decorator(func):  # pragma: no cover
     """Example flask-restful decorator that can be used in the "decorators" Api argument
     cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     """
-
+    @wraps(func)
     def api_wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
     if func.__name__.lower() == "get":
         result = api_wrapper
-        result.__name__ = func.__name__  # make sure to to reset the __name__ !
         return result
 
     return func
