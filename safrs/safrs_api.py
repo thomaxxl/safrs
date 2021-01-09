@@ -230,7 +230,7 @@ class SAFRSAPI(FRSApiBase):
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
-        decorators = (
+        decorators = set(
             getattr(parent_class, "custom_decorators", [])
             + getattr(parent_class, "decorators", [])
             + getattr(relationship, "decorators", [])
@@ -243,7 +243,7 @@ class SAFRSAPI(FRSApiBase):
                 # Merge the relationship decorators from the classes
                 # This makes things really complicated!!!
                 # TODO: simplify this by creating a proper superclass
-                "custom_decorators": decorators,
+                "custom_decorators": list(decorators),
                 "parent": parent_class,
                 "_target": target_object,
             },
@@ -572,7 +572,7 @@ def api_decorator(cls, swagger_decorator):
 
             # The user can add custom decorators
             # Apply the custom decorators, specified as class variable list
-            for custom_decorator in getattr(cls.SAFRSObject, "custom_decorators", []) + getattr(cls.SAFRSObject, "decorators", []):
+            for custom_decorator in set(getattr(cls.SAFRSObject, "custom_decorators", []) + getattr(cls.SAFRSObject, "decorators", [])):
                 # update_wrapper(custom_decorator, decorated_method)
                 swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
                 decorated_method = custom_decorator(decorated_method)
