@@ -169,4 +169,4 @@ app = create_app(host="localhost")
 
 if __name__ == "__main__":
     # Start application
-    app.run(debug=True, port=5010)
+    app.run(port=5010)
