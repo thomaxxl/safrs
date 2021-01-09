@@ -352,7 +352,7 @@ class SAFRSRestAPI(Resource):
         if not instance:
             raise ValidationError("No instance with ID")
         instance._s_patch(**attributes)
-
+        
         return instance
 
     def post(self, **kwargs):
@@ -603,7 +603,6 @@ class SAFRSRestRelationshipAPI(Resource):
                 links["related"] = instance._s_url
             meta.update(dict(instance_meta=instance._s_meta()))
         elif child_id:
-            safrs.log.debug("Fetching relationship items by path id is deprecated and may be removed in future versions")
             data = child = self.target.get_instance(child_id)
             links = {"self": child._s_url}
             # If {ChildId} is passed in the url, return the child object
