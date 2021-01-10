@@ -111,9 +111,9 @@ class SAFRSBase(Model):
     _rest_api = safrs.jsonapi.SAFRSRestAPI
     _relationship_api = safrs.jsonapi.SAFRSRestRelationshipAPI
     _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
-    
-    _s_upsert = True # indicates we want to lookup and use existing objects
-    
+
+    _s_upsert = True  # indicates we want to lookup and use existing objects
+
     included_list = None
 
     def __new__(cls, *args, **kwargs):
@@ -723,7 +723,7 @@ class SAFRSBase(Model):
             # Multiple related resources can be requested in a comma-separated list
             included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
             included_list = [inc for inc in included_csv.split(",") if inc]
-            
+
         excluded_csv = request.args.get("exclude", "")
         excluded_list = excluded_csv.split(",")
         # In order to recursively request related resources
@@ -807,7 +807,7 @@ class SAFRSBase(Model):
                         for rel_item in items:
                             data.append(Included(rel_item, next_included_list))
                 else:  # pragma: no cover
-                    # shouldn't happen!!
+                    # should never happen
                     safrs.log.error("Unknown relationship direction for relationship {}: {}".format(rel_name, relationship.direction))
 
             rel_link = urljoin(self._s_url, rel_name)
@@ -858,7 +858,7 @@ class SAFRSBase(Model):
                 safrs.log.warning("Failed to retrieve sample id for {}".format(cls))
 
         sample_id = cls.id_type.sample_id(cls)
-        return str(sample_id) # jsonapi ids must always be strings
+        return str(sample_id)  # jsonapi ids must always be strings
 
     @classmethod
     def _s_sample_dict(cls):
@@ -1091,7 +1091,7 @@ class Included:
     @hybrid_method
     def encode(self):
         """
-        jsonapi encoding of the instance in the relationship dictionary
+        jsonapi encoding of the instance in the included relationship dictionary
         """
         return {"id": str(self.instance.jsonapi_id), "type": self.instance._s_type}
 
@@ -1109,6 +1109,7 @@ class Included:
             instance = instances.pop()
             if instance in already_included or instance in g.ja_data:
                 continue
-            result.append(instance._s_jsonapi_encode())
+            included = instance._s_jsonapi_encode()
+            result.append(included)
 
         return result
