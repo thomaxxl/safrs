@@ -19,7 +19,7 @@ class SAFRS:
     :param LOGLEVEL: loglevel configuration variable, values from logging module (0: trace, .. 50: critical)
     """
 
-    # Configuration settings, these can be overridden in config.py
+    # Configuration settings are stored as class variables
     MAX_PAGE_LIMIT = 250
     MAX_PAGE_OFFSET = 2 ** 31
     ENABLE_RELATIONSHIPS = True
@@ -39,8 +39,8 @@ class SAFRS:
     #
     config = {}
     filtering_strategy = FilteringStrategy()
-    
-    OPTIMIZED_LOADING=True
+
+    OPTIMIZED_LOADING = True
 
     def __init__(self, app, *args, **kwargs):
         """
@@ -79,12 +79,10 @@ class SAFRS:
             swaggerui_blueprint.json_encoder = JSONEncoder
 
         for conf_name, conf_val in kwargs.items():
-            setattr(self, conf_name, conf_val)
+            setattr(SAFRS, conf_name, conf_val)
 
         for conf_name, conf_val in app.config.items():
-            setattr(self, conf_name, conf_val)
-
-        self.config.update(app.config)
+            setattr(SAFRS, conf_name, conf_val)
 
         @app.before_request
         def handle_invalid_usage():
@@ -92,7 +90,8 @@ class SAFRS:
 
         @app.before_request
         def init_ja_data():
-            # ja_data holds all data[] that will be encoded
+            # ja_data holds all data[] instances that will be encoded
+            # ja_included holds all included instances
             g.ja_data = set()
             g.ja_included = set()
 
@@ -139,6 +138,7 @@ def test_decorator(func):  # pragma: no cover
     """Example flask-restful decorator that can be used in the "decorators" Api argument
     cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     """
+
     @wraps(func)
     def api_wrapper(*args, **kwargs):
         return func(*args, **kwargs)
