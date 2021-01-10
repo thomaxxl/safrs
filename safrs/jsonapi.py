@@ -352,7 +352,7 @@ class SAFRSRestAPI(Resource):
         if not instance:
             raise ValidationError("No instance with ID")
         instance._s_patch(**attributes)
-        
+
         return instance
 
     def post(self, **kwargs):

@@ -18,21 +18,21 @@ def create_query(cls):
         :param cls: class (collection) we want to query
     """
     query = cls._s_query
-    
+
     if not safrs.SAFRS.OPTIMIZED_LOADING:
-        return
+        return query
     included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
     included_list = [inc for inc in included_csv.split(",") if inc]
-    
+
     for inc in included_list:
         current_cls = cls
         options = None
-        for inc_rel_name in inc.split('.'):
+        for inc_rel_name in inc.split("."):
             if inc_rel_name not in current_cls._s_relationships:
                 safrs.log.error("Invalid relationship : {}.{}".format(current_cls, inc_rel_name))
                 break
-            inc_rel = getattr(current_cls, inc_rel_name) 
-            if current_cls._s_relationships[inc_rel_name].lazy not in ['select', 'joined', 'subquery', 'selectin']:
+            inc_rel = getattr(current_cls, inc_rel_name)
+            if current_cls._s_relationships[inc_rel_name].lazy not in ["select", "joined", "subquery", "selectin"]:
                 # we can't set options for lazy_load 'dynamic'/'eager'/'raise' relationships
                 # not setting them on 'noload' either
                 break
@@ -40,8 +40,9 @@ def create_query(cls):
             current_cls = inc_rel.mapper.class_
         if options:
             query = query.options(options)
-            
+
     return query
+
 
 @classmethod
 def jsonapi_filter(cls):
