@@ -95,11 +95,12 @@ def search(cls, **kwargs):  # pragma: no cover
         col_name: value
     """
     query = kwargs.get("query", "")
+    columns = [ c for c in cls._s_columns if c.type.python_type in [str, int, float] ]
     if ":" in query:
         column_name, value = query.split(":")
-        result = cls.query.filter(or_(column.like("%" + value + "%") for column in cls._s_columns if column.name == column_name))
+        result = cls.query.filter(or_(column.like("%" + value + "%") for column in columns if column.name == column_name))
     else:
-        result = cls.query.filter(or_(column.like("%" + query + "%") for column in cls._s_columns))
+        result = cls.query.filter(or_(column.like("%" + query + "%") for column in columns))
     instances = jsonapi_sort(result, cls)
     links, instances, count = paginate(instances)
     data = [item for item in instances]
