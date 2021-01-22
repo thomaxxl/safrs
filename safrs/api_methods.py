@@ -95,7 +95,7 @@ def search(cls, **kwargs):  # pragma: no cover
         col_name: value
     """
     query = kwargs.get("query", "")
-    columns = [ c for c in cls._s_columns if c.type.python_type in [str, int, float] ]
+    columns = [c for c in cls._s_columns if c.type.python_type in [str, int, float]]
     if ":" in query:
         column_name, value = query.split(":")
         result = cls.query.filter(or_(column.like("%" + value + "%") for column in columns if column.name == column_name))
