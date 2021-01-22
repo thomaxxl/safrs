@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-  This demo application demonstrates the functionality of the safrs documented REST API
-  When safrs is installed, you can run this app:
-  $ python3 demo_relationship.py [Listener-IP]
 
-  This will run the example on http://Listener-Ip:5000
+Custom Filtering Example:
 
-  - An sqlite database is created and populated
-  - A jsonapi rest API is created
-  - Swagger documentation is generated
+* Like:
+http://server:5000/People/?filter[name][like]=user1%
+* In:
+http://server:5000/People/?filter[id][in]=[1,2]
 
 """
 import sys
