@@ -1037,6 +1037,7 @@ class SAFRSBase(Model):
         Each filter object has the following fields:
           - name: The name of the field you want to filter on.
           - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
+              - like: Invoke SQL like
               - eq: check if field is equal to something
               - ge: check if field is greater than or equal to something
               - gt: check if field is greater than to something
@@ -1058,16 +1059,20 @@ class SAFRSBase(Model):
         expressions = []
         for filt in filters:
             attr_name = filt.get("name")
+            attr_val = filt.get("val")
             if attr_name not in cls._s_jsonapi_attrs:
                 raise ValidationError('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
 
             op_name = filt.get("op", "").strip("_")
-            if not hasattr(operator, op_name):
+            if op_name == "like":
+                column = getattr(cls, attr_name)
+                return cls._s_query.filter(column.like(attr_val))
+            elif not hasattr(operator, op_name):
                 raise ValidationError('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
 
             attr = cls._s_jsonapi_attrs[attr_name]
             op = getattr(operator, op_name)
-            expressions.append(op(attr, filt.get("val")))
+            expressions.append(op(attr, attr_val))
         return cls._s_query.filter(*expressions)
 
 
@@ -1103,8 +1108,8 @@ class Included:
         already_included = set()
         result = []
         while True:
-            instances = getattr(g, "ja_included", set())
-            if not len(instances):
+            instances = getattr(g, "ja_included", None)
+            if not instances:
                 break
             instance = instances.pop()
             if instance in already_included or instance in g.ja_data:
