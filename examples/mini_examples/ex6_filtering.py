@@ -14,13 +14,10 @@ import sys
 import json
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_attr
-import sqlalchemy
-import safrs
+from safrs import SAFRSBase, SAFRSAPI, ValidationError
 import re
 import operator
 from flask import request
-from sqlalchemy.orm import joinedload
 
 
 db = SQLAlchemy()
@@ -28,8 +25,8 @@ db = SQLAlchemy()
 
 @classmethod
 def jsonapi_filter_achim(cls):
-    
-    filters  = []
+
+    filters = []
     expressions = []
     for req_arg, val in request.args.items():
         filter_attr = re.search(r"filter\[(\w+)\]\[(\w+)\]", req_arg)
@@ -38,17 +35,17 @@ def jsonapi_filter_achim(cls):
             op = filter_attr.group(2)
             if op in ["in", "notin"]:
                 val = json.loads(val)
-            filters.append({ "name" : name , "op" : op , "val" : val})
+            filters.append({"name": name, "op": op, "val": val})
             continue
-        
+
         filter_attr = re.search(r"filter\[(\w+)\]", req_arg)
         if filter_attr:
             name = filter_attr.group(1)
             op = "eq"
-            filters.append({ "name" : name , "op" : op , "val" : val})
-            
+            filters.append({"name": name, "op": op, "val": val})
+
     query = cls._s_query
-    
+
     for filt in filters:
         attr_name = filt.get("name")
         attr_val = filt.get("val")
@@ -72,21 +69,20 @@ def jsonapi_filter_achim(cls):
 
     return query.filter(*expressions)
 
- 
+
 class BaseModel(SAFRSBase, db.Model):
     __abstract__ = True
     jsonapi_filter = jsonapi_filter_achim
-    
+
 
 class Person(BaseModel):
     """
-        description: My person description
+    description: My person description
     """
 
     __tablename__ = "People"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, default="John Doe")
-
 
 
 def create_app(config_filename=None, host="localhost"):
@@ -95,7 +91,6 @@ def create_app(config_filename=None, host="localhost"):
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
 
-    
     with app.app_context():
         db.create_all()
         api = SAFRSAPI(app, host=host, port=5000)
@@ -104,10 +99,9 @@ def create_app(config_filename=None, host="localhost"):
         # Populate the db with users and a books and add the book to the user.books relationship
         for i in range(20):
             user = Person(name=f"user{i}", email=f"email{i}@email.com")
-            
-            
-    
+
     return app
+
 
 # address where the api will be hosted, change this if you're not running the app on localhost!
 host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"
