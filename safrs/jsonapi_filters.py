@@ -11,11 +11,11 @@ from sqlalchemy.orm import joinedload
 
 def create_query(cls):
     """
-        Create a query for the target collection `cls`.
-        If `include=` query parameters are given, the corresponding relationships will be joined loaded if possible
-        See: https://docs.sqlalchemy.org/en/13/orm/loading_relationships.html
-        
-        :param cls: class (collection) we want to query
+    Create a query for the target collection `cls`.
+    If `include=` query parameters are given, the corresponding relationships will be joined loaded if possible
+    See: https://docs.sqlalchemy.org/en/13/orm/loading_relationships.html
+
+    :param cls: class (collection) we want to query
     """
     query = cls._s_query
 
@@ -156,7 +156,6 @@ def get_swagger_filters(cls):
         "required": False,
         "description": "Custom {} filter".format(cls.SAFRSObject._s_class_name),
     }
-
 
 class FilteringStrategy:
     def __init__(self, jsonapi_filter=jsonapi_filter, swagger_gen=get_swagger_filters):
