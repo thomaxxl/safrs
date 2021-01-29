@@ -85,7 +85,9 @@ class SAFRSJSONEncoder(JSONEncoder):
         if isinstance(obj, decimal.Decimal):  # pragma: no cover
             return str(obj)
         if isinstance(obj, bytes):  # pragma: no cover
-            safrs.log.warning("bytes obj, override SAFRSJSONEncoder")
+            if obj == b"":
+                return ""
+            safrs.log.debug("SAFRSJSONEncoder: serializing bytes obj")
             return obj.hex()
 
         # We shouldn't get here in a normal setup
