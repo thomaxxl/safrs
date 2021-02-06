@@ -77,7 +77,9 @@ def jsonapi_sort(object_query, safrs_object):
                 safrs.log.debug("{} has no attribute {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-                object_query = sorted(list(object_query), key=lambda obj: (getattr(obj, sort_attr) is None, getattr(obj, sort_attr)), reverse=reverse)
+                object_query = sorted(
+                    list(object_query), key=lambda obj: (getattr(obj, sort_attr) is None, getattr(obj, sort_attr)), reverse=reverse
+                )
             elif is_jsonapi_attr(attr):
                 # to do: implement sorting for jsonapi_attr
                 safrs.log.debug("sorting not implemented for {}".format(attr))
