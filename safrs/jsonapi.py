@@ -229,7 +229,8 @@ class SAFRSRestAPI(Resource):
         HTTP GET: return instances
         If no id is given: return all instances
         If an id is given, get an instance by id
-        If a method is given, call the method on the instance
+
+        id is specified by self._s_object_id, f.i. {UserId}
 
         http://jsonapi.org/format/#document-top-level
 
@@ -252,11 +253,9 @@ class SAFRSRestAPI(Resource):
         errors = None
         links = None
 
-        id = kwargs.get(self._s_object_id, None)
-        # method_name = kwargs.get('method_name','')
-
-        if id:
+        if self._s_object_id in kwargs:
             # Retrieve a single instance
+            id = kwargs[self._s_object_id]
             instance = self.SAFRSObject.get_instance(id)
             data = instance
             links = {"self": instance._s_url}
