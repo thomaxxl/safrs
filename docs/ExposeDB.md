@@ -1,6 +1,6 @@
 # Expose an Existing Database as a JSON API with Flask, SQLAlchemy and OpenApi
 
-Update: The [ApiLogicServer](https://github.com/valhuber/ApiLogicServer) project implements this functionality.
+**Update: The [ApiLogicServer](https://github.com/valhuber/ApiLogicServer) project implements this functionality.**
 
 ## Introduction
 This document describes how to expose a database as a [JSON:API](http://jsonapi.org/) REST api. 
