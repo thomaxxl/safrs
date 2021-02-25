@@ -31,8 +31,8 @@ def create_query(cls):
             if inc_rel_name not in current_cls._s_relationships:
                 safrs.log.error("Invalid relationship : {}.{}".format(current_cls, inc_rel_name))
                 break
-            inc_rel = getattr(current_cls, inc_rel_name) # == current_cls._s_relationships[inc_rel_name]
-            if not hasattr(inc_rel, 'lazy') or inc_rel.lazy not in ["select", "joined", "subquery", "selectin"]:
+            inc_rel = getattr(current_cls, inc_rel_name)  # == current_cls._s_relationships[inc_rel_name]
+            if not hasattr(inc_rel, "lazy") or inc_rel.lazy not in ["select", "joined", "subquery", "selectin"]:
                 # we can't set options for lazy_load 'dynamic'/'eager'/'raise' relationships
                 # not setting them on 'noload' either
                 break
@@ -156,6 +156,7 @@ def get_swagger_filters(cls):
         "required": False,
         "description": "Custom {} filter".format(cls.SAFRSObject._s_class_name),
     }
+
 
 class FilteringStrategy:
     def __init__(self, jsonapi_filter=jsonapi_filter, swagger_gen=get_swagger_filters):

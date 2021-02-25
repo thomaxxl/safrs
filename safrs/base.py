@@ -113,6 +113,7 @@ class SAFRSBase(Model):
     _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
 
     _s_upsert = True  # indicates we want to lookup and use existing objects
+    _s_allow_add_rels = True  # allow relationships to be added in post requests
 
     included_list = None
 
@@ -230,7 +231,7 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
-    def _s_post(cls, id=None, **attributes):
+    def _s_post(cls, id=None, **params):
         """
         This method is called when a new item is created with a POST to the json api
 
@@ -241,7 +242,7 @@ class SAFRSBase(Model):
         The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
         """
         # remove attributes that are not declared in _s_jsonapi_attrs
-        attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name in cls._s_jsonapi_attrs}
+        attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_attrs}
 
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
         # SAFRSObject allow_client_generated_ids attribute
@@ -256,6 +257,9 @@ class SAFRSBase(Model):
         # If the instance (id) already exists, it will be updated with the data
         # pylint: disable=not-callable
         instance = cls(**attributes)
+
+        if instance._s_allow_add_rels:
+            instance._add_rels(**params)
 
         if not instance._s_auto_commit:
             #
@@ -293,6 +297,45 @@ class SAFRSBase(Model):
         Delete the instance from the database
         """
         safrs.DB.session.delete(self)
+
+    def _add_rels(self, **params):
+        """
+            Add relationship data provided in a POST
+            https://jsonapi.org/format/#crud-creating
+        """
+
+        def data2inst(data):
+            if not (isinstance(data, dict) and "id" in data and "type" in data and data["type"] in subclasses):
+                raise ValidationError("Invalid relationship payload: {}".format(data))
+            target_class = subclasses[data["type"]]
+            return target_class._s_post(data["id"], **data.get("attributes", {}), **data.get("relationships", {}))
+
+        subclasses = {c._s_type: c for c in SAFRSBase.__subclasses__()}
+        while True:
+            cont = False
+            for subclass in [sc for r in subclasses.values() for sc in r.__subclasses__()]:
+                if hasattr(subclass, "_s_type") and subclass._s_type not in subclasses and Model in inspect.getmro(subclass):
+                    cont = True
+                    subclasses[subclass._s_type] = subclass
+            if not cont:
+                break
+
+        for rel_name, rel_val in params.items():
+            rel = self._s_relationships.get(rel_name)
+            if not rel:
+                continue
+            if not isinstance(rel_val, dict) or not "data" in rel_val:
+                raise ValidationError("Invalid relationship payload: {}".format(rel_val))
+            self.included_list = [rel_name]
+            rel_data = rel_val["data"]
+            if isinstance(rel_data, list) and rel.direction in (ONETOMANY, MANYTOMANY):
+                rel_inst = [data2inst(rd) for rd in rel_data]
+                setattr(self, rel_name, rel_inst)
+            elif isinstance(rel_data, dict) and rel.direction == MANYTOONE:
+                inst = data2inst(rel_data)
+                setattr(self, rel_name, inst)
+            else:
+                raise ValidationError("Invalid relationship payload")
 
     @hybrid_property
     def http_methods(self):

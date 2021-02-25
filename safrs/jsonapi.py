@@ -456,7 +456,9 @@ class SAFRSRestAPI(Resource):
             client_generated_id = data.get("id", None)
             attributes["id"] = client_generated_id
 
-        instance = self.SAFRSObject._s_post(**attributes)
+        relationships = data.get("relationships", {})
+
+        instance = self.SAFRSObject._s_post(**attributes, **relationships)
 
         return instance
 
