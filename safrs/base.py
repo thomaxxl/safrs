@@ -290,7 +290,9 @@ class SAFRSBase(Model):
                 continue
             attr_val = self._s_parse_attr_value(attr_name, attr_val)
             setattr(self, attr_name, attr_val)
-        safrs.DB.session.commit()
+
+        # query ourself, this will also execute sqla hooks
+        return self.get_instance(self.jsonapi_id)
 
     def _s_delete(self):
         """
