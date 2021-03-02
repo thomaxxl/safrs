@@ -20,6 +20,7 @@ class Order(SAFRSBase, db.Model):
     __tablename__ = "Orders"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
+    _s_auto_commit = False
 
     @classmethod
     @jsonapi_rpc(http_methods=["POST"])

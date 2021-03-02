@@ -30,7 +30,6 @@ from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
 from .util import classproperty
 
-
 #
 # Map SQLA types to swagger2 json types
 # json supports only a couple of basic data types, which makes our job pretty easy :)
@@ -258,8 +257,7 @@ class SAFRSBase(Model):
         # pylint: disable=not-callable
         instance = cls(**attributes)
 
-        if instance._s_allow_add_rels:
-            instance._add_rels(**params)
+        instance._add_rels(**params)
 
         if not instance._s_auto_commit:
             #
@@ -302,33 +300,30 @@ class SAFRSBase(Model):
 
     def _add_rels(self, **params):
         """
-            Add relationship data provided in a POST
-            https://jsonapi.org/format/#crud-creating
+        Add relationship data provided in a POST, cfr. https://jsonapi.org/format/#crud-creating
+        **params contains the (HTTP POST) parameters
+
+        only works if self._s_allow_add_rels was set.
         """
 
         def data2inst(data):
+            subclasses = self._safrs_subclasses()
             if not (isinstance(data, dict) and "id" in data and "type" in data and data["type"] in subclasses):
                 raise ValidationError("Invalid relationship payload: {}".format(data))
             target_class = subclasses[data["type"]]
             return target_class._s_post(data["id"], **data.get("attributes", {}), **data.get("relationships", {}))
 
-        subclasses = {c._s_type: c for c in SAFRSBase.__subclasses__()}
-        while True:
-            cont = False
-            for subclass in [sc for r in subclasses.values() for sc in r.__subclasses__()]:
-                if hasattr(subclass, "_s_type") and subclass._s_type not in subclasses and Model in inspect.getmro(subclass):
-                    cont = True
-                    subclasses[subclass._s_type] = subclass
-            if not cont:
-                break
-
         for rel_name, rel_val in params.items():
             rel = self._s_relationships.get(rel_name)
             if not rel:
                 continue
+            if not self._s_allow_add_rels:
+                raise ValidationError("Cannot add relationships (_s_allow_add_rels not set)")
             if not isinstance(rel_val, dict) or not "data" in rel_val:
                 raise ValidationError("Invalid relationship payload: {}".format(rel_val))
-            self.included_list = [rel_name]
+            if not self.included_list:
+                self.included_list = []
+            self.included_list += [rel_name]
             rel_data = rel_val["data"]
             if isinstance(rel_data, list) and rel.direction in (ONETOMANY, MANYTOMANY):
                 rel_inst = [data2inst(rd) for rd in rel_data]
@@ -338,6 +333,23 @@ class SAFRSBase(Model):
                 setattr(self, rel_name, inst)
             else:
                 raise ValidationError("Invalid relationship payload")
+
+    @staticmethod
+    @lru_cache(maxsize=4)
+    def _safrs_subclasses():
+        """
+        return a dict containing all SAFRSBase subclasses
+        """
+        subclasses = {c._s_type: c for c in SAFRSBase.__subclasses__()}
+        while True:
+            cont = False
+            for subclass in [sc for r in subclasses.values() for sc in r.__subclasses__()]:
+                if hasattr(subclass, "_s_type") and subclass._s_type not in subclasses and Model in inspect.getmro(subclass):
+                    cont = True
+                    subclasses[subclass._s_type] = subclass
+            if not cont:
+                break
+        return subclasses
 
     @hybrid_property
     def http_methods(self):
@@ -673,9 +685,13 @@ class SAFRSBase(Model):
         """
         :return: sqla query object
         """
-
+        result = None
         _table = getattr(cls_or_self, "_table", None)
-        result = safrs.DB.session.query(cls_or_self)
+        try:
+            result = safrs.DB.session.query(cls_or_self)
+        except sqlalchemy.exc.InvalidRequestError as exc:
+            safrs.log.warning("Invalid request")
+
         if _table:
             result = safrs.DB.session.query(_table)
 

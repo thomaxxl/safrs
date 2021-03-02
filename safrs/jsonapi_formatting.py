@@ -200,6 +200,9 @@ def paginate(object_query, SAFRSObject=None):
     elif isinstance(object_query, dict):
         # (might happen when using a custom filter)
         instances = object_query
+    elif not hasattr(object_query, "offset"):
+        # in case the query is emulated
+        instances = []
     else:
         try:
             res_query = object_query.offset(page_offset).limit(limit)
