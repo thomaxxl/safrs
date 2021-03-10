@@ -463,6 +463,13 @@ class SAFRSBase(Model):
         if property_name in cls.exclude_attrs:
             return False
 
+        if is_jsonapi_attr(cls.__dict__.get(property_name, None)):  # avoid getattr here
+            return True
+
+        if not hasattr(cls, "__mapper__"):
+            # Stateless objects
+            return False
+
         for rel in cls.__mapper__.relationships:
             if not cls.supports_includes:
                 continue
@@ -486,9 +493,6 @@ class SAFRSBase(Model):
             if getattr(column, "expose", True) and permission in getattr(column, "permissions", "rw"):
                 return True
             return False
-
-        if is_jsonapi_attr(cls.__dict__.get(property_name, None)):  # avoid getattr here
-            return True
 
         raise SystemValidationError("Invalid property {}".format(property_name))
 
@@ -909,6 +913,8 @@ class SAFRSBase(Model):
         :return: a sample id for the API documentation
         """
         sample = None
+        if cls.query is None:
+            return sample
         try:
             sample = cls.query.first()
         except Exception as exc:
