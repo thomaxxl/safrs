@@ -9,7 +9,7 @@ import logging
 from flask import Flask, redirect, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc, jsonapi_attr
 from safrs.safrs_types import SAFRSID
 from safrs.util import classproperty
 from collections import namedtuple
@@ -143,20 +143,13 @@ class Test(SAFRSBase):
         """
         return {"books" : cls.books}
 
-    @property
-    def _s_jsonapi_attrs(self):
-        """
-            return the attributes kv pairs
-        """
-        return {"name": self.name, "my_custom_field": self.my_custom_field}
-
-    @classproperty
-    def _s_jsonapi_attrs(cls):
-        """
-            return the attribute names used to generate the swagger
-            in SAFRSbase the model columns are returned
-        """
-        return {"id": None, "name": None, "my_custom_field": None}
+    @jsonapi_attr
+    def name(self):
+        return "My Name"
+        
+    @jsonapi_attr
+    def my_custom_field(self):
+        return -1
 
     @classproperty
     def _s_url(self):
