@@ -230,6 +230,13 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
+    def _s_get(cls):
+        """
+            This method is called when a collection is requested with a HTTP GET to the json api
+        """
+        return cls.jsonapi_filter()
+
+    @classmethod
     def _s_post(cls, id=None, **params):
         """
         This method is called when a new item is created with a POST to the json api

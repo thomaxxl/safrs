@@ -83,7 +83,7 @@ def jsonapi_sort(object_query, safrs_object):
             elif is_jsonapi_attr(attr):
                 # to do: implement sorting for jsonapi_attr
                 safrs.log.debug("sorting not implemented for {}".format(attr))
-            else:
+            elif hasattr(object_query, "order_by"):
                 try:
                     # This may fail on non-sqla objects, eg. properties
                     object_query = object_query.order_by(attr)

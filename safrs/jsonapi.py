@@ -265,7 +265,7 @@ class SAFRSRestAPI(Resource):
             meta.update(dict(instance_meta=instance._s_meta()))
         else:
             # retrieve a collection, filter and sort
-            instances = self.SAFRSObject.jsonapi_filter()
+            instances = self.SAFRSObject._s_get()
             instances = jsonapi_sort(instances, self.SAFRSObject)
             links, data, count = paginate(instances, self.SAFRSObject)
 
