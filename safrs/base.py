@@ -230,7 +230,7 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
-    def _s_get(cls):
+    def _s_get(cls, **kwargs):
         """
             This method is called when a collection is requested with a HTTP GET to the json api
         """
