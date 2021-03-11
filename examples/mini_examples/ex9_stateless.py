@@ -2,6 +2,10 @@
 #
 # This example shows how you can implement a SAFRS endpoint without a SQLAlchemy model
 #
+# Jsonapi serialization relies heavily on the idea that backend objects represent
+# collections and relationships.
+#
+#
 import sys
 import logging
 from flask import Flask, redirect, request
@@ -12,7 +16,6 @@ from safrs.safrs_types import SAFRSID
 from safrs.util import classproperty
 from collections import namedtuple
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
 
 db = SQLAlchemy()
 
@@ -45,6 +48,27 @@ class Test(SAFRSBase):
         self.name = kwargs.get("name")
 
     @classmethod
+    def _s_get(cls, **kwargs):
+        """
+            Called for a HTTP GET
+        """
+        print(f"Get with {kwargs}")
+        return cls.instances
+
+    @classmethod
+    def get_instance(cls, id, failsafe=False):
+        """
+            Return the instance specified by id
+            Called for "GET /{Id}" (and other operations)
+        """
+        print(f"Get {id}")
+        for instance in cls.instances:
+            print(instance, instance.id)
+            if str(instance.id) == id:
+                return instance
+        return None
+
+    @classmethod
     def _s_post(cls, *args, **kwargs):
         """
             Called for a HTTP POST
@@ -60,15 +84,21 @@ class Test(SAFRSBase):
         print(f"Patch with {kwargs}")
         return self
 
-    @classmethod
-    def jsonapi_filter(cls):
+    def _s_delete(self):
         """
-            Called for a HTTP GET (collection)
+            Called for a HTTP DELETE
         """
-        return cls.instances
+        print(f"Delete {self}")
+
+    @property
+    def jsonapi_id(self):
+        return self.id
 
     @classmethod
     def _s_count(cls):
+        """
+            jsonapi response count parameter
+        """
         return 1
 
     @jsonapi_attr
@@ -78,24 +108,6 @@ class Test(SAFRSBase):
     @jsonapi_attr
     def my_custom_field(self):
         return -1
-
-    @property
-    def jsonapi_id(self):
-        return self.id
-
-    @classmethod
-    def get_instance(cls, id, failsafe=False):
-        """
-            return the instance specified by id
-        """
-        for instance in cls.instances:
-            if instance.id == id:
-                return instance
-        return None
-
-    @classproperty
-    def class_(cls):
-        return cls
 
 
 HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
