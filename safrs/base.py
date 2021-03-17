@@ -700,11 +700,14 @@ class SAFRSBase(Model):
         _table = getattr(cls_or_self, "_table", None)
         try:
             result = safrs.DB.session.query(cls_or_self)
-        except sqlalchemy.exc.InvalidRequestError as exc:
+        except (sqlalchemy.exc.InvalidRequestError, sqlalchemy.exc.ArgumentError) as exc:
             # this may happen when exposing a stateless object, in which case
             # the warning can be ignored.
             if getattr(cls_or_self, "_s_stateless", None):
                 safrs.log.warning("Invalid SQLA request")
+        except Exception as exc:
+            safrs.log.exception(exc)
+            safrs.log.error(exc)
 
         if _table:
             result = safrs.DB.session.query(_table)
