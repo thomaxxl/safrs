@@ -264,6 +264,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
     else:
         raise SystemValidationError("method {} not found".format(method_name))
 
+    f_args = inspect.getfullargspec(method).args
     rest_doc = get_doc(method)
     description = rest_doc.get("description", "")
     if rest_doc:
@@ -296,10 +297,9 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                         "description": description,
                     }
                     parameters += param
-    elif http_method != "options":
+    elif f_args and http_method != "options":
         safrs.log.warning('No documentation for method "{}"'.format(method_name))
         # jsonapi_rpc method has no documentation, generate it w/ inspect
-        f_args = inspect.getfullargspec(method).args
         f_defaults = inspect.getfullargspec(method).defaults or []
         if f_args[0] in ("cls", "self"):
             f_args = f_args[1:]
