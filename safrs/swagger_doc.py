@@ -267,7 +267,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
     f_args = inspect.getfullargspec(method).args
     rest_doc = get_doc(method)
     description = rest_doc.get("description", "")
-    if rest_doc:
+    if rest_doc is not None:
         method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
         parameters = rest_doc.get("parameters", [])  # query string parameters
         if method_args and isinstance(method_args, dict):
