@@ -14,7 +14,7 @@ flask-swagger-ui==3.20.9
 Flask-Testing==0.7.1
 inflect==2.1.0
 itsdangerous==1.1.0
-Jinja2==2.11.2
+Jinja2==2.11.3
 jsonschema==3.0.1
 MarkupSafe==1.1.1
 marshmallow==3.7.1
