@@ -301,7 +301,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         # jsonapi_rpc method has no documentation, generate it w/ inspect
         f_args = inspect.getfullargspec(method).args
         f_defaults = inspect.getfullargspec(method).defaults or []
-        if f_args[0] in ("cls", "self"):
+        if f_args and f_args[0] in ("cls", "self"):
             f_args = f_args[1:]
         args = dict(zip(f_args, f_defaults))
         model_name = "{}_{}".format(cls.__name__, method_name)
