@@ -35,12 +35,6 @@ class JABase(SAFRSBase):
         """
         return {}
 
-    @classmethod
-    def post(cls, *args, **kwargs):
-        """
-        description: JA POST
-        """
-        return {}
 
     def patch(self, *args, **kwargs):
         """
