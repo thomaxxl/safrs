@@ -276,7 +276,13 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                 """
                 model_name = "{}_{}".format(cls.__name__, method_name)
                 method_field = {"method": method_name, "args": method_args}
-                fields["meta"] = schema_from_object(model_name, method_field)
+                if getattr(method, "valid_jsonapi", True):
+                    payload = schema_from_object(model_name, method_field)
+                    fields["meta"] = payload
+                else:
+                    # todo: maybe get function args from inspect
+                    for k, v in method_args.items():
+                        fields[k] =  {"example": v }
         if rest_doc.get(PAGEABLE):
             parameters += default_paging_parameters()
         if rest_doc.get(FILTERABLE):

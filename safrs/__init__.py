@@ -8,6 +8,7 @@ from .errors import ValidationError, GenericError, UnAuthorizedError, NotFoundEr
 from .json_encoder import SAFRSJSONEncoder, SAFRSFormattedResponse
 from .safrs_api import SAFRSAPI
 from .base import SAFRSBase
+from .jabase import JABase
 from .jsonapi_attr import jsonapi_attr
 from .jsonapi import jsonapi_format_response, paginate
 from .api_methods import search, startswith
@@ -29,6 +30,7 @@ __all__ = (
     "paginate",
     "jsonapi_format_response",
     "SAFRSFormattedResponse",
+    "JABase",
     # api_methods:
     "search",
     "startswith",
