@@ -92,7 +92,7 @@ def search(cls, **kwargs):  # pragma: no cover
     pageable: True
     description : lookup column names
     args:
-        col_name: value
+        query: val
     """
     query = kwargs.get("query", "")
     columns = [c for c in cls._s_columns if c.type.python_type in [str, int, float]]
