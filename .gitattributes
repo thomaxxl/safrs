@@ -1,4 +1,4 @@
-swagger-editor/* linguist-vendored
-jsonapi-admin/* linguist-vendored
-codegen/* linguist-vendored
+swagger-editor/* linguist-vendored=true
+jsonapi-admin/* linguist-vendored=true
+codegen/* linguist-vendored=true
 *.py diff=python
