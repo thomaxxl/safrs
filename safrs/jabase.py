@@ -1,4 +1,5 @@
 from .base import SAFRSBase
+from .util import classproperty
 
 
 class JABase(SAFRSBase):
@@ -8,7 +9,6 @@ class JABase(SAFRSBase):
 
     instances = []
 
-    _s_type = "JAType"
     _s_url = "https://safrs/.."
     _s_relationships = {}
     _s_query = None
@@ -28,6 +28,15 @@ class JABase(SAFRSBase):
         self.id = kwargs.get("id")
         # self.name = kwargs.get("name")
 
+    @classproperty
+    def s_type(cls):
+        """
+        Implementations should override this to provide custom types
+        
+        :return: jsonapi type string
+        """
+        return "JAType_" + cls.__name__
+    
     @classmethod
     def get(cls, *args, **kwargs):
         """
