@@ -455,6 +455,8 @@ class SAFRSRestAPI(Resource):
         if self.SAFRSObject.allow_client_generated_ids:
             client_generated_id = data.get("id", None)
             attributes["id"] = client_generated_id
+        elif "id" in data:
+            safrs.log.warning("Client-generated ids are not allowed for {}".format(self.SAFRSObject))
 
         relationships = data.get("relationships", {})
 
