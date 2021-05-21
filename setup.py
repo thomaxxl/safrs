@@ -9,7 +9,7 @@ def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.11.3"
+    version = "2.11.4"
 
     setup(
         name="safrs",
@@ -33,6 +33,7 @@ def safrs_setup():
             "Topic :: Software Development :: Libraries",
             "Environment :: Web Environment",
             "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3.10",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.7",
