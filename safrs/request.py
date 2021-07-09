@@ -28,8 +28,6 @@ class SAFRSRequest(Request):
     """
 
     jsonapi_content_types = ["application/json", "application/vnd.api+json"]
-    page_offset = 0
-    page_limit = 100
     is_jsonapi = False  # indicates whether this is a jsonapi request
     _extensions = set()
     filters = {}
@@ -67,6 +65,34 @@ class SAFRSRequest(Request):
                 self._extensions.add(ext_name)
 
     @property
+    def page_offset(self):
+        """
+        :return: page offset requested by the client when fetching lists
+
+        Json:API supports multiple paging strategies.
+        (https://jsonapi.org/format/#fetching-pagination)
+        Here we extract the paging parameters to be used by sqla from the url query string.
+        If the client uses page[number] instead of page[offset], then we transform the
+        number parameter to an offset
+        """
+        page_offset = self.args.get("page[offset]", 0, type=int)
+        if page_offset == 0 and "page[number]" in self.args and "page[size]" in self.args:
+            page_size = self.args.get("page[size]", type=int)
+            page_number = self.args.get("page[number]", type=int) - 1
+            page_offset = page_number * page_size
+        return page_offset
+
+    @property
+    def page_limit(self):
+       """
+       :return: page limit requested by the client when fetching lists
+       """
+       page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
+       if "page[number]" in self.args and "page[size]" in self.args:
+           return self.args.get("page[size]", type=int)
+       return page_limit 
+
+    @property
     def is_bulk(self):
         """
         jsonapi bulk extension, http://springbot.github.io/json-api/extensions/bulk/
@@ -98,8 +124,6 @@ class SAFRSRequest(Request):
         - fields[]
         """
 
-        self.page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
-        self.page_offset = self.args.get("page[offset]", 0, type=int)
         self.filters = {}
         self.fields = {}
 

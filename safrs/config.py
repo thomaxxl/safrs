@@ -90,9 +90,6 @@ def get_request_param(param, default=0):
     :rtype: Boolean
     """
     result = getattr(request, param, None)
-    if result is None:  # pragma: no cover
-        safrs.log.error('Legacy Request parameter "{}", consider upgrading'.format(param))
-        result = default
     return result
 
 

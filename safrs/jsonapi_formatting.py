@@ -133,7 +133,6 @@ def paginate(object_query, SAFRSObject=None):
             + ["page[offset]={}&page[limit]={}".format(count, limit)]
         )
         return result
-
     try:
         page_offset = int(get_request_param("page_offset"))
         limit = int(get_request_param("page_limit", get_config("MAX_PAGE_LIMIT")))
@@ -230,7 +229,7 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
         meta = {}
 
     meta["limit"] = limit
-    meta["count"] = count
+    meta["count"] = meta["total"] = count
 
     jsonapi = dict(version="1.0")
     result = dict(data=data)

@@ -114,6 +114,8 @@ class SAFRSBase(Model):
     _s_upsert = True  # indicates we want to lookup and use existing objects
     _s_allow_add_rels = True  # allow relationships to be added in post requests
 
+    _s_pk_delimiter = '_'
+
     included_list = None
 
     def __new__(cls, *args, **kwargs):
@@ -687,7 +689,7 @@ class SAFRSBase(Model):
         """
         :return: the object's id type
         """
-        id_type = get_id_type(obj)
+        id_type = get_id_type(obj, delimiter=obj._s_pk_delimiter)
         # monkey patch so we don't have to look it up next time
         obj.id_type = id_type
         return id_type
@@ -881,6 +883,7 @@ class SAFRSBase(Model):
                         else:
                             items = list(rel_query)
                             count = len(items)
+                        meta["total"] = count
                         meta["count"] = count
                         meta["limit"] = limit
                         for rel_item in items:

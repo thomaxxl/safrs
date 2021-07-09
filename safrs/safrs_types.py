@@ -87,8 +87,15 @@ class SAFRSID:
     def get_pks(cls, id):
         """
         Convert the id string to a pk dict
+        
+        Note: there may be an issue when the cls.delimiter is contained in an id
         """
-        values = str(id).split(cls.delimiter)
+        if len(cls.columns) == 1:
+            values = [id]
+        else:
+            values = str(id).split(cls.delimiter)
+        if len(values) != len(cls.columns):
+            raise ValidationError("Invalid PKs: {}".format(values))
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
@@ -134,7 +141,7 @@ class SAFRSID:
         return "jsonapi_id_string"
 
 
-def get_id_type(cls, Super=SAFRSID):
+def get_id_type(cls, Super=SAFRSID, delimiter="_"):
     """
     get_id_type
     """
