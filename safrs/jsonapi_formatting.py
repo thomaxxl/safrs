@@ -135,7 +135,7 @@ def paginate(object_query, SAFRSObject=None):
         return result
     try:
         page_offset = int(get_request_param("page_offset"))
-        limit = int(get_request_param("page_limit", get_config("MAX_PAGE_LIMIT")))
+        limit = int(get_request_param("page_limit", get_config("DEFAULT_PAGE_LIMIT")))
     except ValueError:
         raise ValidationError("Pagination Value Error")
 

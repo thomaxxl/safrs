@@ -87,7 +87,7 @@ class SAFRSRequest(Request):
        """
        :return: page limit requested by the client when fetching lists
        """
-       page_limit = self.args.get("page[limit]", get_config("MAX_PAGE_LIMIT"), type=int)
+       page_limit = self.args.get("page[limit]", get_config("DEFAULT_PAGE_LIMIT"), type=int)
        if "page[number]" in self.args and "page[size]" in self.args:
            return self.args.get("page[size]", type=int)
        return page_limit 

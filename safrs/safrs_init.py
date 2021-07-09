@@ -20,7 +20,8 @@ class SAFRS:
     """
 
     # Configuration settings are stored as class variables
-    MAX_PAGE_LIMIT = 250
+    MAX_PAGE_LIMIT = 100000
+    DEFAULT_PAGE_LIMIT = 250
     MAX_PAGE_OFFSET = 2 ** 31
     ENABLE_RELATIONSHIPS = True
     ENABLE_METHODS = True
