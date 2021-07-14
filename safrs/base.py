@@ -868,7 +868,7 @@ class SAFRSBase(Model):
                     if not get_config("ENABLE_RELATIONSHIPS"):
                         meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
                     elif rel_query:
-                        # todo: chekc if lazy=dynamic
+                        # todo: check if lazy=dynamic
                         # In order to work with the relationship as with Query,
                         # you need to configure it with lazy='dynamic'
                         # "limit" may not be possible !
@@ -883,8 +883,7 @@ class SAFRSBase(Model):
                         else:
                             items = list(rel_query)
                             count = len(items)
-                        meta["total"] = count
-                        meta["count"] = count
+                        meta["count"] = meta["total"] = count
                         meta["limit"] = limit
                         for rel_item in items:
                             data.append(Included(rel_item, next_included_list))
@@ -1170,7 +1169,7 @@ class SAFRSBase(Model):
 class Included:
     """
     This class is used to serialize instances that will be included in the jsonapi response
-    we keep a set of instances in `flask.g` to avoid storing duplicates
+    we keep a set of instances in `flask.g.ja_included` to avoid storing duplicates
     """
 
     instance = None
