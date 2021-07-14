@@ -1,0 +1,1800 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "title": "My Customized Demo App",
+        "description": "My SAFRSAPI",
+        "termsOfService": "",
+        "version": "0.0"
+    },
+    "host": "MyHost:5000",
+    "paths": {
+        "/Books/": {
+            "get": {
+                "tags": [
+                    "Books"
+                ],
+                "summary": "Retrieve My collection of Book objects",
+                "parameters": [
+                    {
+                        "default": "user",
+                        "type": "string",
+                        "name": "include",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "My Book relationships to include (csv)"
+                    },
+                    {
+                        "default": "name,user_id",
+                        "type": "string",
+                        "name": "fields[Book]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "My Book fields to include (csv)"
+                    },
+                    {
+                        "default": 0,
+                        "type": "integer",
+                        "name": "page[offset]",
+                        "in": "query",
+                        "format": "int64",
+                        "required": false,
+                        "description": "My Page offset"
+                    },
+                    {
+                        "default": 10,
+                        "type": "integer",
+                        "name": "page[limit]",
+                        "in": "query",
+                        "format": "int64",
+                        "required": false,
+                        "description": "Max number of items"
+                    },
+                    {
+                        "default": "name,user_id,id",
+                        "type": "string",
+                        "name": "sort",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Sort order"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[name]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "name attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[user_id]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "user_id attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[id]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "id attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Custom Book filter"
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "200": {
+                        "schema": {
+                            "$ref": "#/definitions/Book_coll1"
+                        },
+                        "description": "Request fulfilled, document follows"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "description": "Retrieve Book from Books",
+                "operationId": "RetrieveacollectionofBookobjects_0"
+            },
+            "post": {
+                "tags": [
+                    "Books"
+                ],
+                "summary": "Create Book",
+                "parameters": [
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    },
+                    {
+                        "name": "POST body",
+                        "in": "body",
+                        "description": "Book attributes",
+                        "schema": {
+                            "$ref": "#/definitions/Book_inst1"
+                        },
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "201": {
+                        "schema": {
+                            "$ref": "#/definitions/Book_inst1"
+                        },
+                        "description": "Created"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "operationId": "CreateBook_0"
+            }
+        },
+        "/Books/{BookId}/": {
+            "get": {
+                "tags": [
+                    "Books"
+                ],
+                "summary": "Retrieve Book instance",
+                "parameters": [
+                    {
+                        "default": "user",
+                        "type": "string",
+                        "name": "include",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Book relationships to include (csv)"
+                    },
+                    {
+                        "default": "name,user_id",
+                        "type": "string",
+                        "name": "fields[Book]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Book fields to include (csv)"
+                    },
+                    {
+                        "name": "BookId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "1",
+                        "required": true
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "200": {
+                        "schema": {
+                            "$ref": "#/definitions/Book_inst1"
+                        },
+                        "description": "Request fulfilled, document follows"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "description": "Retrieve Book from Books",
+                "operationId": "RetrieveBookinstance_0"
+            },
+            "patch": {
+                "tags": [
+                    "Books"
+                ],
+                "parameters": [
+                    {
+                        "name": "BookId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "1",
+                        "required": true
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    },
+                    {
+                        "name": "PATCH body",
+                        "in": "body",
+                        "description": "Book attributes",
+                        "schema": {
+                            "$ref": "#/definitions/Book_inst"
+                        },
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "200": {
+                        "schema": {
+                            "$ref": "#/definitions/Book_inst1"
+                        },
+                        "description": "Request fulfilled, document follows"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "summary": "Update Book",
+                "description": "Update Book attributes",
+                "operationId": "UpdateBook_0"
+            },
+            "delete": {
+                "tags": [
+                    "Books"
+                ],
+                "parameters": [
+                    {
+                        "name": "BookId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "1",
+                        "required": true
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "Request fulfilled, nothing follows"
+                    },
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/Book_inst1"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "summary": "Delete Book from Books",
+                "operationId": "DeleteBookfromBooks_0"
+            }
+        },
+        "/Books/{BookId}/user": {
+            "get": {
+                "tags": [
+                    "Books"
+                ],
+                "summary": "Retrieve User from user",
+                "description": "Retrieve User items from the Book user \"to-one\" relationship",
+                "parameters": [
+                    {
+                        "default": "books",
+                        "type": "string",
+                        "name": "include",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "User relationships to include (csv)"
+                    },
+                    {
+                        "default": "name,email",
+                        "type": "string",
+                        "name": "fields[User]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "User fields to include (csv)"
+                    },
+                    {
+                        "name": "BookId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "1",
+                        "description": "Book item",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Request fulfilled, document follows",
+                        "schema": {
+                            "$ref": "#/definitions/Book.user_rel_inst"
+                        }
+                    },
+                    "404": {
+                        "description": "Nothing matches the given URI",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "operationId": "RetrieveUserfromuser_0"
+            },
+            "patch": {
+                "tags": [
+                    "Books"
+                ],
+                "summary": "Update user",
+                "description": "Update the Book user \"to-one\" relationship",
+                "responses": {
+                    "200": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/Book.user_rel_inst"
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "BookId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "1",
+                        "description": "Book item",
+                        "required": true
+                    },
+                    {
+                        "name": "Book.user body",
+                        "in": "body",
+                        "description": "Book.user POST model",
+                        "schema": {
+                            "$ref": "#/definitions/Book.user_rel_inst"
+                        },
+                        "required": true
+                    }
+                ],
+                "operationId": "Updateuser_0"
+            },
+            "delete": {
+                "tags": [
+                    "Books"
+                ],
+                "summary": "Delete User from user",
+                "description": "Delete User items from the Book user \"to-one\" relationship",
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "Request fulfilled, nothing follows"
+                    },
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/Book.user_rel_inst"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "BookId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "1",
+                        "description": "Book item",
+                        "required": true
+                    },
+                    {
+                        "name": "Book.user body",
+                        "in": "body",
+                        "description": "Book.user POST model",
+                        "schema": {
+                            "$ref": "#/definitions/Book.user_rel_inst"
+                        },
+                        "required": true
+                    }
+                ],
+                "operationId": "DeleteUserfromuser_0"
+            }
+        },
+        "/Users/": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Retrieve a collection of User objects",
+                "parameters": [
+                    {
+                        "default": "books",
+                        "type": "string",
+                        "name": "include",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "User relationships to include (csv)"
+                    },
+                    {
+                        "default": "name,email",
+                        "type": "string",
+                        "name": "fields[User]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "User fields to include (csv)"
+                    },
+                    {
+                        "default": 0,
+                        "type": "integer",
+                        "name": "page[offset]",
+                        "in": "query",
+                        "format": "int64",
+                        "required": false,
+                        "description": "Page offset"
+                    },
+                    {
+                        "default": 10,
+                        "type": "integer",
+                        "name": "page[limit]",
+                        "in": "query",
+                        "format": "int64",
+                        "required": false,
+                        "description": "Max number of items"
+                    },
+                    {
+                        "default": "name,email,id",
+                        "type": "string",
+                        "name": "sort",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Sort order"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[name]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "name attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[email]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "email attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[id]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "id attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Custom User filter"
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "200": {
+                        "schema": {
+                            "$ref": "#/definitions/User_coll1"
+                        },
+                        "description": "Request fulfilled, document follows"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "description": "Retrieve User from Users",
+                "operationId": "RetrieveacollectionofUserobjects_0"
+            },
+            "post": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create User",
+                "parameters": [
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    },
+                    {
+                        "name": "POST body",
+                        "in": "body",
+                        "description": "User attributes",
+                        "schema": {
+                            "$ref": "#/definitions/User_inst1"
+                        },
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "201": {
+                        "schema": {
+                            "$ref": "#/definitions/User_inst1"
+                        },
+                        "description": "Created"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "operationId": "CreateUser_0"
+            }
+        },
+        "/Users/{UserId}/": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Retrieve User instance",
+                "parameters": [
+                    {
+                        "default": "books",
+                        "type": "string",
+                        "name": "include",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "User relationships to include (csv)"
+                    },
+                    {
+                        "default": "name,email",
+                        "type": "string",
+                        "name": "fields[User]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "User fields to include (csv)"
+                    },
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "required": true
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "200": {
+                        "schema": {
+                            "$ref": "#/definitions/User_inst1"
+                        },
+                        "description": "Request fulfilled, document follows"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "description": "Retrieve User from Users",
+                "operationId": "RetrieveUserinstance_0"
+            },
+            "patch": {
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "required": true
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    },
+                    {
+                        "name": "PATCH body",
+                        "in": "body",
+                        "description": "User attributes",
+                        "schema": {
+                            "$ref": "#/definitions/User_inst"
+                        },
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "200": {
+                        "schema": {
+                            "$ref": "#/definitions/User_inst1"
+                        },
+                        "description": "Request fulfilled, document follows"
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "summary": "Update User",
+                "description": "Update User attributes",
+                "operationId": "UpdateUser_0"
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "required": true
+                    },
+                    {
+                        "name": "Content-Type",
+                        "in": "header",
+                        "type": "string",
+                        "default": "application/vnd.api+json",
+                        "enum": [
+                            "application/vnd.api+json",
+                            "application/json"
+                        ],
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "Request fulfilled, nothing follows"
+                    },
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/User_inst1"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "produces": [
+                    "application/vnd.api+json"
+                ],
+                "summary": "Delete User from Users",
+                "operationId": "DeleteUserfromUsers_0"
+            }
+        },
+        "/Users/{UserId}/books": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Retrieve Book from books",
+                "description": "Retrieve Book items from the User books \"to-many\" relationship",
+                "parameters": [
+                    {
+                        "default": "user",
+                        "type": "string",
+                        "name": "include",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Book relationships to include (csv)"
+                    },
+                    {
+                        "default": "name,user_id",
+                        "type": "string",
+                        "name": "fields[Book]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Book fields to include (csv)"
+                    },
+                    {
+                        "default": 0,
+                        "type": "integer",
+                        "name": "page[offset]",
+                        "in": "query",
+                        "format": "int64",
+                        "required": false,
+                        "description": "Page offset"
+                    },
+                    {
+                        "default": 10,
+                        "type": "integer",
+                        "name": "page[limit]",
+                        "in": "query",
+                        "format": "int64",
+                        "required": false,
+                        "description": "Max number of items"
+                    },
+                    {
+                        "default": "name,user_id,id",
+                        "type": "string",
+                        "name": "sort",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Sort order"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[name]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "name attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[user_id]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "user_id attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter[id]",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "id attribute filter (csv)"
+                    },
+                    {
+                        "default": "",
+                        "type": "string",
+                        "name": "filter",
+                        "in": "query",
+                        "format": "string",
+                        "required": false,
+                        "description": "Custom Book filter"
+                    },
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "description": "User item",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Request fulfilled, document follows",
+                        "schema": {
+                            "$ref": "#/definitions/User.books_rel_coll"
+                        }
+                    },
+                    "404": {
+                        "description": "Nothing matches the given URI",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "operationId": "RetrieveBookfrombooks_0"
+            },
+            "post": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Add Book items to books",
+                "description": "Add Book items to the User books \"to-many\" relationship",
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "description": "User item",
+                        "required": true
+                    },
+                    {
+                        "name": "User.books body",
+                        "in": "body",
+                        "description": "User.books POST model",
+                        "schema": {
+                            "$ref": "#/definitions/User.books_rel_coll"
+                        },
+                        "required": true
+                    }
+                ],
+                "operationId": "AddBookitemstobooks_0"
+            },
+            "patch": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update books",
+                "description": "Update the User books \"to-many\" relationship",
+                "responses": {
+                    "200": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/User.books_rel_coll"
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_409"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "description": "User item",
+                        "required": true
+                    },
+                    {
+                        "name": "User.books body",
+                        "in": "body",
+                        "description": "User.books POST model",
+                        "schema": {
+                            "$ref": "#/definitions/User.books_rel_coll"
+                        },
+                        "required": true
+                    }
+                ],
+                "operationId": "Updatebooks_0"
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete Book from books",
+                "description": "Delete Book items from the User books \"to-many\" relationship",
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "204": {
+                        "description": "Request fulfilled, nothing follows"
+                    },
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/User.books_rel_coll"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_403"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_404"
+                        }
+                    },
+                    "405": {
+                        "description": "Specified method is invalid for this resource",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_405"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request syntax or unsupported method",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_400"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/jsonapi_error_500"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "UserId",
+                        "in": "path",
+                        "type": "string",
+                        "default": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                        "description": "User item",
+                        "required": true
+                    },
+                    {
+                        "name": "User.books body",
+                        "in": "body",
+                        "description": "User.books POST model",
+                        "schema": {
+                            "$ref": "#/definitions/User.books_rel_coll"
+                        },
+                        "required": true
+                    }
+                ],
+                "operationId": "DeleteBookfrombooks_0"
+            }
+        }
+    },
+    "definitions": {
+        "jsonapi_error_403": {
+            "properties": {
+                "errors": {
+                    "example": [
+                        {
+                            "title": "Request forbidden -- authorization will not help",
+                            "detail": "",
+                            "code": "403"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": ""
+        },
+        "jsonapi_error_404": {
+            "properties": {
+                "errors": {
+                    "example": [
+                        {
+                            "title": "Nothing matches the given URI",
+                            "detail": "",
+                            "code": "404"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": ""
+        },
+        "User_coll1": {
+            "properties": {
+                "data": {
+                    "example": [
+                        {
+                            "attributes": {
+                                "name": "",
+                                "email": ""
+                            },
+                            "type": "User",
+                            "id": "887f826d-7b3a-4b8e-a17c-0dbf5df24552",
+                            "relationships": {
+                                "books": {
+                                    "data": [],
+                                    "links": {
+                                        "self": null
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": "User get;"
+        },
+        "jsonapi_error_405": {
+            "properties": {
+                "errors": {
+                    "example": [
+                        {
+                            "title": "Specified method is invalid for this resource",
+                            "detail": "",
+                            "code": "405"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": ""
+        },
+        "jsonapi_error_400": {
+            "properties": {
+                "errors": {
+                    "example": [
+                        {
+                            "title": "Bad request syntax or unsupported method",
+                            "detail": "",
+                            "code": "400"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": ""
+        },
+        "jsonapi_error_500": {
+            "properties": {
+                "errors": {
+                    "example": [
+                        {
+                            "title": "Server got itself in trouble",
+                            "detail": "",
+                            "code": "500"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": ""
+        },
+        "User_inst1": {
+            "properties": {
+                "data": {
+                    "example": {
+                        "attributes": {
+                            "name": "",
+                            "email": ""
+                        },
+                        "type": "User"
+                    },
+                    "type": "string"
+                }
+            },
+            "description": "User post;"
+        },
+        "jsonapi_error_409": {
+            "properties": {
+                "errors": {
+                    "example": [
+                        {
+                            "title": "Request conflict",
+                            "detail": "",
+                            "code": "409"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": ""
+        },
+        "User_inst": {
+            "properties": {
+                "data": {
+                    "example": {
+                        "attributes": {
+                            "name": "",
+                            "email": ""
+                        },
+                        "type": "User",
+                        "id": "887f826d-7b3a-4b8e-a17c-0dbf5df24552"
+                    },
+                    "type": "string"
+                }
+            },
+            "description": "User patch;User post;User delete;User patch;User post;User delete;"
+        },
+        "User.books_rel_coll": {
+            "properties": {
+                "data": {
+                    "example": [
+                        {
+                            "type": "Book",
+                            "id": "1"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": "User.books patch relationship;User.books post relationship;"
+        },
+        "User_coll": {
+            "properties": {
+                "data": {
+                    "example": [
+                        {
+                            "attributes": {
+                                "name": "",
+                                "email": ""
+                            },
+                            "type": "User",
+                            "id": "887f826d-7b3a-4b8e-a17c-0dbf5df24552"
+                        }
+                    ],
+                    "type": "string"
+                }
+            }
+        },
+        "Book_coll1": {
+            "properties": {
+                "data": {
+                    "example": [
+                        {
+                            "attributes": {
+                                "name": "",
+                                "user_id": ""
+                            },
+                            "type": "Book",
+                            "id": "1",
+                            "relationships": {
+                                "user": {
+                                    "data": null,
+                                    "links": {
+                                        "self": null
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "description": "Book get;"
+        },
+        "Book_inst1": {
+            "properties": {
+                "data": {
+                    "example": {
+                        "attributes": {
+                            "name": "",
+                            "user_id": ""
+                        },
+                        "type": "Book"
+                    },
+                    "type": "string"
+                }
+            },
+            "description": "Book post;"
+        },
+        "Book_inst": {
+            "properties": {
+                "data": {
+                    "example": {
+                        "attributes": {
+                            "name": "",
+                            "user_id": ""
+                        },
+                        "type": "Book",
+                        "id": "1"
+                    },
+                    "type": "string"
+                }
+            },
+            "description": "Book patch;Book post;Book delete;Book patch;Book post;Book delete;"
+        },
+        "Book.user_rel_inst": {
+            "properties": {
+                "data": {
+                    "example": {
+                        "type": "User",
+                        "id": "887f826d-7b3a-4b8e-a17c-0dbf5df24552"
+                    },
+                    "type": "string"
+                }
+            },
+            "description": "Book.user patch relationship;Book.user post relationship;"
+        },
+        "Book_coll": {
+            "properties": {
+                "data": {
+                    "example": [
+                        {
+                            "attributes": {
+                                "name": "",
+                                "user_id": ""
+                            },
+                            "type": "Book",
+                            "id": "1"
+                        }
+                    ],
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "My User description",
+            "name": "Users"
+        },
+        {
+            "description": "My Book description",
+            "name": "Books"
+        }
+    ]
+}
