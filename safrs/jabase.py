@@ -36,14 +36,13 @@ class JABase(SAFRSBase):
         :return: jsonapi type string
         """
         return "JAType_" + cls.__name__
-    
+
     @classmethod
     def get(cls, *args, **kwargs):
         """
         description: JA GET
         """
         return {}
-
 
     def patch(self, *args, **kwargs):
         """

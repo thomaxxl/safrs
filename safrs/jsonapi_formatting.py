@@ -133,6 +133,7 @@ def paginate(object_query, SAFRSObject=None):
             + ["page[offset]={}&page[limit]={}".format(count, limit)]
         )
         return result
+
     try:
         page_offset = int(get_request_param("page_offset"))
         limit = int(get_request_param("page_limit", get_config("DEFAULT_PAGE_LIMIT")))

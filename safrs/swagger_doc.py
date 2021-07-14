@@ -283,7 +283,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                 else:
                     # todo: maybe get function args from inspect
                     for k, v in method_args.items():
-                        fields[k] =  {"example": v }
+                        fields[k] = {"example": v}
         if rest_doc.get(PAGEABLE):
             parameters += default_paging_parameters()
         if rest_doc.get(FILTERABLE):

@@ -114,7 +114,7 @@ class SAFRSBase(Model):
     _s_upsert = True  # indicates we want to lookup and use existing objects
     _s_allow_add_rels = True  # allow relationships to be added in post requests
 
-    _s_pk_delimiter = '_'
+    _s_pk_delimiter = "_"
 
     included_list = None
 
@@ -1208,4 +1208,3 @@ class Included:
             result.append(included)
 
         return result
-
