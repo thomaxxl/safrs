@@ -34,6 +34,7 @@ class SAFRSAPI(FRSApiBase):
     """
 
     _operation_ids = {}
+    _custom_swagger = {}
 
     def __init__(
         self,
@@ -59,7 +60,7 @@ class SAFRSAPI(FRSApiBase):
         all instances of that media type are modified with media type parameters.
         """
 
-        custom_swagger = kwargs.pop("custom_swagger", {})
+        self._custom_swagger = kwargs.pop("custom_swagger", {})
         kwargs["default_mediatype"] = "application/vnd.api+json"
         safrs.SAFRS(app, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, **kwargs)
         # the host shown in the swagger ui
@@ -80,14 +81,14 @@ class SAFRSAPI(FRSApiBase):
         )
         self.init_app(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
-        self.update_spec(custom_swagger)
+        self.update_spec()
 
-    def update_spec(self, custom_swagger):
+    def update_spec(self):
         """
         :param custom_swagger: swagger spec to be added to the swagger.json
         """
         _swagger_doc = self.get_swagger_doc()
-        safrs.dict_merge(_swagger_doc, custom_swagger)
+        safrs.dict_merge(_swagger_doc, self._custom_swagger)
 
     def expose_object(self, safrs_object, url_prefix="", **properties):
         """This methods creates the API url endpoints for the SAFRObjects
@@ -155,6 +156,8 @@ class SAFRSAPI(FRSApiBase):
                 safrs.log.warning("Failed to validate {}:{}".format(definition, exc))
                 continue
             self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
+
+        self.update_spec()
 
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """
