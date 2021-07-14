@@ -38,17 +38,17 @@ class Book(SAFRSBase, db.Model):
     """
 
     __tablename__ = "Books"
-    id = db.Column(db.String, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, default="")
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
 
 # create the api endpoints
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+def create_api(app, host="localhost", port=5000, api_prefix=""):
+    api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
-    print("Created API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
+    print("Created API: http://{}:{}/{}".format(host, port, api_prefix))
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
