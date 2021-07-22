@@ -87,15 +87,17 @@ class SAFRSID:
     def get_pks(cls, id):
         """
         Convert the id string to a pk dict
-        
+        id is a jsonapi_id, in case the PK is composite it consists of PKs joined by cls.delimiter
         Note: there may be an issue when the cls.delimiter is contained in an id
+        :return: primary key dict
         """
         if len(cls.columns) == 1:
             values = [id]
         else:
             values = str(id).split(cls.delimiter)
         if len(values) != len(cls.columns):
-            raise ValidationError("Invalid PKs: {}".format(values))
+            columns = [ c.name for c in cls.columns ]
+            safrs.log.exception("PK values ({}) do not match columns ({})".format(values, columns))
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
@@ -119,11 +121,22 @@ class SAFRSID:
         return result
 
     @classproperty
-    def column_names(self):
+    def column_names(cls):
         """
         :return: a list of columns names of this id type
         """
-        return [c.name for c in self.columns]
+        return [c.name for c in cls.columns]
+
+    @classmethod
+    def extract_pks(cls, kw_dict):
+        """
+        Extract the primary keys from kw_dict (these are the kwargs passed to SAFRSBase.new())
+        In case of composite keys we construct the jsonapi_id by using the delimiter to join the values
+        :return: primary keys dict
+        """ 
+        pks = { k : str(kw_dict[k]) for k in cls.column_names }
+        id = cls.delimiter.join(pks.values())
+        return cls.get_pks(id)
 
     @classmethod
     def sample_id(cls, obj):

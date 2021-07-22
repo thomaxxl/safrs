@@ -125,7 +125,7 @@ class SAFRSBase(Model):
         if "id" not in kwargs or not cls._s_upsert:
             return object.__new__(cls)
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
-        primary_keys = cls.id_type.get_pks(kwargs["id"])
+        primary_keys = cls.id_type.extract_pks(kwargs)
 
         # Lookup the object with the PKs
         instance = None
