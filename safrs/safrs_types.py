@@ -97,7 +97,7 @@ class SAFRSID:
             values = str(id).split(cls.delimiter)
         if len(values) != len(cls.columns):
             columns = [ c.name for c in cls.columns ]
-            safrs.log.exception("PK values ({}) do not match columns ({})".format(values, columns))
+            raise ValidationError("PK values ({}) do not match columns ({})".format(values, columns))
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
