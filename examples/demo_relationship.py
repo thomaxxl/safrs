@@ -22,7 +22,7 @@ db = SQLAlchemy()
 # Example sqla database objects
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -34,7 +34,7 @@ class User(SAFRSBase, db.Model):
 
 class Book(SAFRSBase, db.Model):
     """
-        description: Book description
+    description: Book description
     """
 
     __tablename__ = "Books"
@@ -43,12 +43,14 @@ class Book(SAFRSBase, db.Model):
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
 
+
 # create the api endpoints
 def create_api(app, host="localhost", port=5000, api_prefix=""):
     api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
     print("Created API: http://{}:{}/{}".format(host, port, api_prefix))
+
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
@@ -64,8 +66,9 @@ def create_app(config_filename=None, host="localhost"):
             user.books.append(book)
 
         create_api(app, host)
-    
+
     return app
+
 
 # address where the api will be hosted, change this if you're not running the app on localhost!
 host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"
