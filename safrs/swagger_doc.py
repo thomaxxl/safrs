@@ -272,9 +272,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         parameters = rest_doc.get("parameters", [])  # query string parameters
         if method_args and isinstance(method_args, dict):
             if http_method == "post":
-                """
-                Post arguments, these require us to build a schema
-                """
+                # Post arguments, these require us to build a schema
                 model_name = f"{cls.__name__}_{method_name}"
                 method_field = {"method": method_name, "args": method_args}
                 if getattr(method, "valid_jsonapi", True):
@@ -588,9 +586,9 @@ def swagger_relationship_doc(cls, tags=None):
 
         doc["responses"] = responses
 
-        direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
         parent_name = parent_class.__name__  # referenced by f-string in the jsonapi.py method docstring
         child_name = child_class.__name__  # referenced by f-string
+        direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
         apply_fstring(doc, locals())
         update_response_schema(doc["responses"])
 
