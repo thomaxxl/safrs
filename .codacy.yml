@@ -7,3 +7,6 @@ exclude_paths:
           - 'examples/**'
           - 'docs/**'
           - 'expose_existing/**'
+          - '*md'
+          - '**md'
+          - 'README.md'
