@@ -29,7 +29,7 @@ def create_query(cls):
         options = None
         for inc_rel_name in inc.split("."):
             if inc_rel_name not in current_cls._s_relationships:
-                safrs.log.error("Invalid relationship : {}.{}".format(current_cls, inc_rel_name))
+                safrs.log.error(f"Invalid relationship : {current_cls}.{inc_rel_name}")
                 break
             inc_rel = getattr(current_cls, inc_rel_name)  # == current_cls._s_relationships[inc_rel_name]
             if not hasattr(inc_rel, "lazy") or inc_rel.lazy not in ["select", "joined", "subquery", "selectin"]:
@@ -71,7 +71,7 @@ def jsonapi_filter(cls):
     expressions = []
     filters = get_request_param("filters", {})
     if isinstance(cls, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        safrs.log.debug("Filtering not implemented for {}".format(cls))
+        safrs.log.debug(f"Filtering not implemented for {cls}")
         return cls
 
     for attr_name, val in filters.items():
@@ -79,13 +79,13 @@ def jsonapi_filter(cls):
             return cls._s_get_instance_by_id(val)
         if attr_name not in cls._s_jsonapi_attrs:
             # validation failed: this attribute can't be queried
-            safrs.log.warning("Invalid filter {}".format(attr_name))
+            safrs.log.warning(f"Invalid filter {attr_name}")
             return []
         else:
             attr = cls._s_jsonapi_attrs[attr_name]
         if is_jsonapi_attr(attr):
             # to do
-            safrs.log.debug("Filtering not implemented for {}".format(attr))
+            safrs.log.debug(f"Filtering not implemented for {attr}")
         else:
             expressions.append((attr, val))
 
@@ -96,7 +96,7 @@ def jsonapi_filter(cls):
             if hasattr(column, "in_"):
                 _expressions.append(column.in_(val.split(",")))
             else:
-                safrs.log.warning("'{}.{}' is not a column ({})".format(cls, column, type(column)))
+                safrs.log.warning(f"'{cls}.{column}' is not a column ({type(column)})")
         result_query = result_query.filter(*_expressions)
 
     return result_query
@@ -119,7 +119,7 @@ def get_swagger_filters(cls):
     for attr_name in attr_list:
         # (Customizable swagger specs):
         default_filter = ""
-        description = "{} attribute filter (csv)".format(attr_name)
+        description = f"{attr_name} attribute filter (csv)"
         swagger_type = "string"
         swagger_format = "string"
         name_format = "filter[{}]"
@@ -154,7 +154,7 @@ def get_swagger_filters(cls):
         "in": "query",
         "format": "string",
         "required": False,
-        "description": "Custom {} filter".format(cls.SAFRSObject._s_class_name),
+        "description": f"Custom {cls.SAFRSObject._s_class_name} filter",
     }
 
 

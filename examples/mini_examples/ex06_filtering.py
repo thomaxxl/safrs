@@ -50,7 +50,7 @@ def jsonapi_filter_achim(cls):
         attr_name = filt.get("name")
         attr_val = filt.get("val")
         if attr_name != "id" and attr_name not in cls._s_jsonapi_attrs:
-            raise ValidationError('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
+            raise ValidationError(f'Invalid filter "{filt}", unknown attribute "{attr_name}"')
 
         op_name = filt.get("op", "").strip("_")
         attr = cls._s_jsonapi_attrs[attr_name] if attr_name != "id" else cls.id
@@ -62,7 +62,7 @@ def jsonapi_filter_achim(cls):
             like = getattr(attr, op_name)
             query = query.filter(like(attr_val))
         elif not hasattr(operator, op_name):
-            raise ValidationError('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
+            raise ValidationError(f'Invalid filter "{filt}", unknown operator "{op_name}"')
         else:
             op = getattr(operator, op_name)
             expressions.append(op(attr, attr_val))

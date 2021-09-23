@@ -40,7 +40,7 @@ def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
         user = User(name=f"user{i}", email=f"email{i}@dev.to")
         book = Book(name="test_book")
         user.books.append(book)
-    print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
+    print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
 def create_app(config_filename=None, host="localhost"):

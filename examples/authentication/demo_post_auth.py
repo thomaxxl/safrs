@@ -62,7 +62,7 @@ def start_app(app):
     # user = User(username='admin')
     # user.hash_password('password')
 
-    print("Starting API: http://{}:{}/api".format(HOST, PORT))
+    print(f"Starting API: http://{HOST}:{PORT}/api")
     app.run(host=HOST, port=PORT)
 
 

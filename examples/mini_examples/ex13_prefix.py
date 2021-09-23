@@ -28,7 +28,7 @@ def create_api(app, HOST="localhost", PORT=5000, prefix=""):
     app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
-    print("Starting API: http://{}:{}/{}".format(HOST, PORT, prefix))
+    print(f"Starting API: http://{HOST}:{PORT}/{prefix}")
 
 
 def create_app(config_filename=None, host="localhost"):

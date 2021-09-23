@@ -52,7 +52,7 @@ def create_api(app, host="localhost", port=5000, api_prefix="", custom_swagger={
     api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix, custom_swagger=custom_swagger)
     api.expose_object(User)
     api.expose_object(Book)
-    print("Created API: http://{}:{}/{}".format(host, port, api_prefix))
+    print(f"Created API: http://{host}:{port}/{api_prefix}")
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")

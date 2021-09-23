@@ -26,7 +26,7 @@ class SAFRSRelationshipObject:
         object_name = cls.__name__
 
         object_model = {}
-        responses = {str(HTTPStatus.OK.value): {"description": "{} object".format(object_name), "schema": object_model}}
+        responses = {str(HTTPStatus.OK.value): {"description": f"{object_name} object", "schema": object_model}}
 
         if http_method.upper() in ("POST", "GET"):
             responses = {

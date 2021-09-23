@@ -49,7 +49,7 @@ def create_api(app, host="localhost", port=5000, api_prefix=""):
     api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
-    print("Created API: http://{}:{}/{}".format(host, port, api_prefix))
+    print(f"Created API: http://{host}:{port}/{api_prefix}")
 
 
 def create_app(config_filename=None, host="localhost"):

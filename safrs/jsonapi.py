@@ -88,20 +88,20 @@ class Resource(FRSResource):
         :return: sqla/safrs orm instance
         """
         if not isinstance(target_data, dict):
-            raise ValidationError("Invalid data type {}".format(target_data))
+            raise ValidationError(f"Invalid data type {target_data}")
         target_id = target_data.get("id", None)
         if target_id is None:
-            raise ValidationError("no target id {}".format(target_data))
+            raise ValidationError(f"no target id {target_data}")
         target_type = target_data.get("type")
         if not target_id:
             raise ValidationError("Invalid id in data", HTTPStatus.FORBIDDEN)
         if not target_type:
             raise ValidationError("Invalid type in data", HTTPStatus.FORBIDDEN)
         if target_type != self.target._s_type:
-            raise ValidationError("Invalid type {} != {}".format(target_type, self.target._s_type), HTTPStatus.FORBIDDEN)
+            raise ValidationError(f"Invalid type {target_type} != {self.target._s_type}", HTTPStatus.FORBIDDEN)
         target = self.target.get_instance(target_id)
         if not target:
-            raise ValidationError("invalid target id {}".format(target_id))
+            raise ValidationError(f"invalid target id {target_id}")
         return target
 
     @classmethod
@@ -118,7 +118,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "{} relationships to include (csv)".format(cls.SAFRSObject._s_class_name),
+            "description": f"{cls.SAFRSObject._s_class_name} relationships to include (csv)",
         }
         return param
 
@@ -133,11 +133,11 @@ class Resource(FRSResource):
         param = {
             "default": ",".join(attr_list),
             "type": "string",
-            "name": "fields[{}]".format(cls.SAFRSObject._s_class_name),
+            "name": f"fields[{cls.SAFRSObject._s_class_name}]",
             "in": "query",
             "format": "string",
             "required": False,
-            "description": "{} fields to include (csv)".format(cls.SAFRSObject._s_class_name),
+            "description": f"{cls.SAFRSObject._s_class_name} fields to include (csv)",
         }
         return param
 
@@ -341,7 +341,7 @@ class SAFRSRestAPI(Resource):
 
         body_id = self.SAFRSObject.id_type.validate_id(body_id)
         if path_id is not None and path_id != body_id:
-            raise ValidationError("Invalid ID {} {} != {} {}".format(type(path_id), path_id, type(body_id), body_id))
+            raise ValidationError(f"Invalid ID {type(path_id)} {path_id} != {type(body_id)} {body_id}")
 
         attributes = data.get("attributes", {})
         attributes["id"] = body_id
@@ -405,7 +405,7 @@ class SAFRSRestAPI(Resource):
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
             # to do: modify Allow header
-            raise ValidationError("POSTing to instance is not allowed {}".format(self), status_code=HTTPStatus.METHOD_NOT_ALLOWED)
+            raise ValidationError(f"POSTing to instance is not allowed {self}", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
@@ -429,7 +429,7 @@ class SAFRSRestAPI(Resource):
             obj_args = {instance._s_object_id: instance.jsonapi_id}
             # Retrieve the object json and return it to the client
             resp_data = self.get(**obj_args)
-            location = "{}{}".format(url_for(self.endpoint), instance.jsonapi_id)
+            location = f"{url_for(self.endpoint)}{instance.jsonapi_id}"
 
         response = make_response(resp_data, HTTPStatus.CREATED)
         # Set the Location header to the newly created object(s)
@@ -449,14 +449,14 @@ class SAFRSRestAPI(Resource):
 
         obj_type = data.get("type", None)
         if not obj_type or not obj_type == self.SAFRSObject._s_type:
-            raise ValidationError("Invalid type member: {} != {}".format(obj_type, self.SAFRSObject._s_type))
+            raise ValidationError(f"Invalid type member: {obj_type} != {self.SAFRSObject._s_type}")
 
         attributes = data.get("attributes", {})
         if self.SAFRSObject.allow_client_generated_ids:
             client_generated_id = data.get("id", None)
             attributes["id"] = client_generated_id
         elif "id" in data:
-            safrs.log.warning("Client-generated ids are not allowed for {}".format(self.SAFRSObject))
+            safrs.log.warning(f"Client-generated ids are not allowed for {self.SAFRSObject}")
 
         relationships = data.get("relationships", {})
 
@@ -718,7 +718,7 @@ class SAFRSRestRelationshipAPI(Resource):
             setattr(parent, self.rel_name, None)
         else:
             raise ValidationError(
-                'Invalid data object type "{}" for this "{}"" relationship'.format(type(data), self.SAFRSObject.relationship.direction)
+                f'Invalid data object type "{type(data)}" for this "{self.SAFRSObject.relationship.direction}"" relationship'
             )
 
         # Create the patch response
@@ -879,7 +879,7 @@ class SAFRSRestRelationshipAPI(Resource):
                 if child in relation:
                     relation.remove(child)
                 else:
-                    safrs.log.warning("Item with id {} not in relation".format(child_id))
+                    safrs.log.warning(f"Item with id {child_id} not in relation")
 
         return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
@@ -956,7 +956,7 @@ class SAFRSJSONRPCAPI(Resource):
 
         if not method:
             # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(self.method_name))
+            raise ValidationError(f'Invalid method "{self.method_name}"')
         if not is_public(method):
             raise ValidationError("Method is not public")
 
@@ -997,7 +997,7 @@ class SAFRSJSONRPCAPI(Resource):
 
         if not method:
             # Only call methods for Campaign and not for superclasses (e.g. safrs.DB.Model)
-            raise ValidationError('Invalid method "{}"'.format(self.method_name))
+            raise ValidationError(f'Invalid method "{self.method_name}"')
         if not is_public(method):
             raise ValidationError("Method is not public")
 
@@ -1006,7 +1006,7 @@ class SAFRSJSONRPCAPI(Resource):
 
     def _create_rpc_response(self, method, args):
 
-        safrs.log.debug("method {} args {}".format(self.method_name, args))
+        safrs.log.debug(f"method {self.method_name} args {args}")
         result = method(**args)
 
         if isinstance(result, safrs.SAFRSFormattedResponse):

@@ -68,7 +68,7 @@ class SAFRSAPI(FRSApiBase):
         # sometimes we don't want to show the port (eg when proxied)
         # in that case the port may be None
         if port:
-            host = "%s:%s" % (host, port)
+            host = f"{host}:{port}"
 
         super().__init__(
             app,
@@ -121,13 +121,13 @@ class SAFRSAPI(FRSApiBase):
         self.expose_methods(url_prefix, tags, safrs_object, properties)
 
         # Expose the collection: Create the class and decorate it
-        api_class_name = "{}_API".format(safrs_object._s_type)  # name for dynamically generated classes
+        api_class_name = f"{safrs_object._s_type}_API"  # name for dynamically generated classes
         RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")  # configurable resource collection url formatter
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
         swagger_decorator = swagger_doc(safrs_object)
         api_class = api_decorator(type(api_class_name, (rest_api,), properties), swagger_decorator)
 
-        safrs.log.info("Exposing {} on {}, endpoint: {}".format(safrs_object._s_collection_name, url, endpoint))
+        safrs.log.info(f"Exposing {safrs_object._s_collection_name} on {url}, endpoint: {endpoint}")
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
@@ -135,7 +135,7 @@ class SAFRSAPI(FRSApiBase):
         endpoint = safrs_object.get_endpoint(type="instance")
 
         # Expose the instances
-        safrs.log.info("Exposing {} instances on {}, endpoint: {}".format(safrs_object._s_type, url, endpoint))
+        safrs.log.info(f"Exposing {safrs_object._s_type} instances on {url}, endpoint: {endpoint}")
         api_class = api_decorator(type(api_class_name + "_i", (rest_api,), properties), swagger_decorator)
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "PATCH", "DELETE"])
 
@@ -153,7 +153,7 @@ class SAFRSAPI(FRSApiBase):
             try:
                 validate_definitions_object(definition.properties)
             except Exception as exc:  # pragma: no cover
-                safrs.log.warning("Failed to validate {}:{}".format(definition, exc))
+                safrs.log.warning(f"Failed to validate {definition}:{exc}")
                 continue
             self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
 
@@ -170,7 +170,7 @@ class SAFRSAPI(FRSApiBase):
         api_methods = safrs_object._s_get_jsonapi_rpc_methods()
         for api_method in api_methods:
             method_name = api_method.__name__
-            api_method_class_name = "method_{}_{}".format(safrs_object._s_class_name, method_name)
+            api_method_class_name = f"method_{safrs_object._s_class_name}_{method_name}"
             if (
                 isinstance(safrs_object.__dict__.get(method_name, None), (classmethod, staticmethod))
                 or getattr(api_method, "__self__", None) is safrs_object
@@ -189,7 +189,7 @@ class SAFRSAPI(FRSApiBase):
             properties.update({"method_name": method_name, "http_methods": safrs_object.http_methods})
             api_class = api_decorator(type(api_method_class_name, (rpc_api,), properties), swagger_decorator)
             meth_name = safrs_object._s_class_name + "." + api_method.__name__
-            safrs.log.info("Exposing method {} on {}, endpoint: {}".format(meth_name, url, endpoint))
+            safrs.log.info(f"Exposing method {meth_name} on {url}, endpoint: {endpoint}")
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
 
     def expose_relationship(self, relationship, url_prefix, tags, properties):
@@ -216,7 +216,7 @@ class SAFRSAPI(FRSApiBase):
         target_object = relationship.mapper.class_
         relationship_api = target_object._relationship_api  # => SAFRSRestRelationshipAPI
         if not getattr(target_object, "_s_expose", False):  # todo: add test
-            safrs.log.debug("Not exposing {}".format(target_object))
+            safrs.log.debug(f"Not exposing {target_object}")
             return
 
         API_CLASSNAME_FMT = "{}_X_{}_API"  # api class name for generated relationship classes
@@ -239,7 +239,7 @@ class SAFRSAPI(FRSApiBase):
             + getattr(relationship, "decorators", [])
         )
         rel_object = type(
-            "{}.{}".format(parent_name, rel_name),  # Name of the class we're creating here
+            f"{parent_name}.{rel_name}",  # Name of the class we're creating here
             (SAFRSRelationshipObject,),
             {
                 "relationship": relationship,
@@ -259,7 +259,7 @@ class SAFRSAPI(FRSApiBase):
 
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
-        safrs.log.info("Exposing relationship {} on {}, endpoint: {}".format(rel_name, url, endpoint))
+        safrs.log.info(f"Exposing relationship {rel_name} on {url}, endpoint: {endpoint}")
         # Check if there are custom http methods specified
         methods = getattr(relationship, "http_methods", parent_class.http_methods)
         self.add_resource(api_class, url, endpoint=endpoint, methods=methods, relationship=relationship)
@@ -268,7 +268,7 @@ class SAFRSAPI(FRSApiBase):
             target_object_id = target_object._s_object_id
         except Exception as exc:
             safrs.log.exception(exc)
-            safrs.log.error("No object id for {}".format(target_object))
+            safrs.log.error(f"No object id for {target_object}")
             target_object_id = target_object.__name__
 
         if target_object == parent_class:
@@ -282,9 +282,9 @@ class SAFRSAPI(FRSApiBase):
         # target id
         # nb: this is not really documented in the jsonapi spec, remove??
         url = (RELATIONSHIP_URL_FMT + "/<string:{}>").format(url_prefix, rel_name, target_object_id)
-        endpoint = "{}api.{}Id".format(url_prefix, rel_name)
+        endpoint = f"{url_prefix}api.{rel_name}Id"
 
-        safrs.log.info("Exposing {} relationship {} on {}, endpoint: {}".format(parent_name, rel_name, url, endpoint))
+        safrs.log.info(f"Exposing {parent_name} relationship {rel_name} on {url}, endpoint: {endpoint}")
         self.add_resource(
             api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "PATCH", "DELETE"], deprecated=True
         )
@@ -369,7 +369,7 @@ class SAFRSAPI(FRSApiBase):
                     validate_path_item_object(path_item)
                 except FRSValidationError as exc:
                     safrs.log.exception(exc)
-                    safrs.log.critical("Validation failed for {}".format(path_item))
+                    safrs.log.critical(f"Validation failed for {path_item}")
                     exit(1)
 
             self._swagger_object["paths"][swagger_url] = path_item
@@ -498,7 +498,7 @@ class SAFRSAPI(FRSApiBase):
         try:
             validate_definitions_object(definitions)
         except FRSValidationError:
-            safrs.log.critical("Validation failed for {}".format(definitions))
+            safrs.log.critical(f"Validation failed for {definitions}")
             exit()
 
         self._swagger_object["definitions"].update(definitions)
@@ -513,7 +513,7 @@ class SAFRSAPI(FRSApiBase):
             cls._operation_ids[summary] = 0
         else:
             cls._operation_ids[summary] += 1
-        return "{}_{}".format(summary, cls._operation_ids[summary])
+        return f"{summary}_{cls._operation_ids[summary]}"
 
 
 def api_decorator(cls, swagger_decorator):
@@ -567,11 +567,11 @@ def api_decorator(cls, swagger_decorator):
                 decorated_method = swagger_decorator(decorated_method)
             except RecursionError:  # pragma: no cover
                 # Got this error when exposing WP DB, TODO: investigate where it comes from
-                safrs.log.error("Failed to generate documentation for {} {} (Recursion Error)".format(cls, decorated_method))
+                safrs.log.error(f"Failed to generate documentation for {cls} {decorated_method} (Recursion Error)")
 
             except Exception as exc:
                 safrs.log.exception(exc)
-                safrs.log.error("Failed to generate documentation for {}".format(decorated_method))
+                safrs.log.error(f"Failed to generate documentation for {decorated_method}")
 
             # The user can add custom decorators
             # Apply the custom decorators, specified as class variable list

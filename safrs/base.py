@@ -180,8 +180,8 @@ class SAFRSBase(Model):
             safrs.DB.Model.__init__(self, **db_args)
         except Exception as exc:  # pragma: no cover
             # OOPS .. things are going bad, this might happen using sqla automap
-            safrs.log.error("Failed to instantiate {}".format(self))
-            safrs.log.debug("db args: {}".format(db_args))
+            safrs.log.error(f"Failed to instantiate {self}")
+            safrs.log.debug(f"db args: {db_args}")
             safrs.log.exception(exc)
             safrs.DB.Model.__init__(self)
 
@@ -227,7 +227,7 @@ class SAFRSBase(Model):
 
         # attr is a sqlalchemy.sql.schema.Column now
         if not isinstance(attr, Column):  # pragma: no cover
-            raise SystemValidationError("Not a column: {}".format(attr))
+            raise SystemValidationError(f"Not a column: {attr}")
 
         return parse_attr(attr, attr_val)
 
@@ -259,8 +259,11 @@ class SAFRSBase(Model):
             # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
             attributes["id"] = id
         else:
-            attributes = {attr_name: attributes[attr_name] for attr_name in attributes if attr_name not in cls.id_type.column_names}
-
+            for attr_name in attributes.copy():
+                if attr_name in cls.id_type.column_names:
+                    safrs.log.warning(f"Client generated IDs are not allowed ('allow_client_generated_ids' not set for {cls})")
+                    del attributes[attr_name]
+            
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
         # pylint: disable=not-callable
@@ -319,7 +322,7 @@ class SAFRSBase(Model):
         def data2inst(data):
             subclasses = self._safrs_subclasses()
             if not (isinstance(data, dict) and "id" in data and "type" in data and data["type"] in subclasses):
-                raise ValidationError("Invalid relationship payload: {}".format(data))
+                raise ValidationError(f"Invalid relationship payload: {data}")
             target_class = subclasses[data["type"]]
             return target_class._s_post(data["id"], **data.get("attributes", {}), **data.get("relationships", {}))
 
@@ -330,7 +333,7 @@ class SAFRSBase(Model):
             if not self._s_allow_add_rels:
                 raise ValidationError("Cannot add relationships (_s_allow_add_rels not set)")
             if not isinstance(rel_val, dict) or not "data" in rel_val:
-                raise ValidationError("Invalid relationship payload: {}".format(rel_val))
+                raise ValidationError(f"Invalid relationship payload: {rel_val}")
             if not self.included_list:
                 self.included_list = []
             self.included_list += [rel_name]
@@ -504,7 +507,7 @@ class SAFRSBase(Model):
                 return True
             return False
 
-        raise SystemValidationError("Invalid property {}".format(property_name))
+        raise SystemValidationError(f"Invalid property {property_name}")
 
     @hybrid_property
     def _s_jsonapi_attrs(self):
@@ -544,10 +547,10 @@ class SAFRSBase(Model):
                 else:
                     result[attr_name] = attr_val
             except UnicodeDecodeError:  # pragma: no cover
-                safrs.log.warning("UnicodeDecodeError fetching {}.{}".format(self, attr))
+                safrs.log.warning(f"UnicodeDecodeError fetching {self}.{attr}")
                 result[attr] = ""
             except Exception as exc:
-                safrs.log.warning("Failed to fetch {}.{}: {}".format(self, attr, exc))
+                safrs.log.warning(f"Failed to fetch {self}.{attr}: {exc}")
 
         return result
 
@@ -648,17 +651,17 @@ class SAFRSBase(Model):
         except AttributeError:  # pragma: no cover
             # This happens when we request a sample from a class that is not yet loaded
             # when we're creating the swagger models
-            safrs.log.debug('AttributeError for class "{}"'.format(cls.__name__))
+            safrs.log.debug(f'AttributeError for class "{cls.__name__}"')
             return instance  # instance is None!
 
         if id is not None or not failsafe:
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
             except Exception as exc:  # pragma: no cover
-                raise GenericError("get_instance : {}".format(exc))
+                raise GenericError(f"get_instance : {exc}")
 
             if not instance and not failsafe:
-                raise NotFoundError('Invalid "{}" ID "{}"'.format(cls.__name__, id))
+                raise NotFoundError(f'Invalid "{cls.__name__}" ID "{id}"')
         return instance
 
     @classmethod
@@ -818,7 +821,7 @@ class SAFRSBase(Model):
             it MUST respond with 400 Bad Request.
             """
             if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
-                raise GenericError("Invalid Relationship '{}'".format(rel_name), status_code=400)
+                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
 
         for rel_name, relationship in self._s_relationships.items():
             """
@@ -876,7 +879,7 @@ class SAFRSBase(Model):
                             count = rel_query.count()
                             rel_query = rel_query.limit(limit)
                             if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
-                                warning = 'Truncated result for relationship "{}",consider paginating this request'.format(rel_name)
+                                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
                                 safrs.log.warning(warning)
                                 meta["warning"] = warning
                             items = rel_query.all()
@@ -889,7 +892,7 @@ class SAFRSBase(Model):
                             data.append(Included(rel_item, next_included_list))
                 else:  # pragma: no cover
                     # should never happen
-                    safrs.log.error("Unknown relationship direction for relationship {}: {}".format(rel_name, relationship.direction))
+                    safrs.log.error(f"Unknown relationship direction for relationship {rel_name}: {relationship.direction}")
 
             rel_link = urljoin(self._s_url, rel_name)
             links = dict(self=rel_link)
@@ -938,7 +941,7 @@ class SAFRSBase(Model):
                 sample_id = sample.jsonapi_id
                 return sample_id
             except Exception:
-                safrs.log.warning("Failed to retrieve sample id for {}".format(cls))
+                safrs.log.warning(f"Failed to retrieve sample id for {cls}")
 
         sample_id = cls.id_type.sample_id(cls)
         return str(sample_id)  # jsonapi ids must always be strings
@@ -962,7 +965,7 @@ class SAFRSBase(Model):
                     if callable(column.default.arg):
                         # We're not executing the default when it's a callable to avoid side-effects,
                         # user may add a sample attribute to the column to have it show up in the swagger
-                        safrs.log.debug("No OAS sample implemented for column default '{}.{}'".format(column.name, column.default.arg))
+                        safrs.log.debug(f"No OAS sample implemented for column default '{column.name}.{column.default.arg}'")
                         arg = ""
                     elif isinstance(column.type, sqlalchemy.sql.sqltypes.JSON):
                         arg = column.default.arg
@@ -982,10 +985,10 @@ class SAFRSBase(Model):
                             arg = column.type.python_type()
                     except NotImplementedError:
                         # This may happen for custom columns
-                        safrs.log.debug("Failed to get python type for column {} (NotImplementedError)".format(column))
+                        safrs.log.debug(f"Failed to get python type for column {column} (NotImplementedError)")
                         arg = None
                     except Exception as exc:
-                        safrs.log.debug("Failed to get python type for column {} ({})".format(column, exc))
+                        safrs.log.debug(f"Failed to get python type for column {column} ({exc})")
                         # use an empty string when no type is matched, otherwise we may get json encoding
                         # errors for the swagger generation
                         arg = ""
@@ -1014,7 +1017,7 @@ class SAFRSBase(Model):
             cls_members = inspect.getmembers(cls)
         except sqlalchemy.exc.InvalidRequestError as exc:
             # This may happen if there's no sqlalchemy superclass
-            safrs.log.warning("Member inspection failed for {}: {}".format(cls, exc))
+            safrs.log.warning(f"Member inspection failed for {cls}: {exc}")
             return result
 
         for _, method in cls_members:  # [(name, method),..]
@@ -1056,7 +1059,7 @@ class SAFRSBase(Model):
             INSTANCE_ENDPOINT_FMT = get_config("INSTANCE_ENDPOINT_FMT")
             endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, cls._s_type)
         else:  # type = 'collection'
-            endpoint = "{}api.{}".format(url_prefix, cls._s_type)
+            endpoint = f"{url_prefix}api.{cls._s_type}"
         return endpoint
 
     @hybrid_property
@@ -1100,7 +1103,7 @@ class SAFRSBase(Model):
         This may cause other errors too, for ex when sorting
         :return: renamed type
         """
-        safrs.log.debug('({}): attribute name "type" is reserved, renamed to "Type"'.format(self))
+        safrs.log.debug(f'({self}): attribute name "type" is reserved, renamed to "Type"')
         return self.type
 
     @Type.setter
@@ -1146,7 +1149,7 @@ class SAFRSBase(Model):
             attr_name = filt.get("name")
             attr_val = filt.get("val")
             if attr_name != "id" and attr_name not in cls._s_jsonapi_attrs:
-                raise ValidationError('Invalid filter "{}", unknown attribute "{}"'.format(filt, attr_name))
+                raise ValidationError(f'Invalid filter "{filt}", unknown attribute "{attr_name}"')
 
             op_name = filt.get("op", "").strip("_")
             attr = cls._s_jsonapi_attrs[attr_name] if attr_name != "id" else cls.id
@@ -1158,7 +1161,7 @@ class SAFRSBase(Model):
                 like = getattr(attr, op_name)
                 query = query.filter(like(attr_val))
             elif not hasattr(operator, op_name):
-                raise ValidationError('Invalid filter "{}", unknown operator "{}"'.format(filt, op_name))
+                raise ValidationError(f'Invalid filter "{filt}", unknown operator "{op_name}"')
             else:
                 op = getattr(operator, op_name)
                 expressions.append(op(attr, attr_val))

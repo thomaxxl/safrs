@@ -85,7 +85,7 @@ def connect_to_db(app):
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX, json_encoder=GeoJSONEncoder)
     api.expose_object(City)
-    print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
+    print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
 if __name__ == "__main__":

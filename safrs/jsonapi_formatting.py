@@ -74,7 +74,7 @@ def jsonapi_sort(object_query, safrs_object):
                     # jsonapi_id is a composite key => to do: parse the id
                     continue
             elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
-                safrs.log.debug("{} has no attribute {} in {}".format(safrs_object, sort_attr, safrs_object._s_jsonapi_attrs))
+                safrs.log.debug(f"{safrs_object} has no attribute {sort_attr} in {safrs_object._s_jsonapi_attrs}")
                 continue
             if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
                 object_query = sorted(
@@ -82,15 +82,15 @@ def jsonapi_sort(object_query, safrs_object):
                 )
             elif is_jsonapi_attr(attr):
                 # to do: implement sorting for jsonapi_attr
-                safrs.log.debug("sorting not implemented for {}".format(attr))
+                safrs.log.debug(f"sorting not implemented for {attr}")
             elif hasattr(object_query, "order_by"):
                 try:
                     # This may fail on non-sqla objects, eg. properties
                     object_query = object_query.order_by(attr)
                 except sqlalchemy.exc.ArgumentError as exc:
-                    safrs.log.warning("Sort failed for {}.{}: {}".format(safrs_object, sort_attr, exc))
+                    safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
                 except Exception as exc:
-                    safrs.log.warning("Sort failed for {}.{}: {}".format(safrs_object, sort_attr, exc))
+                    safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
 
     return object_query
 
@@ -129,8 +129,8 @@ def paginate(object_query, SAFRSObject=None):
         result = SAFRSObject._s_url if SAFRSObject else ""
         ignore_args = "page[offset]", "page[limit]"
         result += "?" + "&".join(
-            ["{}={}".format(k, v) for k, v in request.args.items() if k not in ignore_args]
-            + ["page[offset]={}&page[limit]={}".format(count, limit)]
+            [f"{k}={v}" for k, v in request.args.items() if k not in ignore_args]
+            + [f"page[offset]={count}&page[limit]={limit}"]
         )
         return result
 
@@ -165,7 +165,7 @@ def paginate(object_query, SAFRSObject=None):
             count = object_query.count()
         except Exception as exc:
             # May happen for custom types, for ex. the psycopg2 extension
-            safrs.log.warning("Can't get count for {} ({})".format(SAFRSObject, exc))
+            safrs.log.warning(f"Can't get count for {SAFRSObject} ({exc})")
             count = -1
 
         if count > get_config("MAX_TABLE_COUNT"):
@@ -210,7 +210,7 @@ def paginate(object_query, SAFRSObject=None):
         except OverflowError:
             raise ValidationError("Pagination Overflow Error")
         except Exception as exc:
-            raise GenericError("Pagination Error {}".format(exc))
+            raise GenericError(f"Pagination Error {exc}")
 
     return links, instances, count
 

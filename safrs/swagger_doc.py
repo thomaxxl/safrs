@@ -49,7 +49,7 @@ def parse_object_doc(object):
     try:
         yaml_doc = yaml.safe_load(raw_doc)
     except (SyntaxError, yaml.scanner.ScannerError) as exc:
-        safrs.log.error("Failed to parse documentation {} ({})".format(raw_doc, exc))
+        safrs.log.error(f"Failed to parse documentation {raw_doc} ({exc})")
         yaml_doc = {"description": raw_doc}
     except Exception:
         raise SystemValidationError("Failed to parse api doc")
@@ -147,7 +147,7 @@ def SchemaClassFactory(name, properties):
             # here, the properties variable is the one passed to the
             # ClassFactory call
             if key not in properties:
-                raise SystemValidationError("Argument {} not valid for {}".format(key, self.__class__.__name__))
+                raise SystemValidationError(f"Argument {key} not valid for {self.__class__.__name__}")
             setattr(self, key, value)
 
     new_schema_cls = type(name, (Schema,), {"__init__": __init__, "properties": properties})
@@ -168,7 +168,7 @@ def encode_schema(obj):
         try:
             result = json.loads(json.dumps(obj, cls=flask.current_app.json_encoder))
         except Exception as exc:
-            safrs.log.warning("Json encoding failed for {}, type {} ({})".format(obj, type(obj), exc))
+            safrs.log.warning(f"Json encoding failed for {obj}, type {type(obj)} ({exc})")
             result = str(obj)
 
     return result
@@ -210,7 +210,7 @@ def schema_from_object(name, object):
                 properties = {"example": str(k), "type": "string"}
                 safrs.log.warning("Invalid schema object type %s", type(object))
     else:
-        raise SystemValidationError("Invalid schema object type {}".format(type(object)))
+        raise SystemValidationError(f"Invalid schema object type {type(object)}")
 
     properties = encode_schema(properties)
     schema = SchemaClassFactory(name, properties)
@@ -225,7 +225,7 @@ def update_response_schema(responses):
     for code, response in responses.items():
         if response and not response.get("schema") and int(code) >= 400:
             jsonapi_error = {"errors": [{"title": http_codes.get(code, ""), "detail": "", "code": code}]}
-            err_schema = schema_from_object("jsonapi_error_{}".format(code), jsonapi_error)
+            err_schema = schema_from_object(f"jsonapi_error_{code}", jsonapi_error)
             responses[code]["schema"] = err_schema
 
 
@@ -262,7 +262,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         if name == method_name:
             break
     else:
-        raise SystemValidationError("method {} not found".format(method_name))
+        raise SystemValidationError(f"method {method_name} not found")
 
     f_args = inspect.getfullargspec(method).args
     rest_doc = get_doc(method)
@@ -275,7 +275,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                 """
                 Post arguments, these require us to build a schema
                 """
-                model_name = "{}_{}".format(cls.__name__, method_name)
+                model_name = f"{cls.__name__}_{method_name}"
                 method_field = {"method": method_name, "args": method_args}
                 if getattr(method, "valid_jsonapi", True):
                     payload = schema_from_object(model_name, method_field)
@@ -292,11 +292,11 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                 # Standard SQLA columns don't have this attibute
                 # but this may have been customized by a subclass
                 if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
-                    description = getattr(column, "description", "{} attribute filter (csv)".format(column_name))
+                    description = getattr(column, "description", f"{column_name} attribute filter (csv)")
                     param = {
                         "default": "",
                         "type": "string",
-                        "name": "filter[{}]".format(column_name),
+                        "name": f"filter[{column_name}]",
                         "in": "query",
                         "format": "string",
                         "required": False,
@@ -304,13 +304,13 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                     }
                     parameters += param
     elif f_args and http_method != "options":
-        safrs.log.warning('No documentation for method "{}"'.format(method_name))
+        safrs.log.warning(f'No documentation for method "{method_name}"')
         # jsonapi_rpc method has no documentation, generate it w/ inspect
         f_defaults = inspect.getfullargspec(method).defaults or []
         if f_args and f_args[0] in ("cls", "self"):
             f_args = f_args[1:]
         args = dict(zip(f_args, f_defaults))
-        model_name = "{}_{}".format(cls.__name__, method_name)
+        model_name = f"{cls.__name__}_{method_name}"
         # model = SchemaClassFactory(model_name, [])
         # arg_field = {"schema": model, "type": "string"} # tbd?
         method_field = {"method": method_name, "args": args}
@@ -370,8 +370,8 @@ def swagger_doc(cls, tags=None):
         responses = {}
         # adhere to open api
         # the model_name will hold the OAS "$ref" schema reference
-        coll_model_name = "{}_coll".format(class_name)  # collection model name
-        inst_model_name = "{}_inst".format(class_name)  # instance model name
+        coll_model_name = f"{class_name}_coll"  # collection model name
+        inst_model_name = f"{class_name}_inst"  # instance model name
 
         sample_dict = cls._s_sample_dict()
 
@@ -385,17 +385,17 @@ def swagger_doc(cls, tags=None):
             sample_instance["relationships"] = sample_rels
 
         coll_sample_data = schema_from_object(coll_model_name, {"data": [sample_instance]})
-        coll_sample_data.description += "{} {};".format(class_name, http_method)
+        coll_sample_data.description += f"{class_name} {http_method};"
 
         inst_sample_data = schema_from_object(inst_model_name, {"data": sample_instance})
-        inst_sample_data.description += "{} {};".format(class_name, http_method)
+        inst_sample_data.description += f"{class_name} {http_method};"
 
         cls.swagger_models["instance"] = inst_sample_data
         cls.swagger_models["collection"] = coll_sample_data
 
         if http_method == "get":
-            doc["summary"] = "Retrieve a {} object".format(class_name)
-            doc["collection_summary"] = "Retrieve a collection of {} objects".format(class_name)
+            doc["summary"] = f"Retrieve a {class_name} object"
+            doc["collection_summary"] = f"Retrieve a collection of {class_name} objects"
             body, responses = cls._s_get_swagger_doc(http_method)
             responses[HTTPStatus.OK.value] = {"schema": coll_sample_data, "description": HTTPStatus.OK.description}
 
@@ -405,7 +405,7 @@ def swagger_doc(cls, tags=None):
                 {
                     "name": "PATCH body",
                     "in": "body",
-                    "description": "{} attributes".format(class_name),
+                    "description": f"{class_name} attributes",
                     "schema": inst_sample_data,
                     "required": True,
                 }
@@ -414,7 +414,7 @@ def swagger_doc(cls, tags=None):
 
         elif http_method == "post":
             _, responses = cls._s_get_swagger_doc(http_method)
-            doc["summary"] = "Create a {} object".format(class_name)
+            doc["summary"] = f"Create a {class_name} object"
             # Create the default POST body schema
             sample_dict = cls._s_sample_dict()
             # The POST sample doesn't contain an "id", unless cls.allow_client_generated_ids is True
@@ -425,13 +425,13 @@ def swagger_doc(cls, tags=None):
             else:
                 sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
 
-            sample_data.description += "{} {};".format(class_name, http_method)
+            sample_data.description += f"{class_name} {http_method};"
 
             parameters.append(
                 {
                     "name": "POST body",
                     "in": "body",
-                    "description": "{} attributes".format(class_name),
+                    "description": f"{class_name} attributes",
                     "schema": sample_data,
                     "required": True,
                 }
@@ -442,7 +442,7 @@ def swagger_doc(cls, tags=None):
             _, responses = cls._s_get_swagger_doc(http_method)
         elif http_method != "options":
             # one of 'options', 'head', 'delete'
-            safrs.log.debug('no additional documentation for "{}" '.format(func))
+            safrs.log.debug(f'no additional documentation for "{func}" ')
 
         if is_debug():
             responses.update(debug_responses)
@@ -496,7 +496,7 @@ def swagger_relationship_doc(cls, tags=None):
                 "in": "path",
                 "type": "string",
                 "default": parent_class._s_sample_id(),
-                "description": "{} item".format(parent_class.__name__),
+                "description": f"{parent_class.__name__} item",
                 "required": True,
             },
             {
@@ -504,7 +504,7 @@ def swagger_relationship_doc(cls, tags=None):
                 "in": "path",
                 "type": "string",
                 "default": child_class._s_sample_id(),
-                "description": "{} item".format(class_name),
+                "description": f"{class_name} item",
                 "required": True,
             },
         ]
@@ -520,9 +520,9 @@ def swagger_relationship_doc(cls, tags=None):
         responses = {}
 
         # Shema names (for the swagger "references")
-        model_name = "{}_rel_inst".format(class_name)  # instance model name
+        model_name = f"{class_name}_rel_inst"  # instance model name
         if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
-            model_name = "{}_rel_coll".format(class_name)  # collection model name
+            model_name = f"{class_name}_rel_coll"  # collection model name
 
         if http_method == "get":
             _, responses = cls._s_get_swagger_doc(http_method)
@@ -539,14 +539,14 @@ def swagger_relationship_doc(cls, tags=None):
                 responses.pop(HTTPStatus.OK.value, None)
 
             rel_post_schema = schema_from_object(model_name, {"data": data})
-            rel_post_schema.description += "{} {} relationship;".format(class_name, http_method)
+            rel_post_schema.description += f"{class_name} {http_method} relationship;"
             cls.swagger_models["instance"] = rel_post_schema
             cls.swagger_models["collection"] = rel_post_schema
             parameters.append(
                 {
-                    "name": "{} body".format(class_name),
+                    "name": f"{class_name} body",
                     "in": "body",
-                    "description": "{} POST model".format(class_name),
+                    "description": f"{class_name} POST model",
                     "schema": rel_post_schema,
                     "required": True,
                 }
@@ -567,9 +567,9 @@ def swagger_relationship_doc(cls, tags=None):
             rel_del_schema = schema_from_object(model_name, {"data": data})
             parameters.append(
                 {
-                    "name": "{} body".format(class_name),
+                    "name": f"{class_name} body",
                     "in": "body",
-                    "description": "{} POST model".format(class_name),
+                    "description": f"{class_name} POST model",
                     "schema": rel_del_schema,
                     "required": True,
                 }
@@ -577,7 +577,7 @@ def swagger_relationship_doc(cls, tags=None):
 
         elif http_method != "options":
             # one of 'options', 'head', 'patch'
-            safrs.log.info('no documentation for "{}" '.format(http_method))
+            safrs.log.info(f'no documentation for "{http_method}" ')
 
         doc["parameters"] = parameters
         if doc.get("responses"):
@@ -620,12 +620,12 @@ def swagger_method_doc(cls, method_name, tags=None):
         if is_debug():
             responses.update(debug_responses)
 
-        summary = method_doc.get("summary", "Invoke {}.{}".format(class_name, method_name))
+        summary = method_doc.get("summary", f"Invoke {class_name}.{method_name}")
         description = method_doc.get("description", summary)
 
         doc = {"tags": doc_tags, "description": description, "summary": summary, "responses": responses}
 
-        model_name = "{}_{}_{}".format("Invoke ", class_name, method_name)
+        model_name = f"Invoke _{class_name}_{method_name}"
         param_model = SchemaClassFactory(model_name, {})
         parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
 
@@ -635,7 +635,7 @@ def swagger_method_doc(cls, method_name, tags=None):
                     {
                         "name": "varargs",
                         "in": "query",
-                        "description": "{} arguments".format(method_name),
+                        "description": f"{method_name} arguments",
                         "required": False,
                         "type": "string",
                     }
@@ -643,7 +643,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         else:
             # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
             parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
-            model_name = "{}_{}_{}".format(func.__name__, cls.__name__, method_name)
+            model_name = f"{func.__name__}_{cls.__name__}_{method_name}"
             param_model = SchemaClassFactory(model_name, fields)
 
             parameters.append({"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True})
@@ -701,7 +701,7 @@ def apply_fstring(swagger_obj, vars, k=None):
         try:
             result = swagger_obj.format(**vars)
         except Exception as exc:
-            safrs.log.error("Failed to format ({})".format(exc))
+            safrs.log.error(f"Failed to format ({exc})")
         return result
     elif isinstance(swagger_obj, list):
         for i in swagger_obj:

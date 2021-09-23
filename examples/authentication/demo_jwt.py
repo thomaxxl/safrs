@@ -137,7 +137,7 @@ def start_app(app):
     api.expose_object(Item)
     api.expose_object(User)
 
-    print("Starting API: http://{}:{}/api".format(HOST, PORT))
+    print(f"Starting API: http://{HOST}:{PORT}/api")
 
     # Identity can be any data that is json serializable
     user = User.query.filter_by(username="user2").first()

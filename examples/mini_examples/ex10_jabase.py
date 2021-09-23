@@ -45,9 +45,9 @@ if __name__ == "__main__":
     API_PREFIX = ""
 
     with app.app_context():
-        api = SAFRSAPI(app, host="{}".format(HOST), port=PORT, prefix=API_PREFIX)
+        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(MyService)
         # Register the API at /api/docs
-        print("Starting API: http://{}:{}{}".format(HOST, PORT, API_PREFIX))
+        print(f"Starting API: http://{HOST}:{PORT}{API_PREFIX}")
         app.run(host=HOST, port=PORT)

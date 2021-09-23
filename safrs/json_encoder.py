@@ -94,7 +94,7 @@ class SAFRSJSONEncoder(JSONEncoder):
         # getting here means we already abused safrs... and we're no longer jsonapi compliant
         if not is_debug():  # pragma: no cover
             # only continue if in debug mode
-            safrs.log.warning('JSON Encoding Error: Unknown object type "{}" for {}'.format(type(obj), obj))
+            safrs.log.warning(f'JSON Encoding Error: Unknown object type "{type(obj)}" for {obj}')
             return {"error": "SAFRSJSONEncoder invalid object"}
 
         if isinstance(obj, DeclarativeMeta):  # pragma: no cover

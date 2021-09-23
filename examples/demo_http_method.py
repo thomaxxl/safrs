@@ -35,10 +35,10 @@ class User(SAFRSBase, db.Model):
                     type : string
                     example : test email
         """
-        content = "Mail to {} : {}\n".format(self.name, email)
+        content = f"Mail to {self.name} : {email}\n"
         with open("/tmp/mail.txt", "a+") as mailfile:
             mailfile.write(content)
-        return {"result": "sent {}".format(content)}
+        return {"result": f"sent {content}"}
 
     def get(self, *args, **kwargs):
         """
@@ -94,5 +94,5 @@ def per_request_callbacks(response):
     return response
 
 
-print("Starting API: http://{}:{}{}".format(HOST, PORT, API_PREFIX))
+print(f"Starting API: http://{HOST}:{PORT}{API_PREFIX}")
 app.run(host=HOST, port=PORT)

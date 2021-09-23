@@ -55,13 +55,13 @@ def parse_attr(column, attr_val):
                 # JS datepicker format
                 attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning('Invalid datetime.datetime {} for value "{}"'.format(exc, attr_val))
+            safrs.log.warning(f'Invalid datetime.datetime {exc} for value "{attr_val}"')
             attr_val = datetime.datetime.now()
     elif attr_val and column.type.python_type == datetime.date:
         try:
             attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
         except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning('Invalid datetime.date {} for value "{}"'.format(exc, attr_val))
+            safrs.log.warning(f'Invalid datetime.date {exc} for value "{attr_val}"')
             attr_val = datetime.datetime.now()
     elif attr_val and column.type.python_type == datetime.time:  # pragma: no cover (todo)
         try:
@@ -73,7 +73,7 @@ def parse_attr(column, attr_val):
                 # JS datepicker format
                 attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S").time()
         except (NotImplementedError, ValueError, TypeError) as exc:
-            safrs.log.warning('Invalid datetime.time {} for value "{}"'.format(exc, attr_val))
+            safrs.log.warning(f'Invalid datetime.time {exc} for value "{attr_val}"')
             attr_val = column.type.python_type()
     else:
         attr_val = column.type.python_type(attr_val)

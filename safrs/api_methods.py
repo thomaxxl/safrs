@@ -38,11 +38,11 @@ def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
     for key, value in kwargs.items():
         column = getattr(cls, key, None)
         if not column:
-            raise SystemValidationError('Invalid Column "{}"'.format(key))
+            raise SystemValidationError(f'Invalid Column "{key}"')
         try:
             result = result.query.filter(column.op("regexp")(value))
         except Exception as exc:
-            raise GenericError("Failed to execute query {}".format(exc))
+            raise GenericError(f"Failed to execute query {exc}")
 
     return SAFRSFormattedResponse(result.all())
 
@@ -66,12 +66,12 @@ def startswith(cls, **kwargs):  # pragma: no cover
         errors = None
         response = SAFRSFormattedResponse(data, meta, links, errors, count)
     except Exception as exc:
-        raise GenericError("Failed to execute query {}".format(exc))
+        raise GenericError(f"Failed to execute query {exc}")
 
     for key, value in kwargs.items():
         column = getattr(cls, key, None)
         if not column:
-            raise SystemValidationError('Invalid Column "{}"'.format(key))
+            raise SystemValidationError(f'Invalid Column "{key}"')
         try:
             instances = result.query.filter(column.like(value + "%"))
             links, instances, count = paginate(instances)
@@ -81,7 +81,7 @@ def startswith(cls, **kwargs):  # pragma: no cover
             response = SAFRSFormattedResponse(data, meta, links, errors, count)
 
         except Exception as exc:
-            raise GenericError("Failed to execute query {}".format(exc))
+            raise GenericError(f"Failed to execute query {exc}")
     return response
 
 

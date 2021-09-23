@@ -74,7 +74,7 @@ class GenericError(JsonapiError):
         self.status_code = status_code
         safrs.log.error("Generic Error: %s", message)
         if is_debug():
-            safrs.log.info("Error in {}".format(request.url))
+            safrs.log.info(f"Error in {request.url}")
             safrs.log.debug(traceback.format_exc(120))
             self.message += str(message)
         else:

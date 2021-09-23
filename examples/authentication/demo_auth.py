@@ -43,7 +43,7 @@ def start_app(app):
     # The method_decorators will be applied to all API endpoints
     api.expose_object(User, method_decorators = [auth.login_required])
     user = User(username="admin2")
-    print("Starting API: http://{}:{}/api".format(HOST, PORT))
+    print(f"Starting API: http://{HOST}:{PORT}/api")
     app.run(host=HOST, port=PORT)
 
 

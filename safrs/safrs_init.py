@@ -74,7 +74,7 @@ class SAFRS:
         # Register the API blueprint
         if swaggerui_blueprint is True:
             swaggerui_blueprint = get_swaggerui_blueprint(
-                prefix, "{}/swagger.json".format(prefix), config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
+                prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
             swaggerui_blueprint.json_encoder = JSONEncoder
@@ -160,7 +160,7 @@ try:
     DEBUG = os.getenv("DEBUG", logging.WARNING)
     LOGLEVEL = int(DEBUG)
 except ValueError:  # pragma: no cover
-    print('Invalid LogLevel in DEBUG Environment Variable! "{}"'.format(DEBUG))
+    print(f'Invalid LogLevel in DEBUG Environment Variable! "{DEBUG}"')
     LOGLEVEL = logging.INFO
 
 log = SAFRS.init_logging(LOGLEVEL)

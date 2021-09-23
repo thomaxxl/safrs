@@ -151,10 +151,10 @@ class Person(BaseModel):
                 - name : my_query_string_param
                   default : my_value
         """
-        content = "Mail to {} : {}\n".format(self.name, email)
+        content = f"Mail to {self.name} : {email}\n"
         with open("/tmp/mail.txt", "a+") as mailfile:
             mailfile.write(content)
-        return {"output": "sent {}".format(content)}
+        return {"output": f"sent {content}"}
 
     @classmethod
     @jsonapi_rpc(http_methods=["POST"])

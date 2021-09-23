@@ -104,7 +104,7 @@ class SAFRSRequest(Request):
         :return: jsonapi request payload
         """
         if not self.is_jsonapi:  # pragma: no cover
-            safrs.log.warning('Invalid Media Type! "{}"'.format(self.content_type))
+            safrs.log.warning(f'Invalid Media Type! "{self.content_type}"')
             # raise GenericError('Unsupported Media Type', 415)
         if self.method == "OPTIONS":
             return None
@@ -112,7 +112,7 @@ class SAFRSRequest(Request):
             abort(500)
         result = self.get_json()
         if not isinstance(result, dict):
-            raise ValidationError("Invalid JSON Payload : {}".format(result))
+            raise ValidationError(f"Invalid JSON Payload : {result}")
         return result
 
     def parse_jsonapi_args(self):

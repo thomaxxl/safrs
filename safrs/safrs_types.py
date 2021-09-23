@@ -58,7 +58,7 @@ class SAFRSID:
             try:
                 result = cls.columns[0].type.python_type(id)
             except Exception:
-                raise ValidationError("Invalid id: '{}'.".format(id))
+                raise ValidationError(f"Invalid id: '{id}'.")
         else:
             pass
             # safrs.log.debug("ID Validation not implemented for {}".format(cls))
@@ -97,7 +97,7 @@ class SAFRSID:
             values = str(id).split(cls.delimiter)
         if len(values) != len(cls.columns):
             columns = [ c.name for c in cls.columns ]
-            raise ValidationError("PK values ({}) do not match columns ({})".format(values, columns))
+            raise ValidationError(f"PK values ({values}) do not match columns ({columns})")
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
@@ -115,7 +115,7 @@ class SAFRSID:
                 else:
                     result[col_name] = ""
             except Exception as exc:  # pragma: no cover
-                safrs.log.warning("PK Error: {}".format(exc))
+                safrs.log.warning(f"PK Error: {exc}")
                 result[col_name] = ""
 
         return result
@@ -255,6 +255,6 @@ class UUIDType(TypeDecorator):  # pragma: no cover
         try:
             uuid.UUID(value, version=4)
         except Exception as exc:
-            raise ValidationError("UUID Validation Error {} ({})".format(value, exc))
+            raise ValidationError(f"UUID Validation Error {value} ({exc})")
 
         return value

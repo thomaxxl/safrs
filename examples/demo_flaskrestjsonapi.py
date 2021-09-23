@@ -50,7 +50,7 @@ class PersonSchema(Schema):
     email = fields.Email(load_only=True)
     birth_date = fields.Date()
     display_name = fields.Function(
-        lambda obj: "{} <{}>".format(obj.name.upper(), obj.email)
+        lambda obj: f"{obj.name.upper()} <{obj.email}>"
     )
     computers = Relationship(
         self_view="person_computers",
@@ -128,7 +128,7 @@ def create_api(app, HOST="localhost", PORT=5010, API_PREFIX=""):
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(Person)
     api.expose_object(Computer)
-    print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
+    print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
 def create_app(config_filename=None, host="localhost"):

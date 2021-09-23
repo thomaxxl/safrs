@@ -200,11 +200,11 @@ if __name__ == "__main__":
         user = User(name="thomas", email="em@il")
         book = Book(name="test_book")
         user.books.append(book)
-        api = SAFRSAPI(app, host="{}".format(HOST), port=PORT, prefix=API_PREFIX)
+        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
         api.expose_object(Test)
         # Register the API at /api/docs
-        print("Starting API: http://{}:{}{}".format(HOST, PORT, API_PREFIX))
+        print(f"Starting API: http://{HOST}:{PORT}{API_PREFIX}")
         app.run(host=HOST, port=PORT)

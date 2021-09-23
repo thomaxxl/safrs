@@ -29,7 +29,7 @@ def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     # Create some users
     User(id=0, name="admin", email="admin@safrs.biz")
     User(id=1, name="test_user", email="test@safrs.biz")
-    print("Starting API: http://{}:{}/{}".format(HOST, PORT, API_PREFIX))
+    print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
 def create_app(config_filename=None, host="localhost"):
