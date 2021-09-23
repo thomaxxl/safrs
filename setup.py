@@ -9,7 +9,7 @@ def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.11.5"
+    version = "2.12.0"
 
     setup(
         name="safrs",
@@ -23,7 +23,7 @@ def safrs_setup():
         url="https://github.com/thomaxxl/safrs",
         download_url="https://github.com/thomaxxl/safrs/archive/{}.tar.gz".format(version),
         keywords=["SqlAlchemy", "Flask", "REST", "Swagger", "JsonAPI", "OpenAPI"],
-        python_requires=">=3.0, !=3.0.*, !=3.1.*, !=3.2.*, <4",
+        python_requires=">=3.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
         install_requires=install_requires,
         classifiers=[
             "Development Status :: 3 - Alpha",
@@ -32,15 +32,11 @@ def safrs_setup():
             "Framework :: Flask",
             "Topic :: Software Development :: Libraries",
             "Environment :: Web Environment",
-            "Programming Language :: Python :: 3",
             "Programming Language :: Python :: 3.10",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.6",
-            "Programming Language :: Python :: 3.5",
-            "Programming Language :: Python :: 3.3",
-            "Programming Language :: Python :: 3.4",
         ],
         extras_require = { 'admin' : ['Flask-Admin>=1.5.8', 'Flask-Cors>=3.0.9'] , 'db2api' : ['inflect==5.0.2', 'Flask-Cors>=3.0.9'] }
     )
