@@ -20,7 +20,7 @@ auth = HTTPBasicAuth()
 # Example sqla database object
 class Item(SAFRSBase, db.Model):
     """
-        description: Item description
+    description: Item description
     """
 
     __tablename__ = "items"
@@ -41,7 +41,7 @@ def post_login_required(func):
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "users"

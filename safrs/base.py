@@ -234,7 +234,7 @@ class SAFRSBase(Model):
     @classmethod
     def _s_get(cls, **kwargs):
         """
-            This method is called when a collection is requested with a HTTP GET to the json api
+        This method is called when a collection is requested with a HTTP GET to the json api
         """
         return cls.jsonapi_filter()
 
@@ -263,7 +263,7 @@ class SAFRSBase(Model):
                 if attr_name in cls.id_type.column_names:
                     safrs.log.warning(f"Client generated IDs are not allowed ('allow_client_generated_ids' not set for {cls})")
                     del attributes[attr_name]
-            
+
         # Create the object instance with the specified id and json data
         # If the instance (id) already exists, it will be updated with the data
         # pylint: disable=not-callable

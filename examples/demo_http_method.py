@@ -16,7 +16,7 @@ db = SQLAlchemy()
 # Example sqla database object
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "users"
@@ -29,11 +29,11 @@ class User(SAFRSBase, db.Model):
     @jsonapi_rpc(http_methods=["POST", "GET"])
     def send_mail(self, email):
         """
-            description : Send an email
-            args:
-                email:
-                    type : string
-                    example : test email
+        description : Send an email
+        args:
+            email:
+                type : string
+                example : test email
         """
         content = f"Mail to {self.name} : {email}\n"
         with open("/tmp/mail.txt", "a+") as mailfile:
@@ -42,11 +42,11 @@ class User(SAFRSBase, db.Model):
 
     def get(self, *args, **kwargs):
         """
-            description: Get something
-            summary : User get summary
-            responses :
-                429 :
-                    description : Too many requests
+        description: Get something
+        summary : User get summary
+        responses :
+            429 :
+                description : Too many requests
         """
         return self.http_methods["get"](self, *args, **kwargs)
 

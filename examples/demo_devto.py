@@ -22,7 +22,7 @@ db = SQLAlchemy()
 # Example sqla database object
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -34,7 +34,7 @@ class User(SAFRSBase, db.Model):
 
 class Book(SAFRSBase, db.Model):
     """
-        description: Book description
+    description: Book description
     """
 
     __tablename__ = "Books"
@@ -66,6 +66,7 @@ def create_app(config_filename=None, host="localhost"):
 
         create_api(app, host)
     return app
+
 
 # address where the api will be hosted, change this if you're not running the app on localhost!
 host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"

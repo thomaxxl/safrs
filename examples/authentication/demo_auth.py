@@ -29,19 +29,19 @@ def verify_password(username_or_token, password):
 
 class User(SAFRSBase, db.Model):
     """
-        description: Protected user resource
+    description: Protected user resource
     """
 
     __tablename__ = "users"
     id = db.Column(db.String(32), primary_key=True)
     username = db.Column(db.String(32))
-    
+
 
 def start_app(app):
 
     api = SAFRSAPI(app, host=HOST)
     # The method_decorators will be applied to all API endpoints
-    api.expose_object(User, method_decorators = [auth.login_required])
+    api.expose_object(User, method_decorators=[auth.login_required])
     user = User(username="admin2")
     print(f"Starting API: http://{HOST}:{PORT}/api")
     app.run(host=HOST, port=PORT)

@@ -96,7 +96,7 @@ class SAFRSID:
         else:
             values = str(id).split(cls.delimiter)
         if len(values) != len(cls.columns):
-            columns = [ c.name for c in cls.columns ]
+            columns = [c.name for c in cls.columns]
             raise ValidationError(f"PK values ({values}) do not match columns ({columns})")
         result = dict()
         for pk_col, val in zip(cls.columns, values):
@@ -133,8 +133,8 @@ class SAFRSID:
         Extract the primary keys from kw_dict (these are the kwargs passed to SAFRSBase.new())
         In case of composite keys we construct the jsonapi_id by using the delimiter to join the values
         :return: primary keys dict
-        """ 
-        pks = { k : str(kw_dict[k]) for k in cls.column_names }
+        """
+        pks = {k: str(kw_dict[k]) for k in cls.column_names}
         id = cls.delimiter.join(pks.values())
         return cls.get_pks(id)
 

@@ -14,7 +14,7 @@ db = SQLAlchemy()
 
 class Order(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Orders"
@@ -26,8 +26,8 @@ class Order(SAFRSBase, db.Model):
     @jsonapi_rpc(http_methods=["POST"])
     def add_order(self, *args, **kwargs):
         """
-            args :
-                product_id : 1
+        args :
+            product_id : 1
         """
         print("adding ")
         print(kwargs)

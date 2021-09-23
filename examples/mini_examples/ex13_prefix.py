@@ -12,7 +12,7 @@ db = SQLAlchemy()
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -24,7 +24,9 @@ class User(SAFRSBase, db.Model):
 def create_api(app, HOST="localhost", PORT=5000, prefix=""):
     api_spec_url = f"/my_swagger"
     api = SAFRSAPI(app, host=HOST, port=PORT, prefix=prefix, swaggerui_blueprint=False, api_spec_url=api_spec_url)
-    swaggerui_blueprint = get_swaggerui_blueprint(prefix, f"{prefix}/{api_spec_url}.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1})
+    swaggerui_blueprint = get_swaggerui_blueprint(
+        prefix, f"{prefix}/{api_spec_url}.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
+    )
     app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")

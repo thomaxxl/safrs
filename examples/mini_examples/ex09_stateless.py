@@ -22,7 +22,7 @@ db = SQLAlchemy()
 
 class Test(SAFRSBase):
     """
-        description: Stateless class example
+    description: Stateless class example
     """
 
     instances = []
@@ -34,7 +34,7 @@ class Test(SAFRSBase):
 
     def __new__(cls, *args, **kwargs):
         """
-            override SAFRSBase.__new__
+        override SAFRSBase.__new__
         """
         result = object.__new__(cls)
         cls.instances.append(result)
@@ -42,7 +42,7 @@ class Test(SAFRSBase):
 
     def __init__(self, *args, **kwargs):
         """
-            Constructor
+        Constructor
         """
         self.id = kwargs.get("id")
         self.name = kwargs.get("name")
@@ -50,7 +50,7 @@ class Test(SAFRSBase):
     @classmethod
     def _s_get(cls, **kwargs):
         """
-            Called for a HTTP GET
+        Called for a HTTP GET
         """
         print(f"Get with {kwargs}")
         return cls.instances
@@ -58,8 +58,8 @@ class Test(SAFRSBase):
     @classmethod
     def get_instance(cls, id, failsafe=False):
         """
-            Return the instance specified by id
-            Called for "GET /{Id}" (and other operations)
+        Return the instance specified by id
+        Called for "GET /{Id}" (and other operations)
         """
         print(f"Get {id}")
         for instance in cls.instances:
@@ -71,7 +71,7 @@ class Test(SAFRSBase):
     @classmethod
     def _s_post(cls, *args, **kwargs):
         """
-            Called for a HTTP POST
+        Called for a HTTP POST
         """
         print(f"Post with {kwargs}")
         result = cls(**kwargs, id=len(cls.instances))
@@ -79,14 +79,14 @@ class Test(SAFRSBase):
 
     def _s_patch(self, *args, **kwargs):
         """
-            Called for a HTTP PATCH
+        Called for a HTTP PATCH
         """
         print(f"Patch with {kwargs}")
         return self
 
     def _s_delete(self):
         """
-            Called for a HTTP DELETE
+        Called for a HTTP DELETE
         """
         print(f"Delete {self}")
 
@@ -97,7 +97,7 @@ class Test(SAFRSBase):
     @classmethod
     def _s_count(cls):
         """
-            jsonapi response count parameter
+        jsonapi response count parameter
         """
         return 1
 

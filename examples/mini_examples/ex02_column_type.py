@@ -12,8 +12,8 @@ db = SQLAlchemy()
 
 class EmailType(TypeDecorator):
     """
-        example class to perform email validation
-        DB Email Type class: validates email address when bound
+    example class to perform email validation
+    DB Email Type class: validates email address when bound
     """
 
     impl = db.String(767)
@@ -30,7 +30,7 @@ class EmailType(TypeDecorator):
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"

@@ -11,7 +11,7 @@ db = SQLAlchemy()
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -48,14 +48,15 @@ def create_app(config_filename=None, host="localhost"):
 host = "192.168.235.136"
 app = create_app(host=host)
 
+
 @app.before_request
 def req_start():
-    print('start')
-    
+    print("start")
+
 
 @app.before_request
 def req_end():
-    print('end')
+    print("end")
 
 
 if __name__ == "__main__":

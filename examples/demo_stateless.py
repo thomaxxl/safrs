@@ -22,7 +22,7 @@ db = SQLAlchemy()
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -34,7 +34,7 @@ class User(SAFRSBase, db.Model):
 
 class Book(SAFRSBase, db.Model):
     """
-        description: Book description
+    description: Book description
     """
 
     __tablename__ = "Books"
@@ -51,8 +51,8 @@ class Book(SAFRSBase, db.Model):
 
 class TestQuery:
     """
-        The safrs sqla serialization calls some sqlalchemy methods
-        We emulate them here
+    The safrs sqla serialization calls some sqlalchemy methods
+    We emulate them here
     """
 
     def first(cls):
@@ -92,7 +92,7 @@ class TestBookRelationship:
 
     def __iter__(self):
         """
-            yield items from the collection that should be in the relationship
+        yield items from the collection that should be in the relationship
         """
         for book in Book.query.all():
             yield book
@@ -100,7 +100,7 @@ class TestBookRelationship:
 
 class Test(SAFRSBase):
     """
-        description: Book description
+    description: Book description
     """
 
     id = 1
@@ -111,13 +111,13 @@ class Test(SAFRSBase):
 
     def __new__(cls, *args, **kwargs):
         """
-            override SAFRSBase.__new__
+        override SAFRSBase.__new__
         """
         return object.__new__(cls)
 
     def __init__(self, *args, **kwargs):
         """
-            Constructor
+        Constructor
         """
         self.books = TestBookRelationship(self)
         self.name = kwargs.get("name")
@@ -125,28 +125,28 @@ class Test(SAFRSBase):
     @classproperty
     def _s_type(cls):
         """
-            json:api type
+        json:api type
         """
         return cls.ja_type
 
     @classproperty
     def _s_query(cls):
         """
-            query placeholder
+        query placeholder
         """
         return TestQuery()
 
     @classproperty
     def _s_relationships(cls):
         """
-            return the included relationships
+        return the included relationships
         """
-        return {"books" : cls.books}
+        return {"books": cls.books}
 
     @jsonapi_attr
     def name(self):
         return "My Name"
-        
+
     @jsonapi_attr
     def my_custom_field(self):
         return -1
@@ -154,14 +154,14 @@ class Test(SAFRSBase):
     @classproperty
     def _s_url(self):
         """
-            The URL to return in the jsonapi "links" parameter
+        The URL to return in the jsonapi "links" parameter
         """
         return "http://safrs-example.com/api/Test"
 
     @classmethod
     def get_instance(cls, id, failsafe=False):
         """
-            return the instance specified by id
+        return the instance specified by id
         """
         result = Test()
         return result

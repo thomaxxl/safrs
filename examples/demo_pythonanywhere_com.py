@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # This script is deployed on thomaxxl.pythonanywhere.com
-# 
+#
 # This is a demo application to demonstrate the functionality of the safrs REST API
 # The script depends on
 # $ pip install flask_admin flask_cors
@@ -58,7 +58,7 @@ class BaseModel(SAFRSBase, db.Model):
 
 class DocumentedColumn(db.Column):
     """
-        The class attributes are used for the swagger
+    The class attributes are used for the swagger
     """
 
     description = "My custom column description"
@@ -73,7 +73,7 @@ class DocumentedColumn(db.Column):
 # Customized relationships
 def hiddenRelationship(*args, **kwargs):
     """
-        To hide a relationship, set the expose attribute to False
+    To hide a relationship, set the expose attribute to False
     """
     relationship = db.relationship(*args, **kwargs)
     relationship.expose = False
@@ -91,7 +91,7 @@ friendship = db.Table(
 
 class Book(BaseModel):
     """
-        description: My book description
+    description: My book description
     """
 
     __tablename__ = "Books"
@@ -107,7 +107,7 @@ class Book(BaseModel):
 
 class Person(BaseModel):
     """
-        description: My person description
+    description: My person description
     """
 
     __tablename__ = "People"
@@ -129,14 +129,14 @@ class Person(BaseModel):
     @jsonapi_attr
     def password(self):
         """---
-            "_password" is hidden because of the "_" prefix, provide a custom attribute "password" the Person fields
+        "_password" is hidden because of the "_" prefix, provide a custom attribute "password" the Person fields
         """
         return "hidden, check _password"
 
     @password.setter
     def password(self, val):
         """
-            Allow setting _password
+        Allow setting _password
         """
         self._password = hashlib.sha256(val.encode("utf-8")).hexdigest()
 
@@ -144,12 +144,12 @@ class Person(BaseModel):
     @jsonapi_rpc(http_methods=["POST"])
     def send_mail(self, email=""):
         """
-            description : Send an email
-            args:
-                email: test email
-            parameters:
-                - name : my_query_string_param
-                  default : my_value
+        description : Send an email
+        args:
+            email: test email
+        parameters:
+            - name : my_query_string_param
+              default : my_value
         """
         content = f"Mail to {self.name} : {email}\n"
         with open("/tmp/mail.txt", "a+") as mailfile:
@@ -160,12 +160,12 @@ class Person(BaseModel):
     @jsonapi_rpc(http_methods=["POST"])
     def my_rpc(cls, *args, **kwargs):
         """
-            pageable: false
-            parameters:
-                - name : my_query_string_param
-                  default : my_value
-            args:
-                email: test email
+        pageable: false
+        parameters:
+            - name : my_query_string_param
+              default : my_value
+        args:
+            email: test email
         """
         o1 = cls.query.first()
         o2 = cls.query.first()
@@ -178,9 +178,9 @@ class Person(BaseModel):
 
 class Publisher(BaseModel):
     """
-        description: My publisher description
-        ---
-        demonstrate custom (de)serialization in __init__ and to_dict
+    description: My publisher description
+    ---
+    demonstrate custom (de)serialization in __init__ and to_dict
     """
 
     __tablename__ = "Publishers"
@@ -202,14 +202,14 @@ class Publisher(BaseModel):
     @classmethod
     def filter(cls, arg):
         """
-            Sample custom filtering, override this method to implement custom filtering
-            using the sqlalchemy orm
+        Sample custom filtering, override this method to implement custom filtering
+        using the sqlalchemy orm
 
-            This method will be called when the filter= url query argument is provided, eg.
-            GET /Publishers/?filter=some_filter
+        This method will be called when the filter= url query argument is provided, eg.
+        GET /Publishers/?filter=some_filter
 
-            you can use the argument to create custom filtering, f.i.
-            cls.query.filter_by(name=arg)
+        you can use the argument to create custom filtering, f.i.
+        cls.query.filter_by(name=arg)
         """
         print(arg)
         return {"provided": arg}
@@ -217,16 +217,16 @@ class Publisher(BaseModel):
     @jsonapi_attr
     def stock(self):
         """
-            default: 30
-            ---
-            Custom Attribute that will be shown in the book swagger
+        default: 30
+        ---
+        Custom Attribute that will be shown in the book swagger
         """
         return 100
 
 
 class Review(BaseModel):
     """
-        description: Review description
+    description: Review description
     """
 
     __tablename__ = "Reviews"
@@ -287,7 +287,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         admin = Admin(app, url="/admin")
         for model in [Person, Book, Review, Publisher]:
             admin.add_view(sqla.ModelView(model, db.session))
-    
+
 
 app = Flask("SAFRS Demo App")
 

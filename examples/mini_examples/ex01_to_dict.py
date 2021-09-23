@@ -11,7 +11,7 @@ db = SQLAlchemy()
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"

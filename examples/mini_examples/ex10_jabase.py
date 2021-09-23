@@ -17,9 +17,9 @@ db = SQLAlchemy()
 
 class MyService(JABase):
     """
-        description: Example class without SQLa Model
+    description: Example class without SQLa Model
     """
-    
+
     @staticmethod
     @jsonapi_rpc(http_methods=["POST"], valid_jsonapi=False)
     def rpc(*args, a0=0, a1=1):

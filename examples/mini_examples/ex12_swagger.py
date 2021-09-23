@@ -24,7 +24,7 @@ db = SQLAlchemy()
 # Example sqla database objects
 class User(SAFRSBase, db.Model):
     """
-        description: My User description
+    description: My User description
     """
 
     __tablename__ = "Users"
@@ -36,7 +36,7 @@ class User(SAFRSBase, db.Model):
 
 class Book(SAFRSBase, db.Model):
     """
-        description: My Book description
+    description: My Book description
     """
 
     __tablename__ = "Books"
@@ -45,14 +45,16 @@ class Book(SAFRSBase, db.Model):
     user_id = db.Column(db.String, db.ForeignKey("Users.id"))
     user = db.relationship("User", back_populates="books")
 
+
 def create_api(app, host="localhost", port=5000, api_prefix="", custom_swagger={}):
     """
-        The custom_swagger dictionary will be merged
+    The custom_swagger dictionary will be merged
     """
     api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix, custom_swagger=custom_swagger)
     api.expose_object(User)
     api.expose_object(Book)
     print(f"Created API: http://{host}:{port}/{api_prefix}")
+
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
@@ -61,7 +63,7 @@ def create_app(config_filename=None, host="localhost"):
 
     with open(Path(__file__).parent / "custom_swagger.json") as j_fp:
         custom_swagger = json.load(j_fp)
-    
+
     with app.app_context():
         db.create_all()
         # Populate the db with users and a books and add the book to the user.books relationship
@@ -71,8 +73,9 @@ def create_app(config_filename=None, host="localhost"):
             user.books.append(book)
 
         create_api(app, host, custom_swagger=custom_swagger)
-    
+
     return app
+
 
 # address where the api will be hosted, change this if you're not running the app on localhost!
 host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"

@@ -13,7 +13,7 @@ db = SQLAlchemy()
 # Example sqla database object
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -27,7 +27,7 @@ class User(SAFRSBase, db.Model):
 
 class Book(SAFRSBase, db.Model):
     """
-        description: Book description
+    description: Book description
     """
 
     __tablename__ = "Books"

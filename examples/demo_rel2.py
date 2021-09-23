@@ -60,8 +60,8 @@ class BaseModel(SAFRSBase, db.Model):
 
 class WriteOnlyColumn(db.Column):
     """
-        The "permissions" attribute set to "w" indicates that the column shouldn't be readable
-        in this case it's write-only
+    The "permissions" attribute set to "w" indicates that the column shouldn't be readable
+    in this case it's write-only
     """
 
     permissions = "w"
@@ -69,7 +69,7 @@ class WriteOnlyColumn(db.Column):
 
 class DocumentedColumn(db.Column):
     """
-        The class attributes are used for the swagger
+    The class attributes are used for the swagger
     """
 
     description = "My custom column description"
@@ -86,7 +86,7 @@ class DocumentedColumn(db.Column):
 
 def hiddenRelationship(*args, **kwargs):
     """
-        To hide a relationship, set the expose attribute to False
+    To hide a relationship, set the expose attribute to False
     """
     relationship = db.relationship(*args, **kwargs)
     relationship.expose = False
@@ -105,7 +105,7 @@ friendship = db.Table(
 
 class Book(BaseModel):
     """
-        description: My book description
+    description: My book description
     """
 
     __tablename__ = "Books"
@@ -121,7 +121,7 @@ class Book(BaseModel):
 
 class Person(BaseModel):
     """
-        description: My person description
+    description: My person description
     """
 
     __tablename__ = "People"
@@ -144,9 +144,9 @@ class Person(BaseModel):
 
 class Publisher(BaseModel):
     """
-        description: My publisher description
-        ---
-        demonstrate custom (de)serialization in __init__ and to_dict
+    description: My publisher description
+    ---
+    demonstrate custom (de)serialization in __init__ and to_dict
     """
 
     __tablename__ = "Publishers"
@@ -169,7 +169,7 @@ class Publisher(BaseModel):
 
 class Review(BaseModel):
     """
-        description: Review description
+    description: Review description
     """
 
     __tablename__ = "Reviews"
@@ -232,6 +232,7 @@ def print_db():
         print(f"friends.books_read    {f} {f.books_read}")
 
     print(f"author books_written", test_author.books_written)
+
 
 # Authentication with flask-httpauth
 # https://flask-httpauth.readthedocs.io/en/latest/

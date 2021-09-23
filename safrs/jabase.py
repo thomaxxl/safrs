@@ -32,7 +32,7 @@ class JABase(SAFRSBase):
     def s_type(cls):
         """
         Implementations should override this to provide custom types
-        
+
         :return: jsonapi type string
         """
         return "JAType_" + cls.__name__

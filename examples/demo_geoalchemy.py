@@ -22,7 +22,7 @@ db = SQLAlchemy()
 
 class GeoJSONEncoder(SAFRSJSONEncoder):
     """
-        json encode geometry shapes
+    json encode geometry shapes
     """
 
     def default(self, obj, **kwargs):
@@ -35,7 +35,7 @@ class GeoJSONEncoder(SAFRSJSONEncoder):
 
 class GeometryColumn(db.Column):
     """
-        The class attributes are used for the swagger
+    The class attributes are used for the swagger
     """
 
     description = "Geo column description"
@@ -46,7 +46,7 @@ class GeometryColumn(db.Column):
 
 class City(SAFRSBase, db.Model):
     """
-        A city, including its geospatial data
+    A city, including its geospatial data
     """
 
     __tablename__ = "cities"

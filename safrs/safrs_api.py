@@ -45,7 +45,7 @@ class SAFRSAPI(FRSApiBase):
         description="SAFRSAPI",
         json_encoder=SAFRSJSONEncoder,
         swaggerui_blueprint=True,
-        **kwargs
+        **kwargs,
     ):
         """
         http://jsonapi.org/format/#content-negotiation-servers
@@ -77,7 +77,7 @@ class SAFRSAPI(FRSApiBase):
             description=description,
             prefix=prefix,
             base_path=prefix,
-            **kwargs
+            **kwargs,
         )
         self.init_app(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)

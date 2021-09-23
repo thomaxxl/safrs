@@ -51,11 +51,7 @@ from sqlalchemy import Column, String
 from safrs import SAFRSBase, SAFRSAPI
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
-from flask_jwt_extended import (
-    JWTManager,
-    jwt_required,
-    create_access_token
-)
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token
 from sqlalchemy import orm
 
 db = SQLAlchemy()
@@ -69,7 +65,7 @@ def test_dec(f):
 
 class Item(SAFRSBase, db.Model):
     """
-        description: Item description
+    description: Item description
     """
 
     __tablename__ = "Items"
@@ -81,7 +77,7 @@ class Item(SAFRSBase, db.Model):
 
 class User(SAFRSBase, db.Model):
     """
-        description: User description (With Authorization Header)
+    description: User description (With Authorization Header)
     """
 
     __tablename__ = "Users"
@@ -105,18 +101,14 @@ class User(SAFRSBase, db.Model):
 
     @classmethod
     def filter(cls, *args, **kwargs):
-        print(
-            args, kwargs
-        )  # args[0] should contain the filter= url query parameter value
+        print(args, kwargs)  # args[0] should contain the filter= url query parameter value
         return cls.query.filter_by(username=args[0])
 
 
 def start_app(app):
 
     custom_swagger = {
-        "securityDefinitions": {
-            "Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}
-        },
+        "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
         "security": [{"Bearer": []}],
     }  # Customized swagger will be merged
 

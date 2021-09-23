@@ -49,9 +49,7 @@ class PersonSchema(Schema):
     name = fields.Str(required=True, load_only=True)
     email = fields.Email(load_only=True)
     birth_date = fields.Date()
-    display_name = fields.Function(
-        lambda obj: f"{obj.name.upper()} <{obj.email}>"
-    )
+    display_name = fields.Function(lambda obj: f"{obj.name.upper()} <{obj.email}>")
     computers = Relationship(
         self_view="person_computers",
         self_view_kwargs={"id": "<id>"},
@@ -138,9 +136,7 @@ def create_app(config_filename=None, host="localhost"):
     db.init_app(app)
     api = Api(app)
     api.route(PersonList, "person_list", "/persons")
-    api.route(
-        PersonDetail, "person_detail", "/persons/<int:id>", "/computers/<int:id>/owner"
-    )
+    api.route(PersonDetail, "person_detail", "/persons/<int:id>", "/computers/<int:id>/owner")
     api.route(
         PersonRelationship,
         "person_computers",

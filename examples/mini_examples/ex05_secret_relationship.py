@@ -8,20 +8,22 @@ from safrs import SAFRSBase, SAFRSAPI, jsonapi_attr
 
 db = SQLAlchemy()
 
+
 class SecretData(db.Model):
     """
-        Secret model: not accessible through the api
+    Secret model: not accessible through the api
     """
-    
+
     __tablename__ = "SecretData"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("Users.id"))
     key = db.Column(db.String, default="secret key")
     user = db.relationship("User", back_populates="secret_data")
 
+
 class User(SAFRSBase, db.Model):
     """
-        description: User description
+    description: User description
     """
 
     __tablename__ = "Users"
@@ -34,7 +36,7 @@ class User(SAFRSBase, db.Model):
 
 class Book(SAFRSBase, db.Model):
     """
-        description: Book description
+    description: Book description
     """
 
     __tablename__ = "Books"
