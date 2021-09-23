@@ -32,10 +32,6 @@
     - [API Methods](#api-methods)
     - [Custom Swagger](#custom-swagger)
     - [Classes Without SQLAlchemy Models](#Classes-Without-Models)
-- [Limitations & TODOs](#limitations--todos)
-- [References](#references)
-- [Thanks](#thanks)
-
 
 <a class="mk-toclify" id="overview"></a>
 ## Overview
@@ -63,7 +59,7 @@ pip install .
 
 Once the dependencies are installed, the [examples](examples) can be started with
 ```
-python3 examples/demo_relationship.py "your-interface-ip"
+python examples/demo_relationship.py "your-interface-ip"
 ```
 
 <a class="mk-toclify" id="http-methods"></a>
@@ -237,17 +233,12 @@ The API can be initialized like this:
 ```python
 api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
 ```
-Then you can expose objects with
+Then you can expose objects with `expose_object`
 ```python
 api.expose_object(User)    
 ```
 
 An example that uses the flask app factory pattern is implement in [examples/mini_app.py](examples/mini_app.py)
-
-
-```python
-app.config.update(DEBUG=True)
-```
 
 <a class="mk-toclify" id="endpoint-naming"></a>
 ## Endpoint Naming
@@ -275,7 +266,7 @@ python3 expose_existing.py mysql+pymysql://root:password@localhost/sakila --host
 
 This script uses sqlacodegen to generate a source file containing the SQLAlchemy and `SAFRSBase` database models and starts the API webservice.
 
-More details [here](docs/ExposeDB.md)
+More details [here](docs/ExposeDB.md). This approach is used by the [ApiLogicServer](https://github.com/valhuber/ApiLogicServer) project.
 
 <a class="mk-toclify" id="more-examples-and-use-cases"></a>
 ## More Examples and Use Cases
@@ -366,22 +357,25 @@ You can implement a serializable class without a model but this requires some ex
 ### More Customization
 The documentation is being moved to the [wiki](https://github.com/thomaxxl/safrs/wiki)
 
-<a class="mk-toclify" id="limitations--todos"></a>
-## Limitations & TODOs
+
+<details>
+<summary>limitations & Todos</summary>
 
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. A lot of the functionality is available but not documented for the sake of brevity.
 Performance is reasonable for regular databases, but once you start exposing really big tables you may run into problems, for example: the `count()` for mysql innodb is slow on large(1M rows) tables, a workaround can be implemented by querying the `sys` tables or using werkzeug caching. 
 Feel free to open an issue or drop [me](mailto:thomas.pollet+no+spam+@gmail.com) an email if you run into problems or something isn't clear!
+</details>
 
-<a class="mk-toclify" id="references"></a>
-## References
+<details>
+<summary>References</summary>
 
 - [JSON:API specification](http://jsonapi.org/format/)
 - [OpenApi (Swagger)](https://www.openapis.org/)
 - [Flask](http://flask.pocoo.org/)
 - [SQLAlchemy](https://www.sqlalchemy.org/)
+</details>
 
-<a class="mk-toclify" id="thanks"></a>
-## Thanks
-
+<details>
+<summary>Thanks</summary>
 I developed this code when I worked at [Excellium Services](https://www.excellium-services.com/). They allowed me to open source it when I stopped working there.
+</details>
