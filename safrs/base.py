@@ -420,7 +420,7 @@ class SAFRSBase(Model):
     def colname_to_attrname(cls, col_name):
         """
         Map column name to model attribute name
-        
+
         We want this:
         ```
             for attr_name, attr_val in cls.__dict__.items():
@@ -511,16 +511,15 @@ class SAFRSBase(Model):
     def _s_jsonapi_attrs(self):
         """
         :return: dictionary of exposed attribute names and values
-        """
 
-        """
-            The `fields` variable is used to implement jsonapi "Sparse Fieldsets"
-            https://jsonapi.org/format/#fetching-sparse-fieldsets:
-              client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
-              The value of the fields parameter MUST be a comma-separated (U+002C COMMA, “,”) list that refers to the name(s) of the fields to be returned.
-              If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects
-              of that type in its response.
-            Therefore we extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
+        ---
+        The `fields` variable is used to implement jsonapi "Sparse Fieldsets"
+        https://jsonapi.org/format/#fetching-sparse-fieldsets:
+            client MAY request that an endpoint return only specific fields in the response on a per-type basis by including a fields[TYPE] parameter.
+            The value of the fields parameter MUST be a comma-separated (U+002C COMMA, “,”) list that refers to the name(s) of the fields to be returned.
+            If a client requests a restricted set of fields for a given resource type, an endpoint MUST NOT include additional fields in resource objects
+            of that type in its response.
+        Therefore we extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
         """
         fields = self.__class__._s_jsonapi_attrs.keys()
         if has_request_context():

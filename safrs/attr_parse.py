@@ -19,9 +19,7 @@ def parse_attr(column, attr_val):
         return attr_val
 
     if getattr(column, "python_type", None):
-        """
-        It's possible for a column to specify a custom python_type to use for deserialization
-        """
+        # It's possible for a column to specify a custom python_type to use for deserialization
         attr_val = column.python_type(attr_val)
 
     try:

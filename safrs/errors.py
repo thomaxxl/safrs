@@ -33,6 +33,11 @@ class NotFoundError(JsonapiError):
     message = "NotFoundError "
 
     def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value, api_code=None):
+        """
+        :param message: Message to be returned in the (json) body
+        :param status_code: HTTP Status code
+        :param api_code: API code
+        """
         JsonapiError.__init__(self)
         self.status_code = status_code
         safrs.log.error("Not found: %s", message)
