@@ -420,9 +420,7 @@ class SAFRSBase(Model):
     def colname_to_attrname(cls, col_name):
         """
         Map column name to model attribute name
-        """
-
-        """
+        
         We want this:
         ```
             for attr_name, attr_val in cls.__dict__.items():
@@ -665,12 +663,12 @@ class SAFRSBase(Model):
         return instance
 
     @classmethod
-    def _s_get_instance_by_id(cls, id):
+    def _s_get_instance_by_id(cls, jsonapi_id):
         """
-        :param id: jsonapi_id
+        :param jsonapi_id: jsonapi_id
         :return: query obj
         """
-        primary_keys = cls.id_type.get_pks(id)
+        primary_keys = cls.id_type.get_pks(jsonapi_id)
         return cls._s_query.filter_by(**primary_keys)
 
     @property
@@ -935,7 +933,6 @@ class SAFRSBase(Model):
             sample = cls.query.first()
         except Exception as exc:
             safrs.log.debug(exc)
-            pass
         if sample:
             try:
                 sample_id = sample.jsonapi_id
