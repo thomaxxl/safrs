@@ -84,17 +84,17 @@ class SAFRSID:
         return getattr(obj, cls.primary_keys[0])
 
     @classmethod
-    def get_pks(cls, id):
+    def get_pks(cls, jsonapi_id):
         """
-        Convert the id string to a pk dict
-        id is a jsonapi_id, in case the PK is composite it consists of PKs joined by cls.delimiter
+        Convert the jsonapi_id string to a pk dict
+        in case the PK is composite it consists of PKs joined by cls.delimiter
         Note: there may be an issue when the cls.delimiter is contained in an id
         :return: primary key dict
         """
         if len(cls.columns) == 1:
-            values = [id]
+            values = [jsonapi_id]
         else:
-            values = str(id).split(cls.delimiter)
+            values = str(jsonapi_id).split(cls.delimiter)
         if len(values) != len(cls.columns):
             columns = [c.name for c in cls.columns]
             raise ValidationError(f"PK values ({values}) do not match columns ({columns})")

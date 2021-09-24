@@ -239,7 +239,7 @@ class SAFRSBase(Model):
         return cls.jsonapi_filter()
 
     @classmethod
-    def _s_post(cls, id=None, **params):
+    def _s_post(cls, jsonapi_id=None, **params):
         """
         This method is called when a new item is created with a POST to the json api
 
@@ -257,7 +257,7 @@ class SAFRSBase(Model):
         if cls.allow_client_generated_ids:
             # this isn't required per the jsonapi spec
             # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
-            attributes["id"] = id
+            attributes["id"] = jsonapi_id
         else:
             for attr_name in attributes.copy():
                 if attr_name in cls.id_type.column_names:
