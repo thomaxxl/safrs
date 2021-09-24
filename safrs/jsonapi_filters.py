@@ -63,6 +63,7 @@ def jsonapi_filter(cls):
             # not implemented
             result = cls
         elif callable(safrs_object_filter):
+            # pylint: disable=not-callable
             result = safrs_object_filter(filter_args)
         else:
             result = cls._s_filter(filter_args)

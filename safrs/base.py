@@ -685,6 +685,7 @@ class SAFRSBase(Model):
 
     @classproperty
     @lru_cache(maxsize=32)
+    #pylint: disable=method-hidden
     def id_type(obj):
         """
         :return: the object's id type

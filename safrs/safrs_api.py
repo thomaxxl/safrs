@@ -384,7 +384,7 @@ class SAFRSAPI(FRSApiBase):
             hm = http_method.lower()
             if hm not in self.get_resource_methods(resource):
                 setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
-
+        #pylint: disable=bad-super-call
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
     def _add_oas_req_params(self, resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url):
