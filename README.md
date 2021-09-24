@@ -1,3 +1,4 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/c8066818b65a4e43b594454324e92860)](https://app.codacy.com/gh/thomaxxl/safrs?utm_source=github.com&utm_medium=referral&utm_content=thomaxxl/safrs&utm_campaign=Badge_Grade_Settings)
 [![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
