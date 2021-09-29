@@ -604,7 +604,7 @@ def http_method_decorator(fun):
         """
         safrs_exception = None
         try:
-            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options"]:  # pragma: no cover
+            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
                 # reuire jsonapi content type for requests to these routes
                 raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
             result = fun(*args, **kwargs)
