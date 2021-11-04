@@ -11,7 +11,7 @@
 
 <a class="mk-toclify" id="table-of-contents"></a>
 
-- [Overview](#overview)
+- [Introduction](#overview)
 - [Installation](#installation)
 - [JSON:API Interface](#http-methods)
 - [Resource Objects](#resource-objects)
@@ -24,8 +24,9 @@
 - [Configuration](#configuration)
 - [Exposing Existing Databases](#expose-existing)
 - [More Examples and Use Cases](#more-examples-and-use-cases)
-- [Advanced Usage](#advanced-usage)
+- [Advanced Functionality](#advanced-usage)
     - [Filtering](#filtering)
+- [Customization](#customization)
     - [Custom Serialization](#custom-serialization)
     - [Excluding Attributes and Relationships](#excluding-attrs-rels)
     - [HTTP Decorators](#http-decorators)
@@ -34,17 +35,13 @@
     - [Classes Without SQLAlchemy Models](#Classes-Without-Models)
 
 <a class="mk-toclify" id="overview"></a>
-## Overview
+## Introduction
 
-SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help python developers create a self-documenting JSON API for sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
-Optionally, custom resource object methods can be exposed and invoked using JSON.
-Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
+SAFRS exposes SQLAlchemy database models as a [JSON:API](https://jsonapi.org) webservice and generates the corresponding [swagger/OpenAPI](https://swagger.io/).
 
-The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](https://jsonapi.org) compliant API implementation.
+Documentation can be found in the [wiki](https://github.com/thomaxxl/safrs/wiki).
 
-__A [LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, where much of the basic functionality is implemented with a simple [example](examples/demo_pythonanywhere_com.py).
-
-__UPDATE!__ documentation can be found in the [wiki](https://github.com/thomaxxl/safrs/wiki).
+__A [LIVE DEMO](http://thomaxxl.pythonanywhere.com) is available__, where much of the basic functionality is implemented using a simple [example](examples/demo_pythonanywhere_com.py).
 
 <a class="mk-toclify" id="installation"></a>
 ## Installation
@@ -57,7 +54,7 @@ cd safrs
 pip install .
 ```
 
-Once the dependencies are installed, the [examples](examples) can be started with
+Once the dependencies are installed, the [examples](examples) can be started, for example
 ```
 python examples/demo_relationship.py "your-interface-ip"
 ```
@@ -280,7 +277,7 @@ A docker image can be found here:
 [https://github.com/thomaxxl/safrs-example](https://github.com/thomaxxl/safrs-example)
 
 <a class="mk-toclify" id="advanced-usage"></a>
-## Advanced Usage
+## Advanced Functionality
 
 <a class="mk-toclify" id="filtering"></a>
 ### Filtering
@@ -322,6 +319,9 @@ This will add the `custom_field` attribute to the result attributes:
 }
 ```
 
+<a class="mk-toclify" id="customization"></a>
+## Customization
+
 <a class="mk-toclify" id="excluding-attrs-rels"></a>
 ### Excluding Attributes and Relationships
 It is possible to specify attributes and relationships that should not be serialized by specifying the respective `exclude_attrs` and èxclude_rels` class attributes in your SAFRSBase instances.
@@ -357,10 +357,17 @@ You can implement a serializable class without a model but this requires some ex
 ### More Customization
 The documentation is being moved to the [wiki](https://github.com/thomaxxl/safrs/wiki)
 
+<details>
+<summary>About</summary>
+SAFRS is an acronym for **S**ql**A**lchemy **F**lask-**R**estful **S**wagger. The purpose of this framework is to help python developers create a self-documenting JSON API for sqlalchemy database objects and relationships. These objects can be serialized to JSON and can be created, retrieved, updated and deleted through the JSON API. 
+Optionally, custom resource object methods can be exposed and invoked using JSON.
+Class and method descriptions and examples can be provided in yaml syntax in the code comments. The description is parsed and shown in the swagger web interface. 
+
+The result is an easy-to-use [swagger/OpenAPI](https://swagger.io/) and [JSON:API](https://jsonapi.org) compliant API implementation.
+</details>
 
 <details>
 <summary>limitations & Todos</summary>
-
 This code was developed for a specific use-case and may not be flexible enough for everyone's needs. A lot of the functionality is available but not documented for the sake of brevity.
 Performance is reasonable for regular databases, but once you start exposing really big tables you may run into problems, for example: the `count()` for mysql innodb is slow on large(1M rows) tables, a workaround can be implemented by querying the `sys` tables or using werkzeug caching. 
 Feel free to open an issue or drop [me](mailto:thomas.pollet+no+spam+@gmail.com) an email if you run into problems or something isn't clear!
