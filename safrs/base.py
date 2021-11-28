@@ -12,7 +12,7 @@ from urllib.parse import urljoin
 from flask import request, url_for, has_request_context, current_app, g
 from flask_sqlalchemy import Model
 from sqlalchemy.orm.session import make_transient
-from sqlalchemy import inspect as sqla_inspect
+from sqlalchemy import inspect as sqla_inspect, or_
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.schema import Column
@@ -685,7 +685,7 @@ class SAFRSBase(Model):
 
     @classproperty
     @lru_cache(maxsize=32)
-    #pylint: disable=method-hidden
+    # pylint: disable=method-hidden
     def id_type(obj):
         """
         :return: the object's id type
@@ -1118,18 +1118,18 @@ class SAFRSBase(Model):
         Apply a filter to this model
         :param filter_args: A list of filters information to apply, passed as a request URL parameter.
         Each filter object has the following fields:
-          - name: The name of the field you want to filter on.
-          - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
-              - like: Invoke SQL like (or "ilike", "match", "notilike")
-              - eq: check if field is equal to something
-              - ge: check if field is greater than or equal to something
-              - gt: check if field is greater than to something
-              - ne: check if field is not equal to something
-              - is_: check if field is a value
-              - is_not: check if field is not a value
-              - le: check if field is less than or equal to something
-              - lt: check if field is less than to something
-          - val: The value that you want to compare.
+        - name: The name of the field you want to filter on.
+        - op: The operation you want to use (all sqlalchemy operations are available). The valid values are:
+            - like: Invoke SQL like (or "ilike", "match", "notilike")
+            - eq: check if field is equal to something
+            - ge: check if field is greater than or equal to something
+            - gt: check if field is greater than to something
+            - ne: check if field is not equal to something
+            - is_: check if field is a value
+            - is_not: check if field is not a value
+            - le: check if field is less than or equal to something
+            - lt: check if field is less than to something
+        - val: The value that you want to compare.
         :return: sqla query object
         """
         try:
@@ -1139,6 +1139,7 @@ class SAFRSBase(Model):
 
         if not isinstance(filters, list):
             filters = [filters]
+
         expressions = []
         query = cls._s_query
 
@@ -1156,14 +1157,14 @@ class SAFRSBase(Model):
             elif op_name in ["like", "ilike", "match", "notilike"] and hasattr(attr, "like"):
                 # => attr is Column or InstrumentedAttribute
                 like = getattr(attr, op_name)
-                query = query.filter(like(attr_val))
+                expressions.append(like(attr_val))
             elif not hasattr(operator, op_name):
                 raise ValidationError(f'Invalid filter "{filt}", unknown operator "{op_name}"')
             else:
                 op = getattr(operator, op_name)
                 expressions.append(op(attr, attr_val))
 
-        return query.filter(*expressions)
+        return query.filter(or_(*expressions))
 
 
 class Included:
