@@ -245,11 +245,13 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
         db.init_app(app)
         db.create_all()
         # populate the database
-        NR_INSTANCES = 200
+        NR_INSTANCES = 10
         for i in range(NR_INSTANCES):
             reader = Person(name="Reader " + str(i), email="reader@email" + str(i), password=str(i))
             author = Person(name="Author " + str(i), email="author@email" + str(i), password=str(i))
-            book = Book(title="book_title" + str(i))
+            for j in range(2000):
+                book = Book(title="book_title" + str(i) +" - " +str(j))
+                author.books_written.append(book)
             review = Review(reader_id=2 * i + 1, book_id=book.id, review=f"review {i}")
             publisher = Publisher(name="publisher" + str(i))
             publisher.books.append(book)
