@@ -20,6 +20,7 @@ from .config import get_config
 from .json_encoder import SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 from sqlalchemy.orm.interfaces import MANYTOONE
+from flask import current_app
 import json
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
@@ -107,6 +108,8 @@ class SAFRSAPI(FRSApiBase):
         tablename/collectionname: safrs_object._s_collection_name, e.g. "Users"
         classname: safrs_object.__name__, e.g. "User"
         """
+        if not current_app:
+            safrs.log.error("Working outside of app context!")
         rest_api = safrs_object._rest_api  # => SAFRSRestAPI
 
         properties["SAFRSObject"] = safrs_object

@@ -1,9 +1,0 @@
-
-#login{
-  cursor: pointer;
-  color: rgba(0, 0, 0 );
-}
-
-#login:hover #login:active {
-  color: rgba(0,0,0,.5);
-}

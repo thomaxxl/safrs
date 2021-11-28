@@ -1,0 +1,1 @@
+{"version":3,"sources":["webpack://src/style/DynStyle.css"],"names":[],"mappings":"AAAA,aACI,UAAW,CACX,aACJ,CAEA,mBACI,UACJ","file":"main.388f9ee7.chunk.css","sourcesContent":[".JoinedField {\r\n    width: 100%;\r\n    color: #3f51b5;\r\n}\r\n\r\n.JoinedField:hover{\r\n    color: black;\r\n}"]}
