@@ -83,7 +83,7 @@ class SAFRSJSONEncoder(JSONEncoder):
         if isinstance(obj, UUID):  # pragma: no cover
             return str(obj)
         if isinstance(obj, decimal.Decimal):  # pragma: no cover
-            return str(obj)
+            return float(obj)
         if isinstance(obj, bytes):  # pragma: no cover
             if obj == b"":
                 return ""
