@@ -2,13 +2,11 @@ import React from "react"
 import PropTypes from "prop-types"
 import Swagger from "swagger-client"
 import URL from "url"
-import "whatwg-fetch"
 import DropdownMenu from "./DropdownMenu"
 import reactFileDownload from "react-file-download"
-import YAML from "@kyleshockey/js-yaml"
+import YAML from "js-yaml"
 import beautifyJson from "json-beautify"
 
-import "react-dd-menu/dist/react-dd-menu.css"
 import Logo from "./logo_small.svg"
 
 export default class Topbar extends React.Component {
@@ -68,7 +66,7 @@ export default class Topbar extends React.Component {
       .then(res => {
         this.setState({ clients: res.body || [] })
       })
-      
+
       serverGetter({}, {
         // contextUrl is needed because swagger-client is curently
         // not building relative server URLs correctly
@@ -99,25 +97,12 @@ export default class Topbar extends React.Component {
         .then(res => res.text())
         .then(text => {
           this.props.specActions.updateSpec(
-            YAML.safeDump(YAML.safeLoad(text), {
+            YAML.dump(YAML.load(text), {
               lineWidth: -1
             })
           )
         })
     }
-  }
-
-  importFromFile = () => {
-    let fileToLoad = this.refs.fileLoadInput.files.item(0)
-    let fileReader = new FileReader()
-
-    fileReader.onload = fileLoadedEvent => {
-      let textFromFileLoaded = fileLoadedEvent.target.result
-      this.props.specActions.updateSpec(YAML.safeDump(YAML.safeLoad(textFromFileLoaded)))
-      this.hideModal()
-    }
-
-    fileReader.readAsText(fileToLoad, "UTF-8")
   }
 
   saveAsYaml = () => {
@@ -144,9 +129,9 @@ export default class Topbar extends React.Component {
     //// so convert and download
 
     // JSON String -> JS object
-    let jsContent = YAML.safeLoad(editorContent)
+    let jsContent = YAML.load(editorContent)
     // JS object -> YAML string
-    let yamlContent = YAML.safeDump(jsContent)
+    let yamlContent = YAML.dump(jsContent)
     this.downloadFile(yamlContent, `${fileName}.yaml`)
   }
 
@@ -161,7 +146,7 @@ export default class Topbar extends React.Component {
     }
 
     // JSON or YAML String -> JS object
-    let jsContent = YAML.safeLoad(editorContent)
+    let jsContent = YAML.load(editorContent)
     // JS Object -> pretty JSON string
     let prettyJsonContent = beautifyJson(jsContent, null, 2)
     this.downloadFile(prettyJsonContent, `${fileName}.json`)
@@ -179,8 +164,8 @@ export default class Topbar extends React.Component {
   convertToYaml = () => {
     // Editor content -> JS object -> YAML string
     let editorContent = this.props.specSelectors.specStr()
-    let jsContent = YAML.safeLoad(editorContent)
-    let yamlContent = YAML.safeDump(jsContent)
+    let jsContent = YAML.load(editorContent)
+    let yamlContent = YAML.dump(jsContent)
     this.props.specActions.updateSpec(yamlContent)
   }
 
@@ -325,10 +310,11 @@ export default class Topbar extends React.Component {
   }
 
   render() {
-    let { getComponent } = this.props
+    let { getComponent, specSelectors, topbarActions } = this.props
     const Link = getComponent("Link")
     const TopbarInsert = getComponent("TopbarInsert")
-    const Modal = getComponent("TopbarModal")
+    const ImportFileMenuItem = getComponent("ImportFileMenuItem")
+    const ConvertDefinitionMenuItem = getComponent("ConvertDefinitionMenuItem")
 
     let showServersMenu = this.state.servers && this.state.servers.length
     let showClientsMenu = this.state.clients && this.state.clients.length
@@ -348,18 +334,8 @@ export default class Topbar extends React.Component {
       }
     }
 
-    const saveAsElements = []
-
-    if(isJson) {
-      saveAsElements.push(<li><button type="button" onClick={this.saveAsJson}>Save as JSON</button></li>)
-      saveAsElements.push(<li><button type="button" onClick={this.saveAsYaml}>Convert and save as YAML</button></li>)
-    } else {
-      saveAsElements.push(<li><button type="button" onClick={this.saveAsYaml}>Save as YAML</button></li>)
-      saveAsElements.push(<li><button type="button" onClick={this.saveAsJson}>Convert and save as JSON</button></li>)
-    }
-
     return (
-      <div>
+      <div className="swagger-editor-standalone">
         <div className="topbar">
           <div className="topbar-wrapper">
             <Link href="#">
@@ -367,14 +343,24 @@ export default class Topbar extends React.Component {
             </Link>
             <DropdownMenu {...makeMenuOptions("File")}>
               <li><button type="button" onClick={this.importFromURL}>Import URL</button></li>
-              <li><button type="button" onClick={() => this.showModal("fileLoadModal")}>Import File</button></li>
+              <ImportFileMenuItem onDocumentLoad={content => this.props.specActions.updateSpec(content)} />
               <li role="separator"></li>
-              {saveAsElements}
+              {isJson ? [
+                  <li key="1"><button type="button" onClick={this.saveAsJson}>Save as JSON</button></li>,
+                  <li key="2"><button type="button" onClick={this.saveAsYaml}>Convert and save as YAML</button></li>
+              ] : [
+                  <li key="1"><button type="button" onClick={this.saveAsYaml}>Save as YAML</button></li>,
+                  <li key="2"><button type="button" onClick={this.saveAsJson}>Convert and save as JSON</button></li>
+              ]}
               <li role="separator"></li>
               <li><button type="button" onClick={this.clearEditor}>Clear editor</button></li>
             </DropdownMenu>
             <DropdownMenu {...makeMenuOptions("Edit")}>
               <li><button type="button" onClick={this.convertToYaml}>Convert to YAML</button></li>
+              <ConvertDefinitionMenuItem
+                isSwagger2={specSelectors.isSwagger2()}
+                onClick={() => topbarActions.showModal("convert")}
+                />
             </DropdownMenu>
             <TopbarInsert {...this.props} />
             { showServersMenu ? <DropdownMenu className="long" {...makeMenuOptions("Generate Server")}>
@@ -387,17 +373,6 @@ export default class Topbar extends React.Component {
             </DropdownMenu> : null }
           </div>
         </div>
-        {this.state.fileLoadModal && <Modal className="modal" onCloseClick={() => this.hideModal("fileLoadModal")} styleName="modal-dialog-sm">
-          <div className="container modal-message">
-            <h2>Upload file</h2>
-            <input type="file" ref="fileLoadInput"></input>
-          </div>
-          <div className="right">
-            <button className="btn cancel" onClick={() => this.hideModal("fileLoadModal")}>Cancel</button>
-            <button className="btn" onClick={this.importFromFile}>Open file</button>
-          </div>
-        </Modal>
-        }
       </div>
     )
   }
@@ -407,6 +382,7 @@ Topbar.propTypes = {
   specSelectors: PropTypes.object.isRequired,
   errSelectors: PropTypes.object.isRequired,
   specActions: PropTypes.object.isRequired,
+  topbarActions: PropTypes.object.isRequired,
   getComponent: PropTypes.func.isRequired,
   getConfigs: PropTypes.func.isRequired
 }

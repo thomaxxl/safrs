@@ -1,19 +1,20 @@
-FROM alpine:3.4
+FROM nginx:1.21.4-alpine
 
-MAINTAINER fehguy
+LABEL maintainer="fehguy"
 
-RUN apk add --update nginx
-RUN mkdir -p /run/nginx
+ENV BASE_URL ""
 
 COPY nginx.conf /etc/nginx/
 
-# copy swagger files to the `/js` folder
 COPY ./index.html /usr/share/nginx/html/
-ADD ./dist/*.js /usr/share/nginx/html/dist/
-ADD ./dist/*.map /usr/share/nginx/html/dist/
-ADD ./dist/*.css /usr/share/nginx/html/dist/
-ADD ./dist/*.png /usr/share/nginx/html/dist/
-ADD ./docker-run.sh /usr/share/nginx/
+COPY ./dist/oauth2-redirect.html /usr/share/nginx/html/
+COPY ./dist/* /usr/share/nginx/html/dist/
+COPY ./docker-run.sh /usr/share/nginx/
+
+
+RUN chmod +x /usr/share/nginx/docker-run.sh && \
+    chmod -R a+rw /usr/share/nginx && \
+    chmod -R a+rw /etc/nginx
 
 EXPOSE 8080
 

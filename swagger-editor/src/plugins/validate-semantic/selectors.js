@@ -2,6 +2,7 @@ import flatten from "lodash/flatten"
 
 export const isVendorExt = (state,node) => node.path.some(a => a.indexOf("x-") === 0)
 export const isDefinition = (state,node) => node.path[0] == "definitions" && node.path.length == 2
+export const isTag = (state, node) => node.path[0] === "tags" && node.path.length === 2
 export const isRootParameter = (state, node) => node.path[0] === "parameters" && node.path.length === 2
 export const isPathItemParameter = (state, node) => node.path[2] === "parameters" && node.path.length === 4
 export const isRootParameters = (state, node) => node.path[0] === "parameters" && node.path.length === 1
@@ -14,6 +15,9 @@ export const isRefArtifact = (state, node) => node.key === "$$ref" && typeof nod
 export const isOAS3RootRequestBody = (state, node) => node.path.length === 3 && node.path[1] === "requestBodies"
 export const isOAS3OperationRequestBody = (state, node) => node.path.length === 4 && node.path[3] === "requestBody"
 export const isOAS3OperationCallbackRequestBody = (state, node) => node.path.length === 8 && node.path[7] === "requestBody"
+export const isOAS3RootParameter = (state, node) => node.path[0] === "components" && node.path[1] === "parameters" && node.path.length === 3
+export const isOAS3RootResponse = (state, node) => node.path[0] === "components" && node.path[1] === "responses" && node.path.length === 3
+export const isOAS3RootSchema = (state, node) => node.path[0] === "components" && node.path[1] === "schemas" && node.path.length === 3
 
 export const isSubSchema = (state, node) => (sys) => {
   const path = node.path
@@ -41,8 +45,9 @@ export const isParameter = (state, node) => (sys) => {
   }
   return (
     sys.validateSelectors.isRootParameter(node)
+    || sys.validateSelectors.isOAS3RootParameter(node)
       || sys.validateSelectors.isPathItemParameter(node)
-      || ( node.path[0] === "paths"
+    || (node.path[0] === "paths"
            && node.path[3] === "parameters"
            && node.path.length === 5)
   )
@@ -91,15 +96,29 @@ export const isOAS3ResponseSchema = (state, node) => () => {
 }
 
 export const isResponse = (state, node) => (sys) => {
-  if(sys.validateSelectors.isVendorExt(node)) {
-    return false
-  }
-  return (
-    sys.validateSelectors.isRootResponse(node)
-      || ( node.path[0] === "paths"
-           && node.path[3] === "responses"
-           && node.path.length === 5)
+  const isOperationResponse = (
+    node.path[0] === "paths"
+      && node.path[3] === "responses"
+      && node.path.length === 5
+      && !sys.validateSelectors.isVendorExt(node)
   )
+
+  return (
+    isOperationResponse
+      || sys.validateSelectors.isRootResponse(node)
+      || sys.validateSelectors.isOAS3RootResponse(node)
+  )
+}
+
+export const allResponses = () => (system) => {
+  return system.fn.traverseOnce({
+    name: "allResponses",
+    fn: (node) => {
+      if(system.validateSelectors.isResponse(node)) {
+        return node
+      }
+    },
+  })
 }
 
 export const isHeader = (state, node) => (sys) => {
@@ -173,6 +192,17 @@ export const allParameterArrays = () => (system) => {
     })
 }
 
+export const allTags = () => (system) => {
+  return system.fn.traverseOnce({
+    name: "allTags",
+    fn: (node) => {
+      if(system.validateSelectors.isTag(node)) {
+        return node
+      }
+    },
+  })
+}
+
 export const allSubSchemas = () => (system) => {
   return system.fn.traverseOnce({
     name: "allSubSchemas",
@@ -210,7 +240,10 @@ export const allDefinitions = () => (system) => {
   return system.fn.traverseOnce({
     name: "allDefinitions",
     fn: (node) => {
-      if(system.validateSelectors.isDefinition(node)) {
+      if(
+        system.validateSelectors.isDefinition(node)
+         || system.validateSelectors.isOAS3RootSchema(node)
+       ) {
         return node
       }
     },
@@ -235,6 +268,19 @@ export const allOAS3OperationSchemas = () => (system) => {
       if(
         system.validateSelectors.isOAS3RequestBodySchema(node)
          || system.validateSelectors.isOAS3ResponseSchema(node)
+       ) {
+        return node
+      }
+    },
+  })
+}
+
+export const allOAS3RequestBodySchemas = () => (system) => {
+  return system.fn.traverseOnce({
+    name: "allOAS3RequestBodySchemas",
+    fn: (node) => {
+      if(
+        system.validateSelectors.isOAS3RequestBodySchema(node)
        ) {
         return node
       }
@@ -305,10 +351,15 @@ export const allSecurityDefinitions = () => (system) => {
       const isSecurityDefinition = (
         node.path[0] == "securityDefinitions"
           && node.path.length === 2
-          && !system.validateSelectors.isVendorExt(node)
       )
 
-      if(isSecurityDefinition) {
+      const isOAS3SecurityScheme = (
+        node.path[0] == "components"
+          && node.path[1] == "securitySchemes"
+          && node.path.length === 3
+      )
+
+      if(isSecurityDefinition || isOAS3SecurityScheme) {
         return node
       }
     }
@@ -322,14 +373,14 @@ export const allSecurityRequirements = () => (system) => {
       const isGlobalSecurityRequirement = (
         node.path[0] == "security"
           && node.path.length === 2
-          && !system.validateSelectors.isVendorExt(node)
       )
 
       const isOperationSecurityRequirement = (
         node.path[0] == "paths"
           && node.path[3] == "security"
           && node.path.length === 5
-          && !system.validateSelectors.isVendorExt(node)
+          && !system.validateSelectors.isVendorExt(node.parent) // ignore extension keys in path items
+          && !system.validateSelectors.isVendorExt(node.parent.parent.parent) // ignore extension keys in "paths"
       )
 
       if(isGlobalSecurityRequirement || isOperationSecurityRequirement) {
@@ -337,4 +388,65 @@ export const allSecurityRequirements = () => (system) => {
       }
     }
   })
+}
+
+export const allOAS3Components = () => (system) => {
+  return system.fn.traverseOnce({
+    name: "allOAS3Components",
+    fn: (node) => {
+      const isComponent = (
+        node.path[0] === "components"
+          && node.path.length === 3
+          && !system.validateSelectors.isVendorExt(node.parent)
+      )
+
+      if(isComponent) {
+        return node
+      }
+    }
+  })
+}
+
+// List of validators to run...
+export const validators = () => (system) => {
+  return Object.keys(system.validateActions)
+    .filter(name => {
+      // The action needs to start with the prefix "validate..."
+      if(name.indexOf("validate") !== 0)
+        return false
+
+      // This is for both types...
+      if(name.startsWith("validate2And3"))
+        return true
+
+      // Now for the exclusive validations...
+      if(system.specSelectors.isOAS3())
+        return name.startsWith("validateOAS3")
+
+      // Swagger2 only...
+      return !name.startsWith("validateOAS3")
+
+      //TODO: This doesn't account for validateAsync with oas3 or swagger2...
+    })
+}
+
+// Should we validate at all?
+export const shouldValidate = () => (system) => {
+  // don't run validation if spec is empty
+  if(system.specSelectors.specStr().trim().length === 0) {
+    return
+  }
+
+  // Don't validate if ambiguous version...
+  const { specSelectors: { isSwagger2=Function.prototype, isOAS3=Function.prototype } } = system
+
+  // Can't handle TWO versions!
+  if(isSwagger2() && isOAS3())
+    return false
+
+  // Can't handle no version!
+  if(!isSwagger2() && !isOAS3())
+    return false
+
+  return true
 }

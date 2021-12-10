@@ -1,4 +1,4 @@
-import YAML from "@kyleshockey/js-yaml"
+import YAML from "js-yaml"
 
 export default function(editor) {
   editor.on("paste", e => {
@@ -9,7 +9,7 @@ export default function(editor) {
 
     let yamlString
     try {
-      yamlString = YAML.safeDump(YAML.safeLoad(originalStr), {
+      yamlString = YAML.dump(YAML.load(originalStr), {
         lineWidth: -1 // don't generate line folds
       })
     } catch (e) {
