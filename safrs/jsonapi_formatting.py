@@ -55,42 +55,43 @@ def jsonapi_sort(object_query, safrs_object):
     :param safrs_object: SAFRSObject
     :return: sqla query object
     """
-    sort_attrs = request.args.get("sort", None)
-    if sort_attrs is not None:
-        for sort_attr in sort_attrs.split(","):
-            reverse = sort_attr.startswith("-")
-            if reverse:
-                # if the sort column starts with - , then we want to do a reverse sort
-                # The sort order for each sort field MUST be ascending unless it is prefixed
-                # with a minus, in which case it MUST be descending.
-                sort_attr = sort_attr[1:]
-                attr = getattr(safrs_object, sort_attr, None)
-                if attr is not None:
-                    attr = attr.desc()
-            else:
-                attr = getattr(safrs_object, sort_attr, None)
-            if sort_attr == "id":
-                if attr is None:
-                    # jsonapi_id is a composite key => to do: parse the id
+    sort_attrs = request.args.get("sort", "id")
+    for sort_attr in sort_attrs.split(","):
+        reverse = sort_attr.startswith("-")
+        if reverse:
+            # if the sort column starts with - , then we want to do a reverse sort
+            # The sort order for each sort field MUST be ascending unless it is prefixed
+            # with a minus, in which case it MUST be descending.
+            sort_attr = sort_attr[1:]
+            attr = getattr(safrs_object, sort_attr, None)
+            if attr is not None:
+                attr = attr.desc()
+        else:
+            attr = getattr(safrs_object, sort_attr, None)
+        if sort_attr == "id":
+            if attr is None:
+                if safrs_object.id_type.primary_keys:
+                    attr = getattr(safrs_object, safrs_object.id_type.primary_keys[0]) # todo: composite keys edge case
+                else:
                     continue
-            elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
-                safrs.log.debug(f"{safrs_object} has no attribute {sort_attr} in {safrs_object._s_jsonapi_attrs}")
-                continue
-            if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-                object_query = sorted(
-                    list(object_query), key=lambda obj: (getattr(obj, sort_attr) is None, getattr(obj, sort_attr)), reverse=reverse
-                )
-            elif is_jsonapi_attr(attr):
-                # to do: implement sorting for jsonapi_attr
-                safrs.log.debug(f"sorting not implemented for {attr}")
-            elif hasattr(object_query, "order_by"):
-                try:
-                    # This may fail on non-sqla objects, eg. properties
-                    object_query = object_query.order_by(attr)
-                except sqlalchemy.exc.ArgumentError as exc:
-                    safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
-                except Exception as exc:
-                    safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
+        elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
+            safrs.log.debug(f"{safrs_object} has no attribute {sort_attr} in {safrs_object._s_jsonapi_attrs}")
+            continue
+        if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+            object_query = sorted(
+                list(object_query), key=lambda obj: (getattr(obj, sort_attr) is None, getattr(obj, sort_attr)), reverse=reverse
+            )
+        elif is_jsonapi_attr(attr):
+            # to do: implement sorting for jsonapi_attr
+            safrs.log.debug(f"sorting not implemented for {attr}")
+        elif hasattr(object_query, "order_by"):
+            try:
+                # This may fail on non-sqla objects, eg. properties
+                object_query = object_query.order_by(attr)
+            except sqlalchemy.exc.ArgumentError as exc:
+                safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
+            except Exception as exc:
+                safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
 
     return object_query
 
@@ -195,7 +196,6 @@ def paginate(object_query, SAFRSObject=None):
 
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
         instances = object_query[page_offset : page_offset + limit]
-
     elif isinstance(object_query, dict):
         # (might happen when using a custom filter)
         instances = object_query
