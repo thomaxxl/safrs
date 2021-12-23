@@ -59,16 +59,14 @@ def jsonapi_sort(object_query, safrs_object):
     if sort_attrs is not None:
         for sort_attr in sort_attrs.split(","):
             reverse = sort_attr.startswith("-")
+            attr = getattr(safrs_object, sort_attr, None)
             if reverse:
                 # if the sort column starts with - , then we want to do a reverse sort
                 # The sort order for each sort field MUST be ascending unless it is prefixed
                 # with a minus, in which case it MUST be descending.
                 sort_attr = sort_attr[1:]
-                attr = getattr(safrs_object, sort_attr, None)
                 if attr is not None:
                     attr = attr.desc()
-            else:
-                attr = getattr(safrs_object, sort_attr, None)
             if sort_attr == "id":
                 if attr is None:
                     if not safrs_object.id_type.primary_keys:
@@ -84,7 +82,7 @@ def jsonapi_sort(object_query, safrs_object):
                 )
             elif is_jsonapi_attr(attr):
                 # to do: implement sorting for jsonapi_attr
-                safrs.log.debug(f"sorting not implemented for {attr}")
+                safrs.log.debug(f"No sorting strategy implemented for '{attr}'")
             elif hasattr(object_query, "order_by"):
                 try:
                     # This may fail on non-sqla objects, eg. properties
@@ -210,6 +208,17 @@ def paginate(object_query, SAFRSObject=None):
             instances = res_query.all()
         except OverflowError:
             raise ValidationError("Pagination Overflow Error")
+        except sqlalchemy.exc.CompileError as exc:
+            # dirty workaround for when no sort parameter is provided in case of mssql offset/limit queries
+            # error msg:
+            #     "MSSQL requires an order_by when using an OFFSET or a non-simple LIMIT clause"
+            safrs.log.warning(f"{exc} / Add a valid sort= URL parameter")
+            if "MSSQL requires an order_by" in str(exc) and SAFRSObject and SAFRSObject.id_type.primary_keys:
+                pk = SAFRSObject.id_type.primary_keys[0]
+                res_query = object_query.order_by(getattr(SAFRSObject, pk)).offset(page_offset).limit(limit)
+                instances = res_query.all()
+            else:
+                raise GenericError(f"{exc}")
         except Exception as exc:
             raise GenericError(f"{exc}")
 
