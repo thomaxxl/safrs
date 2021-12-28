@@ -208,7 +208,7 @@ def paginate(object_query, SAFRSObject=None):
             instances = res_query.all()
         except OverflowError:
             raise ValidationError("Pagination Overflow Error")
-        except sqlalchemy.exc.CompileError as exc:
+        except sqlalchemy.exc.CompileError as exc:  # pragma: no cover
             # dirty workaround for when no sort parameter is provided in case of mssql offset/limit queries
             # error msg:
             #     "MSSQL requires an order_by when using an OFFSET or a non-simple LIMIT clause"

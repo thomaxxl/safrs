@@ -2,7 +2,7 @@
 from http import HTTPStatus
 import logging
 import werkzeug
-from flask_restful import abort
+from flask_restful import abort, Resource
 from flask_restful.representations.json import output_json
 from flask_restful.utils import OrderedDict
 from flask_restful.utils import cors
@@ -20,8 +20,9 @@ from .config import get_config
 from .json_encoder import SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 from sqlalchemy.orm.interfaces import MANYTOONE
-from flask import current_app
+from flask import current_app, Response
 import json
+import yaml
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
@@ -36,6 +37,7 @@ class SAFRSAPI(FRSApiBase):
 
     _operation_ids = {}
     _custom_swagger = {}
+    _als_resources = []
 
     def __init__(
         self,
@@ -161,6 +163,7 @@ class SAFRSAPI(FRSApiBase):
             self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
 
         self.update_spec()
+        self._als_resources.append(safrs_object)
 
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """
@@ -517,6 +520,43 @@ class SAFRSAPI(FRSApiBase):
         else:
             cls._operation_ids[summary] += 1
         return f"{summary}_{cls._operation_ids[summary]}"
+
+    def expose_als_schema(self, api_root="/api", schema_loc="/als_schema"):
+        """
+        Generate the resource specification for apilogicserver
+        """
+        resources = {}
+        result = {"resources": resources, "api_root": api_root}
+        for resource in self._als_resources:
+            resource_data = {"type": resource._s_type, "label": None}
+            attributes = []
+            for name, attr_def in resource._s_jsonapi_attrs.items():
+                attr = {}
+                attr["name"] = name
+                # column["type"] = col.python_type
+                attributes.append(attr)
+            resource_data["attributes"] = attributes
+            resource_data["perPage"] = 10
+            relations = []
+            for rel_name, rel in resource._s_relationships.items():
+                relation = {}
+                relation["name"] = rel_name
+                relation["resource"] = str(rel.target.key)
+                relation["fks"] = [str(c.key) for c in rel._calculated_foreign_keys]
+                relation["direction"] = "toone" if rel.direction == MANYTOONE else "tomany"
+                relations.append(relation)
+            resource_data["tab_groups"] = relations
+
+            resources[resource._s_collection_name] = resource_data
+
+        class ApiSchema(Resource):
+            def get(self):
+                if request.args.get("yaml"):
+                    return Response(yaml.dump(result), content_type="text/yaml")
+                return result
+
+        self.add_resource(ApiSchema, "/als_schema")
+        return json.dumps(result, indent=4)
 
 
 def api_decorator(cls, swagger_decorator):
