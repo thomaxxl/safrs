@@ -882,7 +882,7 @@ class SAFRSBase(Model):
                                 meta["warning"] = warning
                             items = rel_query.all()
                         else:
-                            items = list(rel_query)
+                            items = list(rel_query)[:limit]
                             count = len(items)
                         meta["count"] = meta["total"] = count
                         meta["limit"] = limit
