@@ -426,13 +426,7 @@ def swagger_doc(cls, tags=None):
             sample_data.description += f"{class_name} {http_method};"
 
             parameters.append(
-                {
-                    "name": "POST body",
-                    "in": "body",
-                    "description": f"{class_name} attributes",
-                    "schema": sample_data,
-                    "required": True,
-                }
+                {"name": "POST body", "in": "body", "description": f"{class_name} attributes", "schema": sample_data, "required": True}
             )
             responses[HTTPStatus.CREATED.value] = {"schema": inst_sample_data, "description": HTTPStatus.CREATED.description}
 
@@ -630,13 +624,7 @@ def swagger_method_doc(cls, method_name, tags=None):
         if func.__name__ == "get":
             if not parameters:
                 parameters = [
-                    {
-                        "name": "varargs",
-                        "in": "query",
-                        "description": f"{method_name} arguments",
-                        "required": False,
-                        "type": "string",
-                    }
+                    {"name": "varargs", "in": "query", "description": f"{method_name} arguments", "required": False, "type": "string"}
                 ]
         else:
             # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
