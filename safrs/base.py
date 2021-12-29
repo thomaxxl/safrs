@@ -396,10 +396,6 @@ class SAFRSBase(Model):
             result = [c for c in result if cls._s_check_perm(cls.colname_to_attrname(c.name))]
         return result
 
-    @classproperty
-    def _s_column_dict(cls):
-        return {cls.colname_to_attrname(c.name): c for c in cls._s_collumns}
-
     @hybrid_property
     def _s_relationships(self):
         """
