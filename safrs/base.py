@@ -881,7 +881,7 @@ class SAFRSBase(Model):
                                 safrs.log.warning(warning)
                                 meta["warning"] = warning
                             items = rel_query.all()
-                        else:
+                        else:  # rel_query is an 'InstrumentedList'
                             items = list(rel_query)[:limit]
                             count = len(items)
                         meta["count"] = meta["total"] = count
