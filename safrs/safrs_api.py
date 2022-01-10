@@ -665,7 +665,6 @@ def http_method_decorator(fun):
             safrs_exception = exc
 
         except werkzeug.exceptions.HTTPException as exc:
-            breakpoint()
             status_code = exc.code
             message = exc.description
 
