@@ -555,7 +555,7 @@ class SAFRSAPI(FRSApiBase):
                     return Response(yaml.dump(result), content_type="text/yaml")
                 return result
 
-        self.add_resource(ApiSchema, "/als_schema")
+        self.add_resource(ApiSchema, schema_loc)
         return json.dumps(result, indent=4)
 
 
@@ -646,6 +646,8 @@ def http_method_decorator(fun):
         :return: result of the wrapped method
         """
         safrs_exception = None
+        status_code = 500
+        message = ""
         try:
             if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
                 # reuire jsonapi content type for requests to these routes
@@ -662,6 +664,11 @@ def http_method_decorator(fun):
             status_code = 404
             safrs_exception = exc
 
+        except werkzeug.exceptions.HTTPException as exc:
+            breakpoint()
+            status_code = exc.code
+            message = exc.description
+
         except Exception as exc:
             safrs.log.exception(exc)
             safrs_exception = exc
@@ -670,9 +677,9 @@ def http_method_decorator(fun):
             else:
                 safrs_exception.message = str(exc)
 
-        status_code = getattr(safrs_exception, "status_code", 500)
+        status_code = getattr(safrs_exception, "status_code", status_code)
         api_code = getattr(safrs_exception, "api_code", status_code)
-        title = getattr(safrs_exception, "message", "")
+        title = getattr(safrs_exception, "message", message)
         detail = getattr(safrs_exception, "detail", title)
 
         safrs.DB.session.rollback()
