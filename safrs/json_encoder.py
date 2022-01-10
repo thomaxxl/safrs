@@ -64,6 +64,8 @@ class SAFRSJSONEncoder(JSONEncoder):
         :param obj: object to be encoded
         :return: encoded/serizlaized object
         """
+        if obj is None:
+            return None
         if obj is Included:
             return Included.encode()
         if isinstance(obj, Included):
