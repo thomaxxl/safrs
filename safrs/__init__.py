@@ -15,12 +15,14 @@ from .api_methods import search, startswith
 from .swagger_doc import jsonapi_rpc
 from .__about__ import __version__, __description__
 
+SafrsApi = SAFRSAPI
 
 __all__ = (
     "__version__",
     "__description__",
     #
     "SAFRSAPI",
+    "SafrsApi",
     # db:
     "SAFRSBase",
     "jsonapi_attr",
