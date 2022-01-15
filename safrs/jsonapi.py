@@ -146,7 +146,12 @@ class Resource(FRSResource):
         """
         :return: JSON:API sort swagger spec (the collection sort key)
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys()) + ["id"]
+        attr_list = ["id"]
+        for attr_name, col in cls.SAFRSObject._s_jsonapi_attrs.items():
+            # only use string or numbers for sortable examples in the swagger
+            # other column datatypes may not be sortable
+            if getattr(col, "type", None) in [sqlalchemy.String, sqlalchemy.Integer]:
+                attr_list.append(attr_name)
 
         param = {
             "default": ",".join(attr_list),
