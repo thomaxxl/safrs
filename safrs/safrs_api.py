@@ -165,6 +165,13 @@ class SAFRSAPI(FRSApiBase):
         self.update_spec()
         self._als_resources.append(safrs_object)
 
+    def expose(self, *safrs_objects, url_prefix="", **properties):
+        """
+        Expose multiple objects at once
+        """
+        for obj in safrs_objects:
+            self.expose_object(obj, url_prefix, **properties)
+
     def expose_methods(self, url_prefix, tags, safrs_object, properties):
         """
         Expose the safrs "documented_api_method" decorated methods
