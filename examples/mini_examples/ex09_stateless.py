@@ -31,6 +31,7 @@ class Test(SAFRSBase):
     _s_url = "http://safrs-example.com/api/Test"
     _s_relationships = {}
     _s_query = None
+    id = 0
 
     def __new__(cls, *args, **kwargs):
         """
@@ -110,7 +111,7 @@ class Test(SAFRSBase):
         return -1
 
 
-HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
+HOST = sys.argv[1] if len(sys.argv) > 1 else "localhost"
 PORT = 5000
 app = Flask("SAFRS Demo Application")
 app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)
