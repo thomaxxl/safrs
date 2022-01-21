@@ -1140,11 +1140,11 @@ class SAFRSBase(Model):
         query = cls._s_query
 
         for filt in filters:
-            if not isinstance(filters, dict):
-                safrs.log.warning(f"Invalid filter {filt}")
+            if not isinstance(filt, dict):
+                safrs.log.warning(f"Invalid filter '{filt}'")
                 continue
-            attr_name = filt.get("name", None)
-            attr_val = filt.get("val", None)
+            attr_name = filt.get("name")
+            attr_val = filt.get("val")
             if attr_name != "id" and attr_name not in cls._s_jsonapi_attrs:
                 raise ValidationError(f'Invalid filter "{filt}", unknown attribute "{attr_name}"')
 
