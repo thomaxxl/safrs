@@ -158,8 +158,10 @@ def get_id_type(cls, Super=SAFRSID, delimiter="_"):
     """
     get_id_type
     """
-    columns = [col for col in cls.__table__.columns if col.primary_key]
-    primary_keys = [col.name for col in columns]
+    primary_keys = columns = ["id"]
+    if hasattr(cls, "__table__"):
+        columns = [col for col in cls.__table__.columns if col.primary_key]
+        primary_keys = [col.name for col in columns]
     delimiter = getattr(cls, "delimiter", "_")
     id_type_class = type(cls.__name__ + "_ID", (Super,), {"primary_keys": primary_keys, "columns": columns, "delimiter": delimiter})
     return id_type_class

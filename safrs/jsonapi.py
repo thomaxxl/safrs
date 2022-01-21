@@ -263,11 +263,12 @@ class SAFRSRestAPI(Resource):
             id = kwargs[self._s_object_id]
             instance = self.SAFRSObject.get_instance(id)
             data = instance
-            links = {"self": instance._s_url}
-            if request.url != instance._s_url:
-                links["related"] = request.url
             count = 1
-            meta.update(dict(instance_meta=instance._s_meta()))
+            if instance is not None:
+                links = {"self": instance._s_url}
+                if request.url != instance._s_url:
+                    links["related"] = request.url
+                meta.update(dict(instance_meta=instance._s_meta()))
         else:
             # retrieve a collection, filter and sort
             instances = self.SAFRSObject._s_get()
