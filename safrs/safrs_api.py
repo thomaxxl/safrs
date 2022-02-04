@@ -667,6 +667,7 @@ def http_method_decorator(fun):
             # this also catches safrs.errors.NotFoundError
             status_code = 404
             safrs_exception = exc
+            message = HTTPStatus.NOT_FOUND.description
 
         except JsonapiError as exc:
             safrs.log.exception(exc)
