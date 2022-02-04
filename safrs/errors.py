@@ -12,6 +12,7 @@
 #
 import traceback
 from flask import request
+from werkzeug.exceptions import NotFound
 import safrs
 from sqlalchemy.exc import DontWrapMixin
 from http import HTTPStatus
@@ -24,7 +25,7 @@ class JsonapiError(Exception, DontWrapMixin):
     pass
 
 
-class NotFoundError(JsonapiError):
+class NotFoundError(JsonapiError, NotFound):
     """
     This exception is raised when an item was not found
     """

@@ -663,17 +663,19 @@ def http_method_decorator(fun):
             safrs.DB.session.commit()
             return result
 
-        except JsonapiError as exc:
-            safrs.log.exception(exc)
+        except werkzeug.exceptions.NotFound as exc:
+            # this also catches safrs.errors.NotFoundError
+            status_code = 404
             safrs_exception = exc
 
-        except werkzeug.exceptions.NotFound as exc:
-            status_code = 404
+        except JsonapiError as exc:
+            safrs.log.exception(exc)
             safrs_exception = exc
 
         except werkzeug.exceptions.HTTPException as exc:
             status_code = exc.code
             message = exc.description
+            safrs.log.error(message)
 
         except Exception as exc:
             safrs.log.exception(exc)
@@ -689,7 +691,6 @@ def http_method_decorator(fun):
         detail = getattr(safrs_exception, "detail", title)
 
         safrs.DB.session.rollback()
-        safrs.log.error(detail)
         errors = dict(title=title, detail=detail, code=api_code)
         abort(status_code, errors=[errors])
 
