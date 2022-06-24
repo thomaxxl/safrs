@@ -271,7 +271,9 @@ class SAFRSBase(Model):
 
         instance._add_rels(**params)
 
-        if not instance._s_auto_commit:
+        if not instance in safrs.DB.session:
+            safrs.DB.session.add(instance)
+        if not instance._s_auto_commit or sqla_inspect(instance).pending:
             #
             # The item has not yet been added/commited by the SAFRSBase,
             # in that case we have to do it ourselves
