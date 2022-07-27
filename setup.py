@@ -5,11 +5,12 @@ twine upload dist/*
 
 from distutils.core import setup
 
+
 def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.12.2"
+    version = "2.12.3"
 
     setup(
         name="safrs",
@@ -38,7 +39,8 @@ def safrs_setup():
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.6",
         ],
-        extras_require = { 'admin' : ['Flask-Admin>=1.5.8', 'Flask-Cors>=3.0.9'] , 'db2api' : ['inflect==5.0.2', 'Flask-Cors>=3.0.9'] }
+        extras_require={"admin": ["Flask-Admin>=1.5.8", "Flask-Cors>=3.0.9"], "db2api": ["inflect==5.0.2", "Flask-Cors>=3.0.9"]},
     )
 
-safrs_setup() # pragma: no cover
+
+safrs_setup()  # pragma: no cover
