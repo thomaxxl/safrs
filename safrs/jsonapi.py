@@ -581,7 +581,7 @@ class SAFRSRestRelationshipAPI(Resource):
     # Retrieve relationship data
     def get(self, **kwargs):
         """
-        summary : Retrieve {child_name} from {cls.relationship.key}
+        summary : Retrieve {child_name} from {parent_name}.{cls.relationship.key}
         description : Retrieve {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
         ---
         https://jsonapi.org/format/#fetching-relationships
@@ -639,7 +639,7 @@ class SAFRSRestRelationshipAPI(Resource):
     # Relationship patching
     def patch(self, **kwargs):
         """
-        summary : Update {cls.relationship.key}
+        summary : Update {parent_name}.{cls.relationship.key}
         description : Update the {parent_name} {cls.relationship.key} "{direction}" relationship
         responses:
             200 :
@@ -753,7 +753,7 @@ class SAFRSRestRelationshipAPI(Resource):
     # Adding items to a relationship
     def post(self, **kwargs):
         """
-        summary: Add {child_name} items to {cls.relationship.key}
+        summary: Add {child_name} items to {parent_name}.{cls.relationship.key}
         description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
         responses :
             202:
@@ -811,7 +811,7 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def delete(self, **kwargs):
         """
-        summary : Delete {child_name} from {cls.relationship.key}
+        summary : Delete {child_name} from {parent_name}.{cls.relationship.key}
         description : Delete {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
         responses:
             202 :
