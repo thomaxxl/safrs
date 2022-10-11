@@ -26,7 +26,7 @@ def create_api(app, host="localhost", port=5000, prefix=""):
     print(f"Starting API: http://{host}:{port}/{prefix}")
 
 
-def create_app(host="localhost"):
+def create_app(host="127.0.0.1"):
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
