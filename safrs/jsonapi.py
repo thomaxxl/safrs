@@ -415,6 +415,8 @@ class SAFRSRestAPI(Resource):
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
+        resp_data = {} # response jsonapi "data"
+        location = "" #response jsonapi "location"
         if data is None:
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
@@ -431,11 +433,15 @@ class SAFRSRestAPI(Resource):
             location = None
         else:
             instance = self._create_instance(data)
-            # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-            obj_args = {instance._s_object_id: instance.jsonapi_id}
-            # Retrieve the object json and return it to the client
-            resp_data = self.get(**obj_args)
-            location = f"{url_for(self.endpoint)}{instance.jsonapi_id}"
+            object_id = getattr(instance, '_s_object_id', None)
+            if object_id is not None:
+                # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+                obj_args = {instance._s_object_id: instance.jsonapi_id}
+                # Retrieve the object json and return it to the client
+                resp_data = self.get(**obj_args)
+                location = f"{url_for(self.endpoint)}{instance.jsonapi_id}"
+            else:
+                safrs.log.warning(f"Created instance '{instance}' cannot be serialized")
 
         response = make_response(resp_data, HTTPStatus.CREATED)
         # Set the Location header to the newly created object(s)
