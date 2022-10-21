@@ -257,7 +257,7 @@ class SAFRSBase(Model):
         if cls.allow_client_generated_ids:
             # this isn't required per the jsonapi spec
             # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
-            attributes["id"] = jsonapi_id
+            attributes["id"] = jsonapi_id if jsonapi_id is not None else params.get('id', None)
         else:
             for attr_name in attributes.copy():
                 if attr_name in cls.id_type.column_names:
