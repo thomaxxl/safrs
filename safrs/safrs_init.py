@@ -85,6 +85,7 @@ class SAFRS:
         for conf_name, conf_val in app.config.items():
             setattr(SAFRS, conf_name, conf_val)
 
+        self.db.init_app(app)
         @app.before_request
         def handle_invalid_usage():
             return
