@@ -1,4 +1,4 @@
 flask-restful-swagger-2==0.35
-Flask-SQLAlchemy>=2.3.2
+Flask-SQLAlchemy>=2.3.2,<3.0.0
 flask-swagger-ui>=3.20.9
 PyYAML>=5.1
