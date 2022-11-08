@@ -311,7 +311,7 @@ def goto_api():
 
 
 app.secret_key = "not so secret"
-app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
+app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///{sys.argv[0]}.sqlitedb", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 API_PREFIX = "/api"
 HOST = "thomaxxl.pythonanywhere.com"
