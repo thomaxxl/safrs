@@ -24,10 +24,10 @@ class User(SAFRSBase, db.Model):
     """
     description: User description
     """
-
+    allow_client_generated_ids = True
+    db_commit = False
     __tablename__ = "Users"
-    id = db.Column(db.String, primary_key=True)
-    name = db.Column(db.String, default="")
+    name = db.Column(db.String, default="", primary_key=True)
     email = db.Column(db.String, default="")
     books = db.relationship("Book", back_populates="user", lazy="dynamic")
 
@@ -38,26 +38,26 @@ class Book(SAFRSBase, db.Model):
     """
 
     __tablename__ = "Books"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, default="")
-    user_id = db.Column(db.String, db.ForeignKey("Users.id"))
+    name = db.Column(db.String, primary_key=True)
+    user_name = db.Column(db.String, db.ForeignKey("Users.name"))
     user = db.relationship("User", back_populates="books")
 
 
 # create the api endpoints
-def create_api(app, host="localhost", port=5000, api_prefix=""):
+def create_api(app, host="127.0.0.1", port=5000, api_prefix=""):
     api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
     print(f"Created API: http://{host}:{port}/{api_prefix}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(host="localhost"):
     app = Flask("demo_app")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db")
     db.init_app(app)
 
     with app.app_context():
+        db.drop_all()
         db.create_all()
         # Populate the db with users and a books and add the book to the user.books relationship
         for i in range(200):

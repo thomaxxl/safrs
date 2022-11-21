@@ -58,7 +58,7 @@ API_PREFIX = ""
 
 # App initialization
 app = Flask("SAFRS Demo Application")
-app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True)
+app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db", DEBUG=True)
 db.init_app(app)
 # Create the database
 

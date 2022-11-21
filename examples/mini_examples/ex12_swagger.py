@@ -58,7 +58,7 @@ def create_api(app, host="localhost", port=5000, api_prefix="", custom_swagger={
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db")
     db.init_app(app)
 
     with open(Path(__file__).parent / "custom_swagger.json") as j_fp:

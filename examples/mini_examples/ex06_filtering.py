@@ -88,7 +88,7 @@ class Person(BaseModel):
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
     app.secret_key = "not so secret"
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db")
     db.init_app(app)
 
     with app.app_context():

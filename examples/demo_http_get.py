@@ -41,7 +41,7 @@ if __name__ == "__main__":
     HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
     PORT = 5000
     app = Flask("SAFRS Demo Application")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True)
+    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db", DEBUG=True)
     db.init_app(app)
     db.app = app
     # Create the database

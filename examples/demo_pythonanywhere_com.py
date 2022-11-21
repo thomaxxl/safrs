@@ -239,7 +239,7 @@ class Review(BaseModel):
 
 # API app initialization:
 # Create the instances and exposes the classes
-def start_api(swagger_host="0.0.0.0", PORT=None):
+def start_api(swagger_host="my.external.host", PORT=None):
 
     with app.app_context():
         db.init_app(app)
@@ -311,7 +311,7 @@ def goto_api():
 
 
 app.secret_key = "not so secret"
-app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
+app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///t.sql", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 API_PREFIX = "/api"
 HOST = "thomaxxl.pythonanywhere.com"

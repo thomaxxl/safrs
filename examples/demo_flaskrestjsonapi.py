@@ -131,7 +131,7 @@ def create_api(app, HOST="localhost", PORT=5010, API_PREFIX=""):
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask(__name__)
-    # app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    # app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db")
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///test.db"
     db.init_app(app)
     api = Api(app)

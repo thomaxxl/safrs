@@ -34,7 +34,7 @@ def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///demo.db")
     db.init_app(app)
     with app.app_context():
         db.create_all()
@@ -42,7 +42,7 @@ def create_app(config_filename=None, host="localhost"):
     return app
 
 
-host = "192.168.235.136"
+host = "127.0.0.1"
 app = create_app(host=host)
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ flask-marshmallow==0.8.0
 Flask-RESTful==0.3.6
 flask-restful-swagger-2==0.35
 Flask-SQLAlchemy==2.3.2
-flask-swagger-ui==3.20.9
+flask-swagger-ui>=4.11.1
 Flask-Testing==0.7.1
 inflect==2.1.0
 itsdangerous==1.1.0
