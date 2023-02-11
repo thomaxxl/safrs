@@ -3,7 +3,7 @@
 #
 # This is a demo application to demonstrate the functionality of the safrs REST API
 # The script depends on
-# $ pip install flask_admin flask_cors
+# $ pip install flask_cors
 # It can be ran standalone like this:
 # $ python demo_relationship.py [Listener-IP]
 #
@@ -12,7 +12,6 @@
 # - A database is created and items are added
 # - A rest api is available
 # - swagger2 documentation is generated
-# - Flask-Admin frontend is created
 # - jsonapi-admin pages are served
 #
 # All sorts of customizations are applied to the exposed objects
@@ -25,8 +24,6 @@ import hashlib
 from flask import Flask, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_admin import Admin
-from flask_admin.contrib import sqla
 from safrs import SAFRSAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse
@@ -41,7 +38,6 @@ description = """
 <a href=http://jsonapi.org>Json:API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a><br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
-- <a href="/admin/person">Flask-Admin frontend</a>
 - <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
 """
 
@@ -52,9 +48,7 @@ class BaseModel(SAFRSBase, db.Model):
     __abstract__ = True
     # Add startswith methods so we can perform lookups from the frontend
     SAFRSBase.search = search
-    # Needed because we don't want to implicitly commit when using flask-admin
-    SAFRSBase.db_commit = False
-
+    db_commit = False
 
 class DocumentedColumn(db.Column):
     """
@@ -244,6 +238,22 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
     with app.app_context():
         db.init_app(app)
         db.create_all()
+        custom_swagger = {
+            "info": {"title": "My Customized Title"},
+            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
+        }  # Customized swagger will be merged
+
+        api = SAFRSAPI(
+            app,
+            host=swagger_host,
+            port=PORT,
+            prefix=API_PREFIX,
+            custom_swagger=custom_swagger,
+            schemes=["http", "https"],
+            description=description,
+        )
+
+        
         # populate the database
         NR_INSTANCES = 10
         for i in range(NR_INSTANCES):
@@ -266,30 +276,9 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
 
             db.session.commit()
 
-        custom_swagger = {
-            "info": {"title": "My Customized Title"},
-            "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
-        }  # Customized swagger will be merged
-
-        api = SAFRSAPI(
-            app,
-            host=swagger_host,
-            port=PORT,
-            prefix=API_PREFIX,
-            custom_swagger=custom_swagger,
-            schemes=["http", "https"],
-            description=description,
-        )
-
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
             api.expose_object(model)
-
-        # add the flask-admin views
-        admin = Admin(app, url="/admin")
-        for model in [Person, Book, Review, Publisher]:
-            admin.add_view(sqla.ModelView(model, db.session))
-
 
 app = Flask("SAFRS Demo App")
 
@@ -309,9 +298,8 @@ def send_swagger_editor(path="index.html"):
 def goto_api():
     return redirect(API_PREFIX)
 
-
 app.secret_key = "not so secret"
-app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///{sys.argv[0]}.sqlitedb", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
+app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 API_PREFIX = "/api"
 HOST = "thomaxxl.pythonanywhere.com"
