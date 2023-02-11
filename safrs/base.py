@@ -2,8 +2,10 @@
 #
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
 #
+from __future__ import annotations
 import inspect
 import datetime
+from subprocess import list2cmdline
 import sqlalchemy
 import json
 import operator
@@ -88,7 +90,7 @@ class SAFRSBase(Model):
     (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
 
-    db_commit = False  # commit instances automatically, see also _s_auto_commit property below
+    db_commit = True  # commit instances automatically, see also _s_auto_commit property below
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
     exclude_attrs = []  # list of attribute names that should not be serialized
@@ -205,7 +207,7 @@ class SAFRSBase(Model):
         else:
             return super().__setattr__(attr_name, attr_val)
 
-    def _s_parse_attr_value(self, attr_name, attr_val):
+    def _s_parse_attr_value(self, attr_name : str, attr_val: any):
         """
         Parse the given jsonapi attribute value so it can be stored in the db
         :param attr_name: attribute name
@@ -239,7 +241,7 @@ class SAFRSBase(Model):
         return cls.jsonapi_filter()
 
     @classmethod
-    def _s_post(cls, jsonapi_id=None, **params):
+    def _s_post(cls, jsonapi_id=None, **params) -> SAFRSBase:
         """
         This method is called when a new item is created with a POST to the json api
 
@@ -289,7 +291,7 @@ class SAFRSBase(Model):
 
         return instance
 
-    def _s_patch(self, **attributes):
+    def _s_patch(self, **attributes) -> SAFRSBase:
         """
         Update the object attributes
         :param **attributes:
@@ -307,13 +309,13 @@ class SAFRSBase(Model):
         # query ourself, this will also execute sqla hooks
         return self.get_instance(self.jsonapi_id)
 
-    def _s_delete(self):
+    def _s_delete(self) -> None:
         """
         Delete the instance from the database
         """
         safrs.DB.session.delete(self)
 
-    def _add_rels(self, **params):
+    def _add_rels(self, **params) -> None:
         """
         Add relationship data provided in a POST, cfr. https://jsonapi.org/format/#crud-creating
         **params contains the (HTTP POST) parameters
@@ -367,14 +369,14 @@ class SAFRSBase(Model):
         return subclasses
 
     @hybrid_property
-    def http_methods(self):
+    def http_methods(self) -> list[str]:
         """
         :return: list of allowed HTTP methods
         """
         return self.__class__.http_methods
 
     @http_methods.expression
-    def http_methods(self):
+    def http_methods(self) -> list[str]:
         """
         :return: list of allowed HTTP methods
         """
@@ -382,7 +384,7 @@ class SAFRSBase(Model):
 
     @classproperty
     @lru_cache(maxsize=32)
-    def _s_columns(cls):
+    def _s_columns(cls) -> list:
         """
         :return: list of columns that are exposed by the api
         """
@@ -399,7 +401,7 @@ class SAFRSBase(Model):
         return result
 
     @hybrid_property
-    def _s_relationships(self):
+    def _s_relationships(self) -> dict:
         """
         :return: the relationships used for jsonapi (de/)serialization
         """

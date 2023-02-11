@@ -3,6 +3,7 @@
 """
 from sqlalchemy.ext.hybrid import hybrid_property
 from .swagger_doc import parse_object_doc
+from typing import Any
 
 JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
 
@@ -49,7 +50,7 @@ class jsonapi_attr(hybrid_property):
         return self._copy(fset=fset)
 
 
-def is_jsonapi_attr(attr):
+def is_jsonapi_attr(attr: Any) -> bool:
     """
     :param attr: `SAFRSBase` `jsonapi_attr` decorated attribute
     :return: boolean

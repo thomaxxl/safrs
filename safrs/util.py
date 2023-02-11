@@ -1,10 +1,13 @@
 #
+from functools import _lru_cache_wrapper
+from typing import Callable, Union
+
 class ClassPropertyDescriptor:
     """
     ClassPropertyDescriptor
     """
 
-    def __init__(self, fget, fset=None):
+    def __init__(self, fget: classmethod, fset: None=None) -> None:
         self.fget = fget
         self.fset = fset
 
@@ -25,7 +28,7 @@ class ClassPropertyDescriptor:
         type_ = type(obj)
         return self.fset.__get__(obj, type_)(value)
 
-    def setter(self, func):
+    def setter(self, func: Callable) -> "ClassPropertyDescriptor":
         """
         setter
         """
@@ -35,7 +38,7 @@ class ClassPropertyDescriptor:
         return self
 
 
-def classproperty(func):
+def classproperty(func: Union[Callable, _lru_cache_wrapper]) -> ClassPropertyDescriptor:
     """
     classproperty
     """

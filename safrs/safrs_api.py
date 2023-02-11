@@ -23,6 +23,8 @@ from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import current_app, Response
 import json
 import yaml
+from flask.app import Flask
+from typing import Callable, Type
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
@@ -41,15 +43,15 @@ class SAFRSAPI(FRSApiBase):
 
     def __init__(
         self,
-        app,
-        host="localhost",
-        port=5000,
-        prefix="",
-        description="SAFRSAPI",
-        json_encoder=SAFRSJSONEncoder,
-        swaggerui_blueprint=True,
+        app: Flask,
+        host: str="localhost",
+        port: int=5000,
+        prefix: str="",
+        description: str="SAFRSAPI",
+        json_encoder: Type[SAFRSJSONEncoder]=SAFRSJSONEncoder,
+        swaggerui_blueprint: bool=True,
         **kwargs,
-    ):
+    ) -> None:
         """
         http://jsonapi.org/format/#content-negotiation-servers
         Servers MUST send all JSON:API data in response documents with
@@ -86,7 +88,7 @@ class SAFRSAPI(FRSApiBase):
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()
 
-    def update_spec(self):
+    def update_spec(self) -> None:
         """
         :param custom_swagger: swagger spec to be added to the swagger.json
         """
@@ -517,7 +519,7 @@ class SAFRSAPI(FRSApiBase):
         self._swagger_object["definitions"].update(definitions)
 
     @classmethod
-    def _get_operation_id(cls, summary):
+    def _get_operation_id(cls, summary: str) -> str:
         """
         :param summary:
         """
@@ -635,7 +637,7 @@ def api_decorator(cls, swagger_decorator):
     return cls
 
 
-def http_method_decorator(fun):
+def http_method_decorator(fun: Callable) -> Callable:
     """Decorator for the supported jsonapi HTTP methods (get, post, patch, delete)
     - commit the database
     - convert all exceptions to a JSON serializable GenericError

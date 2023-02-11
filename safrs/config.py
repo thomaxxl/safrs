@@ -6,10 +6,11 @@ import logging
 from flask import current_app, request
 from functools import lru_cache
 import safrs
+from typing import Optional, Union
 
 
 @lru_cache(maxsize=128)
-def get_config(option):
+def get_config(option: str) -> Optional[Union[bool, str]]:
     """Retrieve a configuration parameter from the app
     :param option: configuration parameter
     :return: configuration value
@@ -93,7 +94,7 @@ def get_request_param(param, default=0):
     return result
 
 
-def is_debug():
+def is_debug() -> bool:
     """
     We use the loglevel to check whether we're running in debug mode
     :return: whether the app is in debug mode

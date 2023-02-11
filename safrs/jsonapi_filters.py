@@ -160,6 +160,6 @@ def get_swagger_filters(cls):
 
 
 class FilteringStrategy:
-    def __init__(self, jsonapi_filter=jsonapi_filter, swagger_gen=get_swagger_filters):
+    def __init__(self, jsonapi_filter: classmethod=jsonapi_filter, swagger_gen: classmethod=get_swagger_filters) -> None:
         self.jsonapi_filter = jsonapi_filter
         self.swagger_gen = swagger_gen

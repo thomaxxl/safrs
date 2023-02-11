@@ -11,6 +11,8 @@ from .json_encoder import SAFRSJSONEncoder
 from .jsonapi_filters import FilteringStrategy
 from functools import wraps
 import safrs
+import flask.app
+from typing import Any, Dict, Type, Union
 
 class SAFRS:
     """This class configures the Flask application to serve SAFRSBase instances
@@ -43,7 +45,7 @@ class SAFRS:
 
     OPTIMIZED_LOADING = True
 
-    def __init__(self, app, *args, **kwargs):
+    def __init__(self, app:     flask.app.Flask, *args, **kwargs) -> None:
         """
         Constructor
         """
@@ -52,8 +54,8 @@ class SAFRS:
             self.init_app(app, *args, **kwargs)
 
     def init_app(
-        self, app, host="localhost", port=5000, prefix="", app_db=None, json_encoder=SAFRSJSONEncoder, swaggerui_blueprint=True, **kwargs
-    ):
+        self, app:     flask.app.Flask, host: str="localhost", port: int=5000, prefix: str="", app_db: None=None, json_encoder: Type[SAFRSJSONEncoder]=SAFRSJSONEncoder, swaggerui_blueprint: bool=True, **kwargs
+    ) -> None:
         """
         API and application initialization
         """
@@ -105,7 +107,7 @@ class SAFRS:
             self.db.session.remove()
 
     @staticmethod
-    def init_logging(cls, loglevel=logging.WARNING):
+    def init_logging(cls: int, loglevel: int=logging.WARNING) ->     logging.Logger:
         """
         Specify the log format used in the webserver logs
         The webserver will catch stdout so we redirect eveything to sys.stdout
@@ -120,7 +122,7 @@ class SAFRS:
         return log
 
 
-def dict_merge(dct, merge_dct):
+def dict_merge(dct: Any, merge_dct: Union[Dict[str, str], Dict[str, Union[str, Dict[int, Dict[str, str]]]], Dict[int, Dict[str, str]]]) -> None:
     """Recursive dict merge used for creating the swagger spec.
     Inspired by :meth:``dict.update()``, instead of updating only
     top-level keys, dict_merge recurses down into dicts nested

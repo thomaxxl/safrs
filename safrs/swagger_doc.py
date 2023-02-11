@@ -13,6 +13,7 @@ from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
 import safrs
+from typing import Any, Callable, Dict, List, Optional, Union
 
 
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
@@ -37,7 +38,7 @@ Schema._references = {}
 
 
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
-def parse_object_doc(object):
+def parse_object_doc(object: Callable) -> Dict[str, Union[str, Dict[int, Dict[str, str]], bool, Dict[str, str]]]:
     """
     Parse the yaml description from the documented methods
     """
@@ -60,7 +61,7 @@ def parse_object_doc(object):
     return api_doc
 
 
-def jsonapi_rpc(http_methods=None, valid_jsonapi=True):
+def jsonapi_rpc(http_methods: Optional[List[str]]=None, valid_jsonapi: bool=True) -> Callable:
     """
     Decorator to expose functions in the REST API:
     When a method is decorated with jsonapi_rpc, this means
@@ -102,7 +103,7 @@ def is_public(method):
     return hasattr(method, REST_DOC)
 
 
-def get_doc(method):
+def get_doc(method: Any) -> None:
     """
     :param  method: SAFRSBase method
     :return: OAS documentation
@@ -156,7 +157,7 @@ def SchemaClassFactory(name, properties):
     return new_schema_cls
 
 
-def encode_schema(obj):
+def encode_schema(obj: Dict[str, Any]) -> Dict[str, Any]:
     """
     None aka "null" is invalid in swagger schema definition
     This breaks our samples :/
@@ -217,7 +218,7 @@ def schema_from_object(name, object):
     return schema
 
 
-def update_response_schema(responses):
+def update_response_schema(responses: Dict[str, Dict[str, str]]) -> None:
     """
     Add predefined response schemas if none is available yet
     """
@@ -648,7 +649,7 @@ def swagger_method_doc(cls, method_name, tags=None):
     return swagger_doc_gen
 
 
-def default_paging_parameters():
+def default_paging_parameters() -> List[Dict[str, Union[int, str, bool]]]:
     """
     default_paging_parameters
     """
