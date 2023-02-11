@@ -914,7 +914,17 @@ class SAFRSBase(Model):
         returning None will cause our jsonapi to perform a count() on the result
         this can be overridden with a cached value for performance on large tables (>1G)
         """
-        return None
+        try:
+            count = cls.query.count()
+        except Exception as exc:
+            # May happen for custom types, for ex. the psycopg2 extension
+            safrs.log.warning(f"Can't get count for {cls} ({exc})")
+            count = -1
+        
+        if count > 10:#get_config("MAX_TABLE_COUNT"):
+            safrs.log.warning(f"Large table count detected, performance may be impacted, consider '{cls.__name__}._s_count' override")
+
+        return count
 
     #
     # Following methods are used to create the swagger2 API documentation
