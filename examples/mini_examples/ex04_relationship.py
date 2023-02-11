@@ -54,7 +54,7 @@ def create_app(config_filename=None, host="localhost"):
     return app
 
 
-host = "192.168.235.136"
+host = "127.0.0.1"
 app = create_app(host=host)
 
 if __name__ == "__main__":

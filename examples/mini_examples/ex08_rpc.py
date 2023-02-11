@@ -7,7 +7,6 @@
 from flask import Flask, g
 from flask_sqlalchemy import SQLAlchemy
 from safrs import SAFRSBase, SAFRSAPI, DB, jsonapi_rpc
-from logic_bank.logic_bank import LogicBank, Rule
 
 db = SQLAlchemy()
 
@@ -41,7 +40,7 @@ class OrderDetail(SAFRSBase, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     OrderId = db.Column(db.ForeignKey("Orders.id"), nullable=False)
     Quantity = db.Column(db.Integer, nullable=False)
-    order = db.relationship("Order", cascade_backrefs=True, backref="OrderDetailList")
+    order = db.relationship("Order", backref="OrderDetailList")
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
@@ -63,7 +62,7 @@ def create_app(config_filename=None, host="localhost"):
     return app
 
 
-host = "ubuntu20"
+host = "127.0.0.1"
 app = create_app(host=host)
 
 
