@@ -44,16 +44,16 @@ if __name__ == "__main__":
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True)
     db.init_app(app)
     db.app = app
-    # Create the database
-    db.create_all()
     API_PREFIX = ""
 
     with app.app_context():
+        # Create the database
+        db.create_all()
+        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Create a user and a book and add the book to the user.books relationship
         user = User(name="thomas", email="em@il")
         book = Book(name="test_book")
         user.books.append(book)
-        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)

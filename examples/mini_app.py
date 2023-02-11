@@ -4,6 +4,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from safrs import SAFRSBase, SAFRSAPI
+from safrs.util import classproperty
 
 db = SQLAlchemy()
 
@@ -19,16 +20,16 @@ class User(SAFRSBase, db.Model):
     email = db.Column(db.String)
 
 
-def create_api(app, host="localhost", port=5000, prefix=""):
+def create_api(app, host="127.0.0.1", port=5000, prefix=""):
     api = SAFRSAPI(app, host=host, port=port, prefix=prefix)
     api.expose_object(User)
-    user = User(name="test", email="email@x.org")
+    User(name="test", email="email@x.org") # this will automatically commit the user!
     print(f"Starting API: http://{host}:{port}/{prefix}")
 
 
-def create_app(host="localhost"):
+def create_app(host="127.0.0.1"):
     app = Flask("demo_app")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///")
     db.init_app(app)
     with app.app_context():
         db.create_all()

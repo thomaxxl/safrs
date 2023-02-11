@@ -48,10 +48,10 @@ def create_app(config_filename=None, host="localhost"):
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        create_api(app, host)
         user1 = User(name="John")
         user2 = User(name="Jane")
         user3 = User(name="Marie")
-        create_api(app, host)
     return app
 
 

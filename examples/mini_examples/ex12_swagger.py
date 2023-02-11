@@ -66,13 +66,12 @@ def create_app(config_filename=None, host="localhost"):
 
     with app.app_context():
         db.create_all()
+        create_api(app, host, custom_swagger=custom_swagger)
         # Populate the db with users and a books and add the book to the user.books relationship
         for i in range(4):
             user = User(name=f"user{i}", email=f"email{i}@email.com")
             book = Book(name=f"test book {i}")
             user.books.append(book)
-
-        create_api(app, host, custom_swagger=custom_swagger)
 
     return app
 

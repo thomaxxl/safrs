@@ -88,7 +88,7 @@ class SAFRSBase(Model):
     (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
 
-    db_commit = True  # commit instances automatically, see also _s_auto_commit property below
+    db_commit = False  # commit instances automatically, see also _s_auto_commit property below
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
     exclude_attrs = []  # list of attribute names that should not be serialized
@@ -257,7 +257,7 @@ class SAFRSBase(Model):
         if cls.allow_client_generated_ids:
             # this isn't required per the jsonapi spec
             # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
-            attributes["id"] = jsonapi_id
+            attributes["id"] = jsonapi_id if jsonapi_id is not None else params.get('id', None)
         else:
             for attr_name in attributes.copy():
                 if attr_name in cls.id_type.column_names:
@@ -914,7 +914,17 @@ class SAFRSBase(Model):
         returning None will cause our jsonapi to perform a count() on the result
         this can be overridden with a cached value for performance on large tables (>1G)
         """
-        return None
+        try:
+            count = cls.query.count()
+        except Exception as exc:
+            # May happen for custom types, for ex. the psycopg2 extension
+            safrs.log.warning(f"Can't get count for {cls} ({exc})")
+            count = -1
+        
+        if count > 10:#get_config("MAX_TABLE_COUNT"):
+            safrs.log.warning(f"Large table count detected, performance may be impacted, consider '{cls.__name__}._s_count' override")
+
+        return count
 
     #
     # Following methods are used to create the swagger2 API documentation

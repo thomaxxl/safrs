@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-#
-# `to_dict` example
-#
+# run:
+# $ FLASK_APP=mini_app flask run
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from safrs import SAFRSBase, SAFRSAPI
@@ -11,28 +10,30 @@ db = SQLAlchemy()
 
 class User(SAFRSBase, db.Model):
     """
-    description: User description
+    description: My User description
     """
 
     __tablename__ = "Users"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     email = db.Column(db.String)
+    
+    @classmethod
+    def _s_post(cls, *args, **kwargs):
+        print(kwargs)
+        result = cls(*args, **kwargs)
+        print(result)
+        return result
 
-    def to_dict(self):
-        result = super().to_dict()
-        result[1] = 2
-        return {1: 2}
 
-
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+def create_api(app, host="localhost", port=5000, prefix=""):
+    api = SAFRSAPI(app, host=host, port=port, prefix=prefix)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
-    print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
+    print(f"Starting API: http://{host}:{port}/{prefix}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(host="localhost"):
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
@@ -42,8 +43,7 @@ def create_app(config_filename=None, host="localhost"):
     return app
 
 
-host = "127.0.0.1"
-app = create_app(host=host)
+app = create_app()
 
 if __name__ == "__main__":
-    app.run(host=host)
+    app.run()

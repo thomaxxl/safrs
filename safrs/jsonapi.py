@@ -415,6 +415,8 @@ class SAFRSRestAPI(Resource):
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
+        resp_data = {} # response jsonapi "data"
+        location = "" #response jsonapi "location"
         if data is None:
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
@@ -431,11 +433,15 @@ class SAFRSRestAPI(Resource):
             location = None
         else:
             instance = self._create_instance(data)
-            # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
-            obj_args = {instance._s_object_id: instance.jsonapi_id}
-            # Retrieve the object json and return it to the client
-            resp_data = self.get(**obj_args)
-            location = f"{url_for(self.endpoint)}{instance.jsonapi_id}"
+            object_id = getattr(instance, '_s_object_id', None)
+            if object_id is not None:
+                # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
+                obj_args = {instance._s_object_id: instance.jsonapi_id}
+                # Retrieve the object json and return it to the client
+                resp_data = self.get(**obj_args)
+                location = f"{url_for(self.endpoint)}{instance.jsonapi_id}"
+            else:
+                safrs.log.warning(f"Created instance '{instance}' cannot be serialized")
 
         response = make_response(resp_data, HTTPStatus.CREATED)
         # Set the Location header to the newly created object(s)
@@ -581,7 +587,7 @@ class SAFRSRestRelationshipAPI(Resource):
     # Retrieve relationship data
     def get(self, **kwargs):
         """
-        summary : Retrieve {child_name} from {cls.relationship.key}
+        summary : Retrieve {child_name} from {parent_name}.{cls.relationship.key}
         description : Retrieve {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
         ---
         https://jsonapi.org/format/#fetching-relationships
@@ -639,7 +645,7 @@ class SAFRSRestRelationshipAPI(Resource):
     # Relationship patching
     def patch(self, **kwargs):
         """
-        summary : Update {cls.relationship.key}
+        summary : Update {parent_name}.{cls.relationship.key}
         description : Update the {parent_name} {cls.relationship.key} "{direction}" relationship
         responses:
             200 :
@@ -753,7 +759,7 @@ class SAFRSRestRelationshipAPI(Resource):
     # Adding items to a relationship
     def post(self, **kwargs):
         """
-        summary: Add {child_name} items to {cls.relationship.key}
+        summary: Add {child_name} items to {parent_name}.{cls.relationship.key}
         description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
         responses :
             202:
@@ -811,7 +817,7 @@ class SAFRSRestRelationshipAPI(Resource):
 
     def delete(self, **kwargs):
         """
-        summary : Delete {child_name} from {cls.relationship.key}
+        summary : Delete {child_name} from {parent_name}.{cls.relationship.key}
         description : Delete {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
         responses:
             202 :

@@ -14,10 +14,10 @@
 import sys
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+import sqlalchemy
 from safrs import SAFRSBase, SAFRSAPI
 
 db = SQLAlchemy()
-
 
 # Example sqla database objects
 class User(SAFRSBase, db.Model):
@@ -44,7 +44,7 @@ class Book(SAFRSBase, db.Model):
     user = db.relationship("User", back_populates="books")
 
 
-# create the api endpoints
+# Create the api endpoints
 def create_api(app, host="localhost", port=5000, api_prefix=""):
     api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
@@ -54,23 +54,22 @@ def create_api(app, host="localhost", port=5000, api_prefix=""):
 
 def create_app(config_filename=None, host="localhost"):
     app = Flask("demo_app")
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite://")
     db.init_app(app)
 
     with app.app_context():
+        create_api(app, host)
         db.create_all()
         # Populate the db with users and a books and add the book to the user.books relationship
         for i in range(200):
             user = User(name=f"user{i}", email=f"email{i}@email.com")
             book = Book(name=f"test book {i}")
             user.books.append(book)
-
-        create_api(app, host)
-
+            
     return app
 
 
-# address where the api will be hosted, change this if you're not running the app on localhost!
+# Address where the api will be hosted, change this if you're not running the app on localhost!
 host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"
 app = create_app(host=host)
 
