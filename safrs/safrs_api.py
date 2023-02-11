@@ -65,6 +65,7 @@ class SAFRSAPI(FRSApiBase):
 
         self._custom_swagger = kwargs.pop("custom_swagger", {})
         kwargs["default_mediatype"] = "application/vnd.api+json"
+        app_db = kwargs.pop("app_db", None)
         safrs.SAFRS(app, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, **kwargs)
         # the host shown in the swagger ui
         # this host may be different from the hostname of the server and
