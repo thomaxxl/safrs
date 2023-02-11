@@ -10,7 +10,7 @@ from .response import SAFRSResponse
 from .json_encoder import SAFRSJSONEncoder
 from .jsonapi_filters import FilteringStrategy
 from functools import wraps
-
+import safrs
 
 class SAFRS:
     """This class configures the Flask application to serve SAFRSBase instances
@@ -61,8 +61,10 @@ class SAFRS:
             raise TypeError("'app' should be Flask.")
 
         if app_db is None:
-            self.db = DB
-
+            app_db = app.extensions["sqlalchemy"]
+        
+        safrs.DB = self.db = app_db
+        
         app.json_encoder = json_encoder
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
@@ -85,7 +87,6 @@ class SAFRS:
         for conf_name, conf_val in app.config.items():
             setattr(SAFRS, conf_name, conf_val)
 
-        self.db.init_app(app)
         @app.before_request
         def handle_invalid_usage():
             return
@@ -155,7 +156,7 @@ def test_decorator(func):  # pragma: no cover
 #
 # DB and logging initialization
 #
-DB = SQLAlchemy()
+DB = None
 
 try:
     DEBUG = os.getenv("DEBUG", logging.WARNING)

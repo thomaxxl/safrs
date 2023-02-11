@@ -3,18 +3,18 @@ python3 setup.py sdist
 twine upload dist/*
 """
 
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 
 def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "2.12.4"
+    version = "3.0.0"
 
     setup(
         name="safrs",
-        packages=["safrs"],
+        packages=find_packages(exclude=['test']),
         version=version,
         license="MIT",
         description="safrs : SqlAlchemy Flask-Restful Swagger2",
