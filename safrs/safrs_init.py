@@ -158,7 +158,7 @@ def test_decorator(func):  # pragma: no cover
 #
 # DB and logging initialization
 #
-DB = None
+DB = SQLAlchemy()
 
 try:
     DEBUG = os.getenv("DEBUG", logging.WARNING)
