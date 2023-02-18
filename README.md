@@ -228,7 +228,7 @@ Two class-level methods have been defined to facilitate object retrieval:
 ## Application Initialization
 The API can be initialized like this:
 ```python
-api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
 ```
 Then you can expose objects with `expose_object`
 ```python
@@ -343,10 +343,10 @@ Some additional API RPC methods are implemented in [api_methods.py](safrs/api_me
 
 <a class="mk-toclify" id="custom-swagger"></a>
 ### Custom swagger
-The swagger schema can be merged with a modified schema dictionary by supplying the to-be-merged dictionary as the `custom_swagger` argument to `SAFRSAPI`, e.g.
+The swagger schema can be merged with a modified schema dictionary by supplying the to-be-merged dictionary as the `custom_swagger` argument to `SafrsApi`, e.g.
 ```python
 custom_swagger = {"info": {"title" : "New Title" }} # Customized swagger title will be merged
-api = SAFRSAPI(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger',
+api = SafrsApi(app, host=swagger_host, port=PORT, prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX+'/swagger',
                custom_swagger=custom_swagger, schemes=['http', 'https'], description=description)
 ```
 
