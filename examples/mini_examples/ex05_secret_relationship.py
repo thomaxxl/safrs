@@ -4,7 +4,7 @@
 #
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_attr
+from safrs import SAFRSBase, SafrsApi, jsonapi_attr
 
 db = SQLAlchemy()
 
@@ -47,7 +47,7 @@ class Book(SAFRSBase, db.Model):
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+    api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     api.expose_object(Book)
     for i in range(200):

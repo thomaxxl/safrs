@@ -3,7 +3,7 @@
 # $ FLASK_APP=mini_app flask run
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 
 db = SQLAlchemy()
 
@@ -27,7 +27,7 @@ class User(SAFRSBase, db.Model):
 
 
 def create_api(app, host="localhost", port=5000, prefix=""):
-    api = SAFRSAPI(app, host=host, port=port, prefix=prefix)
+    api = SafrsApi(app, host=host, port=port, prefix=prefix)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{host}:{port}/{prefix}")

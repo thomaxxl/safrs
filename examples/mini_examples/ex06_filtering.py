@@ -14,7 +14,7 @@ import sys
 import json
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI, ValidationError
+from safrs import SAFRSBase, SafrsApi, ValidationError
 import re
 import operator
 from flask import request
@@ -93,7 +93,7 @@ def create_app(config_filename=None, host="localhost"):
 
     with app.app_context():
         db.create_all()
-        api = SAFRSAPI(app, host=host, port=5000)
+        api = SafrsApi(app, host=host, port=5000)
         api.expose_object(Person)
 
         # Populate the db with users and a books and add the book to the user.books relationship

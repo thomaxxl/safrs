@@ -9,7 +9,7 @@
 import sys
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSAPI, jsonapi_rpc
+from safrs import SafrsApi, jsonapi_rpc
 from safrs import JABase
 
 db = SQLAlchemy()
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     API_PREFIX = ""
 
     with app.app_context():
-        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
+        api = SafrsApi(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(MyService)
         # Register the API at /api/docs

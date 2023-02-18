@@ -4,7 +4,7 @@
 #
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 from flask_swagger_ui import get_swaggerui_blueprint
 
 db = SQLAlchemy()
@@ -23,7 +23,7 @@ class User(SAFRSBase, db.Model):
 
 def create_api(app, HOST="localhost", PORT=5000, prefix=""):
     api_spec_url = f"/my_swagger"
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=prefix, swaggerui_blueprint=False, api_spec_url=api_spec_url)
+    api = SafrsApi(app, host=HOST, port=PORT, prefix=prefix, swaggerui_blueprint=False, api_spec_url=api_spec_url)
     swaggerui_blueprint = get_swaggerui_blueprint(
         prefix, f"{prefix}/{api_spec_url}.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
     )

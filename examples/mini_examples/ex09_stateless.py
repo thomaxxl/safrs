@@ -11,7 +11,7 @@ import logging
 from flask import Flask, redirect, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc, jsonapi_attr
+from safrs import SAFRSBase, SafrsApi, jsonapi_rpc, jsonapi_attr
 from safrs.safrs_types import SAFRSID
 from safrs.util import classproperty
 from collections import namedtuple
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         test_obj = Test(id=1)
-        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
+        api = SafrsApi(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Expose the database objects as REST API endpoints
         api.expose_object(Test)
         # Register the API at /api/docs

@@ -6,7 +6,7 @@ an external specification. This example shows how to modify swagger doc by loadi
 1) Create the swagger.json, for ex:
 curl http://localhost:5000/swagger.json > examples/mini_examples/custom_swagger.json
 
-2) Load and merge the swagger using the `custom_swagger` argument to SAFRSAPI
+2) Load and merge the swagger using the `custom_swagger` argument to SafrsApi
 
 run: python ex12_swagger.py
 
@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 
 db = SQLAlchemy()
 
@@ -50,7 +50,7 @@ def create_api(app, host="localhost", port=5000, api_prefix="", custom_swagger={
     """
     The custom_swagger dictionary will be merged
     """
-    api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix, custom_swagger=custom_swagger)
+    api = SafrsApi(app, host=host, port=port, prefix=api_prefix, custom_swagger=custom_swagger)
     api.expose_object(User)
     api.expose_object(Book)
     print(f"Created API: http://{host}:{port}/{api_prefix}")

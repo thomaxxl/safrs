@@ -16,7 +16,7 @@ the "search" method is implemented in safrs.api_methods, it performs a wildcard 
 """
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 from safrs.api_methods import search
 
 db = SQLAlchemy()
@@ -36,7 +36,7 @@ class User(SAFRSBase, db.Model):
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+    api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")

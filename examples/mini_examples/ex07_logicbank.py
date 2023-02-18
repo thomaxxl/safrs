@@ -6,7 +6,7 @@
 # $ FLASK_APP=ex7_logicbank flask run
 from flask import Flask, g
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI, DB
+from safrs import SAFRSBase, SafrsApi, DB
 from logic_bank.logic_bank import LogicBank, Rule
 
 db = SQLAlchemy()
@@ -24,7 +24,7 @@ class User(SAFRSBase, db.Model):
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+    api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     # Create some users
     User(id=0, name="admin", email="admin@safrs.biz")
