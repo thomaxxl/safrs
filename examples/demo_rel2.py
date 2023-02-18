@@ -23,7 +23,7 @@ import hashlib
 from flask import Flask, redirect, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from safrs import SAFRSAPI, SAFRSRestAPI  # api factory
+from safrs import SafrsApi, SAFRSRestAPI  # api factory
 from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse, jsonapi_format_response, log, paginate
 from safrs import jsonapi_attr, ValidationError
@@ -43,7 +43,7 @@ Login:
 - <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_pythonanywhere_com.py">Source code of this page</a><br/>
 - <a href="/ja/index.html">reactjs+redux frontend</a>
 - Auto-generated swagger spec: <a href=/api/swagger.json>swagger.json</a><br/>
-- <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SAFRSAPI "custom_swagger" argument)
+- <a href="/swagger_editor/index.html?url=/api/swagger.json">Swagger2 Editor</a> (updates can be added with the SafrsApi "custom_swagger" argument)
 """
 
 db = SQLAlchemy()
@@ -264,7 +264,7 @@ def start_api(swagger_host="0.0.0.0", PORT=None):
             "securityDefinitions": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "My-ApiKey"}},
         }  # Customized swagger will be merged
 
-        api = SAFRSAPI(
+        api = SafrsApi(
             app,
             host=swagger_host,
             port=PORT,

@@ -7,7 +7,7 @@
 import sys, pprint
 from flask import Flask, redirect, g
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+from safrs import SAFRSBase, SafrsApi, jsonapi_rpc
 import json
 from jsonschema import validate
 
@@ -65,7 +65,7 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
     # Create a user
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX)
+    api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     # Create a user, data from this user will be used to fill the swagger example
     user = User(name="thomas", email="em@il")
     # Expose the database objects as REST API endpoints

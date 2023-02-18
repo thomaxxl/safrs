@@ -3,7 +3,7 @@
 # $ FLASK_APP=mini_app flask run
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 from safrs.util import classproperty
 
 db = SQLAlchemy()
@@ -21,7 +21,7 @@ class User(SAFRSBase, db.Model):
 
 
 def create_api(app, host="127.0.0.1", port=5000, prefix=""):
-    api = SAFRSAPI(app, host=host, port=port, prefix=prefix)
+    api = SafrsApi(app, host=host, port=port, prefix=prefix)
     api.expose_object(User)
     User(name="test", email="email@x.org") # this will automatically commit the user!
     print(f"Starting API: http://{host}:{port}/{prefix}")

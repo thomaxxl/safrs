@@ -6,7 +6,7 @@ from flask import Flask, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
+from safrs import SAFRSBase, SafrsApi, jsonapi_rpc
 
 db = SQLAlchemy()
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     with app.app_context():
         # Create the database
         db.create_all()
-        api = SAFRSAPI(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
+        api = SafrsApi(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
         # Create a user and a book and add the book to the user.books relationship
         user = User(name="thomas", email="em@il")
         book = Book(name="test_book")

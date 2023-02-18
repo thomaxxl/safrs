@@ -9,7 +9,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 from geoalchemy2 import Geometry
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 from safrs.json_encoder import SAFRSJSONEncoder
 from geoalchemy2.shape import from_shape, to_shape
 from shapely.geometry import shape
@@ -83,7 +83,7 @@ def connect_to_db(app):
 
 
 def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
-    api = SAFRSAPI(app, host=HOST, port=PORT, prefix=API_PREFIX, json_encoder=GeoJSONEncoder)
+    api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX, json_encoder=GeoJSONEncoder)
     api.expose_object(City)
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
