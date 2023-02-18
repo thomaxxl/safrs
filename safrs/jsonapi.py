@@ -415,8 +415,8 @@ class SAFRSRestAPI(Resource):
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
-        resp_data = {} # response jsonapi "data"
-        location = "" #response jsonapi "location"
+        resp_data = {}  # response jsonapi "data"
+        location = ""  # response jsonapi "location"
         if data is None:
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
@@ -433,7 +433,7 @@ class SAFRSRestAPI(Resource):
             location = None
         else:
             instance = self._create_instance(data)
-            object_id = getattr(instance, '_s_object_id', None)
+            object_id = getattr(instance, "_s_object_id", None)
             if object_id is not None:
                 # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
                 obj_args = {instance._s_object_id: instance.jsonapi_id}
@@ -1017,7 +1017,6 @@ class SAFRSJSONRPCAPI(Resource):
         return self._create_rpc_response(method, args)
 
     def _create_rpc_response(self, method, args):
-
         safrs.log.debug(f"method {self.method_name} args {args}")
         result = method(**args)
 

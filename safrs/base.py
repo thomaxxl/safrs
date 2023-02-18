@@ -207,7 +207,7 @@ class SAFRSBase(Model):
         else:
             return super().__setattr__(attr_name, attr_val)
 
-    def _s_parse_attr_value(self, attr_name : str, attr_val: any):
+    def _s_parse_attr_value(self, attr_name: str, attr_val: any):
         """
         Parse the given jsonapi attribute value so it can be stored in the db
         :param attr_name: attribute name
@@ -259,7 +259,7 @@ class SAFRSBase(Model):
         if cls.allow_client_generated_ids:
             # this isn't required per the jsonapi spec
             # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
-            attributes["id"] = jsonapi_id if jsonapi_id is not None else params.get('id', None)
+            attributes["id"] = jsonapi_id if jsonapi_id is not None else params.get("id", None)
         else:
             for attr_name in attributes.copy():
                 if attr_name in cls.id_type.column_names:
@@ -922,8 +922,8 @@ class SAFRSBase(Model):
             # May happen for custom types, for ex. the psycopg2 extension
             safrs.log.warning(f"Can't get count for {cls} ({exc})")
             count = -1
-        
-        if count > 10:#get_config("MAX_TABLE_COUNT"):
+
+        if count > 10:  # get_config("MAX_TABLE_COUNT"):
             safrs.log.warning(f"Large table count detected, performance may be impacted, consider '{cls.__name__}._s_count' override")
 
         return count

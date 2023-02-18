@@ -2,12 +2,13 @@
 from functools import _lru_cache_wrapper
 from typing import Callable, Union
 
+
 class ClassPropertyDescriptor:
     """
     ClassPropertyDescriptor
     """
 
-    def __init__(self, fget: classmethod, fset: None=None) -> None:
+    def __init__(self, fget: classmethod, fset: None = None) -> None:
         self.fget = fget
         self.fset = fset
 

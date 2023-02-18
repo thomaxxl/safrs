@@ -161,7 +161,7 @@ def paginate(object_query, SAFRSObject=None):
         count = object_query.count()
     else:
         count = SAFRSObject._s_count()
-    
+
     first_args = (0, limit)
     last_args = (int(int(count / limit) * limit), limit)  # round down
     self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)

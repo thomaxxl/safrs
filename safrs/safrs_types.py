@@ -29,7 +29,6 @@ class SAFRSID:
     delimiter = "_"
 
     def __new__(cls, id=None):
-
         if id is None:
             return cls.gen_id()
         else:
@@ -199,18 +198,15 @@ class JSONType(PickleType):  # pragma: no cover
     impl = BLOB
 
     def __init__(self, *args, **kwargs):
-
         # kwargs['pickler'] = json
         super(JSONType, self).__init__(*args, **kwargs)
 
     def process_bind_param(self, value, dialect):
-
         if value is not None:
             value = json.dumps(value, ensure_ascii=True)
         return value
 
     def process_result_value(self, value, dialect):
-
         if value is not None:
             value = json.loads(value)
         return value
@@ -224,11 +220,9 @@ class SafeString(TypeDecorator):  # pragma: no cover
     impl = String(767)
 
     def __init__(self, *args, **kwargs):
-
         super(SafeString, self).__init__(*args, **kwargs)
 
     def process_bind_param(self, value, dialect):
-
         if value is not None:
             result = re.sub(STRIP_SPECIAL, "_", value)
             if str(result) != str(value):
@@ -248,12 +242,10 @@ class UUIDType(TypeDecorator):  # pragma: no cover
     impl = String(40)
 
     def __init__(self, *args, **kwargs):
-
         super(UUIDType, self).__init__(*args, **kwargs)
 
     @staticmethod
     def process_bind_param(value, dialect):
-
         try:
             uuid.UUID(value, version=4)
         except Exception as exc:

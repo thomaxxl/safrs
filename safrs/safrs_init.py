@@ -14,6 +14,7 @@ import safrs
 import flask.app
 from typing import Any, Dict, Type, Union
 
+
 class SAFRS:
     """This class configures the Flask application to serve SAFRSBase instances
     :param app: a Flask application.
@@ -24,7 +25,7 @@ class SAFRS:
     # Configuration settings are stored as class variables
     MAX_PAGE_LIMIT = 100000
     DEFAULT_PAGE_LIMIT = 250
-    MAX_PAGE_OFFSET = 2 ** 31
+    MAX_PAGE_OFFSET = 2**31
     ENABLE_RELATIONSHIPS = True
     ENABLE_METHODS = True
     LOGLEVEL = logging.WARNING
@@ -37,7 +38,7 @@ class SAFRS:
     CLASSMETHOD_URL_FMT = None
     RELATIONSHIP_URL_FMT = None
     ENDPOINT_FMT = None
-    MAX_TABLE_COUNT = 10 ** 7  # table counts will become really slow for large tables, inform the user about it using this
+    MAX_TABLE_COUNT = 10**7  # table counts will become really slow for large tables, inform the user about it using this
     INCLUDE_ALL = "+all"  # include= url query argument that tells us to include all related resources
     #
     config = {}
@@ -45,7 +46,7 @@ class SAFRS:
 
     OPTIMIZED_LOADING = True
 
-    def __init__(self, app:     flask.app.Flask, *args, **kwargs) -> None:
+    def __init__(self, app: flask.app.Flask, *args, **kwargs) -> None:
         """
         Constructor
         """
@@ -54,7 +55,15 @@ class SAFRS:
             self.init_app(app, *args, **kwargs)
 
     def init_app(
-        self, app:     flask.app.Flask, host: str="localhost", port: int=5000, prefix: str="", app_db: None=None, json_encoder: Type[SAFRSJSONEncoder]=SAFRSJSONEncoder, swaggerui_blueprint: bool=True, **kwargs
+        self,
+        app: flask.app.Flask,
+        host: str = "localhost",
+        port: int = 5000,
+        prefix: str = "",
+        app_db: None = None,
+        json_encoder: Type[SAFRSJSONEncoder] = SAFRSJSONEncoder,
+        swaggerui_blueprint: bool = True,
+        **kwargs,
     ) -> None:
         """
         API and application initialization
@@ -64,9 +73,9 @@ class SAFRS:
 
         if app_db is None:
             app_db = app.extensions["sqlalchemy"]
-        
+
         safrs.DB = self.db = app_db
-        
+
         app.json_encoder = json_encoder
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
@@ -107,7 +116,7 @@ class SAFRS:
             self.db.session.remove()
 
     @staticmethod
-    def init_logging(cls: int, loglevel: int=logging.WARNING) ->     logging.Logger:
+    def init_logging(cls: int, loglevel: int = logging.WARNING) -> logging.Logger:
         """
         Specify the log format used in the webserver logs
         The webserver will catch stdout so we redirect eveything to sys.stdout
@@ -122,7 +131,9 @@ class SAFRS:
         return log
 
 
-def dict_merge(dct: Any, merge_dct: Union[Dict[str, str], Dict[str, Union[str, Dict[int, Dict[str, str]]]], Dict[int, Dict[str, str]]]) -> None:
+def dict_merge(
+    dct: Any, merge_dct: Union[Dict[str, str], Dict[str, Union[str, Dict[int, Dict[str, str]]]], Dict[int, Dict[str, str]]]
+) -> None:
     """Recursive dict merge used for creating the swagger spec.
     Inspired by :meth:``dict.update()``, instead of updating only
     top-level keys, dict_merge recurses down into dicts nested

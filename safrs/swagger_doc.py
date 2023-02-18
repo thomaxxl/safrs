@@ -61,7 +61,7 @@ def parse_object_doc(object: Callable) -> Dict[str, Union[str, Dict[int, Dict[st
     return api_doc
 
 
-def jsonapi_rpc(http_methods: Optional[List[str]]=None, valid_jsonapi: bool=True) -> Callable:
+def jsonapi_rpc(http_methods: Optional[List[str]] = None, valid_jsonapi: bool = True) -> Callable:
     """
     Decorator to expose functions in the REST API:
     When a method is decorated with jsonapi_rpc, this means
