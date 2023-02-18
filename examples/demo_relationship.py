@@ -15,7 +15,7 @@ import sys
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import sqlalchemy
-from safrs import SAFRSBase, SAFRSAPI
+from safrs import SAFRSBase, SafrsApi
 
 db = SQLAlchemy()
 
@@ -46,7 +46,7 @@ class Book(SAFRSBase, db.Model):
 
 # Create the api endpoints
 def create_api(app, host="localhost", port=5000, api_prefix=""):
-    api = SAFRSAPI(app, host=host, port=port, prefix=api_prefix)
+    api = SafrsApi(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
     print(f"Created API: http://{host}:{port}/{api_prefix}")
@@ -58,8 +58,8 @@ def create_app(config_filename=None, host="localhost"):
     db.init_app(app)
 
     with app.app_context():
-        create_api(app, host)
         db.create_all()
+        create_api(app, host)
         # Populate the db with users and a books and add the book to the user.books relationship
         for i in range(200):
             user = User(name=f"user{i}", email=f"email{i}@email.com")
