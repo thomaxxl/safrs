@@ -917,7 +917,7 @@ class SAFRSBase(Model):
         this can be overridden with a cached value for performance on large tables (>1G)
         """
         try:
-            count = cls.query.count()
+            count = cls.query.jsonapi_filter().count()
         except Exception as exc:
             # May happen for custom types, for ex. the psycopg2 extension
             safrs.log.warning(f"Can't get count for {cls} ({exc})")
