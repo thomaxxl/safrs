@@ -27,7 +27,7 @@ classifiers = [  # Optional
   # Indicate who your project is intended for
   "Intended Audience :: Developers",
   "Topic :: Software Development :: API Development",
-  "License :: OSI Approved :: GPLv3",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",

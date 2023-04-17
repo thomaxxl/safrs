@@ -53,7 +53,7 @@ def start_app(app):
 
 app = Flask("demo_app")
 app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/demo.sqlite",
+    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/demo2.sqlite",
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
     SECRET_KEY=b"sdqfjqsdfqizroqnxwc",
     DEBUG=True,
