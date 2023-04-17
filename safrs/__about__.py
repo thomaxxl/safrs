@@ -1,2 +1,2 @@
-__version__ = "3.0.1"
+__version__ = "3.0.2"
 __description__ = "Self-documenting(OAS) JSON:API framework for flask"
