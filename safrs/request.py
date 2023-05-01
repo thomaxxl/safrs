@@ -82,14 +82,35 @@ class SAFRSRequest(Request):
             page_offset = page_number * page_size
         return page_offset
 
+    def get_page_offset(self, rel_name):
+        """
+            get the page offset for the included relationship resource 
+            :param rel_name: name of the relationship
+            :return: page offset for included resources
+        """
+        page_offset = self.args.get(f"page[{rel_name}][offset]", 0, type=int)
+        if page_offset == 0 and "page[{rel_name}][number]" in self.args and "page[{rel_name}][size]" in self.args:
+            page_size = self.args.get("page[{rel_name}][size]", type=int)
+            page_number = self.args.get("page[{rel_name}][number]", type=int) - 1
+            page_offset = page_number * page_size
+        return page_offset
+
     @property
     def page_limit(self):
         """
-        :return: page limit requested by the client when fetching lists
+            get the page limit for the included relationship resource 
+            :param rel_name: name of the relationship
+            :return: page limit for included resources
         """
         page_limit = self.args.get("page[limit]", get_config("DEFAULT_PAGE_LIMIT"), type=int)
         if "page[number]" in self.args and "page[size]" in self.args:
             return self.args.get("page[size]", type=int)
+        return page_limit
+
+    def get_page_limit(self, rel_name):
+        page_limit = self.args.get(f"page[{rel_name}][limit]", get_config("DEFAULT_PAGE_LIMIT"), type=int)
+        if "page[{rel_name}][number]" in self.args and "page[{rel_name}][size]" in self.args:
+            return self.args.get("page[{rel_name}][size]", type=int)
         return page_limit
 
     @property
