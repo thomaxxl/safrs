@@ -917,6 +917,8 @@ class SAFRSBase(Model):
         returning None will cause our jsonapi to perform a count() on the result
         this can be overridden with a cached value for performance on large tables (>1G)
         """
+        max_table_count =  get_config("MAX_TABLE_COUNT")
+        
         try:
             count = cls.jsonapi_filter().count()
         except Exception as exc:
@@ -924,8 +926,8 @@ class SAFRSBase(Model):
             safrs.log.warning(f"Can't get count for {cls} ({exc})")
             count = -1
 
-        if get_config("MAX_TABLE_COUNT"):
-            safrs.log.warning(f"Large table count detected, performance may be impacted, consider '{cls.__name__}._s_count' override")
+        if count > max_table_count:
+            safrs.log.warning(f"Large table count detected ({count}>{max_table_count}), performance may be impacted, consider '{cls.__name__}._s_count' override")
 
         return count
 
