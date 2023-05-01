@@ -96,8 +96,7 @@ class SAFRSBase(Model):
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
     supports_includes = True  # Set to False if you don't want this class to return included items
-    url_root = "" # url prefix shown in the "links" field, if not set, request.url_root will be 
-
+    
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
@@ -119,6 +118,9 @@ class SAFRSBase(Model):
 
     _s_pk_delimiter = "_"
 
+    _s_url_root = None # url prefix shown in the "links" field, if not set, request.url_root will be 
+
+    
     included_list = None
 
     def __new__(cls, *args, **kwargs):
@@ -1081,7 +1083,7 @@ class SAFRSBase(Model):
         try:
             params = {self._s_object_id: self.jsonapi_id}
             instance_url = url_for(self.get_endpoint(type="instance"), **params)
-            result = urljoin(self.url_root, instance_url)
+            result = urljoin(self._s_url_root, instance_url)
         except RuntimeError:
             # This happens when creating the swagger doc and there is no application registered
             result = ""
@@ -1091,7 +1093,7 @@ class SAFRSBase(Model):
     def _s_url(cls, url_prefix=""):
         try:
             collection_url = url_for(cls.get_endpoint())
-            result = urljoin(cls.url_root, collection_url)
+            result = urljoin(cls._s_url_root, collection_url)
         except RuntimeError:
             # This happens when creating the swagger doc and there is no application registered
             result = ""
