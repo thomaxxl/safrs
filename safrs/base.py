@@ -865,7 +865,7 @@ class SAFRSBase(Model):
                     # Data is optional, it's also really slow for large sets!
                     data = []
                     rel_query = getattr(self, rel_name)
-                    limit = request.page_limit
+                    limit = request.get_page_limit(rel_name)
                     if not get_config("ENABLE_RELATIONSHIPS"):
                         meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
                     elif rel_query:
@@ -916,6 +916,8 @@ class SAFRSBase(Model):
         returning None will cause our jsonapi to perform a count() on the result
         this can be overridden with a cached value for performance on large tables (>1G)
         """
+        max_table_count =  get_config("MAX_TABLE_COUNT")
+        
         try:
             count = cls.jsonapi_filter().count()
         except Exception as exc:
@@ -923,8 +925,8 @@ class SAFRSBase(Model):
             safrs.log.warning(f"Can't get count for {cls} ({exc})")
             count = -1
 
-        if get_config("MAX_TABLE_COUNT"):
-            safrs.log.warning(f"Large table count detected, performance may be impacted, consider '{cls.__name__}._s_count' override")
+        if count > max_table_count:
+            safrs.log.warning(f"Large table count detected ({count}>{max_table_count}), performance may be impacted, consider '{cls.__name__}._s_count' override")
 
         return count
 
