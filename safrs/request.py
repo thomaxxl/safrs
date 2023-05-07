@@ -108,7 +108,7 @@ class SAFRSRequest(Request):
         return page_limit
 
     def get_page_limit(self, rel_name):
-        page_limit = self.args.get(f"page[{rel_name}][limit]", get_config("DEFAULT_PAGE_LIMIT"), type=int)
+        page_limit = self.args.get(f"page[{rel_name}][limit]", self.page_limit, type=int)
         if "page[{rel_name}][number]" in self.args and "page[{rel_name}][size]" in self.args:
             return self.args.get("page[{rel_name}][size]", type=int)
         return page_limit
