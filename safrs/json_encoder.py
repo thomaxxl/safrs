@@ -145,3 +145,16 @@ class SAFRSJSONProvider(DefaultJSONProvider):
 
         # a json-encodable dict
         return fields
+
+
+class SAFRSJSONEncoder(json.JSONEncoder):
+    """
+    Deprecated JSON Encoding, used by swagger ui blueprint
+    """
+
+    def default(self, obj, **kwargs):
+        try:
+            return super().default(obj, **kwargs)
+        except TypeError:
+            # in case the default encoding doesn't work, stringify the object
+            return str(obj)

@@ -73,7 +73,6 @@ class SAFRS:
 
         safrs.DB = self.db = app_db
 
-        # app.json = flask.json.provider.DefaultJSONProvider(app)
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
         app.url_map.strict_slashes = False

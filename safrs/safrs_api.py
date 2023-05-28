@@ -17,7 +17,7 @@ from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_paramet
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import JsonapiError, SystemValidationError, GenericError
 from .config import get_config
-from .json_encoder import SAFRSJSONProvider
+from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import current_app, Response
@@ -86,7 +86,7 @@ class SAFRSAPI(FRSApiBase):
             **kwargs,
         )
         app.json = SAFRSJSONProvider(app)
-        app.json_encoder = json.JSONEncoder  # used
+        app.json_encoder = SAFRSJSONEncoder  # deprecated, but used by the swaggerui blueprint
         self.init_app(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()
