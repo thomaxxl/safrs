@@ -3,11 +3,9 @@ import os
 import sys
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Flask, g
-from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
 from .response import SAFRSResponse
-from .json_encoder import SAFRSJSONEncoder
 from .jsonapi_filters import FilteringStrategy
 from functools import wraps
 import safrs
@@ -61,7 +59,6 @@ class SAFRS:
         port: int = 5000,
         prefix: str = "",
         app_db: None = None,
-        json_encoder: Type[SAFRSJSONEncoder] = SAFRSJSONEncoder,
         swaggerui_blueprint: bool = True,
         **kwargs,
     ) -> None:
@@ -76,7 +73,7 @@ class SAFRS:
 
         safrs.DB = self.db = app_db
 
-        app.json_encoder = json_encoder
+        # app.json = flask.json.provider.DefaultJSONProvider(app)
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
         app.url_map.strict_slashes = False
@@ -90,7 +87,6 @@ class SAFRS:
                 prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
             app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
-            swaggerui_blueprint.json_encoder = JSONEncoder
 
         for conf_name, conf_val in kwargs.items():
             setattr(SAFRS, conf_name, conf_val)

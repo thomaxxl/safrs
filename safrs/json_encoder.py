@@ -3,7 +3,7 @@
 import datetime
 import decimal
 import json
-from flask.json import JSONEncoder
+from flask.json.provider import DefaultJSONProvider
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from uuid import UUID
 import safrs
@@ -51,10 +51,12 @@ class SAFRSFormattedResponse:
         return None
 
 
-class SAFRSJSONEncoder(JSONEncoder):
+class SAFRSJSONProvider(DefaultJSONProvider):
     """
     Encodes safrs objs (SAFRSBase subclasses)
     """
+
+    mimetype = "application/vnd.api+json"
 
     # pylint: disable=too-many-return-statements,logging-format-interpolation
     # pylint: disable=arguments-differ,protected-access,method-hidden

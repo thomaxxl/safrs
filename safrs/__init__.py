@@ -5,7 +5,7 @@
 #
 from .safrs_init import DB, log, SAFRS, dict_merge, test_decorator, SAFRSRequest
 from .errors import ValidationError, GenericError, UnAuthorizedError, NotFoundError
-from .json_encoder import SAFRSJSONEncoder, SAFRSFormattedResponse
+from .json_encoder import DefaultJSONProvider, SAFRSFormattedResponse
 from .safrs_api import SAFRSAPI
 from .base import SAFRSBase
 from .jabase import JABase
@@ -28,7 +28,7 @@ __all__ = (
     "jsonapi_attr",
     "jsonapi_rpc",
     # jsonapi:
-    "SAFRSJSONEncoder",
+    "DefaultJSONProvider",
     "paginate",
     "jsonapi_format_response",
     "SAFRSFormattedResponse",

@@ -5,7 +5,6 @@
 from __future__ import annotations
 import inspect
 import datetime
-from subprocess import list2cmdline
 import sqlalchemy
 import json
 import operator
@@ -96,7 +95,7 @@ class SAFRSBase(Model):
     exclude_attrs = []  # list of attribute names that should not be serialized
     exclude_rels = []  # list of relationship names that should not be serialized
     supports_includes = True  # Set to False if you don't want this class to return included items
-    
+
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
@@ -118,9 +117,8 @@ class SAFRSBase(Model):
 
     _s_pk_delimiter = "_"
 
-    _s_url_root = None # url prefix shown in the "links" field, if not set, request.url_root will be 
+    _s_url_root = None  # url prefix shown in the "links" field, if not set, request.url_root will be
 
-    
     included_list = None
 
     def __new__(cls, *args, **kwargs):
@@ -919,8 +917,8 @@ class SAFRSBase(Model):
         returning None will cause our jsonapi to perform a count() on the result
         this can be overridden with a cached value for performance on large tables (>1G)
         """
-        max_table_count =  get_config("MAX_TABLE_COUNT")
-        
+        max_table_count = get_config("MAX_TABLE_COUNT")
+
         try:
             count = cls.jsonapi_filter().count()
         except Exception as exc:
@@ -929,7 +927,9 @@ class SAFRSBase(Model):
             count = -1
 
         if count > max_table_count:
-            safrs.log.warning(f"Large table count detected ({count}>{max_table_count}), performance may be impacted, consider '{cls.__name__}._s_count' override")
+            safrs.log.warning(
+                f"Large table count detected ({count}>{max_table_count}), performance may be impacted, consider '{cls.__name__}._s_count' override"
+            )
 
         return count
 

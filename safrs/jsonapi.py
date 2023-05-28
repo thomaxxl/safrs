@@ -277,7 +277,8 @@ class SAFRSRestAPI(Resource):
 
         # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
-        return make_response(jsonify(result))
+        return jsonify(result)
+        return make_response({})
 
     def patch(self, **kwargs):
         """

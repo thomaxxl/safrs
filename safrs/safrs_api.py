@@ -17,7 +17,7 @@ from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_paramet
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import JsonapiError, SystemValidationError, GenericError
 from .config import get_config
-from .json_encoder import SAFRSJSONEncoder
+from .json_encoder import SAFRSJSONProvider
 from ._safrs_relationship import SAFRSRelationshipObject
 from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import current_app, Response
@@ -48,7 +48,7 @@ class SAFRSAPI(FRSApiBase):
         port: int = 5000,
         prefix: str = "",
         description: str = "SAFRSAPI",
-        json_encoder: Type[SAFRSJSONEncoder] = SAFRSJSONEncoder,
+        json_encoder: Type[SAFRSJSONProvider] = None,
         swaggerui_blueprint: bool = True,
         **kwargs,
     ) -> None:
@@ -85,6 +85,8 @@ class SAFRSAPI(FRSApiBase):
             base_path=prefix,
             **kwargs,
         )
+        app.json = SAFRSJSONProvider(app)
+        app.json_encoder = json.JSONEncoder  # used
         self.init_app(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()

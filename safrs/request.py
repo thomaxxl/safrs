@@ -84,9 +84,9 @@ class SAFRSRequest(Request):
 
     def get_page_offset(self, rel_name):
         """
-            get the page offset for the included relationship resource 
-            :param rel_name: name of the relationship
-            :return: page offset for included resources
+        get the page offset for the included relationship resource
+        :param rel_name: name of the relationship
+        :return: page offset for included resources
         """
         page_offset = self.args.get(f"page[{rel_name}][offset]", 0, type=int)
         if page_offset == 0 and "page[{rel_name}][number]" in self.args and "page[{rel_name}][size]" in self.args:
@@ -98,9 +98,9 @@ class SAFRSRequest(Request):
     @property
     def page_limit(self):
         """
-            get the page limit for the included relationship resource 
-            :param rel_name: name of the relationship
-            :return: page limit for included resources
+        get the page limit for the included relationship resource
+        :param rel_name: name of the relationship
+        :return: page limit for included resources
         """
         page_limit = self.args.get("page[limit]", get_config("DEFAULT_PAGE_LIMIT"), type=int)
         if "page[number]" in self.args and "page[size]" in self.args:
