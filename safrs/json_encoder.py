@@ -149,10 +149,38 @@ class SAFRSJSONProvider(DefaultJSONProvider):
 
 class SAFRSJSONEncoder(json.JSONEncoder):
     """
-    Deprecated JSON Encoding, used by swagger ui blueprint
+    
     """
 
     def default(self, obj, **kwargs):
+        if obj is None:
+            return None
+        if obj is Included:
+            return Included.encode()
+        if isinstance(obj, Included):
+            result = obj.encode()
+            return result
+        if isinstance(obj, SAFRSBase):
+            result = obj._s_jsonapi_encode()
+            return result
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat(" ")
+        if isinstance(obj, (datetime.date, datetime.time)):
+            return obj.isoformat()
+        if isinstance(obj, set):
+            return list(obj)
+        if isinstance(obj, SAFRSFormattedResponse):
+            return obj.to_dict()
+        if isinstance(obj, UUID):  # pragma: no cover
+            return str(obj)
+        if isinstance(obj, decimal.Decimal):  # pragma: no cover
+            return float(obj)
+        if isinstance(obj, bytes):  # pragma: no cover
+            if obj == b"":
+                return ""
+            safrs.log.debug("SAFRSJSONEncoder: serializing bytes obj")
+            return obj.hex()
+
         try:
             return super().default(obj, **kwargs)
         except TypeError:
