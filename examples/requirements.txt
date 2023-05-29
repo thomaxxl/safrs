@@ -1,7 +1,7 @@
 aniso8601==8.0.0
 attrs==19.3.0
 click==7.1.2
-Flask==1.0.2
+Flask==2.2.5
 Flask-Admin==1.5.6
 Flask-Cors==3.0.9
 Flask-HTTPAuth==3.3.0
