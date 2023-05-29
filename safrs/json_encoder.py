@@ -51,12 +51,11 @@ class SAFRSFormattedResponse:
         return None
 
 
-class SAFRSJSONProvider(DefaultJSONProvider):
-    """
-    Encodes safrs objs (SAFRSBase subclasses)
-    """
 
-    mimetype = "application/vnd.api+json"
+class _SAFRSJSONEncoder():
+    """
+    
+    """
 
     # pylint: disable=too-many-return-statements,logging-format-interpolation
     # pylint: disable=arguments-differ,protected-access,method-hidden
@@ -147,42 +146,12 @@ class SAFRSJSONProvider(DefaultJSONProvider):
         return fields
 
 
-class SAFRSJSONEncoder(json.JSONEncoder):
+class SAFRSJSONProvider(_SAFRSJSONEncoder, DefaultJSONProvider):
     """
-    
+    Encodes safrs objs (SAFRSBase subclasses)
     """
 
-    def default(self, obj, **kwargs):
-        if obj is None:
-            return None
-        if obj is Included:
-            return Included.encode()
-        if isinstance(obj, Included):
-            result = obj.encode()
-            return result
-        if isinstance(obj, SAFRSBase):
-            result = obj._s_jsonapi_encode()
-            return result
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat(" ")
-        if isinstance(obj, (datetime.date, datetime.time)):
-            return obj.isoformat()
-        if isinstance(obj, set):
-            return list(obj)
-        if isinstance(obj, SAFRSFormattedResponse):
-            return obj.to_dict()
-        if isinstance(obj, UUID):  # pragma: no cover
-            return str(obj)
-        if isinstance(obj, decimal.Decimal):  # pragma: no cover
-            return float(obj)
-        if isinstance(obj, bytes):  # pragma: no cover
-            if obj == b"":
-                return ""
-            safrs.log.debug("SAFRSJSONEncoder: serializing bytes obj")
-            return obj.hex()
+    mimetype = "application/vnd.api+json"
 
-        try:
-            return super().default(obj, **kwargs)
-        except TypeError:
-            # in case the default encoding doesn't work, stringify the object
-            return str(obj)
+class SAFRSJSONEncoder(_SAFRSJSONEncoder, json.JSONEncoder):
+    pass
