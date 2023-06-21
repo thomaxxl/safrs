@@ -1,7 +1,7 @@
 [project]
 name = "safrs"
 
-version = "3.1.0"
+version = "3.1.1"
 
 description="SAFRS : SqlAlchemy Flask-Restful Swagger"
 
@@ -37,7 +37,7 @@ classifiers = [  # Optional
   "Programming Language :: Python :: 3 :: Only",
 ]
 
-dependencies = [ "Flask-SQLAlchemy", "flask_swagger_ui", "flask-restful-swagger-2", "PyYaml" ]
+dependencies = [ "Flask-SQLAlchemy>=3.0.3", "flask_swagger_ui>=4.11.1", "flask-restful-swagger-2>=0.35", "PyYaml>=6.0" ]
 
 [project.optional-dependencies] # Optional
 dev = ["flask_cors"]
