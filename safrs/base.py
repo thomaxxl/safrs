@@ -450,7 +450,7 @@ class SAFRSBase(Model):
         return cls._col_attr_name_map[col_name]
 
     @hybrid_method
-    def _s_check_perm(self, property_name, permission="r"):
+    def _s_check_perm(self, property_name, permission="r") -> bool:
         """
         Check the (instance-level) column permission
         :param column_name: column name
@@ -462,7 +462,7 @@ class SAFRSBase(Model):
 
     @_s_check_perm.expression
     @lru_cache(maxsize=256)
-    def _s_check_perm(cls, property_name, permission="r"):
+    def _s_check_perm(cls, property_name, permission="r") -> bool:
         """
         Check the (class-level) column permission
         :param column_name: column name
