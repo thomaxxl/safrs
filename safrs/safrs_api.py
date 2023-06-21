@@ -40,6 +40,7 @@ class SAFRSAPI(FRSApiBase):
     _operation_ids = {}
     _custom_swagger = {}
     _als_resources = []
+    external_host = None
 
     def __init__(
         self,
@@ -90,6 +91,7 @@ class SAFRSAPI(FRSApiBase):
         self.init_app(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()
+        SAFRSAPI.external_host = host
 
     def update_spec(self) -> None:
         """
