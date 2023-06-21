@@ -6,7 +6,8 @@ import sqlalchemy
 import safrs
 from .jsonapi_attr import is_jsonapi_attr
 from flask import request
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, Query
+
 
 
 def create_query(cls):
@@ -45,7 +46,7 @@ def create_query(cls):
 
 
 @classmethod
-def jsonapi_filter(cls):
+def jsonapi_filter(cls) -> Query:
     """
     https://jsonapi.org/recommendations/#filtering
     Apply the request.args filters to the object
@@ -99,7 +100,6 @@ def jsonapi_filter(cls):
             else:
                 safrs.log.warning(f"'{cls}.{column}' is not a column ({type(column)})")
         result_query = result_query.filter(*_expressions)
-
     return result_query
 
 
