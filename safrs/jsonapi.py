@@ -22,6 +22,7 @@ from flask import jsonify, make_response as flask_make_response, url_for, reques
 from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
 from sqlalchemy.orm.interfaces import MANYTOONE
+from urllib.parse import urljoin
 from .swagger_doc import is_public
 from .errors import ValidationError, NotFoundError
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
@@ -266,8 +267,8 @@ class SAFRSRestAPI(Resource):
             count = 1
             if instance is not None:
                 links = {"self": instance._s_url}
-                if request.url != instance._s_url:
-                    links["related"] = request.url
+                if request.full_path.strip('?').strip('/') != instance._s_url.strip('?').strip('/'):
+                    links["related"] = urljoin(instance._s_url_root, request.full_path)
                 meta.update(dict(instance_meta=instance._s_meta()))
         else:
             # retrieve a collection, filter and sort
@@ -278,7 +279,6 @@ class SAFRSRestAPI(Resource):
         # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
-        return make_response({})
 
     def patch(self, **kwargs):
         """
