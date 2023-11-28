@@ -8,8 +8,6 @@ from .jsonapi_attr import is_jsonapi_attr
 from flask import request
 from sqlalchemy.orm import joinedload, Query
 
-
-
 def create_query(cls):
     """
     Create a query for the target collection `cls`.
@@ -78,8 +76,11 @@ def jsonapi_filter(cls) -> Query:
 
     for attr_name, val in filters.items():
         if attr_name == "id":
-            return cls._s_get_instance_by_id(val)
-        if attr_name not in cls._s_jsonapi_attrs:
+            attr = getattr(cls,'id',None)
+            if attr is None:
+                # todo: add support for composite pkeys using `cls.id_type.get_pks`
+                return cls._s_get_instance_by_id(val)
+        elif attr_name not in cls._s_jsonapi_attrs:
             # validation failed: this attribute can't be queried
             safrs.log.warning(f"Invalid filter {attr_name}")
             return []
