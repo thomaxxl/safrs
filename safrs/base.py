@@ -11,7 +11,7 @@ import operator
 from http import HTTPStatus
 from urllib.parse import urljoin
 from flask import request, url_for, has_request_context, current_app, g
-from flask_sqlalchemy import Model
+from flask_sqlalchemy.model import Model
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect, or_
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOONE, MANYTOMANY
