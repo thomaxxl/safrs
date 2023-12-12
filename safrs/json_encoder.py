@@ -72,6 +72,8 @@ class _SAFRSJSONEncoder():
         if isinstance(obj, Included):
             result = obj.encode()
             return result
+        if isinstance(obj, datetime.timedelta):
+            return str(obj)
         if isinstance(obj, SAFRSBase):
             result = obj._s_jsonapi_encode()
             return result
