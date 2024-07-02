@@ -65,7 +65,7 @@ def jsonapi_sort(object_query, safrs_object):
             # with a minus, in which case it MUST be descending.
             sort_attr = sort_attr[1:]
             attr = getattr(safrs_object, sort_attr, None)
-            if attr is not None:
+            if attr is not None and hasattr(attr, desc):
                 attr = attr.desc()
         else:
             attr = getattr(safrs_object, sort_attr, None)
