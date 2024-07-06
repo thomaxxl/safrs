@@ -701,6 +701,6 @@ def http_method_decorator(fun: Callable) -> Callable:
 
         safrs.DB.session.rollback()
         errors = dict(title=title, detail=detail, code=api_code)
-        abort(status_code, errors=[errors])
+        abort(str(status_code), errors=[errors])
 
     return method_wrapper
