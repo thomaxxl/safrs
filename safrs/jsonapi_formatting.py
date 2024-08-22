@@ -73,6 +73,7 @@ def jsonapi_sort(object_query, safrs_object):
             if attr is None:
                 if safrs_object.id_type.primary_keys:
                     attr = getattr(safrs_object, safrs_object.id_type.primary_keys[0])  # todo: composite keys edge case
+                    sort_attr = attr.name
                 else:
                     continue
         elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:
@@ -80,7 +81,7 @@ def jsonapi_sort(object_query, safrs_object):
             continue
         if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
             object_query = sorted(
-                list(object_query), key=lambda obj: (getattr(obj, sort_attr) is None, getattr(obj, sort_attr)), reverse=reverse
+                list(object_query), key=lambda obj: (getattr(obj, sort_attr, None) is None, getattr(obj, sort_attr, None)), reverse=reverse
             )
         elif is_jsonapi_attr(attr):
             # to do: implement sorting for jsonapi_attr
@@ -248,3 +249,4 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     result["included"] = safrs.base.Included
 
     return result
+
