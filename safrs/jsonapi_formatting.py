@@ -72,8 +72,9 @@ def jsonapi_sort(object_query, safrs_object):
         if sort_attr == "id":
             if attr is None:
                 if safrs_object.id_type.primary_keys:
-                    attr = getattr(safrs_object, safrs_object.id_type.primary_keys[0])  # todo: composite keys edge case
-                    sort_attr = attr.name
+                    attr = getattr(safrs_object, safrs_object.id_type.primary_keys[0], None)  # todo: composite keys edge case
+                    if attr is not None: # might be the case if pk is unicode                    
+                        sort_attr = attr.name
                 else:
                     continue
         elif attr is None or sort_attr not in safrs_object._s_jsonapi_attrs:

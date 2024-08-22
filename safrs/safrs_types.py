@@ -80,7 +80,11 @@ class SAFRSID:
             values = [str(getattr(obj, pk.name)) for pk in cls.columns]
             return cls.delimiter.join(values)
 
-        return getattr(obj, cls.primary_keys[0])
+        pk = getattr(obj, cls.primary_keys[0], None)
+        if pk is None:
+           pks = [ c.name for c in cls.columns[0].table.columns if c.primary_key ]
+           return cls.delimiter.join(pks)
+        return pk
 
     @classmethod
     def get_pks(cls, jsonapi_id):
