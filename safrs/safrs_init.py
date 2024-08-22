@@ -10,7 +10,7 @@ from .jsonapi_filters import FilteringStrategy
 from functools import wraps
 import safrs
 import flask.app
-from typing import Any, Dict, Type, Union
+from typing import Any, Dict, Union
 
 
 class SAFRS:

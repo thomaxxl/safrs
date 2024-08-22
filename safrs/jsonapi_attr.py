@@ -1,6 +1,7 @@
 """
     jsonapi_attr: custom jsonapi attributes
 """
+
 from sqlalchemy.ext.hybrid import hybrid_property
 from .swagger_doc import parse_object_doc
 from typing import Any

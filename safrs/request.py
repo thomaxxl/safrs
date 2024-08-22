@@ -9,6 +9,7 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 "Content-Type: application/vnd.api+json" with any media type parameters.
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 """
+
 import re
 from flask import Request, abort
 from werkzeug.datastructures import TypeConversionDict

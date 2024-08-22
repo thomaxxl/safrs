@@ -65,7 +65,7 @@ def jsonapi_sort(object_query, safrs_object):
             # with a minus, in which case it MUST be descending.
             sort_attr = sort_attr[1:]
             attr = getattr(safrs_object, sort_attr, None)
-            if attr is not None and hasattr(attr, 'desc'):
+            if attr is not None and hasattr(attr, "desc"):
                 attr = attr.desc()
         else:
             attr = getattr(safrs_object, sort_attr, None)
@@ -73,7 +73,7 @@ def jsonapi_sort(object_query, safrs_object):
             if attr is None:
                 if safrs_object.id_type.primary_keys:
                     attr = getattr(safrs_object, safrs_object.id_type.primary_keys[0], None)  # todo: composite keys edge case
-                    if attr is not None: # might be the case if pk is unicode                    
+                    if attr is not None:  # might be the case if pk is unicode
                         sort_attr = attr.name
                 else:
                     continue
@@ -250,4 +250,3 @@ def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count
     result["included"] = safrs.base.Included
 
     return result
-

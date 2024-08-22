@@ -51,8 +51,7 @@ class SAFRSFormattedResponse:
         return None
 
 
-
-class _SAFRSJSONEncoder():
+class _SAFRSJSONEncoder:
     """
     JSON encoding for safrs objects (SAFRSBase subclasses and common types)
     """
@@ -150,13 +149,15 @@ class _SAFRSJSONEncoder():
 
 class SAFRSJSONProvider(_SAFRSJSONEncoder, DefaultJSONProvider):
     """
-        Flask JSON encoding
+    Flask JSON encoding
     """
+
     mimetype = "application/vnd.api+json"
 
 
 class SAFRSJSONEncoder(_SAFRSJSONEncoder, json.JSONEncoder):
     """
-        Common JSON encoding
+    Common JSON encoding
     """
+
     pass

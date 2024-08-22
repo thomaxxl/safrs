@@ -137,7 +137,7 @@ class SAFRSAPI(FRSApiBase):
         api_class_name = f"{safrs_object._s_type}_API"  # name for dynamically generated classes
         RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")  # configurable resource collection url formatter
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
-        swagger_decorator = swagger_doc(safrs_object) if self.swaggerui_blueprint else lambda x : x
+        swagger_decorator = swagger_doc(safrs_object) if self.swaggerui_blueprint else lambda x: x
         api_class = api_decorator(type(api_class_name, (rest_api,), properties), swagger_decorator)
 
         safrs.log.info(f"Exposing {safrs_object._s_collection_name} on {url}, endpoint: {endpoint}")

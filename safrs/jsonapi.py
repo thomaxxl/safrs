@@ -267,7 +267,7 @@ class SAFRSRestAPI(Resource):
             count = 1
             if instance is not None:
                 links = {"self": instance._s_url}
-                if request.full_path.strip('?').strip('/') != instance._s_url.strip('?').strip('/'):
+                if request.full_path.strip("?").strip("/") != instance._s_url.strip("?").strip("/"):
                     links["related"] = urljoin(instance._s_url_root, request.full_path)
                 meta.update(dict(instance_meta=instance._s_meta()))
         else:

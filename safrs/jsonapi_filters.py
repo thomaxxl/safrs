@@ -1,12 +1,14 @@
 """
 JSON:API filtering strategies
 """
+
 from .config import get_request_param
 import sqlalchemy
 import safrs
 from .jsonapi_attr import is_jsonapi_attr
 from flask import request
 from sqlalchemy.orm import joinedload, Query
+
 
 def create_query(cls):
     """
@@ -76,7 +78,7 @@ def jsonapi_filter(cls) -> Query:
 
     for attr_name, val in filters.items():
         if attr_name == "id":
-            attr = getattr(cls,'id',None)
+            attr = getattr(cls, "id", None)
             if attr is None:
                 # todo: add support for composite pkeys using `cls.id_type.get_pks`
                 return cls._s_get_instance_by_id(val)

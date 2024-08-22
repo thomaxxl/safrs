@@ -27,6 +27,7 @@ class SAFRSID:
     primary_keys = ["id"]
     columns = None
     delimiter = "_"
+    parent_class = None
 
     def __new__(cls, id=None):
         if id is None:
@@ -82,8 +83,9 @@ class SAFRSID:
 
         pk = getattr(obj, cls.primary_keys[0], None)
         if pk is None:
-           pks = [ c.name for c in cls.columns[0].table.columns if c.primary_key ]
-           return cls.delimiter.join(pks)
+            pk_names = [obj.colname_to_attrname(c.name) for c in cls.columns[0].table.columns if c.primary_key]
+            values = [str(getattr(obj, pk_name)) for pk_name in pk_names]
+            return cls.delimiter.join(values)
         return pk
 
     @classmethod
@@ -99,15 +101,14 @@ class SAFRSID:
         else:
             values = str(jsonapi_id).split(cls.delimiter)
         if len(values) != len(cls.columns):
-            columns = [c.name for c in cls.columns]
-            raise ValidationError(f"PK values ({values}) do not match columns ({columns})")
+            raise ValidationError(f"PK values ({values}) do not match columns ({cls.columns})")
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
                 if pk_col.type.python_type == int:
                     val = 0
             try:
-                col_name = str(pk_col.name)
+                col_name = str(cls.parent_class.colname_to_attrname(pk_col.name))
                 result[col_name] = pk_col.type.python_type(val)
             except (ValueError, TypeError):  # pragma: no cover
                 # This may happen when val is empty '' or
@@ -164,9 +165,11 @@ def get_id_type(cls, Super=SAFRSID, delimiter="_"):
     primary_keys = columns = ["id"]
     if hasattr(cls, "__table__"):
         columns = [col for col in cls.__table__.columns if col.primary_key]
-        primary_keys = [col.name for col in columns]
+        primary_keys = [cls.colname_to_attrname(col.name) for col in columns]
     delimiter = getattr(cls, "delimiter", "_")
-    id_type_class = type(cls.__name__ + "_ID", (Super,), {"primary_keys": primary_keys, "columns": columns, "delimiter": delimiter})
+    id_type_class = type(
+        cls.__name__ + "_ID", (Super,), {"primary_keys": primary_keys, "columns": columns, "delimiter": delimiter, "parent_class": cls}
+    )
     return id_type_class
 
 
