@@ -1,5 +1,5 @@
 """
-python3 setup.py sdist
+python setup.py sdist
 twine upload dist/*
 """
 
@@ -10,7 +10,7 @@ def safrs_setup():
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "3.1.3"
+    version = "3.1.4"
 
     setup(
         name="safrs",
