@@ -77,3 +77,4 @@ def parse_attr(column, attr_val):
         attr_val = column.type.python_type(attr_val)
 
     return attr_val
+

@@ -121,7 +121,7 @@ class SAFRSBase(Model):
 
     included_list = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs) -> SAFRSBase:
         """
         If an object with given arguments already exists, this object is instantiated
         """
@@ -142,7 +142,7 @@ class SAFRSBase(Model):
 
         return instance
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         """
         Object initialization, called from backend or `_s_post`
         - set the named attributes and add the object to the database
@@ -196,8 +196,8 @@ class SAFRSBase(Model):
             except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
-
-    def __setattr__(self, attr_name, attr_val):
+    
+    def __setattr__(self, attr_name: str, attr_val: Any) -> Any:
         """
         setattr behaves differently for `jsonapi_attr` decorated attributes
         """
@@ -208,7 +208,7 @@ class SAFRSBase(Model):
         else:
             return super().__setattr__(attr_name, attr_val)
 
-    def _s_parse_attr_value(self, attr_name: str, attr_val: any):
+    def _s_parse_attr_value(self, attr_name: str, attr_val: Any) -> Any:
         """
         Parse the given jsonapi attribute value so it can be stored in the db
         :param attr_name: attribute name
@@ -235,14 +235,14 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
-    def _s_get(cls, **kwargs):
+    def _s_get(cls, **kwargs) -> SAFRSBase:
         """
         This method is called when a collection is requested with a HTTP GET to the json api
         """
         return cls.jsonapi_filter()
 
     @classmethod
-    def _s_post(cls, jsonapi_id=None, **params) -> SAFRSBase:
+    def _s_post(cls, jsonapi_id: Optional[str] = None, **params: Dict[str, Any]) -> SAFRSBase:
         """
         This method is called when a new item is created with a POST to the json api
 
@@ -292,7 +292,7 @@ class SAFRSBase(Model):
 
         return instance
 
-    def _s_patch(self, **attributes) -> SAFRSBase:
+    def _s_patch(self, **attributes: Dict[str, Any]) -> SAFRSBase:
         """
         Update the object attributes
         :param **attributes:
@@ -316,7 +316,7 @@ class SAFRSBase(Model):
         """
         safrs.DB.session.delete(self)
 
-    def _add_rels(self, **params) -> None:
+    def _add_rels(self, **params: Dict[str, Any]) -> None:
         """
         Add relationship data provided in a POST, cfr. https://jsonapi.org/format/#crud-creating
         **params contains the (HTTP POST) parameters
@@ -1227,3 +1227,4 @@ class Included:
             result.append(included)
 
         return result
+

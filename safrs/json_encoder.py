@@ -10,6 +10,7 @@ import safrs
 from .config import is_debug
 from .base import SAFRSBase, Included
 from .jsonapi_formatting import jsonapi_format_response
+from typing import Any
 
 
 class SAFRSFormattedResponse:
@@ -24,13 +25,12 @@ class SAFRSFormattedResponse:
     result = None
     response = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
-        :param data:
-        :param meta:
-        :param links:
-        :param errors:
-        :param count:
+        Initialize the response object.
+
+        :param args: Positional arguments for response formatting
+        :param kwargs: Keyword arguments for response formatting
         """
         self.response = jsonapi_format_response(*args, **kwargs)
 
@@ -161,3 +161,4 @@ class SAFRSJSONEncoder(_SAFRSJSONEncoder, json.JSONEncoder):
     """
 
     pass
+

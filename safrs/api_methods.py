@@ -1,6 +1,4 @@
-#
-# jsonapi_rpc methods that can be added to the exposed classes
-#
+from typing import Any, Dict, List, Tuple
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
@@ -11,7 +9,7 @@ from .errors import GenericError, SystemValidationError
 
 
 @jsonapi_rpc(http_methods=["POST"])
-def duplicate(self):
+def duplicate(self: Any) -> SAFRSFormattedResponse:
     """
     description: Duplicate an object - copy it and give it a new id
     """
@@ -21,16 +19,15 @@ def duplicate(self):
     self.id = self.id_type()
     session.add(self)
     session.commit()
-    response = SAFRSFormattedResponse(self)
-    return response
+    return SAFRSFormattedResponse(self)
 
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
+def lookup_re_mysql(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
-    description : Regex search all matching objects (works only in MySQL!!!)
+    description: Regex search all matching objects (works only in MySQL!!!)
     args:
         name: thom.*
     """
@@ -49,10 +46,10 @@ def lookup_re_mysql(cls, **kwargs):  # pragma: no cover
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def startswith(cls, **kwargs):  # pragma: no cover
+def startswith(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
-    summary : lookup items where specified attributes starts with the argument string
+    summary: Lookup items where specified attributes start with the argument string
     args:
         attr_name: value
     """
@@ -79,7 +76,6 @@ def startswith(cls, **kwargs):  # pragma: no cover
             meta = {}
             errors = None
             response = SAFRSFormattedResponse(data, meta, links, errors, count)
-
         except Exception as exc:
             raise GenericError(f"Failed to execute query {exc}")
     return response
@@ -87,10 +83,10 @@ def startswith(cls, **kwargs):  # pragma: no cover
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def search(cls, **kwargs):  # pragma: no cover
+def search(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
-    description : lookup column names
+    description: Lookup column names
     args:
         query: val
     """
@@ -106,16 +102,15 @@ def search(cls, **kwargs):  # pragma: no cover
     data = [item for item in instances]
     meta = {}
     errors = None
-    response = SAFRSFormattedResponse(data, meta, links, errors, count)
-    return response
+    return SAFRSFormattedResponse(data, meta, links, errors, count)
 
 
 @classmethod
 @jsonapi_rpc(http_methods=["POST"])
-def re_search(cls, **kwargs):  # pragma: no cover
+def re_search(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
-    description : lookup column names
+    description: Lookup column names
     args:
         query: search.*all
     """
@@ -126,5 +121,4 @@ def re_search(cls, **kwargs):  # pragma: no cover
     data = [item for item in instances]
     meta = {}
     errors = None
-    response = SAFRSFormattedResponse(data, meta, links, errors, count)
-    return response
+    return SAFRSFormattedResponse(data, meta, links, errors, count)
