@@ -2,6 +2,181 @@
 #
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
 #
+"""
+SAFRSBase class customizable attributes and methods, override these to customize the behavior of the SAFRSBase class.
+
+http_methods:
+Type: List[str]
+A list of HTTP methods that are allowed for this class when exposed in the API.
+Common methods include 'GET', 'POST', 'PUT', 'DELETE', etc.
+This property controls the types of operations that can be performed on instances
+of the class via the API.
+             
+
+_s_expose:
+Type: bool
+Description: Indicates whether this class should be exposed in the API.
+
+
+_s_upsert:
+Type: bool
+Description: Indicates whether to look up and use existing objects during creation.
+
+
+_s_allow_add_rels:
+Type: bool
+Description: Allows relationships to be added in POST requests.
+
+
+_s_pk_delimiter:
+Type: str
+Description: Delimiter used for primary keys.
+
+
+_s_url_root:
+Type: Optional[str]
+Description: URL prefix shown in the "links" field. If not set, request.url_root will be used.
+
+
+_s_columns:
+Type: classproperty
+Description: List of columns that are exposed by the API.
+
+
+_s_relationships:
+Type: hybrid_property
+Description: Dictionary of relationships used for JSON:API (de)serialization.
+
+
+_s_jsonapi_attrs:
+Type: hybrid_property
+Description: Dictionary of exposed attribute names and values.
+
+
+_s_auto_commit:
+Type: classproperty
+Description: Indicates whether the instance should be automatically committed.
+
+
+_s_check_perm:
+Type: hybrid_method
+Description: Checks the (instance-level) column permission.
+
+
+_s_jsonapi_encode:
+Type: hybrid_method
+Description: Encodes the object according to the JSON:API specification.
+
+
+_s_get_related:
+Type: method
+Description: Returns a dictionary of relationship names to related instances.
+
+
+_s_count:
+Type: classmethod
+Description: Returns the count of instances in the table.
+
+
+_s_sample_dict:
+Type: classmethod
+Description: Returns a sample dictionary to be used as an example "attributes" payload in the Swagger example.
+
+
+_s_object_id:
+Type: classproperty
+Description: Returns the Flask URL parameter name of the object.
+
+
+_s_get_jsonapi_rpc_methods:
+Type: classmethod
+Description: Returns a list of JSON:API RPC methods for this class.
+
+
+_s_get_swagger_doc:
+Type: classmethod
+Description: Returns the Swagger body and response dictionaries for the specified HTTP method.
+
+
+_s_sample_id:
+Type: classmethod
+Description: Returns a sample ID for the API documentation.
+
+
+_s_url:
+Type: hybrid_property
+Description: Returns the endpoint URL of this instance.
+
+
+_s_meta:
+Type: classmethod
+Description: Returns the "meta" part of the response.
+
+
+_s_query:
+Type: classproperty
+Description: Returns the SQLAlchemy query object.
+
+
+_s_class_name:
+Type: classproperty
+Description: Returns the name of the instances.
+
+
+_s_collection_name:
+Type: classproperty
+Description: Returns the name of the collection, used to construct the endpoint.
+
+
+_s_type:
+Type: classproperty
+Description: Returns the JSON:API "type", i.e., the table name if this is a DB model, the class name otherwise.
+
+
+_s_expunge:
+Type: method
+Description: Expunges an object from its session.
+
+
+_s_get_instance_by_id:
+Type: classmethod
+Description: Returns the query object for the specified JSON:API ID.
+
+
+_s_parse_attr_value:
+Type: method
+Description: Parses the given JSON:API attribute value so it can be stored in the DB.
+
+
+_s_post:
+Type: classmethod
+Description: Called when a new item is created with a POST to the JSON:API.
+
+
+_s_patch:
+Type: method
+Description: Updates the object attributes.
+
+
+_s_delete:
+Type: method
+Description: Deletes the instance from the database.
+
+
+_s_get:
+Type: classmethod
+Description: Called when a collection is requested with an HTTP GET to the JSON:API.
+
+
+_s_clone:
+Type: method
+Description: Clones an object by copying the parameters and creating a new ID.
+
+
+_s_filter:
+Type: classmethod
+Description: Applies filters to the query.
+"""
 from __future__ import annotations
 import inspect
 import datetime
@@ -121,7 +296,7 @@ class SAFRSBase(Model):
 
     included_list = None
 
-    def __new__(cls, *args, **kwargs) -> SAFRSBase:
+    def __new__(cls, *args, **kwargs):
         """
         If an object with given arguments already exists, this object is instantiated
         """
@@ -142,7 +317,7 @@ class SAFRSBase(Model):
 
         return instance
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs):
         """
         Object initialization, called from backend or `_s_post`
         - set the named attributes and add the object to the database
@@ -196,8 +371,8 @@ class SAFRSBase(Model):
             except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
                 raise GenericError(exc)
-    
-    def __setattr__(self, attr_name: str, attr_val: Any) -> Any:
+
+    def __setattr__(self, attr_name, attr_val):
         """
         setattr behaves differently for `jsonapi_attr` decorated attributes
         """
@@ -208,7 +383,7 @@ class SAFRSBase(Model):
         else:
             return super().__setattr__(attr_name, attr_val)
 
-    def _s_parse_attr_value(self, attr_name: str, attr_val: Any) -> Any:
+    def _s_parse_attr_value(self, attr_name: str, attr_val: any):
         """
         Parse the given jsonapi attribute value so it can be stored in the db
         :param attr_name: attribute name
@@ -235,14 +410,14 @@ class SAFRSBase(Model):
         return parse_attr(attr, attr_val)
 
     @classmethod
-    def _s_get(cls, **kwargs) -> SAFRSBase:
+    def _s_get(cls, **kwargs):
         """
         This method is called when a collection is requested with a HTTP GET to the json api
         """
         return cls.jsonapi_filter()
 
     @classmethod
-    def _s_post(cls, jsonapi_id: Optional[str] = None, **params: Dict[str, Any]) -> SAFRSBase:
+    def _s_post(cls, jsonapi_id=None, **params) -> SAFRSBase:
         """
         This method is called when a new item is created with a POST to the json api
 
@@ -292,7 +467,7 @@ class SAFRSBase(Model):
 
         return instance
 
-    def _s_patch(self, **attributes: Dict[str, Any]) -> SAFRSBase:
+    def _s_patch(self, **attributes) -> SAFRSBase:
         """
         Update the object attributes
         :param **attributes:
@@ -316,7 +491,7 @@ class SAFRSBase(Model):
         """
         safrs.DB.session.delete(self)
 
-    def _add_rels(self, **params: Dict[str, Any]) -> None:
+    def _add_rels(self, **params) -> None:
         """
         Add relationship data provided in a POST, cfr. https://jsonapi.org/format/#crud-creating
         **params contains the (HTTP POST) parameters
