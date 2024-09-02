@@ -12,6 +12,26 @@ Common methods include 'GET', 'POST', 'PUT', 'DELETE', etc.
 This property controls the types of operations that can be performed on instances
 of the class via the API.
              
+             
+_s_post:
+Type: classmethod
+Description: Called when a new item is created with a POST to the JSON:API.
+
+
+_s_patch:
+Type: method
+Description: Updates the object attributes.
+
+
+_s_delete:
+Type: method
+Description: Deletes the instance from the database.
+
+
+_s_get:
+Type: classmethod
+Description: Called when a collection is requested with an HTTP GET to the JSON:API.
+
 
 _s_expose:
 Type: bool
@@ -146,27 +166,6 @@ Description: Returns the query object for the specified JSON:API ID.
 _s_parse_attr_value:
 Type: method
 Description: Parses the given JSON:API attribute value so it can be stored in the DB.
-
-
-_s_post:
-Type: classmethod
-Description: Called when a new item is created with a POST to the JSON:API.
-
-
-_s_patch:
-Type: method
-Description: Updates the object attributes.
-
-
-_s_delete:
-Type: method
-Description: Deletes the instance from the database.
-
-
-_s_get:
-Type: classmethod
-Description: Called when a collection is requested with an HTTP GET to the JSON:API.
-
 
 _s_clone:
 Type: method
@@ -1402,4 +1401,3 @@ class Included:
             result.append(included)
 
         return result
-

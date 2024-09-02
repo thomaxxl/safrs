@@ -29,12 +29,7 @@ class SAFRSRelationshipObject:
         object_name: str = cls.__name__
 
         object_model: Dict[str, Any] = {}
-        responses = {
-            str(HTTPStatus.OK.value): {
-                "description": f"{object_name} object",
-                "schema": object_model
-            }
-        }
+        responses = {str(HTTPStatus.OK.value): {"description": f"{object_name} object", "schema": object_model}}
 
         if http_method.upper() in {"POST", "GET"}:
             responses = {
