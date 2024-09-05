@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from typing import Dict, Tuple, Any
 from .util import classproperty
 
 
@@ -6,29 +7,31 @@ from .util import classproperty
 class SAFRSRelationshipObject:
     """
     Relationship object, used to emulate a SAFRSBase object for the swagger for relationship targets
-    so we can call the same methods on a relationship target as we do when using SAFRSBase
+    so we can call the same methods on a relationship target as we do when using SAFRSBase.
     """
 
-    _s_class_name = None
-    __name__ = "name"
-    http_methods = {"GET", "POST", "PATCH", "DELETE"}
-    swagger_models = {"instance": None, "collection": None}
+    _s_class_name: str = None
+    __name__: str = "name"
+    http_methods: set = {"GET", "POST", "PATCH", "DELETE"}
+    swagger_models: Dict[str, Any] = {"instance": None, "collection": None}
 
     @classmethod
-    def _s_get_swagger_doc(cls, http_method):
-        """Create a swagger api model based on the sqlalchemy schema
-        if an instance exists in the DB, the first entry is used as example
-        :param http_method: HTTP method for which to generate the doc
-        :return: swagger body, responses
+    def _s_get_swagger_doc(cls, http_method: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
-        body = {}
-        responses = {}
-        object_name = cls.__name__
+        Create a swagger API model based on the SQLAlchemy schema.
+        If an instance exists in the DB, the first entry is used as an example.
 
-        object_model = {}
+        :param http_method: HTTP method for which to generate the doc
+        :return: Tuple containing the swagger body and responses
+        """
+        body: Dict[str, Any] = {}
+        responses: Dict[str, Any] = {}
+        object_name: str = cls.__name__
+
+        object_model: Dict[str, Any] = {}
         responses = {str(HTTPStatus.OK.value): {"description": f"{object_name} object", "schema": object_model}}
 
-        if http_method.upper() in ("POST", "GET"):
+        if http_method.upper() in {"POST", "GET"}:
             responses = {
                 str(HTTPStatus.OK.value): {"description": HTTPStatus.OK.description},
                 str(HTTPStatus.NOT_FOUND.value): {"description": HTTPStatus.NOT_FOUND.description},
@@ -37,29 +40,29 @@ class SAFRSRelationshipObject:
         return body, responses
 
     @classproperty
-    def _s_relationships(cls):
+    def _s_relationships(cls) -> Any:
         """
         :return: The relationship names of the target
         """
         return cls._target._s_relationships
 
     @classproperty
-    def _s_jsonapi_attrs(cls):
+    def _s_jsonapi_attrs(cls) -> Any:
         """
-        :return: target JSON:API attributes
+        :return: Target JSON:API attributes
         """
         return cls._target._s_jsonapi_attrs
 
     @classproperty
-    def _s_type(cls):
+    def _s_type(cls) -> str:
         """
         :return: JSON:API type
         """
         return cls._target._s_type
 
     @classproperty
-    def _s_class_name(cls):
+    def _s_class_name(cls) -> str:
         """
-        :return: name of the target class
+        :return: Name of the target class
         """
         return cls._target.__name__
