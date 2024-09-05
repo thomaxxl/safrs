@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
