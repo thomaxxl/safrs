@@ -263,7 +263,7 @@ class SAFRSBase(Model):
     (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
 
-    db_commit = True  # commit instances automatically, see also _s_auto_commit property below
+    db_commit = has_request_context() # commit instances automatically, see also _s_auto_commit property below
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
     exclude_attrs = []  # list of attribute names that should not be serialized
