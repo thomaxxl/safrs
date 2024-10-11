@@ -41,7 +41,10 @@ SAFRS exposes SQLAlchemy database models as a [JSON:API](https://jsonapi.org) we
 
 Documentation can be found in the [wiki](https://github.com/thomaxxl/safrs/wiki).
 
+__We created a service to generate APIs using GenAI__, check it out [HERE](https://apifabric.ai)!
+
 __A [LIVE DEMO](https://thomaxxl.pythonanywhere.com) is available__, where much of the basic functionality is implemented using a simple [example](examples/demo_pythonanywhere_com.py).
+
 
 <a class="mk-toclify" id="installation"></a>
 ## Installation
