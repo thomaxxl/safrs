@@ -155,7 +155,7 @@ class SAFRSAPI(FRSApiBase):
         try:
             object_doc = parse_object_doc(safrs_object)
         except Exception as exc:
-            log.error(f"Failed to parse docstring {exc}")
+            safrs.log.error(f"Failed to parse docstring {exc}")
             object_doc = {}
         object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
