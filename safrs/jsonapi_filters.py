@@ -23,14 +23,18 @@ def create_query(cls):
     if not safrs.SAFRS.OPTIMIZED_LOADING:
         return query
     included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+    if included_csv == safrs.SAFRS.INCLUDE_ALL:
+        included_list = cls._s_relationships.keys()
     included_list = [inc for inc in included_csv.split(",") if inc]
 
     for inc in included_list:
         current_cls = cls
         options = None
         for inc_rel_name in inc.split("."):
+            if inc_rel_name == safrs.SAFRS.INCLUDE_ALL:
+                continue
             if inc_rel_name not in current_cls._s_relationships:
-                safrs.log.error(f"Invalid relationship : {current_cls}.{inc_rel_name}")
+                safrs.log.warning(f"Invalid relationship : {current_cls}.{inc_rel_name}")
                 break
             inc_rel = getattr(current_cls, inc_rel_name)  # == current_cls._s_relationships[inc_rel_name]
             if not hasattr(inc_rel, "lazy") or inc_rel.lazy not in ["select", "joined", "subquery", "selectin"]:

@@ -152,7 +152,11 @@ class SAFRSAPI(FRSApiBase):
         api_class = api_decorator(type(api_class_name + "_i", (rest_api,), properties), swagger_decorator)
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "PATCH", "DELETE"])
 
-        object_doc = parse_object_doc(safrs_object)
+        try:
+            object_doc = parse_object_doc(safrs_object)
+        except Exception as exc:
+            log.error(f"Failed to parse docstring {e}")
+            object_doc = {}
         object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
 
