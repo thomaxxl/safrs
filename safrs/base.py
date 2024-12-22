@@ -379,8 +379,10 @@ class SAFRSBase(Model):
         if is_jsonapi_attr(attr) and attr.fset is None:
             # jsonapi_attr.setter not implemented for attr
             return attr_val
-        else:
-            return super().__setattr__(attr_name, attr_val)
+        if attr_name == "Type" and hasattr(self, "type"):
+            # check "Type" property for details
+            attr_name = "type"
+        return super().__setattr__(attr_name, attr_val)
 
     def _s_parse_attr_value(self, attr_name: str, attr_val: any):
         """
@@ -830,6 +832,7 @@ class SAFRSBase(Model):
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
             except Exception as exc:  # pragma: no cover
+                safrs.log.error(f"Failed to get instance with keys {primary_keys}")
                 raise GenericError(f"get_instance : {exc}")
 
             if not instance and not failsafe:
@@ -886,7 +889,7 @@ class SAFRSBase(Model):
                 safrs.log.warning("Invalid SQLA request")
         except Exception as exc:
             safrs.log.exception(exc)
-            safrs.log.error(exc)
+            safrs.log.error(f"Query failed for {cls_or_self}: {exc}")
 
         if _table:
             result = safrs.DB.session.query(_table)
@@ -1298,8 +1301,7 @@ class SAFRSBase(Model):
         Type property setter, see comment in the type property
         """
         if not self.Type == value:
-            self.Type = value
-        self.type = value
+            self.type = value
 
     @classmethod
     def _s_filter(cls, *filter_args, **filter_kwargs):
