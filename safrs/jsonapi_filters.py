@@ -84,8 +84,15 @@ def jsonapi_filter(cls) -> Query:
         if attr_name == "id":
             attr = getattr(cls, "id", None)
             if attr is None:
-                # todo: add support for composite pkeys using `cls.id_type.get_pks`
-                return cls._s_get_instance_by_id(val)
+                # todo!!: add support for composite pkeys using `cls.id_type.get_pks`
+                if "," in val: 
+                    if len(cls.id_type.column_names) > 1:
+                        safrs.log.warning(f'Csv search not implemented for non-default composite "id" types: {val}')
+                        return []
+                    attr_name = cls.id_type.column_names[0]
+                    attr = getattr(cls, attr_name, None)
+                else:
+                    return cls._s_get_instance_by_id(val)
         elif attr_name not in cls._s_jsonapi_attrs:
             # validation failed: this attribute can't be queried
             safrs.log.warning(f"Invalid filter {attr_name}")
