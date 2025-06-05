@@ -41,6 +41,16 @@ class SAFRSID:
         Generate a jsonapi id
         """
         # This is the case if an autoincrement id is expected:
+        try:
+            cls.columns[0].type.python_type
+        except NotImplementedError:
+            # This is the case if the type is not implemented, may happen with custom types
+            # eg. when using a custom type that does not implement python_type
+            safrs.log.debug(
+                f"SAFRSID.gen_id: NotImplementedError for python_type in {cls.columns[0].type} in {cls}"
+            )
+            return None
+
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return None
 
