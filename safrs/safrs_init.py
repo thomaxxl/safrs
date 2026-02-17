@@ -13,6 +13,32 @@ import flask.app
 from typing import Any
 
 
+def _is_truthy_env(value: Any) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_loglevel() -> int:
+    debug_env = os.getenv("DEBUG")
+    if debug_env is not None:
+        try:
+            return int(debug_env)
+        except ValueError:
+            normalized = debug_env.strip().upper()
+            if normalized in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+                return int(getattr(logging, normalized))
+            if _is_truthy_env(debug_env):
+                return logging.DEBUG
+            print(f'Invalid LogLevel in DEBUG Environment Variable! "{debug_env}"')
+            return logging.INFO
+
+    if _is_truthy_env(os.getenv("FLASK_DEBUG")):
+        return logging.DEBUG
+
+    return logging.WARNING
+
+
 class SAFRS:
     """This class configures the Flask application to serve SAFRSBase instances
     :param app: a Flask application.
@@ -68,7 +94,7 @@ class SAFRS:
         app.response_class = SAFRSResponse
         app.url_map.strict_slashes = False
 
-        if app.config.get("DEBUG", False):
+        if app.config.get("DEBUG", False) or _is_truthy_env(os.getenv("FLASK_DEBUG")):
             log.setLevel(logging.DEBUG)
 
         # Register the API blueprint
@@ -102,7 +128,7 @@ class SAFRS:
             self.db.session.remove()
 
     @staticmethod
-    def init_logging(cls: int, loglevel: int = logging.WARNING) -> logging.Logger:
+    def init_logging(loglevel: int = logging.WARNING) -> logging.Logger:
         """
         Specify the log format used in the webserver logs
         The webserver will catch stdout so we redirect eveything to sys.stdout
@@ -155,11 +181,6 @@ def test_decorator(func: Any) -> Any:  # pragma: no cover
 #
 DB = SQLAlchemy()
 
-try:
-    DEBUG = os.getenv("DEBUG", logging.WARNING)
-    LOGLEVEL = int(DEBUG)
-except ValueError:  # pragma: no cover
-    print(f'Invalid LogLevel in DEBUG Environment Variable! "{DEBUG}"')
-    LOGLEVEL = logging.INFO
+LOGLEVEL = _resolve_loglevel()
 
 log = SAFRS.init_logging(LOGLEVEL)
