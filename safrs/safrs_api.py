@@ -110,6 +110,8 @@ class SAFRSAPI(FRSApiBase):
         """
         if not current_app:
             safrs.log.error("Working outside of app context!")
+        if not getattr(safrs_object, "_s_expose", True):
+            raise SystemValidationError(f"Refusing to expose {safrs_object}: _s_expose is set to False")
         rest_api = safrs_object._rest_api  # => SAFRSRestAPI
 
         properties["SAFRSObject"] = safrs_object
