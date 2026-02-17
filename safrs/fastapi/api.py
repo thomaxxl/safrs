@@ -4,10 +4,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import safrs
 from safrs.attr_parse import parse_attr
-from safrs.errors import JsonapiError, ValidationError
+from safrs.errors import JsonapiError, SystemValidationError, ValidationError
 
-from fastapi import APIRouter, Body, FastAPI, Request, Response
+from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
+from fastapi.params import Depends as DependsParam
 
 from .responses import JSONAPIResponse
 
@@ -27,21 +28,49 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
 
 
 class SafrsFastAPI:
-    def __init__(self, app: FastAPI, prefix: str = "") -> None:
+    def __init__(self, app: FastAPI, prefix: str = "", dependencies: Optional[List[Any]] = None) -> None:
         self.app = app
         self.prefix = prefix
+        self.default_dependencies = self._normalize_dependencies(dependencies)
         install_jsonapi_exception_handlers(app)
 
     @staticmethod
-    def _with_slash_parity(path: str) -> list[str]:
+    def _with_slash_parity(path: str) -> List[str]:
         if path.endswith("/"):
             path = path.rstrip("/")
         return [path, path + "/"]
 
-    def expose_object(self, Model: Type[Any]) -> None:
+    def _normalize_dependencies(self, dependencies: Optional[List[Any]]) -> List[DependsParam]:
+        if not dependencies:
+            return []
+        normalized: List[DependsParam] = []
+        for dependency in dependencies:
+            if isinstance(dependency, DependsParam):
+                normalized.append(dependency)
+                continue
+            if callable(dependency):
+                normalized.append(FastAPIDepends(dependency))
+                continue
+            raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
+        return normalized
+
+    def expose_object(
+        self,
+        Model: Type[Any],
+        dependencies: Optional[List[Any]] = None,
+        method_decorators: Optional[List[Any]] = None,
+    ) -> None:
         """
         Register CRUD routes for a SAFRS model.
         """
+        if not getattr(Model, "_s_expose", True):
+            raise SystemValidationError(f"Refusing to expose {Model}: _s_expose is set to False")
+        if method_decorators:
+            raise NotImplementedError(
+                "FastAPI adapter does not support Flask method_decorators; use dependencies=[...]"
+            )
+
+        route_dependencies = self.default_dependencies + self._normalize_dependencies(dependencies)
         tag = str(Model._s_collection_name)
 
         # IMPORTANT: build router with routes first, then include_router()
@@ -57,6 +86,7 @@ class SafrsFastAPI:
                 methods=["GET"],
                 response_class=JSONAPIResponse,
                 summary=f"List {tag}",
+                dependencies=route_dependencies,
                 operation_id=f"get_{tag}_collection" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
@@ -67,6 +97,7 @@ class SafrsFastAPI:
                 methods=["GET"],
                 response_class=JSONAPIResponse,
                 summary=f"Get {tag} by id",
+                dependencies=route_dependencies,
                 operation_id=f"get_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
@@ -77,6 +108,7 @@ class SafrsFastAPI:
                 methods=["POST"],
                 response_class=JSONAPIResponse,
                 summary=f"Create {tag}",
+                dependencies=route_dependencies,
                 operation_id=f"post_{tag}_collection" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
@@ -87,6 +119,7 @@ class SafrsFastAPI:
                 methods=["PATCH"],
                 response_class=JSONAPIResponse,
                 summary=f"Update {tag}",
+                dependencies=route_dependencies,
                 operation_id=f"patch_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
@@ -97,6 +130,7 @@ class SafrsFastAPI:
                 methods=["DELETE"],
                 response_class=JSONAPIResponse,
                 summary=f"Delete {tag}",
+                dependencies=route_dependencies,
                 operation_id=f"delete_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
@@ -115,6 +149,7 @@ class SafrsFastAPI:
                         methods=["GET"],
                         response_class=JSONAPIResponse,
                         summary=f"Get relationship {tag}.{rel_name}",
+                        dependencies=route_dependencies,
                         operation_id=f"get_{tag}_{rel_name}_relationship" if idx == 0 else None,
                         include_in_schema=(idx == 0),
                     )
@@ -125,6 +160,7 @@ class SafrsFastAPI:
                         methods=["GET"],
                         response_class=JSONAPIResponse,
                         summary=f"Get relationship item {tag}.{rel_name}",
+                        dependencies=route_dependencies,
                         operation_id=f"get_{tag}_{rel_name}_relationship_item" if idx == 0 else None,
                         include_in_schema=(idx == 0),
                     )
@@ -135,6 +171,7 @@ class SafrsFastAPI:
                         methods=["PATCH"],
                         response_class=JSONAPIResponse,
                         summary=f"Patch relationship {tag}.{rel_name}",
+                        dependencies=route_dependencies,
                         operation_id=f"patch_{tag}_{rel_name}_relationship" if idx == 0 else None,
                         include_in_schema=(idx == 0),
                     )
@@ -145,6 +182,7 @@ class SafrsFastAPI:
                         methods=["POST"],
                         response_class=JSONAPIResponse,
                         summary=f"Post relationship {tag}.{rel_name}",
+                        dependencies=route_dependencies,
                         operation_id=f"post_{tag}_{rel_name}_relationship" if idx == 0 else None,
                         include_in_schema=(idx == 0),
                     )
@@ -155,6 +193,7 @@ class SafrsFastAPI:
                         methods=["DELETE"],
                         response_class=JSONAPIResponse,
                         summary=f"Delete relationship {tag}.{rel_name}",
+                        dependencies=route_dependencies,
                         operation_id=f"delete_{tag}_{rel_name}_relationship" if idx == 0 else None,
                         include_in_schema=(idx == 0),
                     )
