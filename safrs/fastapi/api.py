@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, Dict, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import safrs
 from safrs.attr_parse import parse_attr
@@ -101,17 +101,85 @@ class SafrsFastAPI:
                 include_in_schema=(idx == 0),
             )
 
+        mapper = getattr(Model, "__mapper__", None)
+        if mapper is not None:
+            for rel in mapper.relationships:
+                rel_name = rel.key
+                rel_path = f"{instance_path}/{rel_name}"
+                rel_item_path = f"{rel_path}/{{target_id}}"
+
+                for idx, path in enumerate(self._with_slash_parity(rel_path)):
+                    router.add_api_route(
+                        path,
+                        self._get_relationship(Model, rel_name),
+                        methods=["GET"],
+                        response_class=JSONAPIResponse,
+                        summary=f"Get relationship {tag}.{rel_name}",
+                        operation_id=f"get_{tag}_{rel_name}_relationship" if idx == 0 else None,
+                        include_in_schema=(idx == 0),
+                    )
+                for idx, path in enumerate(self._with_slash_parity(rel_item_path)):
+                    router.add_api_route(
+                        path,
+                        self._get_relationship_item(Model, rel_name),
+                        methods=["GET"],
+                        response_class=JSONAPIResponse,
+                        summary=f"Get relationship item {tag}.{rel_name}",
+                        operation_id=f"get_{tag}_{rel_name}_relationship_item" if idx == 0 else None,
+                        include_in_schema=(idx == 0),
+                    )
+                for idx, path in enumerate(self._with_slash_parity(rel_path)):
+                    router.add_api_route(
+                        path,
+                        self._patch_relationship(Model, rel_name),
+                        methods=["PATCH"],
+                        response_class=JSONAPIResponse,
+                        summary=f"Patch relationship {tag}.{rel_name}",
+                        operation_id=f"patch_{tag}_{rel_name}_relationship" if idx == 0 else None,
+                        include_in_schema=(idx == 0),
+                    )
+                for idx, path in enumerate(self._with_slash_parity(rel_path)):
+                    router.add_api_route(
+                        path,
+                        self._post_relationship(Model, rel_name),
+                        methods=["POST"],
+                        response_class=JSONAPIResponse,
+                        summary=f"Post relationship {tag}.{rel_name}",
+                        operation_id=f"post_{tag}_{rel_name}_relationship" if idx == 0 else None,
+                        include_in_schema=(idx == 0),
+                    )
+                for idx, path in enumerate(self._with_slash_parity(rel_path)):
+                    router.add_api_route(
+                        path,
+                        self._delete_relationship(Model, rel_name),
+                        methods=["DELETE"],
+                        response_class=JSONAPIResponse,
+                        summary=f"Delete relationship {tag}.{rel_name}",
+                        operation_id=f"delete_{tag}_{rel_name}_relationship" if idx == 0 else None,
+                        include_in_schema=(idx == 0),
+                    )
+
         self.app.include_router(router)
 
         # If /docs was opened before exposing models, FastAPI may have cached OpenAPI already.
         self.app.openapi_schema = None
 
-    def _jsonapi_doc(self, data: Any = None, errors: Any = None) -> Dict[str, Any]:
+    def _jsonapi_doc(
+        self,
+        data: Any = None,
+        errors: Any = None,
+        included: Any = None,
+        meta: Any = None,
+    ) -> Dict[str, Any]:
         doc: Dict[str, Any] = {"jsonapi": {"version": "1.0"}}
         if errors is not None:
             doc["errors"] = errors
         if data is not None:
             doc["data"] = data
+        if included:
+            doc["included"] = included
+        if meta is not None:
+            doc["meta"] = meta
         return doc
 
     def _jsonapi_error(self, status_code: int, title: str, detail: str) -> None:
@@ -170,6 +238,150 @@ class SafrsFastAPI:
             return None
         return {field.strip() for field in fields_csv.split(",") if field.strip()}
 
+    def _parse_sparse_fields_map(self, request: Request) -> Dict[str, Set[str]]:
+        result: Dict[str, Set[str]] = {}
+        for key, value in request.query_params.items():
+            if not key.startswith("fields[") or not key.endswith("]"):
+                continue
+            model_type = key[len("fields[") : -1]
+            wanted = {field.strip() for field in value.split(",") if field.strip()}
+            if wanted:
+                result[model_type] = wanted
+        return result
+
+    def _resolve_relationships(self, Model: Type[Any]) -> Dict[str, Any]:
+        mapper = getattr(Model, "__mapper__", None)
+        if mapper is None:
+            return {}
+        return {rel.key: rel for rel in mapper.relationships}
+
+    def _parse_include_paths(self, Model: Type[Any], request: Request) -> List[List[str]]:
+        include_csv = request.query_params.get("include")
+        if not include_csv:
+            return []
+
+        include_values = [item.strip() for item in include_csv.split(",") if item.strip()]
+        if not include_values:
+            return []
+
+        root_rels = self._resolve_relationships(Model)
+        paths: List[List[str]] = []
+        for inc in include_values:
+            if inc == safrs.SAFRS.INCLUDE_ALL:
+                paths.extend([[name] for name in root_rels.keys()])
+                continue
+            path = [part for part in inc.split(".") if part]
+            if not path:
+                continue
+            current_model = Model
+            for segment in path:
+                rels = self._resolve_relationships(current_model)
+                if segment not in rels:
+                    self._jsonapi_error(400, "ValidationError", f"Invalid relationship '{segment}' in include")
+                current_model = rels[segment].mapper.class_
+            paths.append(path)
+        return paths
+
+    def _iter_related_items(self, rel_value: Any) -> List[Any]:
+        if rel_value is None:
+            return []
+        if hasattr(rel_value, "all") and callable(rel_value.all):
+            return list(rel_value.all())
+        if isinstance(rel_value, (list, tuple, set)):
+            return list(rel_value)
+        return [rel_value]
+
+    def _apply_sort(self, items: List[Any], request: Request) -> List[Any]:
+        sort_arg = request.query_params.get("sort")
+        if not sort_arg:
+            return items
+        attr_name = sort_arg.lstrip("-")
+        reverse = sort_arg.startswith("-")
+        try:
+            return sorted(items, key=lambda item: getattr(item, attr_name, None), reverse=reverse)
+        except Exception:
+            return items
+
+    def _lookup_related_instance(self, target_model: Type[Any], payload: Dict[str, Any], strict: bool = True) -> Any:
+        if not isinstance(payload, dict):
+            self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+        rel_id = payload.get("id")
+        rel_type = payload.get("type")
+        if rel_id is None or rel_type is None:
+            if strict:
+                self._jsonapi_error(403, "ValidationError", "Invalid relationship payload")
+            self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+        if rel_type != target_model._s_type:
+            self._jsonapi_error(403, "ValidationError", "Invalid relationship type")
+        try:
+            target = target_model.get_instance(rel_id)
+        except Exception:
+            self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
+        if target is None:
+            self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
+        return target
+
+    def _clear_relationship(self, rel_value: Any) -> None:
+        current_items = self._iter_related_items(rel_value)
+        for item in current_items:
+            try:
+                rel_value.remove(item)
+            except Exception:
+                pass
+
+    def _append_relationship_item(self, rel_value: Any, item: Any) -> None:
+        if hasattr(rel_value, "append"):
+            rel_value.append(item)
+            return
+        self._jsonapi_error(400, "ValidationError", "Relationship is not appendable")
+
+    def _remove_relationship_item(self, rel_value: Any, item: Any) -> None:
+        if hasattr(rel_value, "remove"):
+            rel_value.remove(item)
+            return
+        self._jsonapi_error(400, "ValidationError", "Relationship is not removable")
+
+    def _collect_included(
+        self,
+        current_model: Type[Any],
+        obj: Any,
+        include_paths: List[List[str]],
+        fields_map: Dict[str, Set[str]],
+        seen: Set[Tuple[str, str]],
+        included: List[Dict[str, Any]],
+    ) -> None:
+        for path in include_paths:
+            if not path:
+                continue
+            rel_name = path[0]
+            rels = self._resolve_relationships(current_model)
+            rel = rels.get(rel_name)
+            if rel is None:
+                continue
+            target_model = rel.mapper.class_
+            rel_value = getattr(obj, rel_name, None)
+            rel_items = self._iter_related_items(rel_value)
+            for rel_obj in rel_items:
+                if rel_obj is None:
+                    continue
+                key = (str(target_model._s_type), str(rel_obj.jsonapi_id))
+                if key not in seen:
+                    seen.add(key)
+                    included.append(
+                        self._encode_resource(
+                            target_model, rel_obj, wanted_fields=fields_map.get(str(target_model._s_type))
+                        )
+                    )
+                if len(path) > 1:
+                    self._collect_included(
+                        target_model,
+                        rel_obj,
+                        [path[1:]],
+                        fields_map,
+                        seen,
+                        included,
+                    )
+
     def _encode_resource(
         self, Model: Type[Any], obj: Any, wanted_fields: Optional[Set[str]] = None
     ) -> Dict[str, Any]:
@@ -197,10 +409,17 @@ class SafrsFastAPI:
     def _get_collection(self, Model: Type[Any]):
         def handler(request: Request):
             try:
-                wanted_fields = self._parse_sparse_fields(Model, request)
+                fields_map = self._parse_sparse_fields_map(request)
+                wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
+                include_paths = self._parse_include_paths(Model, request)
                 objs = Model._s_query.all()
                 data = [self._encode_resource(Model, o, wanted_fields=wanted_fields) for o in objs]
-                return self._jsonapi_doc(data=data)
+                included: List[Dict[str, Any]] = []
+                seen: Set[Tuple[str, str]] = set()
+                if include_paths:
+                    for obj in objs:
+                        self._collect_included(Model, obj, include_paths, fields_map, seen, included)
+                return self._jsonapi_doc(data=data, included=included if included else None)
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
@@ -210,8 +429,17 @@ class SafrsFastAPI:
         def handler(object_id: str, request: Request):
             try:
                 obj = Model.get_instance(object_id)
-                wanted_fields = self._parse_sparse_fields(Model, request)
-                return self._jsonapi_doc(data=self._encode_resource(Model, obj, wanted_fields=wanted_fields))
+                fields_map = self._parse_sparse_fields_map(request)
+                wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
+                include_paths = self._parse_include_paths(Model, request)
+                included: List[Dict[str, Any]] = []
+                seen: Set[Tuple[str, str]] = set()
+                if include_paths:
+                    self._collect_included(Model, obj, include_paths, fields_map, seen, included)
+                return self._jsonapi_doc(
+                    data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                    included=included if included else None,
+                )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
@@ -276,6 +504,160 @@ class SafrsFastAPI:
                 return Response(status_code=204)
             except JSONAPIHTTPError:
                 raise
+            except Exception as exc:
+                self._handle_safrs_exception(exc)
+
+        return handler
+
+    def _get_relationship(self, Model: Type[Any], rel_name: str):
+        def handler(object_id: str, request: Request):
+            try:
+                parent = Model.get_instance(object_id)
+                rel = self._resolve_relationships(Model).get(rel_name)
+                if rel is None:
+                    self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                target_model = rel.mapper.class_
+                fields_map = self._parse_sparse_fields_map(request)
+                wanted_fields = fields_map.get(str(target_model._s_type))
+                rel_value = getattr(parent, rel_name, None)
+
+                if rel.uselist:
+                    items = self._apply_sort(self._iter_related_items(rel_value), request)
+                    data = [self._encode_resource(target_model, item, wanted_fields=wanted_fields) for item in items]
+                    return self._jsonapi_doc(data=data, meta={"count": len(data)})
+
+                if rel_value is None:
+                    self._jsonapi_error(404, "NotFound", f"Relationship '{rel_name}' is empty")
+                return self._jsonapi_doc(data=self._encode_resource(target_model, rel_value, wanted_fields=wanted_fields))
+            except Exception as exc:
+                self._handle_safrs_exception(exc)
+
+        return handler
+
+    def _get_relationship_item(self, Model: Type[Any], rel_name: str):
+        def handler(object_id: str, target_id: str, request: Request):
+            try:
+                parent = Model.get_instance(object_id)
+                rel = self._resolve_relationships(Model).get(rel_name)
+                if rel is None:
+                    self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                target_model = rel.mapper.class_
+                fields_map = self._parse_sparse_fields_map(request)
+                wanted_fields = fields_map.get(str(target_model._s_type))
+                rel_value = getattr(parent, rel_name, None)
+                for item in self._iter_related_items(rel_value):
+                    if str(item.jsonapi_id) == str(target_id):
+                        return self._jsonapi_doc(data=self._encode_resource(target_model, item, wanted_fields=wanted_fields))
+                self._jsonapi_error(404, "NotFound", f"Relationship item '{target_id}' not found")
+            except Exception as exc:
+                self._handle_safrs_exception(exc)
+
+        return handler
+
+    def _patch_relationship(self, Model: Type[Any], rel_name: str):
+        def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+            try:
+                parent = Model.get_instance(object_id)
+                rel = self._resolve_relationships(Model).get(rel_name)
+                if rel is None:
+                    self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                target_model = rel.mapper.class_
+                data = payload.get("data")
+                rel_value = getattr(parent, rel_name, None)
+
+                if rel.uselist:
+                    if not isinstance(data, list):
+                        self._jsonapi_error(400, "ValidationError", "PATCH a TOMANY relationship with a list")
+                    self._clear_relationship(rel_value)
+                    for item in data:
+                        target = self._lookup_related_instance(target_model, item)
+                        self._append_relationship_item(rel_value, target)
+                    safrs.DB.session.commit()
+                    items = self._iter_related_items(rel_value)
+                    return self._jsonapi_doc(
+                        data=[self._encode_resource(target_model, item) for item in items],
+                        meta={"count": len(items)},
+                    )
+
+                if data is None:
+                    setattr(parent, rel_name, None)
+                    safrs.DB.session.commit()
+                    return Response(status_code=204)
+                if not isinstance(data, dict):
+                    self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                target = self._lookup_related_instance(target_model, data)
+                setattr(parent, rel_name, target)
+                safrs.DB.session.commit()
+                return Response(status_code=204)
+            except Exception as exc:
+                self._handle_safrs_exception(exc)
+
+        return handler
+
+    def _post_relationship(self, Model: Type[Any], rel_name: str):
+        def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+            try:
+                parent = Model.get_instance(object_id)
+                rel = self._resolve_relationships(Model).get(rel_name)
+                if rel is None:
+                    self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                target_model = rel.mapper.class_
+                data = payload.get("data")
+                rel_value = getattr(parent, rel_name, None)
+
+                if rel.uselist:
+                    if not isinstance(data, list):
+                        self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    for item in data:
+                        target = self._lookup_related_instance(target_model, item)
+                        self._append_relationship_item(rel_value, target)
+                    safrs.DB.session.commit()
+                    return Response(status_code=204)
+
+                if not isinstance(data, dict):
+                    self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                target = self._lookup_related_instance(target_model, data)
+                setattr(parent, rel_name, target)
+                safrs.DB.session.commit()
+                return self._jsonapi_doc(data=self._encode_resource(target_model, target))
+            except Exception as exc:
+                self._handle_safrs_exception(exc)
+
+        return handler
+
+    def _delete_relationship(self, Model: Type[Any], rel_name: str):
+        def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+            try:
+                parent = Model.get_instance(object_id)
+                rel = self._resolve_relationships(Model).get(rel_name)
+                if rel is None:
+                    self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                target_model = rel.mapper.class_
+                data = payload.get("data")
+                rel_value = getattr(parent, rel_name, None)
+
+                if rel.uselist:
+                    if not isinstance(data, list):
+                        self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    for item in data:
+                        target = self._lookup_related_instance(target_model, item)
+                        self._remove_relationship_item(rel_value, target)
+                    safrs.DB.session.commit()
+                    return Response(status_code=204)
+
+                if isinstance(data, list):
+                    if len(data) != 1:
+                        self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    data = data[0]
+                if not isinstance(data, dict):
+                    self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                target = self._lookup_related_instance(target_model, data, strict=True)
+                current = getattr(parent, rel_name, None)
+                if current is None or str(current.jsonapi_id) != str(target.jsonapi_id):
+                    self._jsonapi_error(400, "ValidationError", "Related object is not currently linked")
+                setattr(parent, rel_name, None)
+                safrs.DB.session.commit()
+                return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
