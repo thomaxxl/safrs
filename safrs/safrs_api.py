@@ -327,6 +327,86 @@ class SAFRSAPI(FRSApiBase):
         resource_methods = [m.lower() for m in ordered_methods if m in resource.methods and m.upper() in om]
         return resource_methods
 
+    @staticmethod
+    def _method_is_enabled(kwargs: dict[str, Any], method: str) -> bool:
+        methods = kwargs.get("methods", None)
+        if not methods:
+            return True
+        return method.upper() in [m.upper() for m in methods]
+
+    @staticmethod
+    def _is_exposing_instance(swagger_url: str, relationship: Any, instance_suffix: str) -> bool:
+        exposing_instance = swagger_url.strip("/").endswith(instance_suffix)
+        if relationship:
+            exposing_instance = relationship.direction == MANYTOONE
+        return exposing_instance
+
+    def _update_method_swagger(
+        self: Any,
+        resource: Any,
+        path_item: dict[str, Any],
+        method: str,
+        exposing_instance: bool,
+        is_jsonapi_rpc: bool,
+        swagger_url: str,
+        relationship: Any,
+    ) -> None:
+        method_doc = path_item.get(method)
+        if not method_doc:
+            return
+
+        # exposed objects and methods may specify `collection_summary` in the method docstring yaml
+        collection_summary = method_doc.pop("collection_summary", method_doc.get("summary", None))
+        if not exposing_instance and collection_summary:
+            method_doc["summary"] = collection_summary
+
+        method_doc["operationId"] = self._get_operation_id(method_doc.get("summary", ""))
+        self._add_oas_req_params(resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url)
+        self._add_oas_references(resource.SAFRSObject, path_item, method, exposing_instance, relationship)
+
+    def _add_swagger_path_for_url(
+        self: Any,
+        resource: Any,
+        url: str,
+        kwargs: dict[str, Any],
+        path_item: dict[str, Any],
+        relationship: Any,
+        is_jsonapi_rpc: bool,
+        instance_suffix: str,
+    ) -> None:
+        if not url.startswith("/"):  # pragma: no cover
+            raise SystemValidationError("paths must start with a /")
+
+        swagger_url = extract_swagger_path(url)
+        exposing_instance = self._is_exposing_instance(swagger_url, relationship, instance_suffix)
+
+        for method in self.get_resource_methods(resource):
+            if not self._method_is_enabled(kwargs, method):
+                path_item.pop(method, None)
+                continue
+
+            if method == "post" and exposing_instance:
+                # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
+                # "A server MUST return 403 Forbidden in response to an unsupported request to create a resource with a client-generated ID"
+                path_item.pop(method, None)
+                continue
+
+            self._update_method_swagger(resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url, relationship)
+
+            try:  # pragma: no cover
+                validate_path_item_object(path_item)
+            except FRSValidationError as exc:
+                safrs.log.exception(exc)
+                safrs.log.critical(f"Validation failed for {path_item}")
+                exit(1)
+
+        self._swagger_object["paths"][swagger_url] = path_item
+        # Check whether we manage to convert to json
+        try:
+            json.dumps(self._swagger_object)
+        except Exception:  # pragma: no cover
+            safrs.log.critical("Json encoding failed")
+
     def add_resource(self: Any, resource: Any, *urls: Any, **kwargs: Any) -> Any:
         """
         This method is partly copied from flask_restful_swagger_2/__init__.py
@@ -350,56 +430,7 @@ class SAFRSAPI(FRSApiBase):
             if deprecated:
                 # functionality still works, but there will be no swagger
                 continue
-            if not url.startswith("/"):  # pragma: no cover
-                raise SystemValidationError("paths must start with a /")
-
-            swagger_url = extract_swagger_path(url)
-            # exposing_instance tells us whether we're exposing an instance (as opposed to a collection)
-            exposing_instance = swagger_url.strip("/").endswith(SAFRS_INSTANCE_SUFFIX)
-            if relationship:
-                exposing_instance = relationship.direction == MANYTOONE
-            for method in self.get_resource_methods(resource):
-                if kwargs.get("methods", None) and method.upper() not in [m.upper() for m in kwargs.get("methods", [])]:
-                    # only use the
-                    path_item.pop(method, None)
-                    continue
-
-                if method == "post" and exposing_instance:
-                    # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
-                    # "A server MUST return 403 Forbidden in response to an
-                    # unsupported request to create a resource with a client-generated ID"
-                    # the method has already been added before, remove it & continue
-                    path_item.pop(method, None)
-                    continue
-
-                method_doc = path_item.get(method)
-                if not method_doc:
-                    continue
-
-                # exposed objects and methods may specify `collection_summary` in the method docstring yaml
-                collection_summary = method_doc.pop("collection_summary", method_doc.get("summary", None))
-                if not exposing_instance and collection_summary:
-                    method_doc["summary"] = collection_summary
-
-                path_item_method = cast(dict[str, Any], path_item.get(method))
-                method_doc["operationId"] = self._get_operation_id(path_item_method.get("summary", ""))
-
-                self._add_oas_req_params(resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url)
-                self._add_oas_references(resource.SAFRSObject, path_item, method, exposing_instance, relationship)
-
-                try:  # pragma: no cover
-                    validate_path_item_object(path_item)
-                except FRSValidationError as exc:
-                    safrs.log.exception(exc)
-                    safrs.log.critical(f"Validation failed for {path_item}")
-                    exit(1)
-
-            self._swagger_object["paths"][swagger_url] = path_item
-            # Check whether we manage to convert to json
-            try:
-                json.dumps(self._swagger_object)
-            except Exception:  # pragma: no cover
-                safrs.log.critical("Json encoding failed")
+            self._add_swagger_path_for_url(resource, url, kwargs, path_item, relationship, is_jsonapi_rpc, SAFRS_INSTANCE_SUFFIX)
 
         # disable API methods that were not set by the SAFRSObject
         for http_method in HTTP_METHODS:

@@ -13,7 +13,7 @@ from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
 import safrs
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, Callable, List, Optional, Union, cast
 
 
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set

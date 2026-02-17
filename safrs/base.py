@@ -956,6 +956,93 @@ class SAFRSBase(Model):
 
         return data
 
+    def _s_get_included_lists(self: Any) -> tuple[list[str], list[str], set[str]]:
+        included_list = getattr(self, "included_list", None)
+        if included_list is None:
+            # Multiple related resources can be requested in a comma-separated list
+            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+            included_list = [inc for inc in included_csv.split(",") if inc]
+
+        excluded_csv = request.args.get("exclude", "")
+        excluded_list = excluded_csv.split(",")
+        included_rels = {i.split(".")[0] for i in included_list}
+        return included_list, excluded_list, included_rels
+
+    def _s_validate_included_relationships(self: Any, included_rels: set[str]) -> None:
+        for rel_name in included_rels:
+            """
+            If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
+            it MUST respond with 400 Bad Request.
+            """
+            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
+                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
+
+    @staticmethod
+    def _s_get_next_included_list(rel_name: str, included_list: list[str]) -> list[list[str]]:
+        # next_included_list contains the recursive relationship names
+        return [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
+
+    def _s_get_to_many_relationship_data(
+        self: Any, rel_name: str, next_included_list: list[list[str]], meta: dict[str, Any]
+    ) -> list[Any]:
+        data: list[Any] = []
+        rel_query = getattr(self, rel_name)
+        limit = get_jsonapi_request(request).get_page_limit(rel_name)
+        if not get_config("ENABLE_RELATIONSHIPS"):
+            meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
+            return data
+        if not rel_query:
+            return data
+
+        # todo: check if lazy=dynamic
+        # In order to work with the relationship as with Query,
+        # you need to configure it with lazy='dynamic'
+        # "limit" may not be possible !
+        if getattr(rel_query, "limit", False):
+            count = rel_query.count()
+            rel_query = rel_query.limit(limit)
+            if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
+                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
+                safrs.log.warning(warning)
+                meta["warning"] = warning
+            items = rel_query.all()
+        else:  # rel_query is an 'InstrumentedList'
+            items = list(rel_query)[:limit]
+            count = len(items)
+
+        meta["count"] = meta["total"] = count
+        meta["limit"] = limit
+        for rel_item in items:
+            data.append(Included(rel_item, next_included_list))
+        return data
+
+    def _s_get_relationship_payload(
+        self: Any, relationship: Any, included_list: list[str], included_rels: set[str], excluded_list: list[str]
+    ) -> tuple[Any, dict[str, Any]]:
+        rel_name = relationship.key
+        meta: dict[str, Any] = {}
+        data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
+        if rel_name in excluded_list:
+            # TODO: document this
+            # continue
+            pass
+        if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
+            next_included_list = self._s_get_next_included_list(rel_name, included_list)
+            if relationship.direction == MANYTOONE:
+                # manytoone relationship contains a single instance
+                rel_item = getattr(self, rel_name)
+                if rel_item:
+                    # create an Included instance that will be used for serialization eventually
+                    data = Included(rel_item, next_included_list)
+            elif relationship.direction in (ONETOMANY, MANYTOMANY):
+                # manytoone relationship contains a list of instances
+                # Data is optional, it's also really slow for large sets!
+                data = self._s_get_to_many_relationship_data(rel_name, next_included_list, meta)
+            else:  # pragma: no cover
+                # should never happen
+                safrs.log.error(f"Unknown relationship direction for relationship {rel_name}: {relationship.direction}")
+        return data, meta
+
     def _s_get_related(self: Any) -> Any:
         """
         :return: dict of relationship names -> [related instances]
@@ -976,30 +1063,9 @@ class SAFRSBase(Model):
         Request parameter example:
             include=friends.books_read,friends.books_written
         """
-        # included_list contains a list of relationships to include
-        # it may have been set previously by Included() when called recursively
-        # if it's not set, parse the include= request param here
-        # included_list example: ['friends.books_read', 'friends.books_written']
-        included_list = getattr(self, "included_list", None)
-        if included_list is None:
-            # Multiple related resources can be requested in a comma-separated list
-            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
-            included_list = [inc for inc in included_csv.split(",") if inc]
-
-        excluded_csv = request.args.get("exclude", "")
-        excluded_list = excluded_csv.split(",")
-        # In order to recursively request related resources
-        # a dot-separated path for each relationship name can be specified
-        included_rels = {i.split(".")[0] for i in included_list}
+        included_list, excluded_list, included_rels = self._s_get_included_lists()
+        self._s_validate_included_relationships(included_rels)
         relationships = dict()
-
-        for rel_name in included_rels:
-            """
-            If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
-            it MUST respond with 400 Bad Request.
-            """
-            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
-                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
 
         for rel_name, relationship in self._s_relationships.items():
             """
@@ -1024,54 +1090,8 @@ class SAFRSBase(Model):
             MAY also contain pagination links under the links member, as described below.
             SAFRS currently implements links with self
             """
-            meta: dict[str, Any] = {}
             rel_name = relationship.key
-            data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
-            if rel_name in excluded_list:
-                # TODO: document this
-                # continue
-                pass
-            if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
-                # next_included_list contains the recursive relationship names
-                next_included_list = [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
-                if relationship.direction == MANYTOONE:
-                    # manytoone relationship contains a single instance
-                    rel_item = getattr(self, rel_name)
-                    if rel_item:
-                        # create an Included instance that will be used for serialization eventually
-                        data = Included(rel_item, next_included_list)
-                elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    # manytoone relationship contains a list of instances
-                    # Data is optional, it's also really slow for large sets!
-                    data = []
-                    rel_query = getattr(self, rel_name)
-                    limit = get_jsonapi_request(request).get_page_limit(rel_name)
-                    if not get_config("ENABLE_RELATIONSHIPS"):
-                        meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
-                    elif rel_query:
-                        # todo: check if lazy=dynamic
-                        # In order to work with the relationship as with Query,
-                        # you need to configure it with lazy='dynamic'
-                        # "limit" may not be possible !
-                        if getattr(rel_query, "limit", False):
-                            count = rel_query.count()
-                            rel_query = rel_query.limit(limit)
-                            if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
-                                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
-                                safrs.log.warning(warning)
-                                meta["warning"] = warning
-                            items = rel_query.all()
-                        else:  # rel_query is an 'InstrumentedList'
-                            items = list(rel_query)[:limit]
-                            count = len(items)
-                        meta["count"] = meta["total"] = count
-                        meta["limit"] = limit
-                        for rel_item in items:
-                            data.append(Included(rel_item, next_included_list))
-                else:  # pragma: no cover
-                    # should never happen
-                    safrs.log.error(f"Unknown relationship direction for relationship {rel_name}: {relationship.direction}")
-
+            data, meta = self._s_get_relationship_payload(relationship, included_list, included_rels, excluded_list)
             rel_link = urljoin(self._s_url, rel_name)
             links = dict(self=rel_link)
             rel_data: dict[str, Any] = dict(links=links)
