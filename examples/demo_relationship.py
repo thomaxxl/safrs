@@ -11,6 +11,7 @@
   - Swagger documentation is generated
 
 """
+from typing import Any
 import sys
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -45,14 +46,14 @@ class Book(SAFRSBase, db.Model):
 
 
 # Create the api endpoints
-def create_api(app, host="localhost", port=5000, api_prefix=""):
+def create_api(app: Any, host: Any='localhost', port: Any=5000, api_prefix: Any='') -> Any:
     api = SafrsApi(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
     print(f"Created API: http://{host}:{port}/{api_prefix}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite://")
     db.init_app(app)

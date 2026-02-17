@@ -7,13 +7,13 @@ import datetime
 import json
 import flask
 from http import HTTPStatus
-import yaml
+import yaml  # type: ignore[import-untyped]
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY, MANYTOONE
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
 import safrs
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 
 REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
@@ -38,7 +38,7 @@ Schema._references = {}
 
 
 # pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
-def parse_object_doc(object: Callable) -> Dict[str, Union[str, Dict[int, Dict[str, str]], bool, Dict[str, str]]]:
+def parse_object_doc(object: Callable) -> dict[str, Any]:
     """
     Parse the yaml description from the documented methods
     """
@@ -73,7 +73,7 @@ def jsonapi_rpc(http_methods: Optional[List[str]] = None, valid_jsonapi: bool = 
     if http_methods is None:
         http_methods = ["POST"]
 
-    def _documented_api_method(method):
+    def _documented_api_method(method: Any) -> Any:
         """
         :param method:
         add metadata to the method:
@@ -94,7 +94,7 @@ def jsonapi_rpc(http_methods: Optional[List[str]] = None, valid_jsonapi: bool = 
     return _documented_api_method
 
 
-def is_public(method):
+def is_public(method: Any) -> Any:
     """
     :param method: SAFRSBase method
     :return: True or False, whether the method is to be exposed
@@ -103,7 +103,7 @@ def is_public(method):
     return hasattr(method, REST_DOC)
 
 
-def get_doc(method: Any) -> None:
+def get_doc(method: Any) -> Any:
     """
     :param  method: SAFRSBase method
     :return: OAS documentation
@@ -112,7 +112,7 @@ def get_doc(method: Any) -> None:
     return getattr(method, REST_DOC, None)
 
 
-def get_http_methods(method):
+def get_http_methods(method: Any) -> Any:
     """
     :param method: SAFRSBase jsonapi_rpc method
     :return: a list of http methods used to call the method (e.g. POST)
@@ -121,7 +121,7 @@ def get_http_methods(method):
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
-def SchemaClassFactory(name, properties):
+def SchemaClassFactory(name: Any, properties: Any) -> Any:
     """
     Generate a Schema class, used to describe swagger schemas
     :param name: schema class name
@@ -143,7 +143,7 @@ def SchemaClassFactory(name, properties):
 
     Schema._reference_count.append(name)
 
-    def __init__(self, **kwargs):
+    def __init__(self: Any, **kwargs: Any) -> None:
         for key, value in kwargs.items():
             # here, the properties variable is the one passed to the
             # ClassFactory call
@@ -152,22 +152,22 @@ def SchemaClassFactory(name, properties):
             setattr(self, key, value)
 
     new_schema_cls = type(name, (Schema,), {"__init__": __init__, "properties": properties})
-    new_schema_cls.description = ""
+    cast(Any, new_schema_cls).description = ""
     Schema._references[name] = new_schema_cls
     return new_schema_cls
 
 
-def encode_schema(obj: Dict[str, Any]) -> Dict[str, Any]:
+def encode_schema(obj: Any) -> Any:
     """
     None aka "null" is invalid in swagger schema definition
     This breaks our samples :/
     We don't add the item to the schema if it's None
     """
-    result = ""
+    result: Any = ""
 
     if obj is not None:
         try:
-            result = json.loads(json.dumps(obj, cls=flask.current_app.json_encoder))
+            result = json.loads(json.dumps(obj, cls=cast(Any, flask.current_app).json_encoder))
         except Exception as exc:
             safrs.log.warning(f"Json encoding failed for {obj}, type {type(obj)} ({exc})")
             result = str(obj)
@@ -176,14 +176,14 @@ def encode_schema(obj: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # pylint: disable=redefined-builtin
-def schema_from_object(name, object):
+def schema_from_object(name: Any, object: Any) -> Any:
     """
     :param name:
     :param object:
     :return: swagger schema object
     """
 
-    properties = {}
+    properties: Any = {}
 
     if isinstance(object, str):
         properties = {"example": "", "type": "string"}
@@ -218,7 +218,7 @@ def schema_from_object(name, object):
     return schema
 
 
-def update_response_schema(responses: Dict[str, Dict[str, str]]) -> None:
+def update_response_schema(responses: Any) -> None:
     """
     Add predefined response schemas if none is available yet
     """
@@ -230,7 +230,7 @@ def update_response_schema(responses: Dict[str, Dict[str, str]]) -> None:
             responses[code]["schema"] = err_schema
 
 
-def get_swagger_doc_arguments(cls, method_name, http_method):
+def get_swagger_doc_arguments(cls: Any, method_name: Any, http_method: Any) -> Any:
     """
     :param cls: class containing the method to be exposed
     :param method_name: name of the method to be exposed
@@ -266,7 +266,7 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
         raise SystemValidationError(f"method {method_name} not found")
 
     f_args = inspect.getfullargspec(method).args
-    rest_doc = get_doc(method)
+    rest_doc = cast(dict[str, Any], get_doc(method))
     description = rest_doc.get("description", "")
     if rest_doc is not None:
         method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
@@ -301,11 +301,11 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
                         "required": False,
                         "description": description,
                     }
-                    parameters += param
+                    parameters += param  # type: ignore[arg-type]
     elif f_args and http_method != "options":
         safrs.log.warning(f'No documentation for method "{method_name}"')
         # jsonapi_rpc method has no documentation, generate it w/ inspect
-        f_defaults = inspect.getfullargspec(method).defaults or []
+        f_defaults: list[Any] = list(inspect.getfullargspec(method).defaults or [])
         if f_args and f_args[0] in ("cls", "self"):
             f_args = f_args[1:]
         args = dict(zip(f_args, f_defaults))
@@ -329,12 +329,12 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
 # Decorator is called when a swagger endpoint class is instantiated
 # from API.expose_object eg.
 #
-def swagger_doc(cls, tags=None):
+def swagger_doc(cls: Any, tags: Any=None) -> Any:
     """
     swagger_doc
     """
 
-    def swagger_doc_gen(func, instance=False):
+    def swagger_doc_gen(func: Any, instance: Any=False) -> Any:
         """
         Decorator used to document SAFRSRestAPI HTTP methods exposed in the API
         """
@@ -364,7 +364,7 @@ def swagger_doc(cls, tags=None):
         else:
             doc_tags = tags
 
-        doc = {"tags": doc_tags}
+        doc: dict[str, Any] = {"tags": doc_tags}
 
         responses = {}
         # adhere to open api
@@ -378,7 +378,7 @@ def swagger_doc(cls, tags=None):
         sample_instance = {"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}
 
         if http_method == "get":
-            sample_rels = {}
+            sample_rels: dict[str, Any] = {}
             for rel_name, val in cls._s_relationships.items():
                 sample_rels[rel_name] = {"data": None if val.direction is MANYTOONE else [], "links": {"self": None}}
             sample_instance["relationships"] = sample_rels
@@ -453,12 +453,12 @@ def swagger_doc(cls, tags=None):
     return swagger_doc_gen
 
 
-def swagger_relationship_doc(cls, tags=None):
+def swagger_relationship_doc(cls: Any, tags: Any=None) -> Any:
     """
     swagger_relationship_doc
     """
 
-    def swagger_doc_gen(func):
+    def swagger_doc_gen(func: Any) -> Any:
         """
         Decorator used to document relationship methods exposed in the API
         """
@@ -507,7 +507,7 @@ def swagger_relationship_doc(cls, tags=None):
         else:
             doc_tags = tags
 
-        doc = {"tags": doc_tags}
+        doc: dict[str, Any] = {"tags": doc_tags}
         doc.update(parse_object_doc(func))
 
         responses = {}
@@ -524,7 +524,7 @@ def swagger_relationship_doc(cls, tags=None):
             child_sample_id = child_class._s_sample_id()
 
             _, responses = child_class._s_get_swagger_doc("patch")
-            data = {"type": child_class._s_type, "id": child_sample_id}
+            data: Any = {"type": child_class._s_type, "id": child_sample_id}
 
             if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
                 # tomany relationships only return a 204 accepted
@@ -592,17 +592,17 @@ def swagger_relationship_doc(cls, tags=None):
     return swagger_doc_gen
 
 
-def swagger_method_doc(cls, method_name, tags=None):
+def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
     """
     Generate decorator used to document SAFRSJSONRPCAPI instances
     """
 
-    def swagger_doc_gen(func):
+    def swagger_doc_gen(func: Any) -> Any:
         """
         decorator
         """
         method = getattr(cls, method_name, None)
-        method_doc = parse_object_doc(method)
+        method_doc = parse_object_doc(cast(Any, method))
         class_name = cls.__name__
         if tags is None:
             doc_tags = [cls._s_collection_name]
@@ -649,7 +649,7 @@ def swagger_method_doc(cls, method_name, tags=None):
     return swagger_doc_gen
 
 
-def default_paging_parameters() -> List[Dict[str, Union[int, str, bool]]]:
+def default_paging_parameters() -> list[dict[str, Any]]:
     """
     default_paging_parameters
     """
@@ -679,7 +679,7 @@ def default_paging_parameters() -> List[Dict[str, Union[int, str, bool]]]:
     return parameters
 
 
-def apply_fstring(swagger_obj, vars, k=None):
+def apply_fstring(swagger_obj: Any, vars: Any, k: Any=None) -> Any:
     """
     Format the f-strings in the swagger object
     """

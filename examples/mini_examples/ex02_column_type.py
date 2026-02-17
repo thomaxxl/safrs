@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # column type example: declare a column type for input validation and serialization
 #
@@ -18,10 +19,10 @@ class EmailType(TypeDecorator):
 
     impl = db.String(767)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         super(*args, **kwargs)
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self: Any, value: Any, dialect: Any) -> Any:
         if "@" not in value:
             raise ValidationError(f"Email Validation Error {value}")
 
@@ -39,14 +40,14 @@ class User(SAFRSBase, db.Model):
     email = db.Column(EmailType)
 
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

@@ -1,3 +1,4 @@
+from typing import Any
 #
 # Implementation using geoalchemy column types
 # Documentation:
@@ -25,7 +26,7 @@ class GeoJSONEncoder(SAFRSJSONEncoder):
     json encode geometry shapes
     """
 
-    def default(self, obj, **kwargs):
+    def default(self: Any, obj: Any, **kwargs: Any) -> Any:
         if isinstance(obj, _SpatialElement):
             result = geometry.mapping(to_shape(obj))
             return result
@@ -55,24 +56,24 @@ class City(SAFRSBase, db.Model):
     location = db.Column(db.String(30), default="Gotham City")
     geo = GeometryColumn(Geometry(geometry_type="POINT", srid=25833, dimension=2))
 
-    def ___init__(self, *args, **kwargs):
+    def ___init__(self: Any, *args: Any, **kwargs: Any) -> Any:
         # convert the json to geometry database type
         # (this can be implemented in the GeometryColumn type.python_type too)
         geo = kwargs.get("geo")
         kwargs["geo"] = str(to_shape(from_shape(geometry.shape(geo))))
         super().__init__(*args, **kwargs)
 
-    def __repr__(self):
+    def __repr__(self: Any) -> Any:
         return f"<City {self.location}"
 
     __str__ = __repr__
 
-    def get_cities_within_radius(self, radius):
+    def get_cities_within_radius(self: Any, radius: Any) -> Any:
         """Return all cities within a given radius (in meters) of this city."""
         return City.query.filter(func.ST_Distance_Sphere(City.geo, self.geo) < radius).all()
 
 
-def connect_to_db(app):
+def connect_to_db(app: Any) -> Any:
     """Connect the database to Flask app."""
 
     app.config["SQLALCHEMY_DATABASE_URI"] = "postgres:///testgis"
@@ -82,7 +83,7 @@ def connect_to_db(app):
     db.init_app(app)
 
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX, json_encoder=GeoJSONEncoder)
     api.expose_object(City)
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")

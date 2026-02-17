@@ -22,9 +22,9 @@ from ._safrs_relationship import SAFRSRelationshipObject
 from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import current_app, Response
 import json
-import yaml
+import yaml  # type: ignore[import-untyped]
 from flask.app import Flask
-from typing import Callable, Type
+from typing import Any, Callable, Optional, Type, cast
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
@@ -37,22 +37,12 @@ class SAFRSAPI(FRSApiBase):
     documentation
     """
 
-    _operation_ids = {}
-    _custom_swagger = {}
-    _als_resources = []
+    _operation_ids: dict[str, int] = {}
+    _custom_swagger: dict[str, Any] = {}
+    _als_resources: list[Any] = []
     client_uri = ""
 
-    def __init__(
-        self,
-        app: Flask,
-        host: str = "localhost",
-        port: int = 5000,
-        prefix: str = "",
-        description: str = "SAFRSAPI",
-        json_encoder: Type[SAFRSJSONProvider] = None,
-        swaggerui_blueprint: bool = True,
-        **kwargs,
-    ) -> None:
+    def __init__(self: Any, app: Flask, host: str='localhost', port: int=5000, prefix: str='', description: str='SAFRSAPI', json_encoder: Optional[Type[SAFRSJSONProvider]]=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
         """
         http://jsonapi.org/format/#content-negotiation-servers
         Servers MUST send all JSON:API data in response documents with
@@ -88,20 +78,20 @@ class SAFRSAPI(FRSApiBase):
             **kwargs,
         )
         app.json = SAFRSJSONProvider(app)
-        app.json_encoder = SAFRSJSONEncoder  # deprecated, but used by the swaggerui blueprint
+        app.json_encoder = SAFRSJSONEncoder  # type: ignore[attr-defined]  # deprecated, but used by the swaggerui blueprint
         self.init_app(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()
         SAFRSAPI.client_uri = host
 
-    def update_spec(self) -> None:
+    def update_spec(self: Any) -> None:
         """
         :param custom_swagger: swagger spec to be added to the swagger.json
         """
         _swagger_doc = self.get_swagger_doc()
         safrs.dict_merge(_swagger_doc, self._custom_swagger)
 
-    def expose_object(self, safrs_object, url_prefix="", **properties):
+    def expose_object(self: Any, safrs_object: Any, url_prefix: Any='', **properties: Any) -> Any:
         """This methods creates the API url endpoints for the SAFRObjects
         :param safrs_object: SAFSBase subclass that we would like to expose
         :param url_prefix: url prefix
@@ -135,7 +125,7 @@ class SAFRSAPI(FRSApiBase):
 
         # Expose the collection: Create the class and decorate it
         api_class_name = f"{safrs_object._s_type}_API"  # name for dynamically generated classes
-        RESOURCE_URL_FMT = get_config("RESOURCE_URL_FMT")  # configurable resource collection url formatter
+        RESOURCE_URL_FMT = cast(str, get_config("RESOURCE_URL_FMT"))  # configurable resource collection url formatter
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
         swagger_decorator = swagger_doc(safrs_object) if self.swaggerui_blueprint else lambda x: x
         api_class = api_decorator(type(api_class_name, (rest_api,), properties), swagger_decorator)
@@ -143,7 +133,7 @@ class SAFRSAPI(FRSApiBase):
         safrs.log.info(f"Exposing {safrs_object._s_collection_name} on {url}, endpoint: {endpoint}")
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
-        INSTANCE_URL_FMT = get_config("INSTANCE_URL_FMT")
+        INSTANCE_URL_FMT = cast(str, get_config("INSTANCE_URL_FMT"))
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.__name__)
         endpoint = safrs_object.get_endpoint(type="instance")
 
@@ -177,14 +167,14 @@ class SAFRSAPI(FRSApiBase):
         self.update_spec()
         self._als_resources.append(safrs_object)
 
-    def expose(self, *safrs_objects, url_prefix="", **properties):
+    def expose(self: Any, *safrs_objects: Any, url_prefix: Any='', **properties: Any) -> Any:
         """
         Expose multiple objects at once
         """
         for obj in safrs_objects:
             self.expose_object(obj, url_prefix, **properties)
 
-    def expose_methods(self, url_prefix, tags, safrs_object, properties):
+    def expose_methods(self: Any, url_prefix: Any, tags: Any, safrs_object: Any, properties: Any) -> Any:
         """
         Expose the safrs "documented_api_method" decorated methods
         :param url_prefix: api url prefix
@@ -201,14 +191,14 @@ class SAFRSAPI(FRSApiBase):
                 or getattr(api_method, "__self__", None) is safrs_object
             ):
                 # method is a classmethod or static method, make it available at the class level
-                CLASSMETHOD_URL_FMT = get_config("CLASSMETHOD_URL_FMT")
+                CLASSMETHOD_URL_FMT = cast(str, get_config("CLASSMETHOD_URL_FMT"))
                 url = CLASSMETHOD_URL_FMT.format(url_prefix, safrs_object._s_collection_name, method_name)
             else:
                 # expose the method at the instance level
-                INSTANCEMETHOD_URL_FMT = get_config("INSTANCEMETHOD_URL_FMT")
+                INSTANCEMETHOD_URL_FMT = cast(str, get_config("INSTANCEMETHOD_URL_FMT"))
                 url = INSTANCEMETHOD_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object._s_object_id, method_name)
 
-            ENDPOINT_FMT = get_config("ENDPOINT_FMT")
+            ENDPOINT_FMT = cast(str, get_config("ENDPOINT_FMT"))
             endpoint = ENDPOINT_FMT.format(url_prefix, safrs_object._s_collection_name + "." + method_name)
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties.update({"method_name": method_name, "http_methods": safrs_object.http_methods})
@@ -217,7 +207,7 @@ class SAFRSAPI(FRSApiBase):
             safrs.log.info(f"Exposing method {meth_name} on {url}, endpoint: {endpoint}")
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
 
-    def expose_relationship(self, relationship, url_prefix, tags, properties):
+    def expose_relationship(self: Any, relationship: Any, url_prefix: Any, tags: Any, properties: Any) -> Any:
         """
         Expose a relationship tp the REST API:
         A relationship consists of a parent and a target class
@@ -250,11 +240,11 @@ class SAFRSAPI(FRSApiBase):
         parent_name = parent_class.__name__
 
         # Name of the endpoint class
-        RELATIONSHIP_URL_FMT = get_config("RELATIONSHIP_URL_FMT")
+        RELATIONSHIP_URL_FMT = cast(str, get_config("RELATIONSHIP_URL_FMT"))
         api_class_name = API_CLASSNAME_FMT.format(parent_name, rel_name)
         url = RELATIONSHIP_URL_FMT.format(url_prefix, rel_name)
 
-        ENDPOINT_FMT = get_config("ENDPOINT_FMT")
+        ENDPOINT_FMT = cast(str, get_config("ENDPOINT_FMT"))
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
@@ -311,11 +301,16 @@ class SAFRSAPI(FRSApiBase):
 
         safrs.log.info(f"Exposing {parent_name} relationship {rel_name} on {url}, endpoint: {endpoint}")
         self.add_resource(
-            api_class, url, relationship=rel_object.relationship, endpoint=endpoint, methods=["GET", "PATCH", "DELETE"], deprecated=True
+            api_class,
+            url,
+            relationship=cast(Any, rel_object).relationship,
+            endpoint=endpoint,
+            methods=["GET", "PATCH", "DELETE"],
+            deprecated=True,
         )
 
     @staticmethod
-    def get_resource_methods(resource, ordered_methods=None):
+    def get_resource_methods(resource: Any, ordered_methods: Any=None) -> Any:
         """
         :param ordered_methods:
         :return: the http methods from the SwaggerEndpoint and SAFRS Resources,
@@ -331,7 +326,7 @@ class SAFRSAPI(FRSApiBase):
         resource_methods = [m.lower() for m in ordered_methods if m in resource.methods and m.upper() in om]
         return resource_methods
 
-    def add_resource(self, resource, *urls, **kwargs):
+    def add_resource(self: Any, resource: Any, *urls: Any, **kwargs: Any) -> Any:
         """
         This method is partly copied from flask_restful_swagger_2/__init__.py
 
@@ -339,9 +334,9 @@ class SAFRSAPI(FRSApiBase):
         We also have to filter out the unwanted parameters
         """
         relationship = kwargs.pop("relationship", False)  # relationship object
-        SAFRS_INSTANCE_SUFFIX = get_config("OBJECT_ID_SUFFIX") + "}"
+        SAFRS_INSTANCE_SUFFIX = cast(str, get_config("OBJECT_ID_SUFFIX")) + "}"
 
-        path_item = {}
+        path_item: dict[str, Any] = {}
         self._add_oas_resource_definitions(resource, path_item)
         is_jsonapi_rpc = kwargs.pop("jsonapi_rpc", False)  # check if the exposed method is a jsonapi_rpc method
         deprecated = kwargs.pop("deprecated", False)  # deprecated functionality: still working but not shown in swagger
@@ -385,7 +380,8 @@ class SAFRSAPI(FRSApiBase):
                 if not exposing_instance and collection_summary:
                     method_doc["summary"] = collection_summary
 
-                method_doc["operationId"] = self._get_operation_id(path_item.get(method).get("summary", ""))
+                path_item_method = cast(dict[str, Any], path_item.get(method))
+                method_doc["operationId"] = self._get_operation_id(path_item_method.get("summary", ""))
 
                 self._add_oas_req_params(resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url)
                 self._add_oas_references(resource.SAFRSObject, path_item, method, exposing_instance, relationship)
@@ -412,7 +408,7 @@ class SAFRSAPI(FRSApiBase):
         # pylint: disable=bad-super-call
         super(FRSApiBase, self).add_resource(resource, *urls, **kwargs)
 
-    def _add_oas_req_params(self, resource, path_item, method, exposing_instance, is_jsonapi_rpc, swagger_url):
+    def _add_oas_req_params(self: Any, resource: Any, path_item: Any, method: Any, exposing_instance: Any, is_jsonapi_rpc: Any, swagger_url: Any) -> Any:
         """
         Add the request parameters to the swagger (filter, sort)
         """
@@ -450,7 +446,7 @@ class SAFRSAPI(FRSApiBase):
         method_doc["parameters"] = list(unique_params.values())
         path_item[method] = method_doc
 
-    def _add_oas_references(self, safrs_object, path_item, method, exposing_instance, relationship):
+    def _add_oas_references(self: Any, safrs_object: Any, path_item: Any, method: Any, exposing_instance: Any, relationship: Any) -> Any:
         """
         substitute the swagger references in the response objects
         references are created and added to the safrs_object.swagger_models in swagger_doc
@@ -496,7 +492,7 @@ class SAFRSAPI(FRSApiBase):
                 response["201"]["schema"] = coll_ref
             response["201"]["schema"].pop("type", None)
 
-    def _add_oas_resource_definitions(self, resource, path_item):
+    def _add_oas_resource_definitions(self: Any, resource: Any, path_item: Any) -> Any:
         """
         add the resource method schema references to the swagger "definitions"
         :param resource:
@@ -529,7 +525,7 @@ class SAFRSAPI(FRSApiBase):
         self._swagger_object["definitions"].update(definitions)
 
     @classmethod
-    def _get_operation_id(cls, summary: str) -> str:
+    def _get_operation_id(cls: Any, summary: str) -> str:
         """
         :param summary:
         """
@@ -540,11 +536,11 @@ class SAFRSAPI(FRSApiBase):
             cls._operation_ids[summary] += 1
         return f"{summary}_{cls._operation_ids[summary]}"
 
-    def expose_als_schema(self, api_root="/api", schema_loc="/als_schema"):
+    def expose_als_schema(self: Any, api_root: Any='/api', schema_loc: Any='/als_schema') -> Any:
         """
         Generate the resource specification for apilogicserver
         """
-        resources = {}
+        resources: dict[str, Any] = {}
         result = {"resources": resources, "api_root": api_root}
         for resource in self._als_resources:
             resource_data = {"type": resource._s_type, "label": None}
@@ -569,7 +565,7 @@ class SAFRSAPI(FRSApiBase):
             resources[resource._s_collection_name] = resource_data
 
         class ApiSchema(Resource):
-            def get(self):
+            def get(self: Any) -> Any:
                 if request.args.get("yaml"):
                     return Response(yaml.dump(result), content_type="text/yaml")
                 return result
@@ -578,7 +574,7 @@ class SAFRSAPI(FRSApiBase):
         return json.dumps(result, indent=4)
 
 
-def api_decorator(cls, swagger_decorator):
+def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
     """Decorator for the API views:
         - add swagger documentation ( swagger_decorator )
         - add cors
@@ -658,17 +654,17 @@ def http_method_decorator(fun: Callable) -> Callable:
     """
 
     @wraps(fun)
-    def method_wrapper(*args, **kwargs):
+    def method_wrapper(*args: Any, **kwargs: Any) -> Any:
         """Wrap the method and perform error handling
         :param *args:
         :param **kwargs:
         :return: result of the wrapped method
         """
-        safrs_exception = None
-        status_code = 500
-        message = ""
+        safrs_exception: Any = None
+        status_code: int = 500
+        message: str = ""
         try:
-            if not request.is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
+            if not cast(Any, request).is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
                 # reuire jsonapi content type for requests to these routes
                 raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
             result = fun(*args, **kwargs)
@@ -686,8 +682,8 @@ def http_method_decorator(fun: Callable) -> Callable:
             safrs_exception = exc
 
         except werkzeug.exceptions.HTTPException as exc:
-            status_code = exc.code
-            message = exc.description
+            status_code = cast(int, exc.code)
+            message = cast(str, exc.description)
             safrs.log.error(message)
 
         except Exception as exc:

@@ -9,6 +9,7 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 "Content-Type: application/vnd.api+json" with any media type parameters.
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 """
+from typing import Any
 
 import re
 from flask import Request, abort
@@ -28,15 +29,15 @@ class SAFRSRequest(Request):
     - body: valid json
     """
 
-    jsonapi_content_types = ["application/json", "application/vnd.api+json"]
-    is_jsonapi = False  # indicates whether this is a jsonapi request
-    _extensions = set()
-    filters = {}
-    filter = ""  # filter is the custom filter, used as an argument by _s_filter
-    includes = []
-    secure = True
+    jsonapi_content_types: list[str] = ["application/json", "application/vnd.api+json"]
+    is_jsonapi: bool = False  # indicates whether this is a jsonapi request
+    _extensions: set[str] = set()
+    filters: dict[str, str] = {}
+    filter: str = ""  # filter is the custom filter, used as an argument by _s_filter
+    includes: list[str] = []
+    secure: bool = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         constructor
         """
@@ -44,7 +45,7 @@ class SAFRSRequest(Request):
         self.parse_content_type()
         self.parse_jsonapi_args()
 
-    def parse_content_type(self):
+    def parse_content_type(self: Any) -> Any:
         """
         Check if the request content type is jsonapi and any requested extensions
         """
@@ -60,13 +61,13 @@ class SAFRSRequest(Request):
 
         extensions = self.content_type.split(";")[1:]
         for ext in extensions:
-            ext = ext.strip().split("=")
-            if ext[0] == "ext" and ext[1:]:
-                ext_name = ext[1]
+            parsed_ext = ext.strip().split("=")
+            if parsed_ext[0] == "ext" and parsed_ext[1:]:
+                ext_name = parsed_ext[1]
                 self._extensions.add(ext_name)
 
     @property
-    def page_offset(self):
+    def page_offset(self: Any) -> Any:
         """
         :return: page offset requested by the client when fetching lists
 
@@ -83,7 +84,7 @@ class SAFRSRequest(Request):
             page_offset = page_number * page_size
         return page_offset
 
-    def get_page_offset(self, rel_name):
+    def get_page_offset(self: Any, rel_name: Any) -> Any:
         """
         get the page offset for the included relationship resource
         :param rel_name: name of the relationship
@@ -97,7 +98,7 @@ class SAFRSRequest(Request):
         return page_offset
 
     @property
-    def page_limit(self):
+    def page_limit(self: Any) -> Any:
         """
         get the page limit for the included relationship resource
         :param rel_name: name of the relationship
@@ -108,20 +109,20 @@ class SAFRSRequest(Request):
             return self.args.get("page[size]", type=int)
         return page_limit
 
-    def get_page_limit(self, rel_name):
+    def get_page_limit(self: Any, rel_name: Any) -> Any:
         page_limit = self.args.get(f"page[{rel_name}][limit]", self.page_limit, type=int)
         if "page[{rel_name}][number]" in self.args and "page[{rel_name}][size]" in self.args:
             return self.args.get("page[{rel_name}][size]", type=int)
         return page_limit
 
     @property
-    def is_bulk(self):
+    def is_bulk(self: Any) -> Any:
         """
         jsonapi bulk extension, http://springbot.github.io/json-api/extensions/bulk/
         """
         return "bulk" in self._extensions
 
-    def get_jsonapi_payload(self):
+    def get_jsonapi_payload(self: Any) -> Any:
         """
         :return: jsonapi request payload
         """
@@ -137,7 +138,7 @@ class SAFRSRequest(Request):
             raise ValidationError(f"Invalid JSON Payload : {result}")
         return result
 
-    def parse_jsonapi_args(self):
+    def parse_jsonapi_args(self: Any) -> Any:
         """
         parse the jsonapi request arguments:
         - page[offset]

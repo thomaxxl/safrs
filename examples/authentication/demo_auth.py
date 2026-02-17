@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 #
 # This application demonstrates how access control can be implemented for
 # flask-restful API endpoints
@@ -19,7 +20,7 @@ auth = HTTPBasicAuth()
 
 
 @auth.verify_password
-def verify_password(username_or_token, password):
+def verify_password(username_or_token: Any, password: Any) -> Any:
     # Implement your authentication here
     if username_or_token == "user" and password == "pass":
         return True
@@ -37,7 +38,7 @@ class User(SAFRSBase, db.Model):
     username = db.Column(db.String(32))
 
 
-def start_app(app):
+def start_app(app: Any) -> Any:
 
     api = SAFRSAPI(app, host=HOST)
     # The method_decorators will be applied to all API endpoints

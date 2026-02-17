@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # `to_dict` example
 #
@@ -19,20 +20,20 @@ class User(SAFRSBase, db.Model):
     name = db.Column(db.String)
     email = db.Column(db.String)
 
-    def to_dict(self):
+    def to_dict(self: Any) -> Any:
         result = super().to_dict()
         result[1] = 2
         return {1: 2}
 
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

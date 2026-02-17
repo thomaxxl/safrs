@@ -11,6 +11,7 @@ curl http://localhost:5000/swagger.json > examples/mini_examples/custom_swagger.
 run: python ex12_swagger.py
 
 """
+from typing import Any
 import sys
 import json
 from pathlib import Path
@@ -46,7 +47,7 @@ class Book(SAFRSBase, db.Model):
     user = db.relationship("User", back_populates="books")
 
 
-def create_api(app, host="localhost", port=5000, api_prefix="", custom_swagger={}):
+def create_api(app: Any, host: Any='localhost', port: Any=5000, api_prefix: Any='', custom_swagger: Any={}) -> Any:
     """
     The custom_swagger dictionary will be merged
     """
@@ -56,7 +57,7 @@ def create_api(app, host="localhost", port=5000, api_prefix="", custom_swagger={
     print(f"Created API: http://{host}:{port}/{api_prefix}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

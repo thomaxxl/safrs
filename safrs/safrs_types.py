@@ -1,4 +1,5 @@
 # Some custom types for db columns and jsonapi id coding
+from typing import Any
 import uuid
 import datetime
 import hashlib
@@ -29,14 +30,14 @@ class SAFRSID:
     delimiter = "_"
     parent_class = None
 
-    def __new__(cls, id=None):
+    def __new__(cls: Any, id: Any=None) -> Any:
         if id is None:
             return cls.gen_id()
         else:
             return cls.validate_id(id)
 
     @classmethod
-    def gen_id(cls):
+    def gen_id(cls: Any) -> Any:
         """
         Generate a jsonapi id
         """
@@ -59,7 +60,7 @@ class SAFRSID:
         return str(uuid.uuid4())
 
     @classmethod
-    def validate_id(cls, id):
+    def validate_id(cls: Any, id: Any) -> Any:
         """
         Validate a given id (eg. check if it's a valid uuid, email etc.)
         """
@@ -76,14 +77,14 @@ class SAFRSID:
         return result
 
     @property
-    def name(self):
+    def name(self: Any) -> Any:
         """
         name
         """
         return self.delimiter.join(self.primary_keys)
 
     @classmethod
-    def get_id(cls, obj):
+    def get_id(cls: Any, obj: Any) -> Any:
         """
         Retrieve the id string derived from the pks of obj
         """
@@ -99,7 +100,7 @@ class SAFRSID:
         return pk
 
     @classmethod
-    def get_pks(cls, jsonapi_id):
+    def get_pks(cls: Any, jsonapi_id: Any) -> Any:
         """
         Convert the jsonapi_id string to a pk dict
         in case the PK is composite it consists of PKs joined by cls.delimiter
@@ -135,14 +136,14 @@ class SAFRSID:
         return result
 
     @classproperty
-    def column_names(cls):
+    def column_names(cls: Any) -> Any:
         """
         :return: a list of columns names of this id type
         """
         return [c.name for c in cls.columns]
 
     @classmethod
-    def extract_pks(cls, kw_dict):
+    def extract_pks(cls: Any, kw_dict: Any) -> Any:
         """
         Extract the primary keys from kw_dict (these are the kwargs passed to SAFRSBase.new())
         In case of composite keys we construct the jsonapi_id by using the delimiter to join the values
@@ -153,7 +154,7 @@ class SAFRSID:
         return cls.get_pks(id)
 
     @classmethod
-    def sample_id(cls, obj):
+    def sample_id(cls: Any, obj: Any) -> Any:
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return 0
         sample = None
@@ -168,11 +169,12 @@ class SAFRSID:
         return "jsonapi_id_string"
 
 
-def get_id_type(cls, Super=SAFRSID, delimiter="_"):
+def get_id_type(cls: Any, Super: Any=SAFRSID, delimiter: Any='_') -> Any:
     """
     get_id_type
     """
-    primary_keys = columns = ["id"]
+    primary_keys: list[str] = ["id"]
+    columns: list[Any] = ["id"]
     if hasattr(cls, "__table__"):
         columns = [col for col in cls.__table__.columns if col.primary_key]
         primary_keys = [cls.colname_to_attrname(col.name) for col in columns]
@@ -189,7 +191,7 @@ class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
     """
 
     @classmethod
-    def gen_id(cls):
+    def gen_id(cls: Any) -> Any:
         """
         Create a hash based on the current time
         This is just an example
@@ -199,7 +201,7 @@ class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
         return hashlib.sha256(now).hexdigest()
 
     @classmethod
-    def validate_id(cls, _id):
+    def validate_id(cls: Any, _id: Any) -> Any:
         """
         validate_id
         """
@@ -214,16 +216,16 @@ class JSONType(PickleType):  # pragma: no cover
 
     impl = BLOB
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         # kwargs['pickler'] = json
         super(JSONType, self).__init__(*args, **kwargs)
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self: Any, value: Any, dialect: Any) -> Any:
         if value is not None:
             value = json.dumps(value, ensure_ascii=True)
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self: Any, value: Any, dialect: Any) -> Any:
         if value is not None:
             value = json.loads(value)
         return value
@@ -236,17 +238,16 @@ class SafeString(TypeDecorator):  # pragma: no cover
 
     impl = String(767)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         super(SafeString, self).__init__(*args, **kwargs)
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self: Any, value: Any, dialect: Any) -> Any:
+        result: Any = value
         if value is not None:
             result = re.sub(STRIP_SPECIAL, "_", value)
             if str(result) != str(value):
                 # log.warning('({}) Replaced {} by {}'.format(self, value, result))
                 pass
-        else:
-            result = value
 
         return result
 
@@ -258,11 +259,11 @@ class UUIDType(TypeDecorator):  # pragma: no cover
 
     impl = String(40)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         super(UUIDType, self).__init__(*args, **kwargs)
 
     @staticmethod
-    def process_bind_param(value, dialect):
+    def process_bind_param(value: Any, dialect: Any) -> Any:
         try:
             uuid.UUID(value, version=4)
         except Exception as exc:

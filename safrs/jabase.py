@@ -1,3 +1,4 @@
+from typing import Any
 from .base import SAFRSBase
 from .util import classproperty
 
@@ -7,13 +8,13 @@ class JABase(SAFRSBase):
     description: Stateless class example
     """
 
-    instances = []
+    instances: list[Any] = []
 
     _s_url = "https://safrs/.."
-    _s_relationships = {}
+    _s_relationships: dict[str, Any] = {}
     _s_query = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """
         override SAFRSBase.__new__
         """
@@ -21,7 +22,7 @@ class JABase(SAFRSBase):
         cls.instances.append(result)
         return result
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
         """
@@ -29,7 +30,7 @@ class JABase(SAFRSBase):
         # self.name = kwargs.get("name")
 
     @classproperty
-    def s_type(cls):
+    def s_type(cls: Any) -> Any:
         """
         Implementations should override this to provide custom types
 
@@ -38,30 +39,30 @@ class JABase(SAFRSBase):
         return "JAType_" + cls.__name__
 
     @classmethod
-    def get(cls, *args, **kwargs):
+    def get(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """
         description: JA GET
         """
         return {}
 
-    def patch(self, *args, **kwargs):
+    def patch(self: Any, *args: Any, **kwargs: Any) -> Any:
         """
         description: JA PATCH
         """
         return {}
 
-    def delete(self):
+    def delete(self: Any) -> Any:
         """
         Called for a HTTP DELETE
         """
         return None
 
     @property
-    def jsonapi_id(self):
+    def jsonapi_id(self: Any) -> Any:
         return self.id
 
     @classmethod
-    def _s_count(cls):
+    def _s_count(cls: Any) -> Any:
         """
         jsonapi response count parameter
         """

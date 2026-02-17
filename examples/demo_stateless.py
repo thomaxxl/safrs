@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 #
 # This example shows how you can implement a SAFRSBase object (the Test class)
 # without a SQLAlchemy model
@@ -55,25 +56,25 @@ class TestQuery:
     We emulate them here
     """
 
-    def first(cls):
+    def first(cls: Any) -> Any:
         return Test(name="name 0")
 
-    def filter_by(cls, *args, **kwargs):
+    def filter_by(cls: Any, *args: Any, **kwargs: Any) -> Any:
         return cls
 
-    def count(cls, *args, **kwargs):
+    def count(cls: Any, *args: Any, **kwargs: Any) -> Any:
         return 100
 
-    def offset(cls, offset):
+    def offset(cls: Any, offset: Any) -> Any:
         return cls
 
-    def limit(cls, limit):
+    def limit(cls: Any, limit: Any) -> Any:
         return cls
 
-    def all(cls):
+    def all(cls: Any) -> Any:
         return [Test(name="name")]
 
-    def order_by(cls, attr_name):
+    def order_by(cls: Any, attr_name: Any) -> Any:
         return cls
 
 
@@ -87,10 +88,10 @@ class TestBookRelationship:
     mapper = Mapper
     _target = [Book]
 
-    def __init__(self, parent):
+    def __init__(self: Any, parent: Any) -> None:
         self.parent = parent
 
-    def __iter__(self):
+    def __iter__(self: Any) -> Any:
         """
         yield items from the collection that should be in the relationship
         """
@@ -109,13 +110,13 @@ class Test(SAFRSBase):
     my_custom_field = ""
     books = TestBookRelationship
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """
         override SAFRSBase.__new__
         """
         return object.__new__(cls)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
         """
@@ -123,43 +124,43 @@ class Test(SAFRSBase):
         self.name = kwargs.get("name")
 
     @classproperty
-    def _s_type(cls):
+    def _s_type(cls: Any) -> Any:
         """
         json:api type
         """
         return cls.ja_type
 
     @classproperty
-    def _s_query(cls):
+    def _s_query(cls: Any) -> Any:
         """
         query placeholder
         """
         return TestQuery()
 
     @classproperty
-    def _s_relationships(cls):
+    def _s_relationships(cls: Any) -> Any:
         """
         return the included relationships
         """
         return {"books": cls.books}
 
     @jsonapi_attr
-    def name(self):
+    def name(self: Any) -> Any:
         return "My Name"
 
     @jsonapi_attr
-    def my_custom_field(self):
+    def my_custom_field(self: Any) -> Any:
         return -1
 
     @classproperty
-    def _s_url(self):
+    def _s_url(self: Any) -> Any:
         """
         The URL to return in the jsonapi "links" parameter
         """
         return "http://safrs-example.com/api/Test"
 
     @classmethod
-    def get_instance(cls, id, failsafe=False):
+    def get_instance(cls: Any, id: Any, failsafe: Any=False) -> Any:
         """
         return the instance specified by id
         """
@@ -167,7 +168,7 @@ class Test(SAFRSBase):
         return result
 
     @classproperty
-    def class_(cls):
+    def class_(cls: Any) -> Any:
         return cls
 
 
@@ -182,7 +183,7 @@ from flask import jsonify
 
 
 @app.route("/tt")
-def test():
+def test() -> Any:
     data = [{k: v} for k, v in zip(["key1", "key2"], ["a", "b"])]
     return jsonify({"data": data})
 

@@ -14,7 +14,7 @@ class jsonapi_attr(hybrid_property):
     hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         :param attr: `SAFRSBase` attribute that should be exposed by the jsonapi
         :return: jsonapi attribute decorator
@@ -36,14 +36,14 @@ class jsonapi_attr(hybrid_property):
             kwargs.pop("default", None)
         super().__init__(*args, **kwargs)
 
-    def getter(self, fget):
+    def getter(self: Any, fget: Any) -> Any:
         """
         Provide a decorator that defines a getter method.
         """
 
         return self._copy(fget=fget)
 
-    def setter(self, fset):
+    def setter(self: Any, fset: Any) -> Any:
         """
         Provide a decorator that defines a setter method.
         """

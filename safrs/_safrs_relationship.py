@@ -10,13 +10,12 @@ class SAFRSRelationshipObject:
     so we can call the same methods on a relationship target as we do when using SAFRSBase.
     """
 
-    _s_class_name: str = None
     __name__: str = "name"
-    http_methods: set = {"GET", "POST", "PATCH", "DELETE"}
+    http_methods: set[str] = {"GET", "POST", "PATCH", "DELETE"}
     swagger_models: Dict[str, Any] = {"instance": None, "collection": None}
 
     @classmethod
-    def _s_get_swagger_doc(cls, http_method: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def _s_get_swagger_doc(cls: Any, http_method: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Create a swagger API model based on the SQLAlchemy schema.
         If an instance exists in the DB, the first entry is used as an example.
@@ -40,28 +39,28 @@ class SAFRSRelationshipObject:
         return body, responses
 
     @classproperty
-    def _s_relationships(cls) -> Any:
+    def _s_relationships(cls: Any) -> Any:
         """
         :return: The relationship names of the target
         """
         return cls._target._s_relationships
 
     @classproperty
-    def _s_jsonapi_attrs(cls) -> Any:
+    def _s_jsonapi_attrs(cls: Any) -> Any:
         """
         :return: Target JSON:API attributes
         """
         return cls._target._s_jsonapi_attrs
 
     @classproperty
-    def _s_type(cls) -> str:
+    def _s_type(cls: Any) -> str:
         """
         :return: JSON:API type
         """
         return cls._target._s_type
 
     @classproperty
-    def _s_class_name(cls) -> str:
+    def _s_class_name(cls: Any) -> str:
         """
         :return: Name of the target class
         """

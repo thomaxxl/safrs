@@ -10,7 +10,7 @@ from .jsonapi_filters import FilteringStrategy
 from functools import wraps
 import safrs
 import flask.app
-from typing import Any, Dict, Union
+from typing import Any
 
 
 class SAFRS:
@@ -39,12 +39,12 @@ class SAFRS:
     MAX_TABLE_COUNT = 10**7  # table counts will become really slow for large tables, inform the user about it using this
     INCLUDE_ALL = "+all"  # include= url query argument that tells us to include all related resources
     #
-    config = {}
+    config: dict[str, Any] = {}
     filtering_strategy = FilteringStrategy()
 
     OPTIMIZED_LOADING = True
 
-    def __init__(self, app: flask.app.Flask, *args, **kwargs) -> None:
+    def __init__(self: Any, app: flask.app.Flask, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
         """
@@ -52,16 +52,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(
-        self,
-        app: flask.app.Flask,
-        host: str = "localhost",
-        port: int = 5000,
-        prefix: str = "",
-        app_db: None = None,
-        swaggerui_blueprint: bool = True,
-        **kwargs,
-    ) -> None:
+    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: Any=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
         """
         API and application initialization
         """
@@ -82,10 +73,10 @@ class SAFRS:
 
         # Register the API blueprint
         if swaggerui_blueprint is True:
-            swaggerui_blueprint = get_swaggerui_blueprint(
+            swagger_bp = get_swaggerui_blueprint(
                 prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
-            app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
+            app.register_blueprint(swagger_bp, url_prefix=prefix)
 
         for conf_name, conf_val in kwargs.items():
             setattr(SAFRS, conf_name, conf_val)
@@ -94,11 +85,11 @@ class SAFRS:
             setattr(SAFRS, conf_name, conf_val)
 
         @app.before_request
-        def handle_invalid_usage():
+        def handle_invalid_usage() -> Any:
             return
 
         @app.before_request
-        def init_ja_data():
+        def init_ja_data() -> Any:
             # ja_data holds all data[] instances that will be encoded
             # ja_included holds all included instances
             g.ja_data = set()
@@ -106,7 +97,7 @@ class SAFRS:
 
         # pylint: disable=unused-argument,unused-variable
         @app.teardown_appcontext
-        def shutdown_session(exception=None):
+        def shutdown_session(exception: Any=None) -> Any:
             """cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/"""
             self.db.session.remove()
 
@@ -126,9 +117,7 @@ class SAFRS:
         return log
 
 
-def dict_merge(
-    dct: Any, merge_dct: Union[Dict[str, str], Dict[str, Union[str, Dict[int, Dict[str, str]]]], Dict[int, Dict[str, str]]]
-) -> None:
+def dict_merge(dct: dict[str, Any], merge_dct: dict[Any, Any]) -> None:
     """Recursive dict merge used for creating the swagger spec.
     Inspired by :meth:``dict.update()``, instead of updating only
     top-level keys, dict_merge recurses down into dicts nested
@@ -145,13 +134,13 @@ def dict_merge(
             dct[str(k)] = merge_dct[k]
 
 
-def test_decorator(func):  # pragma: no cover
+def test_decorator(func: Any) -> Any:  # pragma: no cover
     """Example flask-restful decorator that can be used in the "decorators" Api argument
     cfr. https://flask-restful.readthedocs.io/en/latest/api.html#id1
     """
 
     @wraps(func)
-    def api_wrapper(*args, **kwargs):
+    def api_wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
 
     if func.__name__.lower() == "get":

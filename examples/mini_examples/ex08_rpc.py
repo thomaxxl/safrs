@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # Example using logicbank database constraints
 #
@@ -23,7 +24,7 @@ class Order(SAFRSBase, db.Model):
 
     @classmethod
     @jsonapi_rpc(http_methods=["POST"])
-    def add_order(self, *args, **kwargs):
+    def add_order(self: Any, *args: Any, **kwargs: Any) -> Any:
         """
         args :
             product_id : 1
@@ -43,7 +44,7 @@ class OrderDetail(SAFRSBase, db.Model):
     order = db.relationship("Order", backref="OrderDetailList")
 
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(Order)
 
@@ -51,7 +52,7 @@ def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

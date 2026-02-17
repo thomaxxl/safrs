@@ -2,11 +2,12 @@
 python -m build
 twine upload dist/*
 """
+from typing import Any
 
 from setuptools import setup, find_packages
 
 
-def safrs_setup():
+def safrs_setup() -> Any:
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
