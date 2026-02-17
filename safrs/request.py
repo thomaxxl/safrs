@@ -9,7 +9,7 @@ Servers MUST respond with a 415 Unsupported Media Type status code if a request 
 "Content-Type: application/vnd.api+json" with any media type parameters.
 This should be implemented by the app, for example using @app.before_request  and @app.after_request
 """
-from typing import Any
+from typing import Any, Optional, cast
 
 import re
 from flask import Request, abort
@@ -17,6 +17,7 @@ from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
 from .errors import ValidationError
+from .jsonapi_types import JSONAPIDocument
 from .safrs_api import HTTP_METHODS
 
 
@@ -35,6 +36,7 @@ class SAFRSRequest(Request):
     filters: dict[str, str] = {}
     filter: str = ""  # filter is the custom filter, used as an argument by _s_filter
     includes: list[str] = []
+    fields: dict[str, list[str]] = {}
     secure: bool = True
 
     def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
@@ -122,7 +124,7 @@ class SAFRSRequest(Request):
         """
         return "bulk" in self._extensions
 
-    def get_jsonapi_payload(self: Any) -> Any:
+    def get_jsonapi_payload(self: Any) -> Optional[JSONAPIDocument]:
         """
         :return: jsonapi request payload
         """
@@ -136,7 +138,7 @@ class SAFRSRequest(Request):
         result = self.get_json()
         if not isinstance(result, dict):
             raise ValidationError(f"Invalid JSON Payload : {result}")
-        return result
+        return cast(JSONAPIDocument, result)
 
     def parse_jsonapi_args(self: Any) -> Any:
         """

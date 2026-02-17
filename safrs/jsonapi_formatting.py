@@ -12,6 +12,7 @@ import sqlalchemy.orm.collections
 import safrs
 from flask import request
 from .jsonapi_attr import is_jsonapi_attr
+from .jsonapi_types import JSONAPIResponseDocument
 from .errors import ValidationError, GenericError
 from .config import get_config, get_request_param
 
@@ -223,7 +224,9 @@ def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:
     return links, instances, count
 
 
-def jsonapi_format_response(data: Any=None, meta: Any=None, links: Any=None, errors: Any=None, count: Any=None, include: Any=None) -> Any:
+def jsonapi_format_response(
+    data: Any=None, meta: Any=None, links: Any=None, errors: Any=None, count: Any=None, include: Any=None
+) -> JSONAPIResponseDocument:
     """
     Create a response dict according to the json:api schema spec
     :param data : the objects that will be serialized
@@ -241,7 +244,7 @@ def jsonapi_format_response(data: Any=None, meta: Any=None, links: Any=None, err
     meta["count"] = meta["total"] = count
 
     jsonapi = dict(version="1.0")
-    result = dict(data=data)
+    result: JSONAPIResponseDocument = dict(data=data)
 
     if errors:
         result["errors"] = errors

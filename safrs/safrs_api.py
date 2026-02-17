@@ -17,6 +17,7 @@ from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_paramet
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
 from .errors import JsonapiError, SystemValidationError, GenericError
 from .config import get_config
+from .request_types import get_jsonapi_request
 from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 from sqlalchemy.orm.interfaces import MANYTOONE
@@ -664,7 +665,7 @@ def http_method_decorator(fun: Callable) -> Callable:
         status_code: int = 500
         message: str = ""
         try:
-            if not cast(Any, request).is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
+            if not get_jsonapi_request(request).is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
                 # reuire jsonapi content type for requests to these routes
                 raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
             result = fun(*args, **kwargs)

@@ -204,6 +204,7 @@ from .config import get_config
 from .jsonapi_filters import jsonapi_filter
 from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
+from .request_types import get_jsonapi_request
 from .util import classproperty
 
 #
@@ -1023,7 +1024,7 @@ class SAFRSBase(Model):
             MAY also contain pagination links under the links member, as described below.
             SAFRS currently implements links with self
             """
-            meta = {}
+            meta: dict[str, Any] = {}
             rel_name = relationship.key
             data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
@@ -1044,7 +1045,7 @@ class SAFRSBase(Model):
                     # Data is optional, it's also really slow for large sets!
                     data = []
                     rel_query = getattr(self, rel_name)
-                    limit = cast(Any, request).get_page_limit(rel_name)
+                    limit = get_jsonapi_request(request).get_page_limit(rel_name)
                     if not get_config("ENABLE_RELATIONSHIPS"):
                         meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
                     elif rel_query:

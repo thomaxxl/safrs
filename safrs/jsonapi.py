@@ -28,14 +28,16 @@ from .swagger_doc import is_public
 from .errors import ValidationError, NotFoundError
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
+from .request_types import get_jsonapi_request
 
 
 def make_response(*args: Any, **kwargs: Any) -> Any:
     """
     Customized flask-restful make_response
     """
+    jsonapi_request = get_jsonapi_request(request)
     response = flask_make_response(*args, **kwargs)
-    if cast(Any, request).is_jsonapi:
+    if jsonapi_request.is_jsonapi:
         # Only use "application/vnd.api+json" if the client sent this with the request
         response.headers["Content-Type"] = "application/vnd.api+json"
     return response
@@ -304,7 +306,7 @@ class SAFRSRestAPI(Resource):
         """
         id = kwargs.get(self._s_object_id, None)
 
-        payload = cast(Any, request).get_jsonapi_payload()
+        payload = get_jsonapi_request(request).get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
 
@@ -408,7 +410,9 @@ class SAFRSRestAPI(Resource):
           A server SHOULD include error details and provide enough
           information to recognize the source of the conflict.
         """
-        payload = cast(Any, request).get_jsonapi_payload()
+        payload = get_jsonapi_request(request).get_jsonapi_payload()
+        if payload is None:
+            raise ValidationError("Request contains no payload")
         id = kwargs.get(self._s_object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
@@ -425,7 +429,7 @@ class SAFRSRestAPI(Resource):
             # http://springbot.github.io/json-api/extensions/bulk/
             # We should verify that the bulk extension is requested
             # Accept it by default now
-            if not cast(Any, request).is_bulk:
+            if not get_jsonapi_request(request).is_bulk:
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
             instances = []
             for item in data:
@@ -677,8 +681,10 @@ class SAFRSRestRelationshipAPI(Resource):
         """
         changed = False
         parent, relation = self.parse_args(**kwargs)
-        payload = cast(Any, request).get_jsonapi_payload()
-        data = payload.get("data")
+        payload = get_jsonapi_request(request).get_jsonapi_payload()
+        if payload is None:
+            raise ValidationError("Invalid PATCH payload")
+        data: Any = payload.get("data")
         relation = getattr(parent, self.rel_name)
         obj_args = {self.parent_object_id: parent.jsonapi_id}
 
@@ -783,8 +789,10 @@ class SAFRSRestRelationshipAPI(Resource):
         of the resource in the request matches the result.
         """
         parent, relation = self.parse_args(**kwargs)
-        payload = cast(Any, request).get_jsonapi_payload()
-        data = payload.get("data", None)
+        payload = get_jsonapi_request(request).get_jsonapi_payload()
+        if payload is None:
+            raise ValidationError("Invalid POST payload")
+        data: Any = payload.get("data", None)
 
         if data is None:
             raise ValidationError("Invalid POST payload (no data)")
@@ -840,10 +848,10 @@ class SAFRSRestRelationshipAPI(Resource):
         parent, relation = self.parse_args(**kwargs)
 
         # No child id=> delete specified items from the relationship
-        payload = cast(Any, request).get_jsonapi_payload()
+        payload = get_jsonapi_request(request).get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
-        data = payload.get("data")
+        data: Any = payload.get("data")
 
         if self.SAFRSObject.relationship.direction == MANYTOONE:
             # https://jsonapi.org/format/#crud-updating-to-one-relationships
@@ -876,24 +884,24 @@ class SAFRSRestRelationshipAPI(Resource):
 
         else:
             # https://jsonapi.org/format/#crud-updating-to-many-relationships
-            children = data
+            children = cast(list[dict[str, Any]], data)
             if not isinstance(data, list) or not children:
                 raise ValidationError("Invalid data payload")
-            for child in children:
-                child_id = child.get("id", None)
-                child_type = child.get("type", None)
+            for child_data in children:
+                child_id_value = child_data.get("id", None)
+                child_type_value = child_data.get("type", None)
 
-                if not child_id or not child_type:
+                if not child_id_value or not child_type_value:
                     raise ValidationError("Invalid data payload", HTTPStatus.FORBIDDEN)
 
-                if child_type != self.target._s_type:
+                if child_type_value != self.target._s_type:
                     raise ValidationError("Invalid type", HTTPStatus.FORBIDDEN)
 
-                child = self.target.get_instance(child_id)
+                child = self.target.get_instance(child_id_value)
                 if child in relation:
                     relation.remove(child)
                 else:
-                    safrs.log.warning(f"Item with id {child_id} not in relation")
+                    safrs.log.warning(f"Item with id {child_id_value} not in relation")
 
         return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
@@ -976,7 +984,7 @@ class SAFRSJSONRPCAPI(Resource):
 
         args = dict(request.args)
         if getattr(method, "valid_jsonapi", False):
-            payload = cast(Any, request).get_jsonapi_payload()
+            payload = get_jsonapi_request(request).get_jsonapi_payload()
             if payload:
                 args = payload.get("meta", {}).get("args", {})
         else:
