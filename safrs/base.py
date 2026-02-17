@@ -177,7 +177,7 @@ Type: classmethod
 Description: Applies filters to the query.
 """
 from __future__ import annotations
-from typing import Any, cast
+from typing import Any, cast, Callable, Optional
 import inspect
 import datetime
 import sqlalchemy
@@ -390,6 +390,35 @@ class SAFRSBase(Model):
     def _s_url_root(cls: Any) -> Any:
         """URL prefix shown in the JSON:API "links" field."""
         return cls.safrs_config.url_root
+
+    # ---------------------------------------------------------------------
+    # Phase 2: Hook infrastructure (no behavior changes yet)
+    # ---------------------------------------------------------------------
+    @classmethod
+    def _s_get_class_hook(cls: Any, name: str) -> Optional[Callable[..., Any]]:
+        """Return a class-level hook override by name, if configured."""
+        hooks = getattr(cls.safrs_config, "hooks", None)
+        if not hooks:
+            return None
+        return hooks.get(name)
+
+    def _s_get_hook(self: Any, name: str) -> Optional[Callable[..., Any]]:
+        """Return an instance-level hook override by name.
+
+        Instance hooks take precedence over class hooks.
+        """
+        inst_hooks = cast(Optional[dict[str, Callable[..., Any]]], getattr(self, "__safrs_instance_hooks__", None))
+        if inst_hooks and name in inst_hooks:
+            return inst_hooks[name]
+        return self.__class__._s_get_class_hook(name)
+
+    def _s_set_hook(self: Any, name: str, fn: Callable[..., Any]) -> None:
+        """Set an instance-level hook override."""
+        inst_hooks = cast(Optional[dict[str, Callable[..., Any]]], getattr(self, "__safrs_instance_hooks__", None))
+        if inst_hooks is None:
+            inst_hooks = {}
+            setattr(self, "__safrs_instance_hooks__", inst_hooks)
+        inst_hooks[name] = fn
 
     included_list = None
 

@@ -10,8 +10,11 @@ Phase 1 refactor goal:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Any, Mapping, Optional
+from dataclasses import dataclass, field, replace
+from typing import Any, Callable, Mapping, Optional
+
+
+Hook = Callable[..., Any]
 
 
 @dataclass(frozen=True)
@@ -28,10 +31,18 @@ class SAFRSModelConfig:
     url_root: Optional[str] = None
     # Optional knob: referenced in SAFRSBase._s_query
     stateless: bool = False
+    # Hook registry for class-level behavior overrides.
+    # Phase 2: infrastructure only; no core behavior uses hooks yet.
+    hooks: Mapping[str, Hook] = field(default_factory=dict)
 
     def with_overrides(self, overrides: Mapping[str, Any]) -> "SAFRSModelConfig":
         """Return a new config where known fields are replaced by ``overrides``."""
-        valid = {k: v for k, v in overrides.items() if k in self.__dataclass_fields__}
+        valid = {k: v for k, v in overrides.items() if k in self.__dataclass_fields__ and k != "hooks"}
+        # Merge hooks (inherit base hooks, override/extend with new ones)
+        if "hooks" in overrides and overrides["hooks"] is not None:
+            merged = dict(self.hooks) if self.hooks else {}
+            merged.update(dict(overrides["hooks"]))
+            valid["hooks"] = merged
         if not valid:
             return self
         return replace(self, **valid)
