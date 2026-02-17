@@ -892,7 +892,7 @@ class SAFRSBase(Model):
             safrs.log.exception(exc)
             safrs.log.error(f"Query failed for {cls_or_self}: {exc}")
 
-        if _table:
+        if _table is not None:
             result = safrs.DB.session.query(_table)
 
         return result
