@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import safrs
 from safrs.attr_parse import parse_attr
-from safrs.errors import JsonapiError, SystemValidationError, ValidationError
+from safrs.errors import GenericError, JsonapiError, SystemValidationError, ValidationError
 from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.swagger_doc import get_doc, get_http_methods
 
@@ -195,10 +195,9 @@ class SafrsFastAPI:
                     include_in_schema=(idx == 0),
                 )
 
-        mapper = getattr(Model, "__mapper__", None)
-        if mapper is not None:
-            for rel in mapper.relationships:
-                rel_name = rel.key
+        relationships = self._resolve_relationships(Model)
+        if relationships:
+            for rel_name in relationships.keys():
                 rel_path = f"{instance_path}/{rel_name}"
                 rel_item_path = f"{rel_path}/{{target_id}}"
 
@@ -290,12 +289,14 @@ class SafrsFastAPI:
     def _handle_safrs_exception(self, exc: Exception) -> None:
         if isinstance(exc, JSONAPIHTTPError):
             raise exc
+        if isinstance(exc, (SystemValidationError, ValidationError, GenericError)):
+            status = int(getattr(exc, "status_code", 400))
+            msg = str(getattr(exc, "message", str(exc)))
+            self._jsonapi_error(status, exc.__class__.__name__, msg)
         if isinstance(exc, JsonapiError):
             status = int(getattr(exc, "status_code", 400))
             msg = str(getattr(exc, "message", str(exc)))
             self._jsonapi_error(status, exc.__class__.__name__, msg)
-        if isinstance(exc, ValidationError):
-            self._jsonapi_error(400, "ValidationError", str(exc))
         raise exc
 
     def _require_type(self, Model: Type[Any], payload: Dict[str, Any]) -> None:
@@ -773,6 +774,7 @@ class SafrsFastAPI:
     def _patch_instance(self, Model: Type[Any]):
         def handler(
             object_id: str,
+            request: Request,
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
         ):
             try:
@@ -789,7 +791,17 @@ class SafrsFastAPI:
 
                 obj = Model.get_instance(object_id)
                 obj = obj._s_patch(**attrs)
-                return self._jsonapi_doc(data=self._encode_resource(Model, obj))
+                fields_map = self._parse_sparse_fields_map(request)
+                wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
+                include_paths = self._parse_include_paths(Model, request)
+                included: List[Dict[str, Any]] = []
+                seen: Set[Tuple[str, str]] = set()
+                if include_paths:
+                    self._collect_included(Model, obj, include_paths, fields_map, seen, included)
+                return self._jsonapi_doc(
+                    data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                    included=included if included else None,
+                )
             except JSONAPIHTTPError:
                 raise
             except Exception as exc:
