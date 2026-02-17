@@ -1,5 +1,4 @@
-# mypy: disable-error-code="assignment,attr-defined,var-annotated,misc"
-from typing import Any
+from typing import Any, Optional, cast
 #  This file contains jsonapi-related flask-restful "Resource" objects:
 #  - SAFRSRestAPI for exposed database instances and collections
 #  - SAFRSRestRelationshipAPI for exposed database relationships
@@ -36,7 +35,7 @@ def make_response(*args: Any, **kwargs: Any) -> Any:
     Customized flask-restful make_response
     """
     response = flask_make_response(*args, **kwargs)
-    if request.is_jsonapi:
+    if cast(Any, request).is_jsonapi:
         # Only use "application/vnd.api+json" if the client sent this with the request
         response.headers["Content-Type"] = "application/vnd.api+json"
     return response
@@ -305,7 +304,7 @@ class SAFRSRestAPI(Resource):
         """
         id = kwargs.get(self._s_object_id, None)
 
-        payload = request.get_jsonapi_payload()
+        payload = cast(Any, request).get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
 
@@ -409,7 +408,7 @@ class SAFRSRestAPI(Resource):
           A server SHOULD include error details and provide enough
           information to recognize the source of the conflict.
         """
-        payload = request.get_jsonapi_payload()
+        payload = cast(Any, request).get_jsonapi_payload()
         id = kwargs.get(self._s_object_id, None)
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
@@ -418,15 +417,15 @@ class SAFRSRestAPI(Resource):
 
         # Create a new instance of the SAFRSObject
         data = payload.get("data")
-        resp_data = {}  # response jsonapi "data"
-        location = ""  # response jsonapi "location"
+        resp_data: Any = {}  # response jsonapi "data"
+        location: Optional[str] = ""  # response jsonapi "location"
         if data is None:
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
             # http://springbot.github.io/json-api/extensions/bulk/
             # We should verify that the bulk extension is requested
             # Accept it by default now
-            if not request.is_bulk:
+            if not cast(Any, request).is_bulk:
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
             instances = []
             for item in data:
@@ -606,7 +605,7 @@ class SAFRSRestRelationshipAPI(Resource):
         """
         _, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
-        errors = {}
+        errors: dict[str, Any] = {}
         count = 1
         meta = {}
         data = None
@@ -678,7 +677,7 @@ class SAFRSRestRelationshipAPI(Resource):
         """
         changed = False
         parent, relation = self.parse_args(**kwargs)
-        payload = request.get_jsonapi_payload()
+        payload = cast(Any, request).get_jsonapi_payload()
         data = payload.get("data")
         relation = getattr(parent, self.rel_name)
         obj_args = {self.parent_object_id: parent.jsonapi_id}
@@ -784,7 +783,7 @@ class SAFRSRestRelationshipAPI(Resource):
         of the resource in the request matches the result.
         """
         parent, relation = self.parse_args(**kwargs)
-        payload = request.get_jsonapi_payload()
+        payload = cast(Any, request).get_jsonapi_payload()
         data = payload.get("data", None)
 
         if data is None:
@@ -841,7 +840,7 @@ class SAFRSRestRelationshipAPI(Resource):
         parent, relation = self.parse_args(**kwargs)
 
         # No child id=> delete specified items from the relationship
-        payload = request.get_jsonapi_payload()
+        payload = cast(Any, request).get_jsonapi_payload()
         if not isinstance(payload, dict):
             raise ValidationError("Invalid Object Type")
         data = payload.get("data")
@@ -977,7 +976,7 @@ class SAFRSJSONRPCAPI(Resource):
 
         args = dict(request.args)
         if getattr(method, "valid_jsonapi", False):
-            payload = request.get_jsonapi_payload()
+            payload = cast(Any, request).get_jsonapi_payload()
             if payload:
                 args = payload.get("meta", {}).get("args", {})
         else:
@@ -1023,6 +1022,7 @@ class SAFRSJSONRPCAPI(Resource):
         safrs.log.debug(f"method {self.method_name} args {args}")
         result = method(**args)
 
+        response: Any
         if isinstance(result, safrs.SAFRSFormattedResponse):
             response = result
         elif getattr(method, "valid_jsonapi", None) is False:

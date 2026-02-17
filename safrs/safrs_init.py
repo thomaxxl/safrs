@@ -1,4 +1,3 @@
-# mypy: disable-error-code="assignment,arg-type,index,var-annotated"
 import logging
 import os
 import sys
@@ -11,7 +10,7 @@ from .jsonapi_filters import FilteringStrategy
 from functools import wraps
 import safrs
 import flask.app
-from typing import Any, Dict, Union
+from typing import Any
 
 
 class SAFRS:
@@ -40,7 +39,7 @@ class SAFRS:
     MAX_TABLE_COUNT = 10**7  # table counts will become really slow for large tables, inform the user about it using this
     INCLUDE_ALL = "+all"  # include= url query argument that tells us to include all related resources
     #
-    config = {}
+    config: dict[str, Any] = {}
     filtering_strategy = FilteringStrategy()
 
     OPTIMIZED_LOADING = True
@@ -53,7 +52,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: None=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
+    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: Any=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
         """
         API and application initialization
         """
@@ -74,10 +73,10 @@ class SAFRS:
 
         # Register the API blueprint
         if swaggerui_blueprint is True:
-            swaggerui_blueprint = get_swaggerui_blueprint(
+            swagger_bp = get_swaggerui_blueprint(
                 prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
-            app.register_blueprint(swaggerui_blueprint, url_prefix=prefix)
+            app.register_blueprint(swagger_bp, url_prefix=prefix)
 
         for conf_name, conf_val in kwargs.items():
             setattr(SAFRS, conf_name, conf_val)
@@ -118,9 +117,7 @@ class SAFRS:
         return log
 
 
-def dict_merge(
-    dct: Any, merge_dct: Union[Dict[str, str], Dict[str, Union[str, Dict[int, Dict[str, str]]]], Dict[int, Dict[str, str]]]
-) -> None:
+def dict_merge(dct: dict[str, Any], merge_dct: dict[Any, Any]) -> None:
     """Recursive dict merge used for creating the swagger spec.
     Inspired by :meth:``dict.update()``, instead of updating only
     top-level keys, dict_merge recurses down into dicts nested

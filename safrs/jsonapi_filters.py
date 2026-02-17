@@ -1,15 +1,14 @@
-# mypy: disable-error-code="arg-type,attr-defined,misc,assignment,return-value,union-attr"
 """
 JSON:API filtering strategies
 """
-from typing import Any
+from typing import Any, cast
 
 from .config import get_request_param
 import sqlalchemy
 import safrs
 from .jsonapi_attr import is_jsonapi_attr
 from flask import request
-from sqlalchemy.orm import joinedload, Query
+from sqlalchemy.orm import joinedload
 
 
 def create_query(cls: Any) -> Any:
@@ -51,8 +50,8 @@ def create_query(cls: Any) -> Any:
     return query
 
 
-@classmethod
-def jsonapi_filter(cls: Any) -> Query:
+@classmethod  # type: ignore[misc]
+def jsonapi_filter(cls: Any) -> Any:
     """
     https://jsonapi.org/recommendations/#filtering
     Apply the request.args filters to the object
@@ -76,7 +75,7 @@ def jsonapi_filter(cls: Any) -> Query:
             result = cls._s_filter(filter_args)
         return result
 
-    expressions = []
+    expressions: list[tuple[Any, Any]] = []
     filters = get_request_param("filters", {})
     if isinstance(cls, (list, sqlalchemy.orm.collections.InstrumentedList)):
         safrs.log.debug(f"Filtering not implemented for {cls}")
@@ -112,14 +111,14 @@ def jsonapi_filter(cls: Any) -> Query:
         _expressions = []
         for column, val in expressions:
             if hasattr(column, "in_"):
-                _expressions.append(column.in_(val.split(",")))
+                _expressions.append(cast(Any, column).in_(val.split(",")))
             else:
                 safrs.log.warning(f"'{cls}.{column}' is not a column ({type(column)})")
         result_query = result_query.filter(*_expressions)
     return result_query
 
 
-@classmethod
+@classmethod  # type: ignore[misc]
 def get_swagger_filters(cls: Any) -> Any:
     """
     :return: JSON:API filters swagger spec
@@ -176,6 +175,6 @@ def get_swagger_filters(cls: Any) -> Any:
 
 
 class FilteringStrategy:
-    def __init__(self: Any, jsonapi_filter: classmethod=jsonapi_filter, swagger_gen: classmethod=get_swagger_filters) -> None:
+    def __init__(self: Any, jsonapi_filter: Any=jsonapi_filter, swagger_gen: Any=get_swagger_filters) -> None:
         self.jsonapi_filter = jsonapi_filter
         self.swagger_gen = swagger_gen

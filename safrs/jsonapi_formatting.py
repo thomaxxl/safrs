@@ -1,5 +1,4 @@
-# mypy: disable-error-code="assignment,operator,union-attr"
-from typing import Any
+from typing import Any, cast
 # JSON:API response formatting functions:
 # - filtering (https://jsonapi.org/format/#fetching-filtering)
 # - sorting (https://jsonapi.org/format/#fetching-sorting)
@@ -145,20 +144,24 @@ def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:
     except ValueError:
         raise ValidationError("Pagination Value Error")
 
+    max_page_limit = cast(int, get_config("MAX_PAGE_LIMIT"))
+    max_page_offset = cast(int, get_config("MAX_PAGE_OFFSET"))
+
     if limit <= 0:
         limit = 1
-    if limit > get_config("MAX_PAGE_LIMIT"):
-        limit = get_config("MAX_PAGE_LIMIT")
+    if limit > max_page_limit:
+        limit = max_page_limit
     if page_offset <= 0:
         page_offset = 0
-    if page_offset > get_config("MAX_PAGE_OFFSET"):
-        page_offset = get_config("MAX_PAGE_OFFSET")
+    if page_offset > max_page_offset:
+        page_offset = max_page_offset
     page_base = int(page_offset / limit) * limit
 
     # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
     # Make it configurable
     # With mysql innodb we can use following to retrieve the count:
     # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
+    instances: Any
     if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
         count = len(object_query)
     elif SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()

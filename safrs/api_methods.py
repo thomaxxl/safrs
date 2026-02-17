@@ -1,5 +1,4 @@
-# mypy: disable-error-code="assignment,arg-type,operator,var-annotated,misc,union-attr"
-from typing import Any, Dict
+from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
@@ -23,9 +22,9 @@ def duplicate(self: Any) -> SAFRSFormattedResponse:
     return SAFRSFormattedResponse(self)
 
 
-@classmethod
+@classmethod  # type: ignore[misc]
 @jsonapi_rpc(http_methods=["POST"])
-def lookup_re_mysql(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
+def lookup_re_mysql(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
     description: Regex search all matching objects (works only in MySQL!!!)
@@ -45,9 +44,9 @@ def lookup_re_mysql(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedRespons
     return SAFRSFormattedResponse(result.all())
 
 
-@classmethod
+@classmethod  # type: ignore[misc]
 @jsonapi_rpc(http_methods=["POST"])
-def startswith(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
+def startswith(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
     summary: Lookup items where specified attributes start with the argument string
@@ -60,7 +59,7 @@ def startswith(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  #
         instances = result.query
         links, instances, count = paginate(instances)
         data = [item for item in instances]
-        meta = {}
+        meta: dict[str, Any] = {}
         errors = None
         response = SAFRSFormattedResponse(data, meta, links, errors, count)
     except Exception as exc:
@@ -82,9 +81,9 @@ def startswith(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  #
     return response
 
 
-@classmethod
+@classmethod  # type: ignore[misc]
 @jsonapi_rpc(http_methods=["POST"])
-def search(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
+def search(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
     description: Lookup column names
@@ -95,20 +94,20 @@ def search(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pra
     columns = [c for c in cls._s_columns if c.type.python_type in [str, int, float]]
     if ":" in query:
         column_name, value = query.split(":")
-        result = cls.query.filter(or_(column.like("%" + value + "%") for column in columns if column.name == column_name))
+        result = cls.query.filter(or_(*[column.like("%" + value + "%") for column in columns if column.name == column_name]))
     else:
-        result = cls.query.filter(or_(column.like("%" + query + "%") for column in columns))
+        result = cls.query.filter(or_(*[column.like("%" + query + "%") for column in columns]))
     instances = jsonapi_sort(result, cls)
     links, instances, count = paginate(instances)
     data = [item for item in instances]
-    meta = {}
+    meta: dict[str, Any] = {}
     errors = None
     return SAFRSFormattedResponse(data, meta, links, errors, count)
 
 
-@classmethod
+@classmethod  # type: ignore[misc]
 @jsonapi_rpc(http_methods=["POST"])
-def re_search(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # pragma: no cover
+def re_search(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no cover
     """
     pageable: True
     description: Lookup column names
@@ -116,10 +115,10 @@ def re_search(cls: Any, **kwargs: Dict[str, str]) -> SAFRSFormattedResponse:  # 
         query: search.*all
     """
     query = kwargs.get("query", "")
-    result = cls.query.filter(or_(column.op("regexp")(query) for column in cls._s_columns))
+    result = cls.query.filter(or_(*[column.op("regexp")(query) for column in cls._s_columns]))
     instances = result
     links, instances, count = paginate(instances)
     data = [item for item in instances]
-    meta = {}
+    meta: dict[str, Any] = {}
     errors = None
     return SAFRSFormattedResponse(data, meta, links, errors, count)

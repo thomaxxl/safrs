@@ -1,4 +1,3 @@
-# mypy: disable-error-code="assignment,attr-defined,union-attr,no-redef,var-annotated,func-returns-value,misc,operator"
 # base.py: implements the SAFRSBase SQLAlchemy db Mixin and related operations
 #
 # pylint: disable=logging-format-interpolation,no-self-argument,no-member,line-too-long,fixme,protected-access
@@ -178,7 +177,7 @@ Type: classmethod
 Description: Applies filters to the query.
 """
 from __future__ import annotations
-from typing import Any
+from typing import Any, cast
 import inspect
 import datetime
 import sqlalchemy
@@ -268,8 +267,8 @@ class SAFRSBase(Model):
     db_commit = has_request_context() # commit instances automatically, see also _s_auto_commit property below
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
-    exclude_attrs = []  # list of attribute names that should not be serialized
-    exclude_rels = []  # list of relationship names that should not be serialized
+    exclude_attrs: list[str] = []  # list of attribute names that should not be serialized
+    exclude_rels: list[str] = []  # list of relationship names that should not be serialized
     supports_includes = True  # Set to False if you don't want this class to return included items
 
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
@@ -548,13 +547,13 @@ class SAFRSBase(Model):
         return subclasses
 
     @hybrid_property
-    def http_methods(self: Any) -> list[str]:
+    def http_methods(self: Any) -> list[str]:  # type: ignore[no-redef]
         """
         :return: list of allowed HTTP methods
         """
         return self.__class__.http_methods
 
-    @http_methods.expression
+    @http_methods.expression  # type: ignore[no-redef]
     def http_methods(self: Any) -> list[str]:
         """
         :return: list of allowed HTTP methods
@@ -587,8 +586,8 @@ class SAFRSBase(Model):
         rels = {rel.key: rel for rel in self.__mapper__.relationships if self._s_check_perm(rel.key)}
         return rels
 
-    @_s_relationships.expression
-    def _s_relationships(cls: Any) -> Any:
+    @_s_relationships.expression  # type: ignore[no-redef]
+    def _s_relationships(cls: Any) -> Any:  # type: ignore[no-redef]
         """
         :return: the relationships used for jsonapi (de/)serialization
         """
@@ -638,9 +637,9 @@ class SAFRSBase(Model):
 
         return self.__class__._s_check_perm(property_name, permission)
 
-    @_s_check_perm.expression
+    @_s_check_perm.expression  # type: ignore[no-redef]
     @lru_cache(maxsize=256)
-    def _s_check_perm(cls: Any, property_name: Any, permission: Any='r') -> bool:
+    def _s_check_perm(cls: Any, property_name: Any, permission: Any='r') -> bool:  # type: ignore[no-redef]
         """
         Check the (class-level) column permission
         :param column_name: column name
@@ -730,9 +729,9 @@ class SAFRSBase(Model):
 
         return result
 
-    @_s_jsonapi_attrs.expression
+    @_s_jsonapi_attrs.expression  # type: ignore[no-redef]
     @lru_cache(maxsize=32)
-    def _s_jsonapi_attrs(cls: Any) -> Any:
+    def _s_jsonapi_attrs(cls: Any) -> Any:  # type: ignore[no-redef]
         """
         :return: dict of jsonapi attributes
         At the moment we expect the column name to be equal to the column name
@@ -780,8 +779,8 @@ class SAFRSBase(Model):
         """
         return self.db_commit
 
-    @_s_auto_commit.setter
-    def _s_auto_commit(self: Any, value: Any) -> Any:
+    @_s_auto_commit.setter  # type: ignore[no-redef]
+    def _s_auto_commit(self: Any, value: Any) -> Any:  # type: ignore[no-redef]
         """
         :param value:
         auto_commit setter
@@ -1026,7 +1025,7 @@ class SAFRSBase(Model):
             """
             meta = {}
             rel_name = relationship.key
-            data = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
+            data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
                 # TODO: document this
                 # continue
@@ -1045,7 +1044,7 @@ class SAFRSBase(Model):
                     # Data is optional, it's also really slow for large sets!
                     data = []
                     rel_query = getattr(self, rel_name)
-                    limit = request.get_page_limit(rel_name)
+                    limit = cast(Any, request).get_page_limit(rel_name)
                     if not get_config("ENABLE_RELATIONSHIPS"):
                         meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
                     elif rel_query:
@@ -1074,7 +1073,7 @@ class SAFRSBase(Model):
 
             rel_link = urljoin(self._s_url, rel_name)
             links = dict(self=rel_link)
-            rel_data = dict(links=links)
+            rel_data: dict[str, Any] = dict(links=links)
 
             rel_data["data"] = data
             if meta:
@@ -1203,7 +1202,7 @@ class SAFRSBase(Model):
         :return: a list of jsonapi_rpc methods for this class
         :rtype: list
         """
-        result = []
+        result: list[Any] = []
         try:
             cls_members = inspect.getmembers(cls)
         except sqlalchemy.exc.InvalidRequestError as exc:
@@ -1225,7 +1224,7 @@ class SAFRSBase(Model):
         :rtype: tuple
         Create a swagger api model based on the sqlalchemy schema.
         """
-        body = {}
+        body: dict[str, Any] = {}
         responses: dict[Any, Any] = {}
 
         if http_method.upper() in cls.http_methods:
@@ -1247,7 +1246,7 @@ class SAFRSBase(Model):
         if url_prefix is None:
             url_prefix = cls.url_prefix
         if type == "instance":
-            INSTANCE_ENDPOINT_FMT = get_config("INSTANCE_ENDPOINT_FMT")
+            INSTANCE_ENDPOINT_FMT = cast(str, get_config("INSTANCE_ENDPOINT_FMT"))
             endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, cls._s_type)
         else:  # type = 'collection'
             endpoint = f"{url_prefix}api.{cls._s_type}"
@@ -1268,8 +1267,8 @@ class SAFRSBase(Model):
             result = ""
         return result
 
-    @_s_url.expression
-    def _s_url(cls: Any, url_prefix: Any='') -> Any:
+    @_s_url.expression  # type: ignore[no-redef]
+    def _s_url(cls: Any, url_prefix: Any='') -> Any:  # type: ignore[no-redef]
         try:
             collection_url = url_for(cls.get_endpoint())
             result = urljoin(cls._s_url_root, collection_url)
@@ -1387,8 +1386,8 @@ class Included:
         """
         return {"id": str(self.instance.jsonapi_id), "type": self.instance._s_type}
 
-    @encode.expression
-    def encode(cls: Any) -> Any:
+    @encode.expression  # type: ignore[no-redef]
+    def encode(cls: Any) -> Any:  # type: ignore[no-redef]
         """
         encoding of all included instances (in the included[] part of the jsonapi response)
         """
