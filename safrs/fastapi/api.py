@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 import safrs
 from safrs.attr_parse import parse_attr
 from safrs.errors import JsonapiError, SystemValidationError, ValidationError
+from safrs.json_encoder import SAFRSFormattedResponse
+from safrs.swagger_doc import get_doc, get_http_methods
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
@@ -63,6 +65,39 @@ class SafrsFastAPI:
                 continue
             raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
         return normalized
+
+    def _discover_rpc_methods(self, Model: Type[Any]) -> List[Tuple[str, bool, List[str]]]:
+        rpc_methods: List[Tuple[str, bool, List[str]]] = []
+        seen: Set[str] = set()
+        try:
+            discovered = Model._s_get_jsonapi_rpc_methods()
+            for api_method in discovered:
+                method_name = api_method.__name__
+                if method_name in seen:
+                    continue
+                seen.add(method_name)
+                model_method = Model.__dict__.get(method_name, None)
+                class_level = isinstance(model_method, (classmethod, staticmethod)) or getattr(api_method, "__self__", None) is Model
+                http_methods = [str(method).upper() for method in get_http_methods(api_method)]
+                rpc_methods.append((method_name, class_level, http_methods))
+            return rpc_methods
+        except Exception as exc:
+            safrs.log.debug(f"RPC method discovery fallback for {Model}: {exc}")
+
+        for klass in Model.__mro__:
+            if klass is object:
+                continue
+            for method_name, raw_method in klass.__dict__.items():
+                func = raw_method.__func__ if isinstance(raw_method, (classmethod, staticmethod)) else raw_method
+                if method_name in seen or not callable(func):
+                    continue
+                if get_doc(func) is None:
+                    continue
+                seen.add(method_name)
+                class_level = isinstance(raw_method, (classmethod, staticmethod))
+                http_methods = [str(method).upper() for method in get_http_methods(func)]
+                rpc_methods.append((method_name, class_level, http_methods))
+        return rpc_methods
 
     def expose_object(
         self,
@@ -144,6 +179,21 @@ class SafrsFastAPI:
                 operation_id=f"delete_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
+
+        for method_name, class_level, rpc_methods in self._discover_rpc_methods(Model):
+            rpc_path = f"{collection_path}/{method_name}" if class_level else f"{instance_path}/{method_name}"
+            rpc_operation = f"{'class' if class_level else 'instance'}_{tag}_{method_name}_rpc"
+            for idx, path in enumerate(self._with_slash_parity(rpc_path)):
+                router.add_api_route(
+                    path,
+                    self._rpc_handler(Model, method_name, class_level),
+                    methods=rpc_methods,
+                    response_class=JSONAPIResponse,
+                    summary=f"RPC {tag}.{method_name}",
+                    dependencies=route_dependencies,
+                    operation_id=rpc_operation if idx == 0 else None,
+                    include_in_schema=(idx == 0),
+                )
 
         mapper = getattr(Model, "__mapper__", None)
         if mapper is not None:
@@ -299,10 +349,100 @@ class SafrsFastAPI:
         return result
 
     def _resolve_relationships(self, Model: Type[Any]) -> Dict[str, Any]:
+        rels = getattr(Model, "_s_relationships", None)
+        if isinstance(rels, dict):
+            return rels
         mapper = getattr(Model, "__mapper__", None)
         if mapper is None:
             return {}
         return {rel.key: rel for rel in mapper.relationships}
+
+    @staticmethod
+    def _parse_rpc_args(request: Request, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        args: Dict[str, Any] = {}
+        if isinstance(payload, dict):
+            meta = payload.get("meta")
+            if isinstance(meta, dict):
+                meta_args = meta.get("args")
+                if isinstance(meta_args, dict):
+                    args.update(meta_args)
+        for key, value in request.query_params.items():
+            args.setdefault(key, value)
+        return args
+
+    def _encode_rpc_value(self, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            if "type" in value and "id" in value:
+                return value
+            return {key: self._encode_rpc_value(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [self._encode_rpc_value(item) for item in value]
+        if isinstance(value, type) and value.__name__ == "Included":
+            return []
+        if hasattr(value, "_s_type") and hasattr(value, "jsonapi_id"):
+            return self._encode_resource(value.__class__, value)
+        return jsonable_encoder(value)
+
+    def _normalize_rpc_result(self, Model: Type[Any], result: Any) -> Dict[str, Any]:
+        payload = result.response if isinstance(result, SAFRSFormattedResponse) else result
+        if isinstance(payload, dict):
+            has_jsonapi_shape = any(key in payload for key in ("data", "errors", "meta", "included", "links", "jsonapi"))
+            if has_jsonapi_shape:
+                content = self._jsonapi_doc(
+                    data=self._encode_rpc_value(payload.get("data")) if "data" in payload else None,
+                    errors=payload.get("errors"),
+                    included=self._encode_rpc_value(payload.get("included")) if "included" in payload else None,
+                    meta=payload.get("meta"),
+                )
+                if payload.get("links") is not None:
+                    content["links"] = payload["links"]
+                return content
+            return self._jsonapi_doc(meta={"result": self._encode_rpc_value(payload)})
+        if hasattr(payload, "_s_type") and hasattr(payload, "jsonapi_id"):
+            return self._jsonapi_doc(data=self._encode_resource(payload.__class__, payload))
+        if isinstance(payload, (list, tuple, set)):
+            return self._jsonapi_doc(data=self._encode_rpc_value(payload))
+        if payload is None:
+            return self._jsonapi_doc(meta={})
+        return self._jsonapi_doc(meta={"result": self._encode_rpc_value(payload)})
+
+    def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool):
+        if class_level:
+            def handler(
+                request: Request,
+                payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
+            ):
+                try:
+                    args = self._parse_rpc_args(request, payload)
+                    method = getattr(Model, method_name)
+                    result = method(**args)
+                    return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+                except JSONAPIHTTPError:
+                    raise
+                except Exception as exc:
+                    self._handle_safrs_exception(exc)
+
+            return handler
+
+        def handler(
+            object_id: str,
+            request: Request,
+            payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
+        ):
+            try:
+                args = self._parse_rpc_args(request, payload)
+                instance = Model.get_instance(object_id)
+                method = getattr(instance, method_name)
+                result = method(**args)
+                return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+            except JSONAPIHTTPError:
+                raise
+            except Exception as exc:
+                self._handle_safrs_exception(exc)
+
+        return handler
 
     def _parse_include_paths(self, Model: Type[Any], request: Request) -> List[List[str]]:
         include_csv = request.query_params.get("include")
@@ -582,6 +722,7 @@ class SafrsFastAPI:
 
     def _post_collection(self, Model: Type[Any]):
         def handler(
+            request: Request,
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)
         ):
             try:
@@ -589,12 +730,38 @@ class SafrsFastAPI:
                 data = payload.get("data") or {}
                 attrs = data.get("attributes") or {}
                 attrs = self._parse_attributes_for_model(Model, attrs)
+                rels = data.get("relationships") or {}
 
-                obj = Model._s_post(jsonapi_id=data.get("id"), **attrs)
+                obj = Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
+                fields_map = self._parse_sparse_fields_map(request)
+                wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
+                include_paths = self._parse_include_paths(Model, request)
+                auto_include = getattr(obj, "included_list", None) or []
+                for include_item in auto_include:
+                    if not isinstance(include_item, str) or not include_item:
+                        continue
+                    path = [segment for segment in include_item.split(".") if segment]
+                    if path:
+                        include_paths.append(path)
+                deduped_include_paths: List[List[str]] = []
+                seen_paths: Set[Tuple[str, ...]] = set()
+                for include_path in include_paths:
+                    include_tuple = tuple(include_path)
+                    if not include_tuple or include_tuple in seen_paths:
+                        continue
+                    seen_paths.add(include_tuple)
+                    deduped_include_paths.append(include_path)
+                included: List[Dict[str, Any]] = []
+                seen_included: Set[Tuple[str, str]] = set()
+                for item in [obj]:
+                    self._collect_included(Model, item, deduped_include_paths, fields_map, seen_included, included)
                 # SAFRS _s_post commits internally
                 return JSONAPIResponse(
                     status_code=201,
-                    content=self._jsonapi_doc(data=self._encode_resource(Model, obj)),
+                    content=self._jsonapi_doc(
+                        data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                        included=included if included else None,
+                    ),
                 )
             except JSONAPIHTTPError:
                 raise
