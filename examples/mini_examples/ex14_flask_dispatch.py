@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # Custom Swagger prefix & blueprint
 #
@@ -21,7 +22,7 @@ class User(SAFRSBase, db.Model):
     email = db.Column(db.String)
 
 
-def create_api(app, host="localhost", port=5000, prefix=""):
+def create_api(app: Any, host: Any='localhost', port: Any=5000, prefix: Any='') -> Any:
     custom_swagger = {"basePath" : prefix}
     api_spec_url = f"/my_swagger"
     api = SafrsApi(app, host=host, port=port, prefix="", swaggerui_blueprint=False, api_spec_url=api_spec_url, custom_swagger=custom_swagger)
@@ -31,7 +32,7 @@ def create_api(app, host="localhost", port=5000, prefix=""):
     user = User(name="test", email="email@x.org")
 
 
-def create_app(config_filename=None, host="localhost", prefix=""):
+def create_app(config_filename: Any=None, host: Any='localhost', prefix: Any='') -> Any:
     app = Flask(f"{prefix} demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

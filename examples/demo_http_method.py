@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # Demonstrate:
 #   - override http method
@@ -27,7 +28,7 @@ class User(SAFRSBase, db.Model):
     # Following method is exposed through the REST API
     # This means it can be invoked with the argument http_methods
     @jsonapi_rpc(http_methods=["POST", "GET"])
-    def send_mail(self, email):
+    def send_mail(self: Any, email: Any) -> Any:
         """
         description : Send an email
         args:
@@ -40,7 +41,7 @@ class User(SAFRSBase, db.Model):
             mailfile.write(content)
         return {"result": f"sent {content}"}
 
-    def get(self, *args, **kwargs):
+    def get(self: Any, *args: Any, **kwargs: Any) -> Any:
         """
         description: Get something
         summary : User get summary
@@ -76,7 +77,7 @@ with open("examples/jsonapi-schema.json") as sf:
 
 
 @app.after_request
-def per_request_callbacks(response):
+def per_request_callbacks(response: Any) -> Any:
     if response.headers["Content-Type"] != "application/json":
         return response
     try:

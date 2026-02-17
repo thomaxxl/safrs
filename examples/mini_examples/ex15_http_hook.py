@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 # run:
 # $ FLASK_APP=mini_app flask run
 from flask import Flask
@@ -19,21 +20,21 @@ class User(SAFRSBase, db.Model):
     email = db.Column(db.String)
     
     @classmethod
-    def _s_post(cls, *args, **kwargs):
+    def _s_post(cls: Any, *args: Any, **kwargs: Any) -> Any:
         print(kwargs)
         result = cls(*args, **kwargs)
         print(result)
         return result
 
 
-def create_api(app, host="localhost", port=5000, prefix=""):
+def create_api(app: Any, host: Any='localhost', port: Any=5000, prefix: Any='') -> Any:
     api = SafrsApi(app, host=host, port=port, prefix=prefix)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{host}:{port}/{prefix}")
 
 
-def create_app(host="localhost"):
+def create_app(host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

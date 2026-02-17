@@ -7,6 +7,7 @@
   - A Flask-rest-json api is available
   - swagger documentation is generated
 """
+from typing import Any
 
 
 from flask import Flask
@@ -122,14 +123,14 @@ class ComputerRelationship(ResourceRelationship):
 # Create endpoints
 
 
-def create_api(app, HOST="localhost", PORT=5010, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5010, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(Person)
     api.expose_object(Computer)
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask(__name__)
     # app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///test.db"

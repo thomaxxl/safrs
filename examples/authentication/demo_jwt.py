@@ -44,6 +44,7 @@ t@TEMP:~$ curl localhost:5000/users/ -H "Authorization: Bearer $token"
   }
 }
 """
+from typing import Any
 import sys
 from flask import Flask, jsonify
 from flask import request
@@ -58,7 +59,7 @@ db = SQLAlchemy()
 auth = HTTPBasicAuth()
 
 
-def test_dec(f):
+def test_dec(f: Any) -> Any:
     print(f, f.__name__)
     return f
 
@@ -90,22 +91,22 @@ class User(SAFRSBase, db.Model):
     username = db.Column(db.String(32), index=True)
     items = db.relationship("Item", back_populates="user", lazy="dynamic")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         print("xx " * 30)
         print(args, kwargs)
         super().__init__(*args, **kwargs)
 
     @orm.reconstructor
-    def reconstruct(self):
+    def reconstruct(self: Any) -> Any:
         print(f"reconstruct {self.username}" * 3)
 
     @classmethod
-    def filter(cls, *args, **kwargs):
+    def filter(cls: Any, *args: Any, **kwargs: Any) -> Any:
         print(args, kwargs)  # args[0] should contain the filter= url query parameter value
         return cls.query.filter_by(username=args[0])
 
 
-def start_app(app):
+def start_app(app: Any) -> Any:
 
     custom_swagger = {
         "securityDefinitions": {"Bearer": {"type": "apiKey", "in": "header", "name": "Authorization"}},
@@ -158,7 +159,7 @@ db.init_app(app)
 
 
 @app.route("/login", methods=["POST"])
-def login():
+def login() -> Any:
     if not request.is_json:
         return jsonify({"msg": "Missing JSON in request"}), 400
 
@@ -178,7 +179,7 @@ def login():
 
 
 @app.teardown_appcontext
-def shutdown_session(exception=None):
+def shutdown_session(exception: Any=None) -> Any:
     """cfr. http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/"""
     db.session.remove()
 

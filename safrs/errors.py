@@ -1,3 +1,4 @@
+from typing import Any
 # Exception Handlers
 #
 # The application loglevel determines the level of detail dhown to the user.
@@ -33,7 +34,7 @@ class NotFoundError(JsonapiError, NotFound):
     status_code = HTTPStatus.NOT_FOUND.value
     message = "NotFoundError "
 
-    def __init__(self, message="", status_code=HTTPStatus.NOT_FOUND.value, api_code=None):
+    def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.NOT_FOUND.value, api_code: Any=None) -> None:
         """
         :param message: Message to be returned in the (json) body
         :param status_code: HTTP Status code
@@ -57,7 +58,7 @@ class UnAuthorizedError(JsonapiError):
     status_code = HTTPStatus.FORBIDDEN.value
     message = "Authorization Error: "
 
-    def __init__(self, message="", status_code=HTTPStatus.FORBIDDEN.value, api_code=None):
+    def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.FORBIDDEN.value, api_code: Any=None) -> None:
         Exception.__init__(self)
         self.status_code = status_code
         safrs.log.error("UnAuthorizedError: %s", message)
@@ -75,7 +76,7 @@ class GenericError(JsonapiError):
     status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value  # 500
     message = "Generic Error: "
 
-    def __init__(self, message, status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code=None):
+    def __init__(self: Any, message: Any, status_code: Any=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code: Any=None) -> None:
         Exception.__init__(self)
         self.status_code = status_code
         safrs.log.error("Generic Error: %s", message)
@@ -95,7 +96,7 @@ class SystemValidationError(JsonapiError):  # pragma: no cover
     status_code = HTTPStatus.BAD_REQUEST.value
     message = "Validation Error: "
 
-    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
+    def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
         Exception.__init__(self)
         self.status_code = status_code
         safrs.log.error("ValidationError: %s", message)
@@ -114,7 +115,7 @@ class ValidationError(JsonapiError):
     status_code = HTTPStatus.BAD_REQUEST.value
     message = "Validation Error: "
 
-    def __init__(self, message="", status_code=HTTPStatus.BAD_REQUEST.value, api_code=None):
+    def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
         Exception.__init__(self)
         self.status_code = status_code
         safrs.log.warning("ValidationError: %s", message)

@@ -6,7 +6,7 @@ import logging
 from flask import current_app, request
 from functools import lru_cache
 import safrs
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 
 @lru_cache(maxsize=128)
@@ -82,7 +82,7 @@ def get_config(option: str) -> Optional[Union[bool, str]]:
     return result
 
 
-def get_request_param(param, default=0):
+def get_request_param(param: Any, default: Any=0) -> Any:
     """Retrieve request parameters
     Used for backwards compatibility (with safrs < 2.x)
     :param param: parameter to retrieve

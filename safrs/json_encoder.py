@@ -25,7 +25,7 @@ class SAFRSFormattedResponse:
     result = None
     response = None
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the response object.
 
@@ -34,7 +34,7 @@ class SAFRSFormattedResponse:
         """
         self.response = jsonapi_format_response(*args, **kwargs)
 
-    def to_dict(self):  # pragma: no cover
+    def to_dict(self: Any) -> Any:  # pragma: no cover
         """
         create the response payload that will be sent to the browser
         :return: dict or None
@@ -58,7 +58,7 @@ class _SAFRSJSONEncoder:
 
     # pylint: disable=too-many-return-statements,logging-format-interpolation
     # pylint: disable=arguments-differ,protected-access,method-hidden
-    def default(self, obj, **kwargs):
+    def default(self: Any, obj: Any) -> Any:
         """
         override the default json encoding
         :param obj: object to be encoded
@@ -107,15 +107,15 @@ class _SAFRSJSONEncoder:
         return self.ghetto_encode(obj)
 
     @staticmethod
-    def ghetto_encode(obj):  # pragma: no cover
+    def ghetto_encode(obj: Any) -> Any:  # pragma: no cover
         """
         if everything else failed, try to encode the public obj attributes
         i.e. those attributes without a _ prefix
         :param obj: object to be encoded
         :return: encoded/serizlaized object
         """
+        result: Any = {}
         try:
-            result = {}
             for k, v in vars(obj).items():
                 if not k.startswith("_"):
                     if isinstance(v, (int, float)) or v is None:
@@ -128,13 +128,13 @@ class _SAFRSJSONEncoder:
 
     # pragma: no cover
     @staticmethod
-    def sqla_encode(obj):  # pragma: no cover
+    def sqla_encode(obj: Any) -> Any:  # pragma: no cover
         """
         encode an SQLAlchemy object
         :param obj: sqlalchemy object to be encoded
         :return: encoded object
         """
-        fields = {}
+        fields: dict[str, Any] = {}
         for field in [x for x in dir(obj) if not x.startswith("_") and x != "metadata"]:
             data = obj.__getattribute__(field)
             try:

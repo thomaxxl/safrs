@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 
 import sys
 import os
@@ -28,8 +29,8 @@ class Item(SAFRSBase, db.Model):
     name = Column(String, default="")
 
 
-def post_login_required(func):
-    def post_decorator(*args, **kwargs):
+def post_login_required(func: Any) -> Any:
+    def post_decorator(*args: Any, **kwargs: Any) -> Any:
         print("post_decorator ", func, *args, **kwargs)
         return auth.login_required(func)(*args, **kwargs)
 
@@ -50,7 +51,7 @@ class User(SAFRSBase, db.Model):
     custom_decorators = [post_login_required]
 
 
-def start_app(app):
+def start_app(app: Any) -> Any:
 
     OAS_PREFIX = "/api"  # swagger location
     api = SAFRSAPI(app, host=HOST, schemes=["http"], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX + "/swagger")
@@ -83,7 +84,7 @@ db.init_app(app)
 # Authentication and custom routes
 #
 @auth.verify_password
-def verify_password(username_or_token, password):
+def verify_password(username_or_token: Any, password: Any) -> Any:
 
     if username_or_token == "user" and password == "passwd":
         return True

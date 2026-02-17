@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # Example using logicbank database constraints
 #
@@ -23,7 +24,7 @@ class User(SAFRSBase, db.Model):
     email = db.Column(db.String)
 
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     # Create some users
@@ -32,7 +33,7 @@ def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
@@ -44,8 +45,8 @@ def create_app(config_filename=None, host="localhost"):
     return app
 
 
-def declare_logic():
-    def requires_admin(row):
+def declare_logic() -> Any:
+    def requires_admin(row: Any) -> Any:
         if g.user.id == 0:
             return True
         return False
@@ -58,7 +59,7 @@ app = create_app(host=host)
 
 
 @app.before_request
-def set_user():
+def set_user() -> Any:
     # id=1 => commit fails in declare_logic
     # id=0 => commit succeeds
     g.user = User.query.filter_by(id=0).first()

@@ -1,9 +1,10 @@
+from typing import Any
 import datetime
 import safrs
 import sqlalchemy
 
 
-def parse_attr(column, attr_val):
+def parse_attr(column: Any, attr_val: Any) -> Any:
     """
     Parse the supplied `attr_val` so it can be saved in the SQLAlchemy `column`
 

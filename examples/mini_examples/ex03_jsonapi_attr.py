@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # `jsonapi_attr` example
 #
@@ -20,22 +21,22 @@ class User(SAFRSBase, db.Model):
     email = db.Column(db.String)
 
     @jsonapi_attr
-    def some_attr(self):
+    def some_attr(self: Any) -> Any:
         return "some_value"
 
     @some_attr.setter
-    def some_attr(self, val):
+    def some_attr(self: Any, val: Any) -> Any:
         print("some_attr setter value:", val)
 
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
@@ -50,12 +51,12 @@ app = create_app(host=host)
 
 
 @app.before_request
-def req_start():
+def req_start() -> Any:
     print("start")
 
 
 @app.before_request
-def req_end():
+def req_end() -> Any:
     print("end")
 
 

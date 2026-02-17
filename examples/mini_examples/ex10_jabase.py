@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 #
 # This example shows how you can implement a SAFRS endpoint without a SQLAlchemy model
 #
@@ -22,7 +23,7 @@ class MyService(JABase):
 
     @staticmethod
     @jsonapi_rpc(http_methods=["POST"], valid_jsonapi=False)
-    def rpc(*args, a0=0, a1=1):
+    def rpc(*args: Any, a0: Any=0, a1: Any=1) -> Any:
         """
         description: rpc example
         args:

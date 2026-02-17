@@ -1,3 +1,4 @@
+# mypy: disable-error-code="assignment,arg-type,operator,var-annotated,misc,union-attr"
 from typing import Any, Dict
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient

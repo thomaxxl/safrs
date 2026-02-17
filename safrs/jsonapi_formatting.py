@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,operator,union-attr"
+from typing import Any
 # JSON:API response formatting functions:
 # - filtering (https://jsonapi.org/format/#fetching-filtering)
 # - sorting (https://jsonapi.org/format/#fetching-sorting)
@@ -15,7 +17,7 @@ from .errors import ValidationError, GenericError
 from .config import get_config, get_request_param
 
 
-def jsonapi_filter_list(relation):
+def jsonapi_filter_list(relation: Any) -> Any:
     """
     :param relation: InstrumentedList
     :return: list of instances filtered using the jsonapi filters in the url query args
@@ -34,7 +36,7 @@ def jsonapi_filter_list(relation):
     return list(result)
 
 
-def jsonapi_filter_query(object_query, safrs_object):
+def jsonapi_filter_query(object_query: Any, safrs_object: Any) -> Any:
     """
     :param object_query: query to be filtered (lazy='dynamic' relationships AppenderBaseQuery)
     :param safrs_object: sqla object to be queried
@@ -47,7 +49,7 @@ def jsonapi_filter_query(object_query, safrs_object):
     return result
 
 
-def jsonapi_sort(object_query, safrs_object):
+def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
     """
     http://jsonapi.org/format/#fetching-sorting
     sort by csv sort= values
@@ -99,7 +101,7 @@ def jsonapi_sort(object_query, safrs_object):
     return object_query
 
 
-def paginate(object_query, SAFRSObject=None):
+def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:
     """
     this is where the query is executed, hence it's the bottleneck of the queries
 
@@ -129,7 +131,7 @@ def paginate(object_query, SAFRSObject=None):
     :return: links, instances, count
     """
 
-    def get_link(count, limit):
+    def get_link(count: Any, limit: Any) -> Any:
         result = SAFRSObject._s_url if SAFRSObject else ""
         ignore_args = "page[offset]", "page[limit]"
         result += "?" + "&".join(
@@ -218,7 +220,7 @@ def paginate(object_query, SAFRSObject=None):
     return links, instances, count
 
 
-def jsonapi_format_response(data=None, meta=None, links=None, errors=None, count=None, include=None):
+def jsonapi_format_response(data: Any=None, meta: Any=None, links: Any=None, errors: Any=None, count: Any=None, include: Any=None) -> Any:
     """
     Create a response dict according to the json:api schema spec
     :param data : the objects that will be serialized

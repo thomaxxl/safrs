@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 #
 # This example shows how you can implement a SAFRS endpoint without a SQLAlchemy model
 #
@@ -33,7 +34,7 @@ class Test(SAFRSBase):
     _s_query = None
     id = 0
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """
         override SAFRSBase.__new__
         """
@@ -41,7 +42,7 @@ class Test(SAFRSBase):
         cls.instances.append(result)
         return result
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
         """
@@ -49,7 +50,7 @@ class Test(SAFRSBase):
         self.name = kwargs.get("name")
 
     @classmethod
-    def _s_get(cls, **kwargs):
+    def _s_get(cls: Any, **kwargs: Any) -> Any:
         """
         Called for a HTTP GET
         """
@@ -57,7 +58,7 @@ class Test(SAFRSBase):
         return cls.instances
 
     @classmethod
-    def get_instance(cls, id, failsafe=False):
+    def get_instance(cls: Any, id: Any, failsafe: Any=False) -> Any:
         """
         Return the instance specified by id
         Called for "GET /{Id}" (and other operations)
@@ -70,7 +71,7 @@ class Test(SAFRSBase):
         return None
 
     @classmethod
-    def _s_post(cls, *args, **kwargs):
+    def _s_post(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """
         Called for a HTTP POST
         """
@@ -78,36 +79,36 @@ class Test(SAFRSBase):
         result = cls(**kwargs, id=len(cls.instances))
         return result
 
-    def _s_patch(self, *args, **kwargs):
+    def _s_patch(self: Any, *args: Any, **kwargs: Any) -> Any:
         """
         Called for a HTTP PATCH
         """
         print(f"Patch with {kwargs}")
         return self
 
-    def _s_delete(self):
+    def _s_delete(self: Any) -> Any:
         """
         Called for a HTTP DELETE
         """
         print(f"Delete {self}")
 
     @property
-    def jsonapi_id(self):
+    def jsonapi_id(self: Any) -> Any:
         return self.id
 
     @classmethod
-    def _s_count(cls):
+    def _s_count(cls: Any) -> Any:
         """
         jsonapi response count parameter
         """
         return 1
 
     @jsonapi_attr
-    def name(self):
+    def name(self: Any) -> Any:
         return "My Name"
 
     @jsonapi_attr
-    def my_custom_field(self):
+    def my_custom_field(self: Any) -> Any:
         return -1
 
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 # This script is deployed on thomaxxl.pythonanywhere.com
 #
 # This is a demo application to demonstrate the functionality of the safrs REST API
@@ -84,7 +85,7 @@ class DocumentedColumn(db.Column):
 # Customized relationships
 
 
-def hiddenRelationship(*args, **kwargs):
+def hiddenRelationship(*args: Any, **kwargs: Any) -> Any:
     """
     To hide a relationship, set the expose attribute to False
     """
@@ -157,11 +158,11 @@ class Publisher(BaseModel):
     employees = hiddenRelationship(Person, back_populates="employer")
     data = db.Column(db.JSON, default={1: 1})
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         custom_field = kwargs.pop("custom_field", None)
         SAFRSBase.__init__(self, **kwargs)
 
-    def to_dict(self):
+    def to_dict(self: Any) -> Any:
         result = SAFRSBase.to_dict(self)
         result["custom_field"] = "some customization"
         return result
@@ -184,7 +185,7 @@ class Review(BaseModel):
 # Create the instances and exposes the classes
 
 
-def populate_db():
+def populate_db() -> Any:
     # populate the database
     if Person.query.all():
         return
@@ -217,7 +218,7 @@ def populate_db():
     test_author.books_written.append(test_book)
 
 
-def print_db():
+def print_db() -> Any:
     test_reader = Person.get_instance(1)
     test_reader_friend = Person.get_instance(3)
     test_author = Person.get_instance(2)
@@ -240,7 +241,7 @@ auth = HTTPBasicAuth()
 
 
 @auth.verify_password
-def verify_password(username_or_token, password):
+def verify_password(username_or_token: Any, password: Any) -> Any:
     # Implement your authentication here
     if username_or_token == "user" and password == "pass":
         return True
@@ -248,7 +249,7 @@ def verify_password(username_or_token, password):
     return False
 
 
-def start_api(swagger_host="0.0.0.0", PORT=None):
+def start_api(swagger_host: Any='0.0.0.0', PORT: Any=None) -> Any:
 
     # Add startswith methods so we can perform lookups from the frontend
     SAFRSBase.startswith = startswith
@@ -294,17 +295,17 @@ app.config.update(
 
 @app.route("/ja")  # React jsonapi frontend
 @app.route("/ja/<path:path>", endpoint="jsonapi_admin")
-def send_ja(path="index.html"):
+def send_ja(path: Any='index.html') -> Any:
     return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "jsonapi-admin/build"), path)
 
 
 @app.route("/swagger_editor/<path:path>", endpoint="swagger_editor")
-def send_swagger_editor(path="index.html"):
+def send_swagger_editor(path: Any='index.html') -> Any:
     return send_from_directory(os.path.join(os.path.dirname(__file__), "..", "swagger-editor"), path)
 
 
 @app.route("/")
-def goto_api():
+def goto_api() -> Any:
     return redirect(API_PREFIX)
 
 

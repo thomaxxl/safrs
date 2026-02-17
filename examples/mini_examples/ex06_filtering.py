@@ -9,6 +9,7 @@ http://server:5000/People/?filter[name][like]=user1%
 http://server:5000/People/?filter[id][in]=[1,2]
 
 """
+from typing import Any
 
 import sys
 import json
@@ -24,7 +25,7 @@ db = SQLAlchemy()
 
 
 @classmethod
-def jsonapi_filter_achim(cls):
+def jsonapi_filter_achim(cls: Any) -> Any:
 
     filters = []
     expressions = []
@@ -85,7 +86,7 @@ class Person(BaseModel):
     name = db.Column(db.String, default="John Doe")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.secret_key = "not so secret"
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")

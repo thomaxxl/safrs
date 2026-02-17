@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,attr-defined,var-annotated,misc"
+from typing import Any
 #  This file contains jsonapi-related flask-restful "Resource" objects:
 #  - SAFRSRestAPI for exposed database instances and collections
 #  - SAFRSRestRelationshipAPI for exposed database relationships
@@ -29,7 +31,7 @@ from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsona
 from .jsonapi_filters import get_swagger_filters
 
 
-def make_response(*args, **kwargs):
+def make_response(*args: Any, **kwargs: Any) -> Any:
     """
     Customized flask-restful make_response
     """
@@ -56,7 +58,7 @@ class Resource(FRSResource):
     # Swagger filter spec
     get_swagger_filters = get_swagger_filters
 
-    def head(self, *args, **kwargs):
+    def head(self: Any, *args: Any, **kwargs: Any) -> Any:
         """
         HTTP HEAD
         """
@@ -67,7 +69,7 @@ class Resource(FRSResource):
             response = make_response()
         return response
 
-    def options(self, *args, **kwargs):
+    def options(self: Any, *args: Any, **kwargs: Any) -> Any:
         """
         HTTP OPTIONS
         """
@@ -78,7 +80,7 @@ class Resource(FRSResource):
             response = make_response()
         return response
 
-    def _parse_target_data(self, target_data):
+    def _parse_target_data(self: Any, target_data: Any) -> Any:
         """
         Validate the jsonapi payload for patch requests (to self.target):
         - the payload must contain "id" and "type" keys.
@@ -106,7 +108,7 @@ class Resource(FRSResource):
         return target
 
     @classmethod
-    def get_swagger_include(cls):
+    def get_swagger_include(cls: Any) -> Any:
         """
         :return: JSON:API "include" query string swagger spec
         """
@@ -124,7 +126,7 @@ class Resource(FRSResource):
         return param
 
     @classmethod
-    def get_swagger_fields(cls):
+    def get_swagger_fields(cls: Any) -> Any:
         """
         :return: JSON:API fields[] swagger spec (the model instance fields to be included)
         """
@@ -143,7 +145,7 @@ class Resource(FRSResource):
         return param
 
     @classmethod
-    def get_swagger_sort(cls):
+    def get_swagger_sort(cls: Any) -> Any:
         """
         :return: JSON:API sort swagger spec (the collection sort key)
         """
@@ -209,7 +211,7 @@ class SAFRSRestAPI(Resource):
     default_order = None  # used by sqla order_by
     object_id = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         - object_id is the function used to create the url parameter name
         (eg "User" -> "UserId" )
@@ -220,7 +222,7 @@ class SAFRSRestAPI(Resource):
         self._s_object_id = self.SAFRSObject._s_object_id
         self.target = self.SAFRSObject
 
-    def get(self, **kwargs):
+    def get(self: Any, **kwargs: Any) -> Any:
         """
         summary : Retrieve {class_name} instance
         description : Retrieve {class_name} from {collection_name}
@@ -280,7 +282,7 @@ class SAFRSRestAPI(Resource):
         result = jsonapi_format_response(data, meta, links, errors, count)
         return jsonify(result)
 
-    def patch(self, **kwargs):
+    def patch(self: Any, **kwargs: Any) -> Any:
         """
         summary : Update {class_name}
         description: Update {class_name} attributes
@@ -332,7 +334,7 @@ class SAFRSRestAPI(Resource):
 
         return response
 
-    def _patch_instance(self, data, id=None):
+    def _patch_instance(self: Any, data: Any, id: Any=None) -> Any:
         """
         Update the inst
         :param data: jsonapi payload
@@ -361,7 +363,7 @@ class SAFRSRestAPI(Resource):
 
         return instance
 
-    def post(self, **kwargs):
+    def post(self: Any, **kwargs: Any) -> Any:
         """
         summary : Create {class_name}
         responses :
@@ -451,7 +453,7 @@ class SAFRSRestAPI(Resource):
 
         return response
 
-    def _create_instance(self, data):
+    def _create_instance(self: Any, data: Any) -> Any:
         """
         Create an instance with the
         :param data: dictionary with {"type": ... , "attributes": ...}
@@ -477,7 +479,7 @@ class SAFRSRestAPI(Resource):
 
         return instance
 
-    def delete(self, **kwargs):
+    def delete(self: Any, **kwargs: Any) -> Any:
         """
         summary: Delete {class_name} from {collection_name}
         responses :
@@ -566,7 +568,7 @@ class SAFRSRestRelationshipAPI(Resource):
     SAFRSObject = None
 
     # pylint: disable=unused-argument
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the relationship references:
         - relationship : sqla relationship
@@ -586,7 +588,7 @@ class SAFRSRestRelationshipAPI(Resource):
             self.child_object_id += "2"
 
     # Retrieve relationship data
-    def get(self, **kwargs):
+    def get(self: Any, **kwargs: Any) -> Any:
         """
         summary : Retrieve {child_name} from {parent_name}.{cls.relationship.key}
         description : Retrieve {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
@@ -644,7 +646,7 @@ class SAFRSRestRelationshipAPI(Resource):
         return make_response(jsonify(result))
 
     # Relationship patching
-    def patch(self, **kwargs):
+    def patch(self: Any, **kwargs: Any) -> Any:
         """
         summary : Update {parent_name}.{cls.relationship.key}
         description : Update the {parent_name} {cls.relationship.key} "{direction}" relationship
@@ -758,7 +760,7 @@ class SAFRSRestRelationshipAPI(Resource):
         return make_response(jsonify(data), status_code)
 
     # Adding items to a relationship
-    def post(self, **kwargs):
+    def post(self: Any, **kwargs: Any) -> Any:
         """
         summary: Add {child_name} items to {parent_name}.{cls.relationship.key}
         description : Add {child_name} items to the {parent_name} {cls.relationship.key} "{direction}" relationship
@@ -816,7 +818,7 @@ class SAFRSRestRelationshipAPI(Resource):
         # we can return result too but it's not necessary per the spec
         return make_response(jsonify(data), status_code)
 
-    def delete(self, **kwargs):
+    def delete(self: Any, **kwargs: Any) -> Any:
         """
         summary : Delete {child_name} from {parent_name}.{cls.relationship.key}
         description : Delete {child_name} items from the {parent_name} {cls.relationship.key} "{direction}" relationship
@@ -896,7 +898,7 @@ class SAFRSRestRelationshipAPI(Resource):
 
         return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
-    def parse_args(self, **kwargs):
+    def parse_args(self: Any, **kwargs: Any) -> Any:
         """
         Parse relationship args
         An error is raised if the parent doesn't exist.
@@ -923,7 +925,7 @@ class SAFRSJSONRPCAPI(Resource):
     SAFRSObject = None  # Flask views will need to set this to the SQLAlchemy safrs.DB.Model class
     method_name = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         """
         -object_id is the function used to create the url parameter name
         (eg "User" -> "UserId" )
@@ -933,7 +935,7 @@ class SAFRSJSONRPCAPI(Resource):
         self._s_object_id = self.SAFRSObject._s_object_id
         self.target = self.SAFRSObject
 
-    def post(self, **kwargs):
+    def post(self: Any, **kwargs: Any) -> Any:
         """
         summary : call
         responses :
@@ -983,7 +985,7 @@ class SAFRSJSONRPCAPI(Resource):
 
         return self._create_rpc_response(method, args)
 
-    def get(self, **kwargs):
+    def get(self: Any, **kwargs: Any) -> Any:
         """
         responses :
             404 :
@@ -1017,7 +1019,7 @@ class SAFRSJSONRPCAPI(Resource):
         args = dict(request.args)
         return self._create_rpc_response(method, args)
 
-    def _create_rpc_response(self, method, args):
+    def _create_rpc_response(self: Any, method: Any, args: Any) -> Any:
         safrs.log.debug(f"method {self.method_name} args {args}")
         result = method(**args)
 

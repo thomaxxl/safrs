@@ -54,4 +54,7 @@ package-data = {}
 requires = ["setuptools>=43.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.mypy]
+ignore_missing_imports = true
+exclude = '(^|/)(docs|examples|tests)/'
 

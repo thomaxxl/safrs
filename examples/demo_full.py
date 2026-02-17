@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 # This script is deployed on thomaxxl.pythonanywhere.com
 #
 # This is a demo application to demonstrate the functionality of the safrs REST API
@@ -65,7 +66,7 @@ class DocumentedColumn(db.Column):
 
 
 # Customized relationships
-def hiddenRelationship(*args, **kwargs):
+def hiddenRelationship(*args: Any, **kwargs: Any) -> Any:
     """
     To hide a relationship, set the expose attribute to False
     """
@@ -121,14 +122,14 @@ class Person(BaseModel):
     )
 
     @jsonapi_attr
-    def password(self):
+    def password(self: Any) -> Any:
         """---
         "_password" is hidden because of the "_" prefix, provide a custom attribute "password" the Person fields
         """
         return "hidden, check _password"
 
     @password.setter
-    def password(self, val):
+    def password(self: Any, val: Any) -> Any:
         """
         Allow setting _password
         """
@@ -136,7 +137,7 @@ class Person(BaseModel):
 
     # Following methods are exposed through the REST API
     @jsonapi_rpc(http_methods=["POST"])
-    def send_mail(self, email=""):
+    def send_mail(self: Any, email: Any='') -> Any:
         """
         description : Send an email
         args:
@@ -152,7 +153,7 @@ class Person(BaseModel):
 
     @classmethod
     @jsonapi_rpc(http_methods=["POST"])
-    def my_rpc(cls, *args, **kwargs):
+    def my_rpc(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """
         pageable: false
         parameters:
@@ -184,17 +185,17 @@ class Publisher(BaseModel):
     books = db.relationship("Book", back_populates="publisher")
     employees = hiddenRelationship(Person, back_populates="employer")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
         custom_field = kwargs.pop("custom_field", None)
         SAFRSBase.__init__(self, **kwargs)
 
-    def to_dict(self):
+    def to_dict(self: Any) -> Any:
         result = SAFRSBase.to_dict(self)
         result["custom_field"] = "some customization"
         return result
 
     @classmethod
-    def filter(cls, arg):
+    def filter(cls: Any, arg: Any) -> Any:
         """
         Sample custom filtering, override this method to implement custom filtering
         using the sqlalchemy orm
@@ -209,7 +210,7 @@ class Publisher(BaseModel):
         return {"provided": arg}
 
     @jsonapi_attr
-    def stock(self):
+    def stock(self: Any) -> Any:
         """
         default: 30
         ---
@@ -233,7 +234,7 @@ class Review(BaseModel):
 
 # API app initialization:
 # Create the instances and exposes the classes
-def start_api(swagger_host="0.0.0.0", PORT=None):
+def start_api(swagger_host: Any='0.0.0.0', PORT: Any=None) -> Any:
 
     with app.app_context():
         db.init_app(app)
@@ -285,17 +286,17 @@ app = Flask("SAFRS Demo App")
 # app routes
 @app.route("/ja")  # React jsonapi frontend
 @app.route("/ja/<path:path>", endpoint="jsonapi_admin")
-def send_ja(path="index.html"):
+def send_ja(path: Any='index.html') -> Any:
     return send_from_directory(Path(__file__).parent.parent / "jsonapi-admin/build", path)
 
 
 @app.route("/swagger_editor/<path:path>", endpoint="swagger_editor")
-def send_swagger_editor(path="index.html"):
+def send_swagger_editor(path: Any='index.html') -> Any:
     return send_from_directory(Path(__file__).parent.parent / "swagger-editor", path)
 
 
 @app.route("/")
-def goto_api():
+def goto_api() -> Any:
     return redirect(API_PREFIX)
 
 app.secret_key = "not so secret"

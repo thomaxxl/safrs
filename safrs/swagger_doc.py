@@ -1,3 +1,4 @@
+# mypy: disable-error-code="assignment,arg-type,return-value,attr-defined,var-annotated,union-attr,import-untyped,dict-item,func-returns-value"
 #
 # # Functions for api documentation: these decorators generate the swagger schemas
 # This should evolve to a more declarative version in the future with templates
@@ -73,7 +74,7 @@ def jsonapi_rpc(http_methods: Optional[List[str]] = None, valid_jsonapi: bool = 
     if http_methods is None:
         http_methods = ["POST"]
 
-    def _documented_api_method(method):
+    def _documented_api_method(method: Any) -> Any:
         """
         :param method:
         add metadata to the method:
@@ -94,7 +95,7 @@ def jsonapi_rpc(http_methods: Optional[List[str]] = None, valid_jsonapi: bool = 
     return _documented_api_method
 
 
-def is_public(method):
+def is_public(method: Any) -> Any:
     """
     :param method: SAFRSBase method
     :return: True or False, whether the method is to be exposed
@@ -112,7 +113,7 @@ def get_doc(method: Any) -> None:
     return getattr(method, REST_DOC, None)
 
 
-def get_http_methods(method):
+def get_http_methods(method: Any) -> Any:
     """
     :param method: SAFRSBase jsonapi_rpc method
     :return: a list of http methods used to call the method (e.g. POST)
@@ -121,7 +122,7 @@ def get_http_methods(method):
     return getattr(method, HTTP_METHODS, ["POST"])
 
 
-def SchemaClassFactory(name, properties):
+def SchemaClassFactory(name: Any, properties: Any) -> Any:
     """
     Generate a Schema class, used to describe swagger schemas
     :param name: schema class name
@@ -143,7 +144,7 @@ def SchemaClassFactory(name, properties):
 
     Schema._reference_count.append(name)
 
-    def __init__(self, **kwargs):
+    def __init__(self: Any, **kwargs: Any) -> None:
         for key, value in kwargs.items():
             # here, the properties variable is the one passed to the
             # ClassFactory call
@@ -176,7 +177,7 @@ def encode_schema(obj: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # pylint: disable=redefined-builtin
-def schema_from_object(name, object):
+def schema_from_object(name: Any, object: Any) -> Any:
     """
     :param name:
     :param object:
@@ -230,7 +231,7 @@ def update_response_schema(responses: Dict[str, Dict[str, str]]) -> None:
             responses[code]["schema"] = err_schema
 
 
-def get_swagger_doc_arguments(cls, method_name, http_method):
+def get_swagger_doc_arguments(cls: Any, method_name: Any, http_method: Any) -> Any:
     """
     :param cls: class containing the method to be exposed
     :param method_name: name of the method to be exposed
@@ -329,12 +330,12 @@ def get_swagger_doc_arguments(cls, method_name, http_method):
 # Decorator is called when a swagger endpoint class is instantiated
 # from API.expose_object eg.
 #
-def swagger_doc(cls, tags=None):
+def swagger_doc(cls: Any, tags: Any=None) -> Any:
     """
     swagger_doc
     """
 
-    def swagger_doc_gen(func, instance=False):
+    def swagger_doc_gen(func: Any, instance: Any=False) -> Any:
         """
         Decorator used to document SAFRSRestAPI HTTP methods exposed in the API
         """
@@ -453,12 +454,12 @@ def swagger_doc(cls, tags=None):
     return swagger_doc_gen
 
 
-def swagger_relationship_doc(cls, tags=None):
+def swagger_relationship_doc(cls: Any, tags: Any=None) -> Any:
     """
     swagger_relationship_doc
     """
 
-    def swagger_doc_gen(func):
+    def swagger_doc_gen(func: Any) -> Any:
         """
         Decorator used to document relationship methods exposed in the API
         """
@@ -592,12 +593,12 @@ def swagger_relationship_doc(cls, tags=None):
     return swagger_doc_gen
 
 
-def swagger_method_doc(cls, method_name, tags=None):
+def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
     """
     Generate decorator used to document SAFRSJSONRPCAPI instances
     """
 
-    def swagger_doc_gen(func):
+    def swagger_doc_gen(func: Any) -> Any:
         """
         decorator
         """
@@ -679,7 +680,7 @@ def default_paging_parameters() -> List[Dict[str, Union[int, str, bool]]]:
     return parameters
 
 
-def apply_fstring(swagger_obj, vars, k=None):
+def apply_fstring(swagger_obj: Any, vars: Any, k: Any=None) -> Any:
     """
     Format the f-strings in the swagger object
     """

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Any
 #
 # `to_dict` example
 #
@@ -20,23 +21,23 @@ class User(SAFRSBase, db.Model):
     secret = db.Column(db.String)
 
     @hybrid_method
-    def _s_check_perm(self, property_name, permissions="r") -> bool:
+    def _s_check_perm(self: Any, property_name: Any, permissions: Any='r') -> bool:
         print(f"Check permissions: {self}")
         return True
     
     @_s_check_perm.expression
-    def _s_check_perm(cls, property_name, permissions="r") -> bool:
+    def _s_check_perm(cls: Any, property_name: Any, permissions: Any='r') -> bool:
         print(f"Check permissions: {cls}")
         return True
 
-def create_api(app, HOST="localhost", PORT=5000, API_PREFIX=""):
+def create_api(app: Any, HOST: Any='localhost', PORT: Any=5000, API_PREFIX: Any='') -> Any:
     api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
     api.expose_object(User)
     user = User(name="test", email="email@x.org")
     print(f"Starting API: http://{HOST}:{PORT}/{API_PREFIX}")
 
 
-def create_app(config_filename=None, host="localhost"):
+def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     app = Flask("demo_app")
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)

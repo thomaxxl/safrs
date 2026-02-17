@@ -1,6 +1,8 @@
+# mypy: disable-error-code="arg-type,attr-defined,misc,assignment,return-value,union-attr"
 """
 JSON:API filtering strategies
 """
+from typing import Any
 
 from .config import get_request_param
 import sqlalchemy
@@ -10,7 +12,7 @@ from flask import request
 from sqlalchemy.orm import joinedload, Query
 
 
-def create_query(cls):
+def create_query(cls: Any) -> Any:
     """
     Create a query for the target collection `cls`.
     If `include=` query parameters are given, the corresponding relationships will be joined loaded if possible
@@ -50,7 +52,7 @@ def create_query(cls):
 
 
 @classmethod
-def jsonapi_filter(cls) -> Query:
+def jsonapi_filter(cls: Any) -> Query:
     """
     https://jsonapi.org/recommendations/#filtering
     Apply the request.args filters to the object
@@ -118,7 +120,7 @@ def jsonapi_filter(cls) -> Query:
 
 
 @classmethod
-def get_swagger_filters(cls):
+def get_swagger_filters(cls: Any) -> Any:
     """
     :return: JSON:API filters swagger spec
     create the filter[] swagger doc for all jsonapi attributes + the id
@@ -174,6 +176,6 @@ def get_swagger_filters(cls):
 
 
 class FilteringStrategy:
-    def __init__(self, jsonapi_filter: classmethod = jsonapi_filter, swagger_gen: classmethod = get_swagger_filters) -> None:
+    def __init__(self: Any, jsonapi_filter: classmethod=jsonapi_filter, swagger_gen: classmethod=get_swagger_filters) -> None:
         self.jsonapi_filter = jsonapi_filter
         self.swagger_gen = swagger_gen
