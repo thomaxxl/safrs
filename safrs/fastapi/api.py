@@ -774,16 +774,19 @@ class SafrsFastAPI:
                     return Response(status_code=204)
 
                 if isinstance(data, list):
-                    if len(data) != 1:
+                    if data and isinstance(data[0], dict):
+                        safrs.log.warning("Invalid Payload to delete from MANYTOONE relationship")
+                        data = data[0]
+                    else:
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                    data = data[0]
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                 target = self._lookup_related_instance(target_model, data, strict=True)
                 current = getattr(parent, rel_name, None)
-                if current is None or str(current.jsonapi_id) != str(target.jsonapi_id):
-                    self._jsonapi_error(400, "ValidationError", "Related object is not currently linked")
-                setattr(parent, rel_name, None)
+                if current is not None and str(current.jsonapi_id) == str(target.jsonapi_id):
+                    setattr(parent, rel_name, None)
+                else:
+                    safrs.log.warning("child not in relation")
                 safrs.DB.session.commit()
                 return Response(status_code=204)
             except Exception as exc:
