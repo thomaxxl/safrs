@@ -302,6 +302,89 @@ class SafrsFastAPI:
         except Exception:
             return items
 
+    @staticmethod
+    def _is_query_like(value: Any) -> bool:
+        return hasattr(value, "all") and callable(value.all)
+
+    def _coerce_items(self, value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if self._is_query_like(value):
+            return list(value.all())
+        if isinstance(value, (list, tuple, set)):
+            return list(value)
+        return [value]
+
+    @staticmethod
+    def _parse_page_param(raw: Optional[str], default: int) -> int:
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except Exception:
+            return default
+
+    def _apply_pagination(self, value: Any, request: Request) -> Any:
+        has_offset = "page[offset]" in request.query_params
+        has_limit = "page[limit]" in request.query_params
+        if not has_offset and not has_limit:
+            return value
+
+        max_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", 100000))
+        offset = max(0, self._parse_page_param(request.query_params.get("page[offset]"), 0))
+        limit = self._parse_page_param(request.query_params.get("page[limit]"), max_limit)
+        if limit < 0:
+            limit = max_limit
+        if limit > max_limit:
+            limit = max_limit
+
+        if self._is_query_like(value):
+            query = value.offset(offset)
+            return query.limit(limit)
+
+        items = self._coerce_items(value)
+        return items[offset : offset + limit]
+
+    def _apply_sort_query_or_items(self, Model: Type[Any], value: Any, request: Request) -> Any:
+        sort_arg = request.query_params.get("sort")
+        if not sort_arg:
+            return value
+
+        attr_name = sort_arg.lstrip("-")
+        reverse = sort_arg.startswith("-")
+
+        if self._is_query_like(value):
+            model_attr = getattr(Model, attr_name, None)
+            if model_attr is None:
+                return value
+            try:
+                return value.order_by(model_attr.desc() if reverse else model_attr.asc())
+            except Exception:
+                return value
+
+        return self._apply_sort(self._coerce_items(value), request)
+
+    def _apply_filter(self, Model: Type[Any], request: Request, base_query: Any) -> Any:
+        raw_filter = request.query_params.get("filter")
+        if raw_filter is None:
+            # Keep SAFRS-style permissive behavior for query args like filter[invalid]=...
+            if any(key.startswith("filter[") for key in request.query_params.keys()):
+                return []
+            return base_query
+
+        try:
+            if "filter" in Model.__dict__ and callable(getattr(Model, "filter")):
+                filtered = Model.filter(raw_filter)
+            else:
+                filtered = Model._s_filter(raw_filter)
+        except ValidationError as exc:
+            self._jsonapi_error(400, "ValidationError", str(exc))
+        except JsonapiError as exc:
+            self._handle_safrs_exception(exc)
+        except Exception as exc:
+            self._handle_safrs_exception(exc)
+        return filtered
+
     def _lookup_related_instance(self, target_model: Type[Any], payload: Dict[str, Any], strict: bool = True) -> Any:
         if not isinstance(payload, dict):
             self._jsonapi_error(400, "ValidationError", "Invalid data payload")
@@ -412,7 +495,10 @@ class SafrsFastAPI:
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
-                objs = Model._s_query.all()
+                query_or_items = self._apply_filter(Model, request, Model._s_query)
+                query_or_items = self._apply_sort_query_or_items(Model, query_or_items, request)
+                query_or_items = self._apply_pagination(query_or_items, request)
+                objs = self._coerce_items(query_or_items)
                 data = [self._encode_resource(Model, o, wanted_fields=wanted_fields) for o in objs]
                 included: List[Dict[str, Any]] = []
                 seen: Set[Tuple[str, str]] = set()
@@ -522,7 +608,10 @@ class SafrsFastAPI:
                 rel_value = getattr(parent, rel_name, None)
 
                 if rel.uselist:
-                    items = self._apply_sort(self._iter_related_items(rel_value), request)
+                    items = self._iter_related_items(rel_value)
+                    items = self._apply_sort_query_or_items(target_model, items, request)
+                    items = self._apply_pagination(items, request)
+                    items = self._coerce_items(items)
                     data = [self._encode_resource(target_model, item, wanted_fields=wanted_fields) for item in items]
                     return self._jsonapi_doc(data=data, meta={"count": len(data)})
 
