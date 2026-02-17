@@ -204,7 +204,74 @@ from .config import get_config
 from .jsonapi_filters import jsonapi_filter
 from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
-from .util import classproperty
+from .util import ClassPropertyDescriptor, classproperty
+from .model_config import SAFRSModelConfig
+
+
+# Mapping of legacy "_s_" class attributes to SAFRSModelConfig field names.
+_LEGACY_SAFRS_CONFIG_MAP = {
+    "_s_expose": "expose",
+    "_s_upsert": "upsert",
+    "_s_allow_add_rels": "allow_add_rels",
+    "_s_pk_delimiter": "pk_delimiter",
+    "_s_url_root": "url_root",
+    "_s_stateless": "stateless",
+}
+
+
+@lru_cache(maxsize=1024)
+def _resolve_safrs_model_config(model_cls: type) -> SAFRSModelConfig:
+    """Resolve a model's SAFRS configuration.
+
+    Resolution order is MRO-based: base classes first, subclasses last.
+
+    Supported override styles per class:
+    - ``class SAFRSConfig: ...`` nested class with attributes matching config fields.
+    - ``__safrs_config__`` attribute containing a SAFRSModelConfig or a dict of overrides.
+    - legacy ``_s_*`` class attributes.
+
+    Notes:
+    - The result is cached. If you mutate overrides at runtime, call
+      ``SAFRSBase._s_clear_config_cache()``.
+    """
+    cfg = SAFRSModelConfig()
+    field_names = set(cfg.__dataclass_fields__.keys())
+
+    for base in reversed(getattr(model_cls, "__mro__", ())):
+        if base is object:
+            continue
+
+        # Full config / dict overrides
+        raw_cfg = getattr(base, "__dict__", {}).get("__safrs_config__", None)
+        if isinstance(raw_cfg, SAFRSModelConfig):
+            cfg = raw_cfg
+        elif isinstance(raw_cfg, dict):
+            cfg = cfg.with_overrides(raw_cfg)
+
+        # Nested class overrides: class SAFRSConfig: expose = ...
+        cfg_cls = getattr(base, "__dict__", {}).get("SAFRSConfig", None)
+        if cfg_cls is not None:
+            overrides = {}
+            for name in field_names:
+                if hasattr(cfg_cls, name):
+                    overrides[name] = getattr(cfg_cls, name)
+            cfg = cfg.with_overrides(overrides)
+
+        # Legacy overrides: _s_expose, _s_pk_delimiter, ...
+        legacy_overrides = {}
+        base_dict = getattr(base, "__dict__", {})
+        for legacy_attr, field_name in _LEGACY_SAFRS_CONFIG_MAP.items():
+            if legacy_attr not in base_dict:
+                continue
+            value = base_dict[legacy_attr]
+            # SAFRSBase defines some of these as classproperties.
+            # Only treat concrete values (bool/str/None/...) as legacy overrides.
+            if isinstance(value, ClassPropertyDescriptor):
+                continue
+            legacy_overrides[field_name] = value
+        cfg = cfg.with_overrides(legacy_overrides)
+
+    return cfg
 
 #
 # Map SQLA types to swagger2 json types
@@ -274,7 +341,6 @@ class SAFRSBase(Model):
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
-    _s_expose = True  # indicates we want to expose this (see _s_check_perms)
     jsonapi_filter = jsonapi_filter  # filtering implementation
 
     # Cached lookup tables
@@ -287,12 +353,43 @@ class SAFRSBase(Model):
     _relationship_api = safrs.jsonapi.SAFRSRestRelationshipAPI
     _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
 
-    _s_upsert = True  # indicates we want to lookup and use existing objects
-    _s_allow_add_rels = True  # allow relationships to be added in post requests
+    @classproperty
+    def safrs_config(cls: Any) -> SAFRSModelConfig:
+        """Resolved configuration for this SAFRS model class."""
+        return _resolve_safrs_model_config(cls)
 
-    _s_pk_delimiter = "_"
+    @classmethod
+    def _s_clear_config_cache(cls: Any) -> None:
+        """Clear the SAFRS model config cache.
 
-    _s_url_root = None  # url prefix shown in the "links" field, if not set, request.url_root will be
+        Use this if you mutate configuration overrides at runtime.
+        """
+        _resolve_safrs_model_config.cache_clear()
+
+    @classproperty
+    def _s_expose(cls: Any) -> bool:
+        """Indicates whether this class should be exposed in the API."""
+        return bool(cls.safrs_config.expose)
+
+    @classproperty
+    def _s_upsert(cls: Any) -> bool:
+        """Indicates whether to look up and use existing objects during creation."""
+        return bool(cls.safrs_config.upsert)
+
+    @classproperty
+    def _s_allow_add_rels(cls: Any) -> bool:
+        """Allows relationships to be added in POST requests."""
+        return bool(cls.safrs_config.allow_add_rels)
+
+    @classproperty
+    def _s_pk_delimiter(cls: Any) -> str:
+        """Delimiter used to concatenate primary key values in jsonapi ids."""
+        return str(cls.safrs_config.pk_delimiter)
+
+    @classproperty
+    def _s_url_root(cls: Any) -> Any:
+        """URL prefix shown in the JSON:API "links" field."""
+        return cls.safrs_config.url_root
 
     included_list = None
 
