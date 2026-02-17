@@ -33,6 +33,16 @@ class SafrsFastAPI:
         self.prefix = prefix
         self.default_dependencies = self._normalize_dependencies(dependencies)
         install_jsonapi_exception_handlers(app)
+        self._install_swagger_alias()
+
+    def _install_swagger_alias(self) -> None:
+        for route in self.app.routes:
+            if getattr(route, "path", None) == "/swagger.json":
+                return
+
+        @self.app.get("/swagger.json", include_in_schema=False)
+        def swagger_json() -> Dict[str, Any]:
+            return self.app.openapi()
 
     @staticmethod
     def _with_slash_parity(path: str) -> List[str]:
