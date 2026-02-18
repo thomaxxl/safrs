@@ -2,6 +2,7 @@
 
 import base64
 import datetime as dt
+import inspect
 from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import safrs
@@ -86,6 +87,13 @@ class SafrsFastAPI:
             return [FastAPIDepends(self._write_auth_dependency)]
         return []
 
+    @staticmethod
+    def _is_class_level_rpc_method(Model: Type[Any], method_name: str, api_method: Any) -> bool:
+        raw_method = inspect.getattr_static(Model, method_name, None)
+        if isinstance(raw_method, (classmethod, staticmethod)):
+            return True
+        return getattr(api_method, "__self__", None) is Model
+
     def _discover_rpc_methods(self, Model: Type[Any]) -> List[Tuple[str, bool, List[str]]]:
         rpc_methods: List[Tuple[str, bool, List[str]]] = []
         seen: Set[str] = set()
@@ -96,8 +104,7 @@ class SafrsFastAPI:
                 if method_name in seen:
                     continue
                 seen.add(method_name)
-                model_method = Model.__dict__.get(method_name, None)
-                class_level = isinstance(model_method, (classmethod, staticmethod)) or getattr(api_method, "__self__", None) is Model
+                class_level = self._is_class_level_rpc_method(Model, method_name, api_method)
                 http_methods = [str(method).upper() for method in get_http_methods(api_method)]
                 rpc_methods.append((method_name, class_level, http_methods))
             return rpc_methods
@@ -320,15 +327,6 @@ class SafrsFastAPI:
         instance_path = collection_path + "/{object_id}"
         rpc_methods = self._discover_rpc_methods(Model)
 
-        self._register_base_routes(
-            router,
-            Model,
-            tag,
-            collection_path,
-            instance_path,
-            route_dependencies,
-            write_route_dependencies,
-        )
         self._register_rpc_routes(
             router,
             Model,
@@ -337,6 +335,15 @@ class SafrsFastAPI:
             instance_path,
             rpc_methods,
             route_dependencies,
+        )
+        self._register_base_routes(
+            router,
+            Model,
+            tag,
+            collection_path,
+            instance_path,
+            route_dependencies,
+            write_route_dependencies,
         )
         self._register_relationship_routes(router, Model, tag, instance_path, route_dependencies)
 
@@ -591,7 +598,7 @@ class SafrsFastAPI:
 
     def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool):
         if class_level:
-            def handler(
+            def class_handler(
                 request: Request,
                 payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
             ):
@@ -602,9 +609,9 @@ class SafrsFastAPI:
                 except Exception as exc:
                     self._handle_safrs_exception(exc)
 
-            return handler
+            return class_handler
 
-        def handler(
+        def instance_handler(
             object_id: str,
             request: Request,
             payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
@@ -616,7 +623,7 @@ class SafrsFastAPI:
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
-        return handler
+        return instance_handler
 
     def _parse_include_paths(self, Model: Type[Any], request: Request) -> List[List[str]]:
         include_csv = request.query_params.get("include")

@@ -1081,6 +1081,62 @@ class SAFRSBase(Model):
 
         return data
 
+    def _s_get_include_settings(self: Any) -> tuple[list[str], set[str], list[str]]:
+        included_list = getattr(self, "included_list", None)
+        if included_list is None:
+            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+            included_list = [inc for inc in included_csv.split(",") if inc]
+
+        excluded_csv = request.args.get("exclude", "")
+        excluded_list = excluded_csv.split(",")
+        included_rels = {item.split(".")[0] for item in included_list}
+        return included_list, included_rels, excluded_list
+
+    def _s_validate_included_relationships(self: Any, included_rels: set[str], included_list: list[str]) -> None:
+        for rel_name in included_rels:
+            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
+                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
+
+    @staticmethod
+    def _s_nested_included_list(included_list: list[str], rel_name: str) -> list[list[str]]:
+        return [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
+
+    @staticmethod
+    def _s_relationship_result(rel_url: str, data: Any, meta: dict[str, Any]) -> dict[str, Any]:
+        rel_data: dict[str, Any] = {"links": {"self": rel_url}, "data": data}
+        if meta:
+            rel_data["meta"] = meta
+        return rel_data
+
+    def _s_related_collection_data(self: Any, rel_name: str, next_included_list: list[list[str]]) -> tuple[list[Any], dict[str, Any]]:
+        data: list[Any] = []
+        meta: dict[str, Any] = {}
+        rel_query = getattr(self, rel_name)
+        limit = cast(Any, request).get_page_limit(rel_name)
+        if not get_config("ENABLE_RELATIONSHIPS"):
+            meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
+            return data, meta
+        if not rel_query:
+            return data, meta
+
+        if getattr(rel_query, "limit", False):
+            count = rel_query.count()
+            rel_query = rel_query.limit(limit)
+            if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
+                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
+                safrs.log.warning(warning)
+                meta["warning"] = warning
+            items = rel_query.all()
+        else:  # rel_query is an 'InstrumentedList'
+            items = list(rel_query)[:limit]
+            count = len(items)
+
+        meta["count"] = meta["total"] = count
+        meta["limit"] = limit
+        for rel_item in items:
+            data.append(Included(rel_item, next_included_list))
+        return data, meta
+
     def _s_get_related(self: Any) -> Any:
         """
         :return: dict of relationship names -> [related instances]
@@ -1105,26 +1161,9 @@ class SAFRSBase(Model):
         # it may have been set previously by Included() when called recursively
         # if it's not set, parse the include= request param here
         # included_list example: ['friends.books_read', 'friends.books_written']
-        included_list = getattr(self, "included_list", None)
-        if included_list is None:
-            # Multiple related resources can be requested in a comma-separated list
-            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
-            included_list = [inc for inc in included_csv.split(",") if inc]
-
-        excluded_csv = request.args.get("exclude", "")
-        excluded_list = excluded_csv.split(",")
-        # In order to recursively request related resources
-        # a dot-separated path for each relationship name can be specified
-        included_rels = {i.split(".")[0] for i in included_list}
-        relationships = dict()
-
-        for rel_name in included_rels:
-            """
-            If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
-            it MUST respond with 400 Bad Request.
-            """
-            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
-                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
+        included_list, included_rels, excluded_list = self._s_get_include_settings()
+        relationships = {}
+        self._s_validate_included_relationships(included_rels, included_list)
 
         for rel_name, relationship in self._s_relationships.items():
             """
@@ -1149,7 +1188,7 @@ class SAFRSBase(Model):
             MAY also contain pagination links under the links member, as described below.
             SAFRS currently implements links with self
             """
-            meta = {}
+            meta: dict[str, Any] = {}
             rel_name = relationship.key
             data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
@@ -1158,7 +1197,7 @@ class SAFRSBase(Model):
                 pass
             if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
                 # next_included_list contains the recursive relationship names
-                next_included_list = [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
+                next_included_list = self._s_nested_included_list(included_list, rel_name)
                 if relationship.direction == MANYTOONE:
                     # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
@@ -1166,45 +1205,13 @@ class SAFRSBase(Model):
                         # create an Included instance that will be used for serialization eventually
                         data = Included(rel_item, next_included_list)
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    # manytoone relationship contains a list of instances
-                    # Data is optional, it's also really slow for large sets!
-                    data = []
-                    rel_query = getattr(self, rel_name)
-                    limit = cast(Any, request).get_page_limit(rel_name)
-                    if not get_config("ENABLE_RELATIONSHIPS"):
-                        meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
-                    elif rel_query:
-                        # todo: check if lazy=dynamic
-                        # In order to work with the relationship as with Query,
-                        # you need to configure it with lazy='dynamic'
-                        # "limit" may not be possible !
-                        if getattr(rel_query, "limit", False):
-                            count = rel_query.count()
-                            rel_query = rel_query.limit(limit)
-                            if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
-                                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
-                                safrs.log.warning(warning)
-                                meta["warning"] = warning
-                            items = rel_query.all()
-                        else:  # rel_query is an 'InstrumentedList'
-                            items = list(rel_query)[:limit]
-                            count = len(items)
-                        meta["count"] = meta["total"] = count
-                        meta["limit"] = limit
-                        for rel_item in items:
-                            data.append(Included(rel_item, next_included_list))
+                    data, meta = self._s_related_collection_data(rel_name, next_included_list)
                 else:  # pragma: no cover
                     # should never happen
                     safrs.log.error(f"Unknown relationship direction for relationship {rel_name}: {relationship.direction}")
 
             rel_link = urljoin(self._s_url, rel_name)
-            links = dict(self=rel_link)
-            rel_data: dict[str, Any] = dict(links=links)
-
-            rel_data["data"] = data
-            if meta:
-                rel_data["meta"] = meta
-            relationships[rel_name] = rel_data
+            relationships[rel_name] = self._s_relationship_result(rel_link, data, meta)
 
         return relationships
 

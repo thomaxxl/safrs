@@ -58,53 +58,62 @@ class _SAFRSJSONEncoder:
 
     # pylint: disable=too-many-return-statements,logging-format-interpolation
     # pylint: disable=arguments-differ,protected-access,method-hidden
+    @staticmethod
+    def _encode_primitive(obj: Any) -> tuple[bool, Any]:
+        if obj is None:
+            return True, None
+        if obj is Included:
+            return True, Included.encode()
+        if isinstance(obj, Included):
+            return True, obj.encode()
+        if isinstance(obj, datetime.timedelta):
+            return True, str(obj)
+        if isinstance(obj, datetime.datetime):
+            return True, obj.isoformat(" ")
+        if isinstance(obj, (datetime.date, datetime.time)):
+            return True, obj.isoformat()
+        if isinstance(obj, set):
+            return True, list(obj)
+        if isinstance(obj, UUID):  # pragma: no cover
+            return True, str(obj)
+        if isinstance(obj, decimal.Decimal):  # pragma: no cover
+            return True, float(obj)
+        if isinstance(obj, bytes):  # pragma: no cover
+            if obj == b"":
+                return True, ""
+            safrs.log.debug("SAFRSJSONEncoder: serializing bytes obj")
+            return True, obj.hex()
+        return False, None
+
+    @staticmethod
+    def _encode_safrs_types(obj: Any) -> tuple[bool, Any]:
+        if isinstance(obj, SAFRSBase):
+            return True, obj._s_jsonapi_encode()
+        if isinstance(obj, SAFRSFormattedResponse):
+            return True, obj.to_dict()
+        return False, None
+
+    def _encode_debug_fallback(self, obj: Any) -> Any:
+        if not is_debug():  # pragma: no cover
+            safrs.log.warning(f'JSON Encoding Error: Unknown object type "{type(obj)}" for {obj}')
+            return {"error": "SAFRSJSONEncoder invalid object"}
+        if isinstance(obj, DeclarativeMeta):  # pragma: no cover
+            return self.sqla_encode(obj)
+        return self.ghetto_encode(obj)
+
     def default(self: Any, obj: Any) -> Any:
         """
         override the default json encoding
         :param obj: object to be encoded
         :return: encoded/serizlaized object
         """
-        if obj is None:
-            return None
-        if obj is Included:
-            return Included.encode()
-        if isinstance(obj, Included):
-            result = obj.encode()
-            return result
-        if isinstance(obj, datetime.timedelta):
-            return str(obj)
-        if isinstance(obj, SAFRSBase):
-            result = obj._s_jsonapi_encode()
-            return result
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat(" ")
-        if isinstance(obj, (datetime.date, datetime.time)):
-            return obj.isoformat()
-        if isinstance(obj, set):
-            return list(obj)
-        if isinstance(obj, SAFRSFormattedResponse):
-            return obj.to_dict()
-        if isinstance(obj, UUID):  # pragma: no cover
-            return str(obj)
-        if isinstance(obj, decimal.Decimal):  # pragma: no cover
-            return float(obj)
-        if isinstance(obj, bytes):  # pragma: no cover
-            if obj == b"":
-                return ""
-            safrs.log.debug("SAFRSJSONEncoder: serializing bytes obj")
-            return obj.hex()
-
-        # We shouldn't get here in a normal setup
-        # getting here means we already abused safrs... and we're no longer jsonapi compliant
-        if not is_debug():  # pragma: no cover
-            # only continue if in debug mode
-            safrs.log.warning(f'JSON Encoding Error: Unknown object type "{type(obj)}" for {obj}')
-            return {"error": "SAFRSJSONEncoder invalid object"}
-
-        if isinstance(obj, DeclarativeMeta):  # pragma: no cover
-            return self.sqla_encode(obj)
-
-        return self.ghetto_encode(obj)
+        encoded, value = self._encode_primitive(obj)
+        if encoded:
+            return value
+        encoded, value = self._encode_safrs_types(obj)
+        if encoded:
+            return value
+        return self._encode_debug_fallback(obj)
 
     @staticmethod
     def ghetto_encode(obj: Any) -> Any:  # pragma: no cover

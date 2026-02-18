@@ -230,6 +230,65 @@ def update_response_schema(responses: Any) -> None:
             responses[code]["schema"] = err_schema
 
 
+def _find_method_on_class(cls: Any, method_name: Any) -> Any:
+    for name, method in inspect.getmembers(cls):
+        if name == method_name:
+            return method
+    raise SystemValidationError(f"method {method_name} not found")
+
+
+def _populate_post_method_fields(cls: Any, method: Any, method_name: Any, http_method: Any, fields: dict[str, Any], rest_doc: dict[str, Any]) -> list[Any]:
+    parameters = rest_doc.get("parameters", [])
+    method_args = rest_doc.get("args", [])
+    if method_args and isinstance(method_args, dict) and http_method == "post":
+        model_name = f"{cls.__name__}_{method_name}"
+        method_field = {"method": method_name, "args": method_args}
+        if getattr(method, "valid_jsonapi", True):
+            fields["meta"] = schema_from_object(model_name, method_field)
+        else:
+            for k, v in method_args.items():
+                fields[k] = {"example": v}
+    return parameters
+
+
+def _append_filterable_parameters(cls: Any, parameters: list[Any], description: str) -> None:
+    for column_name, column in cls._s_column_dict.items():
+        if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
+            desc = getattr(column, "description", f"{column_name} attribute filter (csv)")
+            param = {
+                "default": "",
+                "type": "string",
+                "name": f"filter[{column_name}]",
+                "in": "query",
+                "format": "string",
+                "required": False,
+                "description": desc,
+            }
+            parameters += param  # type: ignore[arg-type]
+
+
+def _populate_undocumented_method_fields(method: Any, cls: Any, method_name: Any, http_method: Any, f_args: list[str], fields: dict[str, Any]) -> None:
+    if not f_args or http_method == "options":
+        return
+    safrs.log.warning(f'No documentation for method "{method_name}"')
+    f_defaults: list[Any] = list(inspect.getfullargspec(method).defaults or [])
+    if f_args and f_args[0] in ("cls", "self"):
+        f_args = f_args[1:]
+    args = dict(zip(f_args, f_defaults))
+    model_name = f"{cls.__name__}_{method_name}"
+    method_field = {"method": method_name, "args": args}
+    if getattr(method, "valid_jsonapi", True):
+        fields["meta"] = schema_from_object(model_name, method_field)
+
+
+def _normalize_parameters(parameters: list[Any]) -> None:
+    for param in parameters:
+        if param.get("in") is None:
+            param["in"] = "query"
+        if param.get("type") is None:
+            param["type"] = "string"
+
+
 def get_swagger_doc_arguments(cls: Any, method_name: Any, http_method: Any) -> Any:
     """
     :param cls: class containing the method to be exposed
@@ -256,71 +315,23 @@ def get_swagger_doc_arguments(cls: Any, method_name: Any, http_method: Any) -> A
     We use "meta" to remain compliant with the jsonapi schema
     """
 
-    parameters = []
-    fields = {}
-    # for method_name, method in inspect.getmembers(cls, predicate=inspect.ismethod):
-    for name, method in inspect.getmembers(cls):
-        if name == method_name:
-            break
-    else:
-        raise SystemValidationError(f"method {method_name} not found")
-
+    parameters: list[Any] = []
+    fields: dict[str, Any] = {}
+    method = _find_method_on_class(cls, method_name)
     f_args = inspect.getfullargspec(method).args
-    rest_doc = cast(dict[str, Any], get_doc(method))
-    description = rest_doc.get("description", "")
+    rest_doc = cast(Optional[dict[str, Any]], get_doc(method))
+    description = ""
     if rest_doc is not None:
-        method_args = rest_doc.get("args", [])  # jsonapi_rpc "POST" method arguments
-        parameters = rest_doc.get("parameters", [])  # query string parameters
-        if method_args and isinstance(method_args, dict):
-            if http_method == "post":
-                # Post arguments, these require us to build a schema
-                model_name = f"{cls.__name__}_{method_name}"
-                method_field = {"method": method_name, "args": method_args}
-                if getattr(method, "valid_jsonapi", True):
-                    payload = schema_from_object(model_name, method_field)
-                    fields["meta"] = payload
-                else:
-                    # todo: maybe get function args from inspect
-                    for k, v in method_args.items():
-                        fields[k] = {"example": v}
+        description = rest_doc.get("description", "")
+        parameters = _populate_post_method_fields(cls, method, method_name, http_method, fields, rest_doc)
         if rest_doc.get(PAGEABLE):
             parameters += default_paging_parameters()
         if rest_doc.get(FILTERABLE):
-            for column_name, column in cls._s_column_dict.items():
-                # Expose a column if it doesn't have the "expose" attribute
-                # Standard SQLA columns don't have this attibute
-                # but this may have been customized by a subclass
-                if getattr(column, "expose", True) and getattr(column, FILTERABLE, True):
-                    description = getattr(column, "description", f"{column_name} attribute filter (csv)")
-                    param = {
-                        "default": "",
-                        "type": "string",
-                        "name": f"filter[{column_name}]",
-                        "in": "query",
-                        "format": "string",
-                        "required": False,
-                        "description": description,
-                    }
-                    parameters += param  # type: ignore[arg-type]
-    elif f_args and http_method != "options":
-        safrs.log.warning(f'No documentation for method "{method_name}"')
-        # jsonapi_rpc method has no documentation, generate it w/ inspect
-        f_defaults: list[Any] = list(inspect.getfullargspec(method).defaults or [])
-        if f_args and f_args[0] in ("cls", "self"):
-            f_args = f_args[1:]
-        args = dict(zip(f_args, f_defaults))
-        model_name = f"{cls.__name__}_{method_name}"
-        # model = SchemaClassFactory(model_name, [])
-        # arg_field = {"schema": model, "type": "string"} # tbd?
-        method_field = {"method": method_name, "args": args}
-        if getattr(method, "valid_jsonapi", True):
-            fields["meta"] = schema_from_object(model_name, method_field)
+            _append_filterable_parameters(cls, parameters, description)
+    else:
+        _populate_undocumented_method_fields(method, cls, method_name, http_method, f_args, fields)
 
-    for param in parameters:
-        if param.get("in") is None:
-            param["in"] = "query"
-        if param.get("type") is None:
-            param["type"] = "string"
+    _normalize_parameters(parameters)
 
     return parameters, fields, description, method
 
@@ -453,6 +464,105 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
     return swagger_doc_gen
 
 
+def _ensure_relationship_swagger_attrs(parent_class: Any, child_class: Any) -> None:
+    if not getattr(parent_class, "object_id", None):
+        parent_class._s_object_id = parent_class.__name__ + "Id"
+    if not getattr(child_class, "object_id", None):
+        child_class._s_object_id = child_class.__name__ + "Id"
+    if not getattr(parent_class, "sample_id", None):
+        setattr(parent_class, "sample_id", lambda: "")
+    if not getattr(child_class, "sample_id", None):
+        setattr(child_class, "sample_id", lambda: "")
+    if not getattr(child_class, "get_swagger_doc", None):
+        setattr(child_class, "get_swagger_doc", lambda x: (None, {}))
+
+
+def _relationship_parameters(parent_class: Any, child_class: Any, class_name: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": parent_class._s_object_id,
+            "in": "path",
+            "type": "string",
+            "default": parent_class._s_sample_id(),
+            "description": f"{parent_class.__name__} item",
+            "required": True,
+        },
+        {
+            "name": child_class._s_object_id,
+            "in": "path",
+            "type": "string",
+            "default": child_class._s_sample_id(),
+            "description": f"{class_name} item",
+            "required": True,
+        },
+    ]
+
+
+def _relationship_model_name(relationship: Any, class_name: str) -> str:
+    if relationship.direction in (ONETOMANY, MANYTOMANY):
+        return f"{class_name}_rel_coll"
+    return f"{class_name}_rel_inst"
+
+
+def _relationship_data_payload(relationship: Any, child_class: Any) -> Any:
+    data: Any = {"type": child_class._s_type, "id": child_class._s_sample_id()}
+    if relationship.direction in (ONETOMANY, MANYTOMANY):
+        return [data]
+    return data
+
+
+def _append_relationship_body_param(parameters: list[Any], class_name: str, schema: Any) -> None:
+    parameters.append(
+        {
+            "name": f"{class_name} body",
+            "in": "body",
+            "description": f"{class_name} POST model",
+            "schema": schema,
+            "required": True,
+        }
+    )
+
+
+def _relationship_responses_and_parameters(
+    cls: Any,
+    relationship: Any,
+    http_method: str,
+    child_class: Any,
+    class_name: str,
+    model_name: str,
+    parameters: list[Any],
+) -> dict[Any, Any]:
+    responses: dict[Any, Any] = {}
+    if http_method == "get":
+        _, responses = cls._s_get_swagger_doc(http_method)
+        return responses
+
+    if http_method in ("post", "patch"):
+        _, responses = cls._s_get_swagger_doc(http_method)
+        _, responses = child_class._s_get_swagger_doc("patch")
+        data = _relationship_data_payload(relationship, child_class)
+        if relationship.direction in (ONETOMANY, MANYTOMANY):
+            responses.pop(HTTPStatus.OK.value, None)
+        rel_post_schema = schema_from_object(model_name, {"data": data})
+        rel_post_schema.description += f"{class_name} {http_method} relationship;"
+        cls.swagger_models["instance"] = rel_post_schema
+        cls.swagger_models["collection"] = rel_post_schema
+        _append_relationship_body_param(parameters, class_name, rel_post_schema)
+        if relationship.direction is MANYTOONE:
+            responses[HTTPStatus.OK.value] = {"schema": rel_post_schema, "description": HTTPStatus.OK.description}
+        return responses
+
+    if http_method == "delete":
+        _, responses = child_class._s_get_swagger_doc("patch")
+        rel_del_schema = schema_from_object(model_name, {"data": _relationship_data_payload(relationship, child_class)})
+        _append_relationship_body_param(parameters, class_name, rel_del_schema)
+        return responses
+
+    if http_method != "options":
+        safrs.log.info(f'no documentation for "{http_method}" ')
+    return responses
+
+
 def swagger_relationship_doc(cls: Any, tags: Any=None) -> Any:
     """
     swagger_relationship_doc
@@ -467,126 +577,28 @@ def swagger_relationship_doc(cls: Any, tags: Any=None) -> Any:
         child_class = cls.relationship.mapper.class_
         class_name = cls.__name__
         http_method = func.__name__.lower()
-        #######################################################################
-        # Following will only happen when exposing an exisiting DB
-        #
-        if not getattr(parent_class, "object_id", None):
-            parent_class._s_object_id = parent_class.__name__ + "Id"
-        if not getattr(child_class, "object_id", None):
-            child_class._s_object_id = child_class.__name__ + "Id"
-        if not getattr(parent_class, "sample_id", None):
-            setattr(parent_class, "sample_id", lambda: "")
-        if not getattr(child_class, "sample_id", None):
-            setattr(child_class, "sample_id", lambda: "")
-        if not getattr(child_class, "get_swagger_doc", None):
-            setattr(child_class, "get_swagger_doc", lambda x: (None, {}))
-        #
-        #######################################################################
+        _ensure_relationship_swagger_attrs(parent_class, child_class)
 
-        parameters = [
-            {
-                "name": parent_class._s_object_id,
-                "in": "path",
-                "type": "string",
-                "default": parent_class._s_sample_id(),
-                "description": f"{parent_class.__name__} item",
-                "required": True,
-            },
-            {
-                "name": child_class._s_object_id,
-                "in": "path",
-                "type": "string",
-                "default": child_class._s_sample_id(),
-                "description": f"{class_name} item",
-                "required": True,
-            },
-        ]
-
-        if tags is None:
-            doc_tags = [cls._s_collection_name]
-        else:
-            doc_tags = tags
-
+        parameters = _relationship_parameters(parent_class, child_class, class_name)
+        doc_tags = [cls._s_collection_name] if tags is None else tags
         doc: dict[str, Any] = {"tags": doc_tags}
         doc.update(parse_object_doc(func))
-
-        responses = {}
-
-        # Shema names (for the swagger "references")
-        model_name = f"{class_name}_rel_inst"  # instance model name
-        if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
-            model_name = f"{class_name}_rel_coll"  # collection model name
-
-        if http_method == "get":
-            _, responses = cls._s_get_swagger_doc(http_method)
-        elif http_method in ("post", "patch"):
-            _, responses = cls._s_get_swagger_doc(http_method)
-            child_sample_id = child_class._s_sample_id()
-
-            _, responses = child_class._s_get_swagger_doc("patch")
-            data: Any = {"type": child_class._s_type, "id": child_sample_id}
-
-            if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
-                # tomany relationships only return a 204 accepted
-                data = [data]
-                responses.pop(HTTPStatus.OK.value, None)
-
-            rel_post_schema = schema_from_object(model_name, {"data": data})
-            rel_post_schema.description += f"{class_name} {http_method} relationship;"
-            cls.swagger_models["instance"] = rel_post_schema
-            cls.swagger_models["collection"] = rel_post_schema
-            parameters.append(
-                {
-                    "name": f"{class_name} body",
-                    "in": "body",
-                    "description": f"{class_name} POST model",
-                    "schema": rel_post_schema,
-                    "required": True,
-                }
-            )
-
-            if cls.relationship.direction is MANYTOONE:
-                # toone relationships return 200 OK
-                responses[HTTPStatus.OK.value] = {"schema": rel_post_schema, "description": HTTPStatus.OK.description}
-
-        elif http_method == "delete":
-            child_sample_id = child_class._s_sample_id()
-
-            _, responses = child_class._s_get_swagger_doc("patch")
-            data = {"type": child_class._s_type, "id": child_sample_id}
-
-            if cls.relationship.direction in (ONETOMANY, MANYTOMANY):
-                data = [data]
-            rel_del_schema = schema_from_object(model_name, {"data": data})
-            parameters.append(
-                {
-                    "name": f"{class_name} body",
-                    "in": "body",
-                    "description": f"{class_name} POST model",
-                    "schema": rel_del_schema,
-                    "required": True,
-                }
-            )
-
-        elif http_method != "options":
-            # one of 'options', 'head', 'patch'
-            safrs.log.info(f'no documentation for "{http_method}" ')
+        relationship = cls.relationship
+        model_name = _relationship_model_name(relationship, class_name)
+        responses = _relationship_responses_and_parameters(cls, relationship, http_method, child_class, class_name, model_name, parameters)
 
         doc["parameters"] = parameters
         if doc.get("responses"):
             responses.update({str(val): desc for val, desc in doc["responses"].items()})
-
         if is_debug():
             responses.update(debug_responses)
-
         doc["responses"] = responses
 
-        parent_name = parent_class.__name__  # referenced by f-string in the jsonapi.py method docstring
-        child_name = child_class.__name__  # referenced by f-string
-        direction = "to-many" if cls.relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
+        parent_name = parent_class.__name__
+        child_name = child_class.__name__
+        direction = "to-many" if relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
         apply_fstring(doc, locals())
         update_response_schema(doc["responses"])
-
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen

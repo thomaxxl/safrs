@@ -100,6 +100,88 @@ def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
     return object_query
 
 
+def _paginate_link(base_url: str, count: int, limit: int) -> str:
+    ignore_args = "page[offset]", "page[limit]"
+    params = [f"{k}={v}" for k, v in request.args.items() if k not in ignore_args]
+    params.append(f"page[offset]={count}&page[limit]={limit}")
+    return base_url + "?" + "&".join(params)
+
+
+def _pagination_args() -> tuple[int, int]:
+    try:
+        page_offset = int(get_request_param("page_offset"))
+        limit = int(get_request_param("page_limit", get_config("DEFAULT_PAGE_LIMIT")))
+    except ValueError as exc:
+        raise ValidationError("Pagination Value Error") from exc
+
+    max_page_limit = cast(int, get_config("MAX_PAGE_LIMIT"))
+    max_page_offset = cast(int, get_config("MAX_PAGE_OFFSET"))
+    if limit <= 0:
+        limit = 1
+    if limit > max_page_limit:
+        limit = max_page_limit
+    if page_offset <= 0:
+        page_offset = 0
+    if page_offset > max_page_offset:
+        page_offset = max_page_offset
+    return page_offset, limit
+
+
+def _pagination_count(object_query: Any, safrs_object: Any) -> int:
+    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        return len(object_query)
+    if safrs_object is None:
+        return object_query.count()
+    return safrs_object._s_count()
+
+
+def _pagination_links(page_offset: int, limit: int, count: int, base_url: str) -> dict[str, str]:
+    page_base = int(page_offset / limit) * limit
+    first_args = (0, limit)
+    last_args = (int(int(count / limit) * limit), limit)
+    self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
+    next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
+    prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
+    links = {
+        "first": _paginate_link(base_url, *first_args),
+        "self": _paginate_link(base_url, page_offset, limit),
+        "last": _paginate_link(base_url, *last_args),
+        "prev": _paginate_link(base_url, *prev_args),
+        "next": _paginate_link(base_url, *next_args),
+    }
+    if last_args == self_args:
+        del links["last"]
+    if first_args == self_args:
+        del links["first"]
+    if next_args == last_args:
+        del links["next"]
+    if prev_args == first_args:
+        del links["prev"]
+    return links
+
+
+def _paginate_instances(object_query: Any, page_offset: int, limit: int, safrs_object: Any) -> Any:
+    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+        return object_query[page_offset : page_offset + limit]
+    if isinstance(object_query, dict):
+        return object_query
+    if not hasattr(object_query, "offset"):
+        return []
+
+    try:
+        return object_query.offset(page_offset).limit(limit).all()
+    except OverflowError as exc:
+        raise ValidationError("Pagination Overflow Error") from exc
+    except sqlalchemy.exc.CompileError as exc:  # pragma: no cover
+        safrs.log.warning(f"{exc} / Add a valid sort= URL parameter")
+        if "MSSQL requires an order_by" in str(exc) and safrs_object and safrs_object.id_type.primary_keys:
+            pk = safrs_object.id_type.primary_keys[0]
+            return object_query.order_by(getattr(safrs_object, pk)).offset(page_offset).limit(limit).all()
+        raise GenericError(f"{exc}") from exc
+    except Exception as exc:
+        raise GenericError(f"{exc}") from exc
+
+
 def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:
     """
     this is where the query is executed, hence it's the bottleneck of the queries
@@ -130,96 +212,11 @@ def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:
     :return: links, instances, count
     """
 
-    def get_link(count: Any, limit: Any) -> Any:
-        result = SAFRSObject._s_url if SAFRSObject else ""
-        ignore_args = "page[offset]", "page[limit]"
-        result += "?" + "&".join(
-            [f"{k}={v}" for k, v in request.args.items() if k not in ignore_args] + [f"page[offset]={count}&page[limit]={limit}"]
-        )
-        return result
-
-    try:
-        page_offset = int(get_request_param("page_offset"))
-        limit = int(get_request_param("page_limit", get_config("DEFAULT_PAGE_LIMIT")))
-    except ValueError:
-        raise ValidationError("Pagination Value Error")
-
-    max_page_limit = cast(int, get_config("MAX_PAGE_LIMIT"))
-    max_page_offset = cast(int, get_config("MAX_PAGE_OFFSET"))
-
-    if limit <= 0:
-        limit = 1
-    if limit > max_page_limit:
-        limit = max_page_limit
-    if page_offset <= 0:
-        page_offset = 0
-    if page_offset > max_page_offset:
-        page_offset = max_page_offset
-    page_base = int(page_offset / limit) * limit
-
-    # Counting may take > 1s for a table with millions of records, depending on the storage engine :|
-    # Make it configurable
-    # With mysql innodb we can use following to retrieve the count:
-    # select TABLE_ROWS from information_schema.TABLES where TABLE_NAME = 'TableName';
-    instances: Any
-    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        count = len(object_query)
-    elif SAFRSObject is None:  # for backwards compatibility, ie. when not passed as an arg to paginate()
-        count = object_query.count()
-    else:
-        count = SAFRSObject._s_count()
-
-    first_args = (0, limit)
-    last_args = (int(int(count / limit) * limit), limit)  # round down
-    self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
-    next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
-    prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
-
-    links = {
-        "first": get_link(*first_args),
-        "self": get_link(page_offset, limit),  # cfr. request.url
-        "last": get_link(*last_args),
-        "prev": get_link(*prev_args),
-        "next": get_link(*next_args),
-    }
-
-    if last_args == self_args:
-        del links["last"]
-    if first_args == self_args:
-        del links["first"]
-    if next_args == last_args:
-        del links["next"]
-    if prev_args == first_args:
-        del links["prev"]
-
-    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
-        instances = object_query[page_offset : page_offset + limit]
-    elif isinstance(object_query, dict):
-        # (might happen when using a custom filter)
-        instances = object_query
-    elif not hasattr(object_query, "offset"):
-        # in case the query is emulated
-        instances = []
-    else:
-        try:
-            res_query = object_query.offset(page_offset).limit(limit)
-            instances = res_query.all()
-        except OverflowError:
-            raise ValidationError("Pagination Overflow Error")
-        except sqlalchemy.exc.CompileError as exc:  # pragma: no cover
-            # dirty workaround for when no sort parameter is provided in case of mssql offset/limit queries
-            # error msg:
-            #     "MSSQL requires an order_by when using an OFFSET or a non-simple LIMIT clause"
-            safrs.log.warning(f"{exc} / Add a valid sort= URL parameter")
-            if "MSSQL requires an order_by" in str(exc) and SAFRSObject and SAFRSObject.id_type.primary_keys:
-                pk = SAFRSObject.id_type.primary_keys[0]
-                res_query = object_query.order_by(getattr(SAFRSObject, pk)).offset(page_offset).limit(limit)
-                instances = res_query.all()
-            else:
-                raise GenericError(f"{exc}")
-        except Exception as exc:
-            raise GenericError(f"{exc}")
-
+    page_offset, limit = _pagination_args()
+    count = _pagination_count(object_query, SAFRSObject)
+    base_url = SAFRSObject._s_url if SAFRSObject else ""
+    links = _pagination_links(page_offset, limit, count, base_url)
+    instances = _paginate_instances(object_query, page_offset, limit, SAFRSObject)
     return links, instances, count
 
 

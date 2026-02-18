@@ -4,6 +4,42 @@ import safrs
 import sqlalchemy
 
 
+def _parse_datetime_value(attr_val: Any) -> datetime.datetime:
+    date_str = str(attr_val)
+    if "." in date_str:
+        return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
+    return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+
+
+def _parse_time_value(attr_val: Any) -> datetime.time:
+    date_str = str(attr_val)
+    if "." in date_str:
+        return datetime.datetime.strptime(str(attr_val), "%H:%M:%S.%f").time()
+    return datetime.datetime.strptime(str(attr_val), "%H:%M:%S").time()
+
+
+def _parse_temporal_attr(column: Any, attr_val: Any) -> tuple[bool, Any]:
+    if attr_val and column.type.python_type == datetime.datetime:
+        try:
+            return True, _parse_datetime_value(attr_val)
+        except (NotImplementedError, ValueError) as exc:
+            safrs.log.warning(f'Invalid datetime.datetime {exc} for value "{attr_val}"')
+            return True, datetime.datetime.now()
+    if attr_val and column.type.python_type == datetime.date:
+        try:
+            return True, datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
+        except (NotImplementedError, ValueError) as exc:
+            safrs.log.warning(f'Invalid datetime.date {exc} for value "{attr_val}"')
+            return True, datetime.datetime.now()
+    if attr_val and column.type.python_type == datetime.time:  # pragma: no cover (todo)
+        try:
+            return True, _parse_time_value(attr_val)
+        except (NotImplementedError, ValueError, TypeError) as exc:
+            safrs.log.warning(f'Invalid datetime.time {exc} for value "{attr_val}"')
+            return True, column.type.python_type()
+    return False, attr_val
+
+
 def parse_attr(column: Any, attr_val: Any) -> Any:
     """
     Parse the supplied `attr_val` so it can be saved in the SQLAlchemy `column`
@@ -40,41 +76,9 @@ def parse_attr(column: Any, attr_val: Any) -> Any:
     if type(column.type) is sqlalchemy.sql.sqltypes.JSON:
         return attr_val
 
-    """
-        Parse datetime and date values for some common representations
-        If another format is used, the user should create a custom column type or custom serialization
-    """
-    if attr_val and column.type.python_type == datetime.datetime:
-        date_str = str(attr_val)
-        try:
-            if "." in date_str:
-                # str(datetime.datetime.now()) => "%Y-%m-%d %H:%M:%S.%f"
-                attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
-            else:
-                # JS datepicker format
-                attr_val = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-        except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning(f'Invalid datetime.datetime {exc} for value "{attr_val}"')
-            attr_val = datetime.datetime.now()
-    elif attr_val and column.type.python_type == datetime.date:
-        try:
-            attr_val = datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
-        except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning(f'Invalid datetime.date {exc} for value "{attr_val}"')
-            attr_val = datetime.datetime.now()
-    elif attr_val and column.type.python_type == datetime.time:  # pragma: no cover (todo)
-        try:
-            date_str = str(attr_val)
-            if "." in date_str:
-                # str(datetime.datetime.now()) => "%H:%M:%S.%f"
-                attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S.%f").time()
-            else:
-                # JS datepicker format
-                attr_val = datetime.datetime.strptime(str(attr_val), "%H:%M:%S").time()
-        except (NotImplementedError, ValueError, TypeError) as exc:
-            safrs.log.warning(f'Invalid datetime.time {exc} for value "{attr_val}"')
-            attr_val = column.type.python_type()
-    else:
-        attr_val = column.type.python_type(attr_val)
+    parsed, parsed_value = _parse_temporal_attr(column, attr_val)
+    if parsed:
+        return parsed_value
+    attr_val = column.type.python_type(attr_val)
 
     return attr_val
