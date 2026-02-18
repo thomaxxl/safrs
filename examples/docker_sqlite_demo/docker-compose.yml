@@ -1,0 +1,28 @@
+services:
+  safrs-demo-sqlite:
+    build:
+      context: ../..
+      dockerfile: examples/docker_sqlite_demo/Dockerfile
+    environment:
+      FLASK_ENV: development
+      SQLITE_PATH: /data/safrs_demo.db
+
+      # These two are used for swagger.json so it points at the right place in your browser.
+      # If you change the `ports:` mapping below, update SWAGGER_PORT accordingly.
+      SWAGGER_HOST: localhost
+      SWAGGER_PORT: 1237
+
+      # SQLite: keep 1 worker unless you really know what you're doing
+      GUNICORN_WORKERS: 1
+    ports:
+      - "1237:80"
+    volumes:
+      # Dev mode: live-edit the SAFRS repo from your host machine
+      - ../..:/app
+
+      # Persist the sqlite db between container restarts
+      - safrs_demo_data:/data
+    restart: unless-stopped
+
+volumes:
+  safrs_demo_data:
