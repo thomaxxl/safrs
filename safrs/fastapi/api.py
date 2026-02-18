@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import datetime as dt
 import base64
+import datetime as dt
 from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import safrs
@@ -119,6 +119,182 @@ class SafrsFastAPI:
                 rpc_methods.append((method_name, class_level, http_methods))
         return rpc_methods
 
+    def _add_route_with_slash_parity(
+        self,
+        router: APIRouter,
+        path: str,
+        endpoint: Any,
+        methods: List[str],
+        summary: str,
+        dependencies: List[DependsParam],
+        operation_id: str,
+    ) -> None:
+        for idx, variant in enumerate(self._with_slash_parity(path)):
+            router.add_api_route(
+                variant,
+                endpoint,
+                methods=methods,
+                response_class=JSONAPIResponse,
+                summary=summary,
+                dependencies=dependencies,
+                operation_id=operation_id if idx == 0 else None,
+                include_in_schema=(idx == 0),
+            )
+
+    def _register_base_routes(
+        self,
+        router: APIRouter,
+        Model: Type[Any],
+        tag: str,
+        collection_path: str,
+        instance_path: str,
+        route_dependencies: List[DependsParam],
+        write_route_dependencies: List[DependsParam],
+    ) -> None:
+        self._add_route_with_slash_parity(
+            router,
+            collection_path,
+            self._get_collection(Model),
+            ["GET"],
+            f"List {tag}",
+            route_dependencies,
+            f"get_{tag}_collection",
+        )
+        self._add_route_with_slash_parity(
+            router,
+            collection_path,
+            self._post_collection(Model),
+            ["POST"],
+            f"Create {tag}",
+            write_route_dependencies,
+            f"post_{tag}_collection",
+        )
+        self._add_route_with_slash_parity(
+            router,
+            instance_path,
+            self._get_instance(Model),
+            ["GET"],
+            f"Get {tag} by id",
+            route_dependencies,
+            f"get_{tag}_instance",
+        )
+        self._add_route_with_slash_parity(
+            router,
+            instance_path,
+            self._patch_instance(Model),
+            ["PATCH"],
+            f"Update {tag}",
+            write_route_dependencies,
+            f"patch_{tag}_instance",
+        )
+        self._add_route_with_slash_parity(
+            router,
+            instance_path,
+            self._delete_instance(Model),
+            ["DELETE"],
+            f"Delete {tag}",
+            write_route_dependencies,
+            f"delete_{tag}_instance",
+        )
+
+    def _register_rpc_routes(
+        self,
+        router: APIRouter,
+        Model: Type[Any],
+        tag: str,
+        collection_path: str,
+        instance_path: str,
+        rpc_methods: List[Tuple[str, bool, List[str]]],
+        route_dependencies: List[DependsParam],
+    ) -> None:
+        # Register class-level RPC before instance routes so /collection/method
+        # doesn't get swallowed by /collection/{object_id}.
+        for method_name, class_level, http_methods in rpc_methods:
+            if not class_level:
+                continue
+            self._add_route_with_slash_parity(
+                router,
+                f"{collection_path}/{method_name}",
+                self._rpc_handler(Model, method_name, class_level=True),
+                http_methods,
+                f"RPC {tag}.{method_name}",
+                route_dependencies,
+                f"class_{tag}_{method_name}_rpc",
+            )
+
+        for method_name, class_level, http_methods in rpc_methods:
+            if class_level:
+                continue
+            self._add_route_with_slash_parity(
+                router,
+                f"{instance_path}/{method_name}",
+                self._rpc_handler(Model, method_name, class_level=False),
+                http_methods,
+                f"RPC {tag}.{method_name}",
+                route_dependencies,
+                f"instance_{tag}_{method_name}_rpc",
+            )
+
+    def _register_relationship_routes(
+        self,
+        router: APIRouter,
+        Model: Type[Any],
+        tag: str,
+        instance_path: str,
+        route_dependencies: List[DependsParam],
+    ) -> None:
+        relationships = self._resolve_relationships(Model)
+        for rel_name in relationships.keys():
+            rel_path = f"{instance_path}/{rel_name}"
+            rel_item_path = f"{rel_path}/{{target_id}}"
+            route_specs: List[Tuple[str, Any, List[str], str, str]] = [
+                (
+                    rel_path,
+                    self._get_relationship(Model, rel_name),
+                    ["GET"],
+                    f"Get relationship {tag}.{rel_name}",
+                    f"get_{tag}_{rel_name}_relationship",
+                ),
+                (
+                    rel_item_path,
+                    self._get_relationship_item(Model, rel_name),
+                    ["GET"],
+                    f"Get relationship item {tag}.{rel_name}",
+                    f"get_{tag}_{rel_name}_relationship_item",
+                ),
+                (
+                    rel_path,
+                    self._patch_relationship(Model, rel_name),
+                    ["PATCH"],
+                    f"Patch relationship {tag}.{rel_name}",
+                    f"patch_{tag}_{rel_name}_relationship",
+                ),
+                (
+                    rel_path,
+                    self._post_relationship(Model, rel_name),
+                    ["POST"],
+                    f"Post relationship {tag}.{rel_name}",
+                    f"post_{tag}_{rel_name}_relationship",
+                ),
+                (
+                    rel_path,
+                    self._delete_relationship(Model, rel_name),
+                    ["DELETE"],
+                    f"Delete relationship {tag}.{rel_name}",
+                    f"delete_{tag}_{rel_name}_relationship",
+                ),
+            ]
+            for path, endpoint, methods, summary, operation_id in route_specs:
+                self._add_route_with_slash_parity(
+                    router,
+                    path,
+                    endpoint,
+                    methods,
+                    summary,
+                    route_dependencies,
+                    operation_id,
+                )
+
     def expose_object(
         self,
         Model: Type[Any],
@@ -139,167 +315,30 @@ class SafrsFastAPI:
         write_route_dependencies = route_dependencies + self._write_dependencies_for_model(Model)
         tag = str(Model._s_collection_name)
 
-        # IMPORTANT: build router with routes first, then include_router()
         router = APIRouter(prefix=self.prefix, tags=[tag])
-
         collection_path = "/" + str(Model._s_collection_name)
         instance_path = collection_path + "/{object_id}"
         rpc_methods = self._discover_rpc_methods(Model)
 
-        for idx, path in enumerate(self._with_slash_parity(collection_path)):
-            router.add_api_route(
-                path,
-                self._get_collection(Model),
-                methods=["GET"],
-                response_class=JSONAPIResponse,
-                summary=f"List {tag}",
-                dependencies=route_dependencies,
-                operation_id=f"get_{tag}_collection" if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
-        for idx, path in enumerate(self._with_slash_parity(collection_path)):
-            router.add_api_route(
-                path,
-                self._post_collection(Model),
-                methods=["POST"],
-                response_class=JSONAPIResponse,
-                summary=f"Create {tag}",
-                dependencies=write_route_dependencies,
-                operation_id=f"post_{tag}_collection" if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
-
-        # Register class-level RPC before instance routes so /collection/method
-        # doesn't get swallowed by /collection/{object_id}.
-        for method_name, class_level, http_methods in rpc_methods:
-            if not class_level:
-                continue
-            rpc_path = f"{collection_path}/{method_name}"
-            rpc_operation = f"class_{tag}_{method_name}_rpc"
-            for idx, path in enumerate(self._with_slash_parity(rpc_path)):
-                router.add_api_route(
-                    path,
-                    self._rpc_handler(Model, method_name, class_level=True),
-                    methods=http_methods,
-                    response_class=JSONAPIResponse,
-                    summary=f"RPC {tag}.{method_name}",
-                    dependencies=route_dependencies,
-                    operation_id=rpc_operation if idx == 0 else None,
-                    include_in_schema=(idx == 0),
-                )
-
-        for idx, path in enumerate(self._with_slash_parity(instance_path)):
-            router.add_api_route(
-                path,
-                self._get_instance(Model),
-                methods=["GET"],
-                response_class=JSONAPIResponse,
-                summary=f"Get {tag} by id",
-                dependencies=route_dependencies,
-                operation_id=f"get_{tag}_instance" if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
-        for idx, path in enumerate(self._with_slash_parity(instance_path)):
-            router.add_api_route(
-                path,
-                self._patch_instance(Model),
-                methods=["PATCH"],
-                response_class=JSONAPIResponse,
-                summary=f"Update {tag}",
-                dependencies=write_route_dependencies,
-                operation_id=f"patch_{tag}_instance" if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
-        for idx, path in enumerate(self._with_slash_parity(instance_path)):
-            router.add_api_route(
-                path,
-                self._delete_instance(Model),
-                methods=["DELETE"],
-                response_class=JSONAPIResponse,
-                summary=f"Delete {tag}",
-                dependencies=write_route_dependencies,
-                operation_id=f"delete_{tag}_instance" if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
-
-        for method_name, class_level, http_methods in rpc_methods:
-            if class_level:
-                continue
-            rpc_path = f"{instance_path}/{method_name}"
-            rpc_operation = f"instance_{tag}_{method_name}_rpc"
-            for idx, path in enumerate(self._with_slash_parity(rpc_path)):
-                router.add_api_route(
-                    path,
-                    self._rpc_handler(Model, method_name, class_level),
-                    methods=http_methods,
-                    response_class=JSONAPIResponse,
-                    summary=f"RPC {tag}.{method_name}",
-                    dependencies=route_dependencies,
-                    operation_id=rpc_operation if idx == 0 else None,
-                    include_in_schema=(idx == 0),
-                )
-
-        relationships = self._resolve_relationships(Model)
-        if relationships:
-            for rel_name in relationships.keys():
-                rel_path = f"{instance_path}/{rel_name}"
-                rel_item_path = f"{rel_path}/{{target_id}}"
-
-                for idx, path in enumerate(self._with_slash_parity(rel_path)):
-                    router.add_api_route(
-                        path,
-                        self._get_relationship(Model, rel_name),
-                        methods=["GET"],
-                        response_class=JSONAPIResponse,
-                        summary=f"Get relationship {tag}.{rel_name}",
-                        dependencies=route_dependencies,
-                        operation_id=f"get_{tag}_{rel_name}_relationship" if idx == 0 else None,
-                        include_in_schema=(idx == 0),
-                    )
-                for idx, path in enumerate(self._with_slash_parity(rel_item_path)):
-                    router.add_api_route(
-                        path,
-                        self._get_relationship_item(Model, rel_name),
-                        methods=["GET"],
-                        response_class=JSONAPIResponse,
-                        summary=f"Get relationship item {tag}.{rel_name}",
-                        dependencies=route_dependencies,
-                        operation_id=f"get_{tag}_{rel_name}_relationship_item" if idx == 0 else None,
-                        include_in_schema=(idx == 0),
-                    )
-                for idx, path in enumerate(self._with_slash_parity(rel_path)):
-                    router.add_api_route(
-                        path,
-                        self._patch_relationship(Model, rel_name),
-                        methods=["PATCH"],
-                        response_class=JSONAPIResponse,
-                        summary=f"Patch relationship {tag}.{rel_name}",
-                        dependencies=route_dependencies,
-                        operation_id=f"patch_{tag}_{rel_name}_relationship" if idx == 0 else None,
-                        include_in_schema=(idx == 0),
-                    )
-                for idx, path in enumerate(self._with_slash_parity(rel_path)):
-                    router.add_api_route(
-                        path,
-                        self._post_relationship(Model, rel_name),
-                        methods=["POST"],
-                        response_class=JSONAPIResponse,
-                        summary=f"Post relationship {tag}.{rel_name}",
-                        dependencies=route_dependencies,
-                        operation_id=f"post_{tag}_{rel_name}_relationship" if idx == 0 else None,
-                        include_in_schema=(idx == 0),
-                    )
-                for idx, path in enumerate(self._with_slash_parity(rel_path)):
-                    router.add_api_route(
-                        path,
-                        self._delete_relationship(Model, rel_name),
-                        methods=["DELETE"],
-                        response_class=JSONAPIResponse,
-                        summary=f"Delete relationship {tag}.{rel_name}",
-                        dependencies=route_dependencies,
-                        operation_id=f"delete_{tag}_{rel_name}_relationship" if idx == 0 else None,
-                        include_in_schema=(idx == 0),
-                    )
+        self._register_base_routes(
+            router,
+            Model,
+            tag,
+            collection_path,
+            instance_path,
+            route_dependencies,
+            write_route_dependencies,
+        )
+        self._register_rpc_routes(
+            router,
+            Model,
+            tag,
+            collection_path,
+            instance_path,
+            rpc_methods,
+            route_dependencies,
+        )
+        self._register_relationship_routes(router, Model, tag, instance_path, route_dependencies)
 
         self.app.include_router(router)
 
@@ -351,6 +390,21 @@ class SafrsFastAPI:
         if typ != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
 
+    @staticmethod
+    def _try_parse_temporal_value(py_type: Any, value: str) -> Tuple[bool, Any]:
+        try:
+            if py_type is dt.date:
+                return True, dt.datetime.strptime(value, "%Y-%m-%d").date()
+            if py_type is dt.datetime:
+                fmt = "%Y-%m-%d %H:%M:%S.%f" if "." in value else "%Y-%m-%d %H:%M:%S"
+                return True, dt.datetime.strptime(value.replace("T", " "), fmt)
+            if py_type is dt.time:
+                fmt = "%H:%M:%S.%f" if "." in value else "%H:%M:%S"
+                return True, dt.datetime.strptime(value, fmt).time()
+        except Exception:
+            return False, value
+        return False, value
+
     def _parse_attributes_for_model(self, Model: Type[Any], attrs: Dict[str, Any]) -> Dict[str, Any]:
         """
         SAFRS' internal parsing is guarded by Flask's has_request_context().
@@ -369,20 +423,10 @@ class SafrsFastAPI:
             col_type = getattr(col_or_attr, "type", None)
             py_type = getattr(col_type, "python_type", None)
             if isinstance(value, str):
-                try:
-                    if py_type is dt.date:
-                        parsed[name] = dt.datetime.strptime(value, "%Y-%m-%d").date()
-                        continue
-                    if py_type is dt.datetime:
-                        fmt = "%Y-%m-%d %H:%M:%S.%f" if "." in value else "%Y-%m-%d %H:%M:%S"
-                        parsed[name] = dt.datetime.strptime(value.replace("T", " "), fmt)
-                        continue
-                    if py_type is dt.time:
-                        fmt = "%H:%M:%S.%f" if "." in value else "%H:%M:%S"
-                        parsed[name] = dt.datetime.strptime(value, fmt).time()
-                        continue
-                except Exception:
-                    pass
+                matched, parsed_value = self._try_parse_temporal_value(py_type, value)
+                if matched:
+                    parsed[name] = parsed_value
+                    continue
             # Column-backed attrs have .type etc, and SAFRS parse_attr expects a Column
             # jsonapi_attr values we just pass through
             try:
@@ -440,13 +484,13 @@ class SafrsFastAPI:
         try:
             from safrs.request import SAFRSRequest
             flask_app.request_class = SAFRSRequest
-        except Exception:
-            pass
+        except Exception as exc:
+            safrs.log.debug(f"Unable to import SAFRSRequest for rpc context: {exc}")
         try:
             from safrs.json_encoder import SAFRSJSONEncoder
             flask_app.json_encoder = SAFRSJSONEncoder  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        except Exception as exc:
+            safrs.log.debug(f"Unable to import SAFRSJSONEncoder for rpc context: {exc}")
         return flask_app.test_request_context(
             path=request.url.path,
             query_string=request.url.query.encode(),
@@ -490,6 +534,61 @@ class SafrsFastAPI:
             return self._jsonapi_doc(meta={})
         return self._jsonapi_doc(meta={"result": self._encode_rpc_value(payload)})
 
+    def _rpc_special_fallback(self, Model: Type[Any], method_name: str, args: Dict[str, Any]) -> Optional[JSONAPIResponse]:
+        if method_name == "my_rpc":
+            rows = [self._encode_resource(Model, item) for item in self._coerce_items(Model.query)]
+            return JSONAPIResponse(
+                status_code=200,
+                content=self._jsonapi_doc(data=rows, meta={"args": (), "kwargs": args}),
+            )
+        if method_name == "get_by_name":
+            name = args.get("name")
+            if name is not None:
+                item = Model.query.filter_by(name=name).one_or_none()
+                if item is not None:
+                    return JSONAPIResponse(
+                        status_code=200,
+                        content=self._jsonapi_doc(
+                            data=self._encode_resource(Model, item),
+                            meta={"count": 1},
+                        ),
+                    )
+        return None
+
+    def _call_class_rpc(
+        self,
+        Model: Type[Any],
+        method_name: str,
+        request: Request,
+        payload: Optional[Dict[str, Any]],
+    ) -> JSONAPIResponse:
+        args = self._parse_rpc_args(request, payload)
+        method = getattr(Model, method_name)
+        try:
+            with self._rpc_request_context(request):
+                result = method(**args)
+        except Exception:
+            fallback = self._rpc_special_fallback(Model, method_name, args)
+            if fallback is not None:
+                return fallback
+            raise
+        return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+
+    def _call_instance_rpc(
+        self,
+        Model: Type[Any],
+        method_name: str,
+        object_id: str,
+        request: Request,
+        payload: Optional[Dict[str, Any]],
+    ) -> JSONAPIResponse:
+        args = self._parse_rpc_args(request, payload)
+        instance = Model.get_instance(object_id)
+        method = getattr(instance, method_name)
+        with self._rpc_request_context(request):
+            result = method(**args)
+        return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+
     def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool):
         if class_level:
             def handler(
@@ -497,32 +596,7 @@ class SafrsFastAPI:
                 payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
             ):
                 try:
-                    args = self._parse_rpc_args(request, payload)
-                    method = getattr(Model, method_name)
-                    try:
-                        with self._rpc_request_context(request):
-                            result = method(**args)
-                    except Exception:
-                        if method_name == "my_rpc":
-                            rows = [self._encode_resource(Model, item) for item in self._coerce_items(Model.query)]
-                            return JSONAPIResponse(
-                                status_code=200,
-                                content=self._jsonapi_doc(data=rows, meta={"args": (), "kwargs": args}),
-                            )
-                        if method_name == "get_by_name":
-                            name = args.get("name")
-                            if name is not None:
-                                item = Model.query.filter_by(name=name).one_or_none()
-                                if item is not None:
-                                    return JSONAPIResponse(
-                                        status_code=200,
-                                        content=self._jsonapi_doc(
-                                            data=self._encode_resource(Model, item),
-                                            meta={"count": 1},
-                                        ),
-                                    )
-                        raise
-                    return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+                    return self._call_class_rpc(Model, method_name, request, payload)
                 except JSONAPIHTTPError:
                     raise
                 except Exception as exc:
@@ -536,12 +610,7 @@ class SafrsFastAPI:
             payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
         ):
             try:
-                args = self._parse_rpc_args(request, payload)
-                instance = Model.get_instance(object_id)
-                method = getattr(instance, method_name)
-                with self._rpc_request_context(request):
-                    result = method(**args)
-                return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+                return self._call_instance_rpc(Model, method_name, object_id, request, payload)
             except JSONAPIHTTPError:
                 raise
             except Exception as exc:
@@ -719,8 +788,8 @@ class SafrsFastAPI:
         for item in current_items:
             try:
                 rel_value.remove(item)
-            except Exception:
-                pass
+            except Exception as exc:
+                safrs.log.debug(f"Ignoring relationship remove error for {item}: {exc}")
 
     def _append_relationship_item(self, rel_value: Any, item: Any) -> None:
         if hasattr(rel_value, "append"):
@@ -849,68 +918,101 @@ class SafrsFastAPI:
 
         return handler
 
+    def _coerce_post_items(self, Model: Type[Any], payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        raw_data = payload.get("data")
+        if isinstance(raw_data, list):
+            return raw_data
+        self._require_type(Model, payload)
+        return [payload.get("data") or {}]
+
+    def _create_post_object(self, Model: Type[Any], data: Dict[str, Any]) -> Any:
+        if not isinstance(data, dict):
+            self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
+        if data.get("type") != Model._s_type:
+            self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
+        attrs = self._parse_attributes_for_model(Model, data.get("attributes") or {})
+        rels = data.get("relationships") or {}
+        return Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
+
+    @staticmethod
+    def _append_auto_include_paths(include_paths: List[List[str]], obj: Any) -> None:
+        auto_include = getattr(obj, "included_list", None) or []
+        for include_item in auto_include:
+            if not isinstance(include_item, str) or not include_item:
+                continue
+            path = [segment for segment in include_item.split(".") if segment]
+            if path:
+                include_paths.append(path)
+
+    @staticmethod
+    def _dedupe_include_paths(include_paths: List[List[str]]) -> List[List[str]]:
+        deduped_include_paths: List[List[str]] = []
+        seen_paths: Set[Tuple[str, ...]] = set()
+        for include_path in include_paths:
+            include_tuple = tuple(include_path)
+            if not include_tuple or include_tuple in seen_paths:
+                continue
+            seen_paths.add(include_tuple)
+            deduped_include_paths.append(include_path)
+        return deduped_include_paths
+
+    def _collect_included_for_created(
+        self,
+        Model: Type[Any],
+        created: List[Any],
+        include_paths: List[List[str]],
+        fields_map: Dict[str, Set[str]],
+    ) -> List[Dict[str, Any]]:
+        included: List[Dict[str, Any]] = []
+        seen_included: Set[Tuple[str, str]] = set()
+        for item in created:
+            self._collect_included(Model, item, include_paths, fields_map, seen_included, included)
+        return included
+
+    def _build_post_response(
+        self,
+        Model: Type[Any],
+        created: List[Any],
+        wanted_fields: Optional[Set[str]],
+        include_paths: List[List[str]],
+        included: List[Dict[str, Any]],
+    ) -> JSONAPIResponse:
+        data_doc: Any
+        headers: Optional[Dict[str, str]] = None
+        if len(created) == 1:
+            data_doc = self._encode_resource(Model, created[0], wanted_fields=wanted_fields)
+            collection_name = getattr(Model, "_s_collection_name", None)
+            if collection_name:
+                headers = {"Location": f"/{collection_name}/{created[0].jsonapi_id}"}
+        else:
+            data_doc = [self._encode_resource(Model, item, wanted_fields=wanted_fields) for item in created]
+        return JSONAPIResponse(
+            status_code=201,
+            headers=headers,
+            content=self._jsonapi_doc(
+                data=data_doc,
+                included=included if include_paths else None,
+            ),
+        )
+
     def _post_collection(self, Model: Type[Any]):
         def handler(
             request: Request,
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)
         ):
             try:
-                raw_data = payload.get("data")
-                if isinstance(raw_data, list):
-                    items = raw_data
-                else:
-                    self._require_type(Model, payload)
-                    items = [payload.get("data") or {}]
-
+                items = self._coerce_post_items(Model, payload)
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
                 created: List[Any] = []
                 for data in items:
-                    if not isinstance(data, dict):
-                        self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
-                    if data.get("type") != Model._s_type:
-                        self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
-                    attrs = self._parse_attributes_for_model(Model, data.get("attributes") or {})
-                    rels = data.get("relationships") or {}
-                    obj = Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
+                    obj = self._create_post_object(Model, data)
                     created.append(obj)
-                    auto_include = getattr(obj, "included_list", None) or []
-                    for include_item in auto_include:
-                        if not isinstance(include_item, str) or not include_item:
-                            continue
-                        path = [segment for segment in include_item.split(".") if segment]
-                        if path:
-                            include_paths.append(path)
-                deduped_include_paths: List[List[str]] = []
-                seen_paths: Set[Tuple[str, ...]] = set()
-                for include_path in include_paths:
-                    include_tuple = tuple(include_path)
-                    if not include_tuple or include_tuple in seen_paths:
-                        continue
-                    seen_paths.add(include_tuple)
-                    deduped_include_paths.append(include_path)
-                included: List[Dict[str, Any]] = []
-                seen_included: Set[Tuple[str, str]] = set()
-                for item in created:
-                    self._collect_included(Model, item, deduped_include_paths, fields_map, seen_included, included)
-                data_doc: Any
-                headers: Optional[Dict[str, str]] = None
-                if len(created) == 1:
-                    data_doc = self._encode_resource(Model, created[0], wanted_fields=wanted_fields)
-                    collection_name = getattr(Model, "_s_collection_name", None)
-                    if collection_name:
-                        headers = {"Location": f"/{collection_name}/{created[0].jsonapi_id}"}
-                else:
-                    data_doc = [self._encode_resource(Model, item, wanted_fields=wanted_fields) for item in created]
-                return JSONAPIResponse(
-                    status_code=201,
-                    headers=headers,
-                    content=self._jsonapi_doc(
-                        data=data_doc,
-                        included=included if deduped_include_paths else None,
-                    ),
-                )
+                    self._append_auto_include_paths(include_paths, obj)
+                deduped_include_paths = self._dedupe_include_paths(include_paths)
+                included = self._collect_included_for_created(Model, created, deduped_include_paths, fields_map)
+                return self._build_post_response(Model, created, wanted_fields, deduped_include_paths, included)
             except JSONAPIHTTPError:
                 raise
             except Exception as exc:
