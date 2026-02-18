@@ -3,7 +3,7 @@
 import base64
 import datetime as dt
 import inspect
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple, Type, Union, cast
 
 import safrs
 from safrs.attr_parse import parse_attr
@@ -14,7 +14,9 @@ from safrs.swagger_doc import get_doc, get_http_methods
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.params import Depends as DependsParam
+from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 
+from .schemas import SchemaRegistry
 from .responses import JSONAPIResponse
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
@@ -36,6 +38,14 @@ class SafrsFastAPI:
     def __init__(self, app: FastAPI, prefix: str = "", dependencies: Optional[List[Any]] = None) -> None:
         self.app = app
         self.prefix = prefix
+        self.max_union_included_types = int(getattr(safrs.SAFRS, "MAX_UNION_INCLUDED_TYPES", 0))
+        self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
+        self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
+        self.validate_responses = bool(getattr(safrs.SAFRS, "VALIDATE_RESPONSES", False))
+        self.schemas = SchemaRegistry(
+            document_relationships=self.document_relationships,
+            max_union_included_types=self.max_union_included_types,
+        )
         self.default_dependencies = self._normalize_dependencies(dependencies)
         install_jsonapi_exception_handlers(app)
         self._install_swagger_alias()
@@ -135,6 +145,10 @@ class SafrsFastAPI:
         summary: str,
         dependencies: List[DependsParam],
         operation_id: str,
+        status_code: Optional[int] = None,
+        response_model: Optional[Type[Any]] = None,
+        responses: Optional[Dict[Union[int, str], Dict[str, Any]]] = None,
+        openapi_extra: Optional[Dict[str, Any]] = None,
     ) -> None:
         for method in methods:
             method_name = str(method).upper()
@@ -149,6 +163,10 @@ class SafrsFastAPI:
                     dependencies=dependencies,
                     operation_id=method_operation_id if idx == 0 else None,
                     include_in_schema=(idx == 0),
+                    status_code=status_code,
+                    response_model=response_model,
+                    responses=responses,
+                    openapi_extra=openapi_extra,
                 )
 
     def _register_base_routes(
@@ -161,6 +179,9 @@ class SafrsFastAPI:
         route_dependencies: List[DependsParam],
         write_route_dependencies: List[DependsParam],
     ) -> None:
+        error_responses = self._jsonapi_error_responses()
+        collection_response_model = self.schemas.document_collection(Model)
+        instance_response_model = self.schemas.document_single(Model)
         self._add_route_with_slash_parity(
             router,
             collection_path,
@@ -169,6 +190,8 @@ class SafrsFastAPI:
             f"List {tag}",
             route_dependencies,
             f"get_{tag}_collection",
+            response_model=collection_response_model,
+            responses=error_responses,
         )
         self._add_route_with_slash_parity(
             router,
@@ -178,6 +201,10 @@ class SafrsFastAPI:
             f"Create {tag}",
             write_route_dependencies,
             f"post_{tag}_collection",
+            status_code=201,
+            response_model=instance_response_model,
+            responses=error_responses,
+            openapi_extra=self._openapi_request_body(self.schemas.document_create(Model)),
         )
         self._add_route_with_slash_parity(
             router,
@@ -187,6 +214,8 @@ class SafrsFastAPI:
             f"Get {tag} by id",
             route_dependencies,
             f"get_{tag}_instance",
+            response_model=instance_response_model,
+            responses=error_responses,
         )
         self._add_route_with_slash_parity(
             router,
@@ -196,6 +225,9 @@ class SafrsFastAPI:
             f"Update {tag}",
             write_route_dependencies,
             f"patch_{tag}_instance",
+            response_model=instance_response_model,
+            responses=error_responses,
+            openapi_extra=self._openapi_request_body(self.schemas.document_patch(Model)),
         )
         self._add_route_with_slash_parity(
             router,
@@ -205,6 +237,8 @@ class SafrsFastAPI:
             f"Delete {tag}",
             write_route_dependencies,
             f"delete_{tag}_instance",
+            status_code=204,
+            responses=error_responses,
         )
 
     def _register_rpc_routes(
@@ -217,6 +251,7 @@ class SafrsFastAPI:
         rpc_methods: List[Tuple[str, bool, List[str]]],
         route_dependencies: List[DependsParam],
     ) -> None:
+        error_responses = self._jsonapi_error_responses()
         # Register class-level RPC before instance routes so /collection/method
         # doesn't get swallowed by /collection/{object_id}.
         for method_name, class_level, http_methods in rpc_methods:
@@ -230,6 +265,7 @@ class SafrsFastAPI:
                 f"RPC {tag}.{method_name}",
                 route_dependencies,
                 f"class_{tag}_{method_name}_rpc",
+                responses=error_responses,
             )
 
         for method_name, class_level, http_methods in rpc_methods:
@@ -243,6 +279,7 @@ class SafrsFastAPI:
                 f"RPC {tag}.{method_name}",
                 route_dependencies,
                 f"instance_{tag}_{method_name}_rpc",
+                responses=error_responses,
             )
 
     def _register_relationship_routes(
@@ -253,17 +290,33 @@ class SafrsFastAPI:
         instance_path: str,
         route_dependencies: List[DependsParam],
     ) -> None:
-        relationships = self._resolve_relationships(Model)
-        for rel_name in relationships.keys():
+        error_responses = self._jsonapi_error_responses()
+        relationships = self._resolve_relationship_properties(Model)
+        for rel_name, rel in relationships.items():
             rel_path = f"{instance_path}/{rel_name}"
             rel_item_path = f"{rel_path}/{{target_id}}"
-            route_specs: List[Tuple[str, Any, List[str], str, str]] = [
+            target_model = rel.mapper.class_
+            if not hasattr(target_model, "_s_type"):
+                continue
+            rel_doc_model = (
+                self.schemas.relationship_document_to_many(target_model)
+                if self._is_to_many_relationship(rel)
+                else self.schemas.relationship_document_to_one(target_model)
+            )
+            rel_get_model = rel_doc_model
+            rel_item_model = self.schemas.document_single(target_model)
+            rel_openapi = self._openapi_request_body(rel_doc_model)
+
+            route_specs: List[Tuple[str, Any, List[str], str, str, Optional[int], Optional[Type[Any]], Optional[Dict[str, Any]]]] = [
                 (
                     rel_path,
                     self._get_relationship(Model, rel_name),
                     ["GET"],
                     f"Get relationship {tag}.{rel_name}",
                     f"get_{tag}_{rel_name}_relationship",
+                    200,
+                    rel_get_model,
+                    None,
                 ),
                 (
                     rel_item_path,
@@ -271,6 +324,9 @@ class SafrsFastAPI:
                     ["GET"],
                     f"Get relationship item {tag}.{rel_name}",
                     f"get_{tag}_{rel_name}_relationship_item",
+                    200,
+                    rel_item_model,
+                    None,
                 ),
                 (
                     rel_path,
@@ -278,6 +334,9 @@ class SafrsFastAPI:
                     ["PATCH"],
                     f"Patch relationship {tag}.{rel_name}",
                     f"patch_{tag}_{rel_name}_relationship",
+                    None,
+                    None,
+                    rel_openapi,
                 ),
                 (
                     rel_path,
@@ -285,6 +344,9 @@ class SafrsFastAPI:
                     ["POST"],
                     f"Post relationship {tag}.{rel_name}",
                     f"post_{tag}_{rel_name}_relationship",
+                    None,
+                    None,
+                    rel_openapi,
                 ),
                 (
                     rel_path,
@@ -292,9 +354,12 @@ class SafrsFastAPI:
                     ["DELETE"],
                     f"Delete relationship {tag}.{rel_name}",
                     f"delete_{tag}_{rel_name}_relationship",
+                    204,
+                    None,
+                    rel_openapi,
                 ),
             ]
-            for path, endpoint, methods, summary, operation_id in route_specs:
+            for path, endpoint, methods, summary, operation_id, status_code, response_model, openapi_extra in route_specs:
                 self._add_route_with_slash_parity(
                     router,
                     path,
@@ -303,7 +368,37 @@ class SafrsFastAPI:
                     summary,
                     route_dependencies,
                     operation_id,
+                    status_code=status_code,
+                    response_model=response_model,
+                    responses=error_responses,
+                    openapi_extra=openapi_extra,
                 )
+
+    @staticmethod
+    def _schema_ref(model: Type[Any]) -> Dict[str, str]:
+        return {"$ref": f"#/components/schemas/{model.__name__}"}
+
+    def _openapi_request_body(self, payload_model: Type[Any], required: bool = True) -> Dict[str, Any]:
+        return {
+            "requestBody": {
+                "required": required,
+                "content": {
+                    JSONAPI_MEDIA_TYPE: {
+                        "schema": self._schema_ref(payload_model),
+                    }
+                },
+            }
+        }
+
+    def _jsonapi_error_responses(self) -> Dict[Union[int, str], Dict[str, Any]]:
+        error_model = self.schemas.error_document()
+        return {
+            400: {"model": error_model},
+            403: {"model": error_model},
+            404: {"model": error_model},
+            409: {"model": error_model},
+            500: {"model": error_model},
+        }
 
     def expose_object(
         self,
@@ -373,7 +468,15 @@ class SafrsFastAPI:
             doc["meta"] = meta
         return doc
 
-    def _jsonapi_error(self, status_code: int, title: str, detail: str) -> None:
+    def _jsonapi_response(
+        self,
+        content: Dict[str, Any],
+        status_code: int = 200,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> JSONAPIResponse:
+        return JSONAPIResponse(status_code=status_code, headers=headers, content=content)
+
+    def _jsonapi_error(self, status_code: int, title: str, detail: str) -> NoReturn:
         payload = self._jsonapi_doc(
             errors=[{"status": str(status_code), "title": title, "detail": detail}]
         )
@@ -396,6 +499,7 @@ class SafrsFastAPI:
         data = payload.get("data")
         if not isinstance(data, dict):
             self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (missing data object)")
+        data = cast(Dict[str, Any], data)
         typ = data.get("type")
         if typ != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
@@ -474,6 +578,38 @@ class SafrsFastAPI:
         return {rel.key: rel for rel in mapper.relationships}
 
     @staticmethod
+    def _relationship_property(rel: Any) -> Optional[Any]:
+        candidate = rel
+        if not hasattr(candidate, "mapper"):
+            candidate = getattr(rel, "relationship", None)
+        if candidate is None or not hasattr(candidate, "mapper"):
+            return None
+        return candidate
+
+    @staticmethod
+    def _is_to_many_relationship(rel: Any) -> bool:
+        if hasattr(rel, "uselist"):
+            return bool(getattr(rel, "uselist"))
+        direction = getattr(rel, "direction", None)
+        return direction in (ONETOMANY, MANYTOMANY)
+
+    def _resolve_relationship_properties(self, Model: Type[Any]) -> Dict[str, Any]:
+        raw_rels = self._resolve_relationships(Model)
+        mapper = getattr(Model, "__mapper__", None)
+        mapper_rels: Dict[str, Any] = {}
+        if mapper is not None:
+            mapper_rels = {rel.key: rel for rel in mapper.relationships}
+
+        resolved: Dict[str, Any] = {}
+        for rel_name, rel in raw_rels.items():
+            rel_prop = self._relationship_property(rel)
+            if rel_prop is None:
+                rel_prop = self._relationship_property(mapper_rels.get(rel_name))
+            if rel_prop is not None:
+                resolved[rel_name] = rel_prop
+        return resolved
+
+    @staticmethod
     def _parse_rpc_args(request: Request, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         args: Dict[str, Any] = {}
         if isinstance(payload, dict):
@@ -490,7 +626,10 @@ class SafrsFastAPI:
     def _rpc_request_context(request: Request):
         from flask import Flask, current_app, has_app_context
 
-        flask_app = current_app._get_current_object() if has_app_context() else Flask("safrs-fastapi-rpc")
+        if has_app_context():
+            flask_app = cast(Any, current_app)._get_current_object()
+        else:
+            flask_app = Flask("safrs-fastapi-rpc")
         try:
             from safrs.request import SAFRSRequest
             flask_app.request_class = SAFRSRequest
@@ -498,7 +637,7 @@ class SafrsFastAPI:
             safrs.log.debug(f"Unable to import SAFRSRequest for rpc context: {exc}")
         try:
             from safrs.json_encoder import SAFRSJSONEncoder
-            flask_app.json_encoder = SAFRSJSONEncoder  # type: ignore[attr-defined]
+            cast(Any, flask_app).json_encoder = SAFRSJSONEncoder
         except Exception as exc:
             safrs.log.debug(f"Unable to import SAFRSJSONEncoder for rpc context: {exc}")
         return flask_app.test_request_context(
@@ -637,7 +776,7 @@ class SafrsFastAPI:
         if not include_values:
             return []
 
-        root_rels = self._resolve_relationships(Model)
+        root_rels = self._resolve_relationship_properties(Model)
         paths: List[List[str]] = []
         for inc in include_values:
             if inc == safrs.SAFRS.INCLUDE_ALL:
@@ -648,7 +787,7 @@ class SafrsFastAPI:
                 continue
             current_model = Model
             for segment in path:
-                rels = self._resolve_relationships(current_model)
+                rels = self._resolve_relationship_properties(current_model)
                 if segment not in rels:
                     self._jsonapi_error(400, "ValidationError", f"Invalid relationship '{segment}' in include")
                 current_model = rels[segment].mapper.class_
@@ -671,7 +810,8 @@ class SafrsFastAPI:
         attr_name = sort_arg.lstrip("-")
         reverse = sort_arg.startswith("-")
         try:
-            return sorted(items, key=lambda item: getattr(item, attr_name, None), reverse=reverse)
+            sort_key = cast(Any, lambda item: getattr(item, attr_name, None))
+            return sorted(items, key=sort_key, reverse=reverse)
         except Exception:
             return items
 
@@ -826,11 +966,13 @@ class SafrsFastAPI:
             if not path:
                 continue
             rel_name = path[0]
-            rels = self._resolve_relationships(current_model)
+            rels = self._resolve_relationship_properties(current_model)
             rel = rels.get(rel_name)
             if rel is None:
                 continue
             target_model = rel.mapper.class_
+            if not hasattr(target_model, "_s_type"):
+                continue
             rel_value = getattr(obj, rel_name, None)
             rel_items = self._iter_related_items(rel_value)
             for rel_obj in rel_items:
@@ -898,10 +1040,12 @@ class SafrsFastAPI:
                 if include_paths:
                     for obj in objs:
                         self._collect_included(Model, obj, include_paths, fields_map, seen, included)
-                return self._jsonapi_doc(
-                    data=data,
-                    included=included if include_paths else None,
-                    meta={"count": len(data)},
+                return self._jsonapi_response(
+                    self._jsonapi_doc(
+                        data=data,
+                        included=included if include_paths else None,
+                        meta={"count": len(data)},
+                    )
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -919,9 +1063,11 @@ class SafrsFastAPI:
                 seen: Set[Tuple[str, str]] = set()
                 if include_paths:
                     self._collect_included(Model, obj, include_paths, fields_map, seen, included)
-                return self._jsonapi_doc(
-                    data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
-                    included=included if include_paths else None,
+                return self._jsonapi_response(
+                    self._jsonapi_doc(
+                        data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                        included=included if include_paths else None,
+                    )
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -1060,9 +1206,11 @@ class SafrsFastAPI:
                 seen: Set[Tuple[str, str]] = set()
                 if include_paths:
                     self._collect_included(Model, obj, include_paths, fields_map, seen, included)
-                return self._jsonapi_doc(
-                    data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
-                    included=included if include_paths else None,
+                return self._jsonapi_response(
+                    self._jsonapi_doc(
+                        data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                        included=included if include_paths else None,
+                    )
                 )
             except JSONAPIHTTPError:
                 raise
@@ -1089,7 +1237,7 @@ class SafrsFastAPI:
         def handler(object_id: str, request: Request):
             try:
                 parent = Model.get_instance(object_id)
-                rel = self._resolve_relationships(Model).get(rel_name)
+                rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
@@ -1097,17 +1245,19 @@ class SafrsFastAPI:
                 wanted_fields = fields_map.get(str(target_model._s_type))
                 rel_value = getattr(parent, rel_name, None)
 
-                if rel.uselist:
+                if self._is_to_many_relationship(rel):
                     items = self._iter_related_items(rel_value)
                     items = self._apply_sort_query_or_items(target_model, items, request)
                     items = self._apply_pagination(items, request)
                     items = self._coerce_items(items)
                     data = [self._encode_resource(target_model, item, wanted_fields=wanted_fields) for item in items]
-                    return self._jsonapi_doc(data=data, meta={"count": len(data)})
+                    return self._jsonapi_response(self._jsonapi_doc(data=data, meta={"count": len(data)}))
 
                 if rel_value is None:
                     self._jsonapi_error(404, "NotFound", f"Relationship '{rel_name}' is empty")
-                return self._jsonapi_doc(data=self._encode_resource(target_model, rel_value, wanted_fields=wanted_fields))
+                return self._jsonapi_response(
+                    self._jsonapi_doc(data=self._encode_resource(target_model, rel_value, wanted_fields=wanted_fields))
+                )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
@@ -1117,7 +1267,7 @@ class SafrsFastAPI:
         def handler(object_id: str, target_id: str, request: Request):
             try:
                 parent = Model.get_instance(object_id)
-                rel = self._resolve_relationships(Model).get(rel_name)
+                rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
@@ -1126,7 +1276,9 @@ class SafrsFastAPI:
                 rel_value = getattr(parent, rel_name, None)
                 for item in self._iter_related_items(rel_value):
                     if str(item.jsonapi_id) == str(target_id):
-                        return self._jsonapi_doc(data=self._encode_resource(target_model, item, wanted_fields=wanted_fields))
+                        return self._jsonapi_response(
+                            self._jsonapi_doc(data=self._encode_resource(target_model, item, wanted_fields=wanted_fields))
+                        )
                 self._jsonapi_error(404, "NotFound", f"Relationship item '{target_id}' not found")
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -1137,14 +1289,14 @@ class SafrsFastAPI:
         def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
             try:
                 parent = Model.get_instance(object_id)
-                rel = self._resolve_relationships(Model).get(rel_name)
+                rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
 
-                if rel.uselist:
+                if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "PATCH a TOMANY relationship with a list")
                     self._clear_relationship(rel_value)
@@ -1153,9 +1305,11 @@ class SafrsFastAPI:
                         self._append_relationship_item(rel_value, target)
                     safrs.DB.session.commit()
                     items = self._iter_related_items(rel_value)
-                    return self._jsonapi_doc(
-                        data=[self._encode_resource(target_model, item) for item in items],
-                        meta={"count": len(items)},
+                    return self._jsonapi_response(
+                        self._jsonapi_doc(
+                            data=[self._encode_resource(target_model, item) for item in items],
+                            meta={"count": len(items)},
+                        )
                     )
 
                 if data is None:
@@ -1168,7 +1322,7 @@ class SafrsFastAPI:
                 setattr(parent, rel_name, target)
                 safrs.DB.session.commit()
                 if rel_name == "thing":
-                    return self._jsonapi_doc(data=self._encode_resource(target_model, target))
+                    return self._jsonapi_response(self._jsonapi_doc(data=self._encode_resource(target_model, target)))
                 return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -1179,14 +1333,14 @@ class SafrsFastAPI:
         def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
             try:
                 parent = Model.get_instance(object_id)
-                rel = self._resolve_relationships(Model).get(rel_name)
+                rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
 
-                if rel.uselist:
+                if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                     for item in data:
@@ -1200,7 +1354,7 @@ class SafrsFastAPI:
                 target = self._lookup_related_instance(target_model, data)
                 setattr(parent, rel_name, target)
                 safrs.DB.session.commit()
-                return self._jsonapi_doc(data=self._encode_resource(target_model, target))
+                return self._jsonapi_response(self._jsonapi_doc(data=self._encode_resource(target_model, target)))
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
@@ -1210,14 +1364,14 @@ class SafrsFastAPI:
         def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
             try:
                 parent = Model.get_instance(object_id)
-                rel = self._resolve_relationships(Model).get(rel_name)
+                rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
 
-                if rel.uselist:
+                if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                     for item in data:
