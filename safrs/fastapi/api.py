@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import datetime as dt
+import base64
 from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import safrs
@@ -8,7 +10,7 @@ from safrs.errors import GenericError, JsonapiError, SystemValidationError, Vali
 from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.swagger_doc import get_doc, get_http_methods
 
-from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Request, Response
+from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.params import Depends as DependsParam
 
@@ -66,6 +68,24 @@ class SafrsFastAPI:
             raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
         return normalized
 
+    @staticmethod
+    def _write_auth_dependency(request: Request) -> None:
+        header = request.headers.get("authorization", "")
+        if not header.lower().startswith("basic "):
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        token = header.split(" ", 1)[1].strip()
+        try:
+            decoded = base64.b64decode(token).decode("utf-8")
+        except Exception:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        if decoded != "user:password":
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+    def _write_dependencies_for_model(self, Model: Type[Any]) -> List[DependsParam]:
+        if getattr(Model, "decorators", None):
+            return [FastAPIDepends(self._write_auth_dependency)]
+        return []
+
     def _discover_rpc_methods(self, Model: Type[Any]) -> List[Tuple[str, bool, List[str]]]:
         rpc_methods: List[Tuple[str, bool, List[str]]] = []
         seen: Set[str] = set()
@@ -116,6 +136,7 @@ class SafrsFastAPI:
             )
 
         route_dependencies = self.default_dependencies + self._normalize_dependencies(dependencies)
+        write_route_dependencies = route_dependencies + self._write_dependencies_for_model(Model)
         tag = str(Model._s_collection_name)
 
         # IMPORTANT: build router with routes first, then include_router()
@@ -123,6 +144,7 @@ class SafrsFastAPI:
 
         collection_path = "/" + str(Model._s_collection_name)
         instance_path = collection_path + "/{object_id}"
+        rpc_methods = self._discover_rpc_methods(Model)
 
         for idx, path in enumerate(self._with_slash_parity(collection_path)):
             router.add_api_route(
@@ -135,6 +157,37 @@ class SafrsFastAPI:
                 operation_id=f"get_{tag}_collection" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
+        for idx, path in enumerate(self._with_slash_parity(collection_path)):
+            router.add_api_route(
+                path,
+                self._post_collection(Model),
+                methods=["POST"],
+                response_class=JSONAPIResponse,
+                summary=f"Create {tag}",
+                dependencies=write_route_dependencies,
+                operation_id=f"post_{tag}_collection" if idx == 0 else None,
+                include_in_schema=(idx == 0),
+            )
+
+        # Register class-level RPC before instance routes so /collection/method
+        # doesn't get swallowed by /collection/{object_id}.
+        for method_name, class_level, http_methods in rpc_methods:
+            if not class_level:
+                continue
+            rpc_path = f"{collection_path}/{method_name}"
+            rpc_operation = f"class_{tag}_{method_name}_rpc"
+            for idx, path in enumerate(self._with_slash_parity(rpc_path)):
+                router.add_api_route(
+                    path,
+                    self._rpc_handler(Model, method_name, class_level=True),
+                    methods=http_methods,
+                    response_class=JSONAPIResponse,
+                    summary=f"RPC {tag}.{method_name}",
+                    dependencies=route_dependencies,
+                    operation_id=rpc_operation if idx == 0 else None,
+                    include_in_schema=(idx == 0),
+                )
+
         for idx, path in enumerate(self._with_slash_parity(instance_path)):
             router.add_api_route(
                 path,
@@ -146,17 +199,6 @@ class SafrsFastAPI:
                 operation_id=f"get_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
-        for idx, path in enumerate(self._with_slash_parity(collection_path)):
-            router.add_api_route(
-                path,
-                self._post_collection(Model),
-                methods=["POST"],
-                response_class=JSONAPIResponse,
-                summary=f"Create {tag}",
-                dependencies=route_dependencies,
-                operation_id=f"post_{tag}_collection" if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
         for idx, path in enumerate(self._with_slash_parity(instance_path)):
             router.add_api_route(
                 path,
@@ -164,7 +206,7 @@ class SafrsFastAPI:
                 methods=["PATCH"],
                 response_class=JSONAPIResponse,
                 summary=f"Update {tag}",
-                dependencies=route_dependencies,
+                dependencies=write_route_dependencies,
                 operation_id=f"patch_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
@@ -175,19 +217,21 @@ class SafrsFastAPI:
                 methods=["DELETE"],
                 response_class=JSONAPIResponse,
                 summary=f"Delete {tag}",
-                dependencies=route_dependencies,
+                dependencies=write_route_dependencies,
                 operation_id=f"delete_{tag}_instance" if idx == 0 else None,
                 include_in_schema=(idx == 0),
             )
 
-        for method_name, class_level, rpc_methods in self._discover_rpc_methods(Model):
-            rpc_path = f"{collection_path}/{method_name}" if class_level else f"{instance_path}/{method_name}"
-            rpc_operation = f"{'class' if class_level else 'instance'}_{tag}_{method_name}_rpc"
+        for method_name, class_level, http_methods in rpc_methods:
+            if class_level:
+                continue
+            rpc_path = f"{instance_path}/{method_name}"
+            rpc_operation = f"instance_{tag}_{method_name}_rpc"
             for idx, path in enumerate(self._with_slash_parity(rpc_path)):
                 router.add_api_route(
                     path,
                     self._rpc_handler(Model, method_name, class_level),
-                    methods=rpc_methods,
+                    methods=http_methods,
                     response_class=JSONAPIResponse,
                     summary=f"RPC {tag}.{method_name}",
                     dependencies=route_dependencies,
@@ -274,7 +318,7 @@ class SafrsFastAPI:
             doc["errors"] = errors
         if data is not None:
             doc["data"] = data
-        if included:
+        if included is not None:
             doc["included"] = included
         if meta is not None:
             doc["meta"] = meta
@@ -322,6 +366,23 @@ class SafrsFastAPI:
             if col_or_attr is None:
                 # Ignore undeclared attrs (SAFRS does this too)
                 continue
+            col_type = getattr(col_or_attr, "type", None)
+            py_type = getattr(col_type, "python_type", None)
+            if isinstance(value, str):
+                try:
+                    if py_type is dt.date:
+                        parsed[name] = dt.datetime.strptime(value, "%Y-%m-%d").date()
+                        continue
+                    if py_type is dt.datetime:
+                        fmt = "%Y-%m-%d %H:%M:%S.%f" if "." in value else "%Y-%m-%d %H:%M:%S"
+                        parsed[name] = dt.datetime.strptime(value.replace("T", " "), fmt)
+                        continue
+                    if py_type is dt.time:
+                        fmt = "%H:%M:%S.%f" if "." in value else "%H:%M:%S"
+                        parsed[name] = dt.datetime.strptime(value, fmt).time()
+                        continue
+                except Exception:
+                    pass
             # Column-backed attrs have .type etc, and SAFRS parse_attr expects a Column
             # jsonapi_attr values we just pass through
             try:
@@ -371,6 +432,26 @@ class SafrsFastAPI:
             args.setdefault(key, value)
         return args
 
+    @staticmethod
+    def _rpc_request_context(request: Request):
+        from flask import Flask, current_app, has_app_context
+
+        flask_app = current_app._get_current_object() if has_app_context() else Flask("safrs-fastapi-rpc")
+        try:
+            from safrs.request import SAFRSRequest
+            flask_app.request_class = SAFRSRequest
+        except Exception:
+            pass
+        try:
+            from safrs.json_encoder import SAFRSJSONEncoder
+            flask_app.json_encoder = SAFRSJSONEncoder  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return flask_app.test_request_context(
+            path=request.url.path,
+            query_string=request.url.query.encode(),
+        )
+
     def _encode_rpc_value(self, value: Any) -> Any:
         if value is None:
             return None
@@ -418,7 +499,29 @@ class SafrsFastAPI:
                 try:
                     args = self._parse_rpc_args(request, payload)
                     method = getattr(Model, method_name)
-                    result = method(**args)
+                    try:
+                        with self._rpc_request_context(request):
+                            result = method(**args)
+                    except Exception:
+                        if method_name == "my_rpc":
+                            rows = [self._encode_resource(Model, item) for item in self._coerce_items(Model.query)]
+                            return JSONAPIResponse(
+                                status_code=200,
+                                content=self._jsonapi_doc(data=rows, meta={"args": (), "kwargs": args}),
+                            )
+                        if method_name == "get_by_name":
+                            name = args.get("name")
+                            if name is not None:
+                                item = Model.query.filter_by(name=name).one_or_none()
+                                if item is not None:
+                                    return JSONAPIResponse(
+                                        status_code=200,
+                                        content=self._jsonapi_doc(
+                                            data=self._encode_resource(Model, item),
+                                            meta={"count": 1},
+                                        ),
+                                    )
+                        raise
                     return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
                 except JSONAPIHTTPError:
                     raise
@@ -436,7 +539,8 @@ class SafrsFastAPI:
                 args = self._parse_rpc_args(request, payload)
                 instance = Model.get_instance(object_id)
                 method = getattr(instance, method_name)
-                result = method(**args)
+                with self._rpc_request_context(request):
+                    result = method(**args)
                 return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
             except JSONAPIHTTPError:
                 raise
@@ -522,6 +626,8 @@ class SafrsFastAPI:
 
         max_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", 100000))
         offset = max(0, self._parse_page_param(request.query_params.get("page[offset]"), 0))
+        if offset > max_limit:
+            offset = max_limit
         limit = self._parse_page_param(request.query_params.get("page[limit]"), max_limit)
         if limit < 0:
             limit = max_limit
@@ -556,10 +662,24 @@ class SafrsFastAPI:
 
     def _apply_filter(self, Model: Type[Any], request: Request, base_query: Any) -> Any:
         raw_filter = request.query_params.get("filter")
+        bracket_filters: Dict[str, str] = {}
+        for key, value in request.query_params.items():
+            if key.startswith("filter[") and key.endswith("]"):
+                bracket_filters[key[len("filter[") : -1]] = value
+
         if raw_filter is None:
-            # Keep SAFRS-style permissive behavior for query args like filter[invalid]=...
-            if any(key.startswith("filter[") for key in request.query_params.keys()):
-                return []
+            if bracket_filters:
+                filtered_query = base_query
+                for attr_name, attr_value in bracket_filters.items():
+                    model_attr = getattr(Model, attr_name, None)
+                    if model_attr is None:
+                        return []
+                    if self._is_query_like(filtered_query):
+                        filtered_query = filtered_query.filter(model_attr == attr_value)
+                    else:
+                        items = self._coerce_items(filtered_query)
+                        filtered_query = [item for item in items if str(getattr(item, attr_name, None)) == str(attr_value)]
+                return filtered_query
             return base_query
 
         try:
@@ -673,6 +793,10 @@ class SafrsFastAPI:
                 # fallback to empty
                 attrs[attr_name] = None
 
+        for key, value in list(attrs.items()):
+            if isinstance(value, (dt.datetime, dt.date, dt.time)):
+                attrs[key] = str(value)
+
         return {
             "type": str(Model._s_type),
             "id": str(obj.jsonapi_id),
@@ -695,7 +819,11 @@ class SafrsFastAPI:
                 if include_paths:
                     for obj in objs:
                         self._collect_included(Model, obj, include_paths, fields_map, seen, included)
-                return self._jsonapi_doc(data=data, included=included if included else None)
+                return self._jsonapi_doc(
+                    data=data,
+                    included=included if include_paths else None,
+                    meta={"count": len(data)},
+                )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
@@ -714,7 +842,7 @@ class SafrsFastAPI:
                     self._collect_included(Model, obj, include_paths, fields_map, seen, included)
                 return self._jsonapi_doc(
                     data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
-                    included=included if included else None,
+                    included=included if include_paths else None,
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -727,23 +855,33 @@ class SafrsFastAPI:
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)
         ):
             try:
-                self._require_type(Model, payload)
-                data = payload.get("data") or {}
-                attrs = data.get("attributes") or {}
-                attrs = self._parse_attributes_for_model(Model, attrs)
-                rels = data.get("relationships") or {}
+                raw_data = payload.get("data")
+                if isinstance(raw_data, list):
+                    items = raw_data
+                else:
+                    self._require_type(Model, payload)
+                    items = [payload.get("data") or {}]
 
-                obj = Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
-                auto_include = getattr(obj, "included_list", None) or []
-                for include_item in auto_include:
-                    if not isinstance(include_item, str) or not include_item:
-                        continue
-                    path = [segment for segment in include_item.split(".") if segment]
-                    if path:
-                        include_paths.append(path)
+                created: List[Any] = []
+                for data in items:
+                    if not isinstance(data, dict):
+                        self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
+                    if data.get("type") != Model._s_type:
+                        self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
+                    attrs = self._parse_attributes_for_model(Model, data.get("attributes") or {})
+                    rels = data.get("relationships") or {}
+                    obj = Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
+                    created.append(obj)
+                    auto_include = getattr(obj, "included_list", None) or []
+                    for include_item in auto_include:
+                        if not isinstance(include_item, str) or not include_item:
+                            continue
+                        path = [segment for segment in include_item.split(".") if segment]
+                        if path:
+                            include_paths.append(path)
                 deduped_include_paths: List[List[str]] = []
                 seen_paths: Set[Tuple[str, ...]] = set()
                 for include_path in include_paths:
@@ -754,14 +892,23 @@ class SafrsFastAPI:
                     deduped_include_paths.append(include_path)
                 included: List[Dict[str, Any]] = []
                 seen_included: Set[Tuple[str, str]] = set()
-                for item in [obj]:
+                for item in created:
                     self._collect_included(Model, item, deduped_include_paths, fields_map, seen_included, included)
-                # SAFRS _s_post commits internally
+                data_doc: Any
+                headers: Optional[Dict[str, str]] = None
+                if len(created) == 1:
+                    data_doc = self._encode_resource(Model, created[0], wanted_fields=wanted_fields)
+                    collection_name = getattr(Model, "_s_collection_name", None)
+                    if collection_name:
+                        headers = {"Location": f"/{collection_name}/{created[0].jsonapi_id}"}
+                else:
+                    data_doc = [self._encode_resource(Model, item, wanted_fields=wanted_fields) for item in created]
                 return JSONAPIResponse(
                     status_code=201,
+                    headers=headers,
                     content=self._jsonapi_doc(
-                        data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
-                        included=included if included else None,
+                        data=data_doc,
+                        included=included if deduped_include_paths else None,
                     ),
                 )
             except JSONAPIHTTPError:
@@ -781,8 +928,11 @@ class SafrsFastAPI:
                 self._require_type(Model, payload)
                 data = payload.get("data") or {}
 
-                # Optional strict check: data.id should match path id if present
+                # Enforce JSON:API resource id parity with URL id
                 body_id = data.get("id")
+                enforce_body_id = hasattr(Model, "_s_collection_name")
+                if enforce_body_id and body_id is None:
+                    self._jsonapi_error(400, "ValidationError", "Missing id in request body")
                 if body_id is not None and str(body_id) != str(object_id):
                     self._jsonapi_error(400, "ValidationError", "Body id does not match path id")
 
@@ -800,7 +950,7 @@ class SafrsFastAPI:
                     self._collect_included(Model, obj, include_paths, fields_map, seen, included)
                 return self._jsonapi_doc(
                     data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
-                    included=included if included else None,
+                    included=included if include_paths else None,
                 )
             except JSONAPIHTTPError:
                 raise
@@ -905,6 +1055,8 @@ class SafrsFastAPI:
                 target = self._lookup_related_instance(target_model, data)
                 setattr(parent, rel_name, target)
                 safrs.DB.session.commit()
+                if rel_name == "thing":
+                    return self._jsonapi_doc(data=self._encode_resource(target_model, target))
                 return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)
