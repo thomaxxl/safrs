@@ -4,7 +4,7 @@ This module intentionally has *no* side effects at import time. A small WSGI
 wrapper (`demo_wsgi.py`) creates the Flask app, initializes SAFRS, seeds the DB,
 and returns the WSGI app for gunicorn.
 
-What it demonstrates (same spirit as `examples/demo_pythonanywhere_com.py`):
+What it demonstrates:
 - SQLAlchemy models exposed as JSON:API endpoints under `/api`
 - Swagger/OpenAPI generation by SAFRS
 - Custom swagger merge via `custom_swagger`
