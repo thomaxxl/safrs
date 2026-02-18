@@ -136,17 +136,20 @@ class SafrsFastAPI:
         dependencies: List[DependsParam],
         operation_id: str,
     ) -> None:
-        for idx, variant in enumerate(self._with_slash_parity(path)):
-            router.add_api_route(
-                variant,
-                endpoint,
-                methods=methods,
-                response_class=JSONAPIResponse,
-                summary=summary,
-                dependencies=dependencies,
-                operation_id=operation_id if idx == 0 else None,
-                include_in_schema=(idx == 0),
-            )
+        for method in methods:
+            method_name = str(method).upper()
+            method_operation_id = f"{operation_id}_{method_name.lower()}"
+            for idx, variant in enumerate(self._with_slash_parity(path)):
+                router.add_api_route(
+                    variant,
+                    endpoint,
+                    methods=[method_name],
+                    response_class=JSONAPIResponse,
+                    summary=summary,
+                    dependencies=dependencies,
+                    operation_id=method_operation_id if idx == 0 else None,
+                    include_in_schema=(idx == 0),
+                )
 
     def _register_base_routes(
         self,
