@@ -21,3 +21,11 @@ Useful URLs:
 - FastAPI docs: `http://127.0.0.1:8000/docs`
 - FastAPI OpenAPI: `http://127.0.0.1:8000/swagger.json`
 - Health checks: `/health`
+
+Generate and diff specs:
+
+```bash
+cd /home/t/lab/safrs-example/safrs/tmp
+python export_specs.py
+python spec_diff.py
+```

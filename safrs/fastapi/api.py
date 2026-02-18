@@ -3,6 +3,7 @@
 import base64
 import datetime as dt
 import inspect
+from http import HTTPStatus
 from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple, Type, Union, cast
 
 import safrs
@@ -182,6 +183,23 @@ class SafrsFastAPI:
         error_responses = self._jsonapi_error_responses()
         collection_response_model = self.schemas.document_collection(Model)
         instance_response_model = self.schemas.document_single(Model)
+        collection_query_openapi = self._openapi_query_parameters(
+            self._jsonapi_query_parameters(
+                Model,
+                include_include=True,
+                include_fields=True,
+                include_pagination=True,
+                include_sort=True,
+                include_filter=True,
+            )
+        )
+        instance_query_openapi = self._openapi_query_parameters(
+            self._jsonapi_query_parameters(
+                Model,
+                include_include=True,
+                include_fields=True,
+            )
+        )
         self._add_route_with_slash_parity(
             router,
             collection_path,
@@ -192,6 +210,7 @@ class SafrsFastAPI:
             f"get_{tag}_collection",
             response_model=collection_response_model,
             responses=error_responses,
+            openapi_extra=collection_query_openapi,
         )
         self._add_route_with_slash_parity(
             router,
@@ -204,7 +223,10 @@ class SafrsFastAPI:
             status_code=201,
             response_model=instance_response_model,
             responses=error_responses,
-            openapi_extra=self._openapi_request_body(self.schemas.document_create(Model)),
+            openapi_extra=self._merge_openapi_extra(
+                instance_query_openapi,
+                self._openapi_request_body(self.schemas.document_create(Model)),
+            ),
         )
         self._add_route_with_slash_parity(
             router,
@@ -216,6 +238,7 @@ class SafrsFastAPI:
             f"get_{tag}_instance",
             response_model=instance_response_model,
             responses=error_responses,
+            openapi_extra=instance_query_openapi,
         )
         self._add_route_with_slash_parity(
             router,
@@ -227,7 +250,10 @@ class SafrsFastAPI:
             f"patch_{tag}_instance",
             response_model=instance_response_model,
             responses=error_responses,
-            openapi_extra=self._openapi_request_body(self.schemas.document_patch(Model)),
+            openapi_extra=self._merge_openapi_extra(
+                instance_query_openapi,
+                self._openapi_request_body(self.schemas.document_patch(Model)),
+            ),
         )
         self._add_route_with_slash_parity(
             router,
@@ -315,6 +341,23 @@ class SafrsFastAPI:
             )
             rel_item_model = self.schemas.document_single(target_model)
             rel_openapi = self._openapi_request_body(rel_doc_model)
+            rel_get_openapi = self._openapi_query_parameters(
+                self._jsonapi_query_parameters(
+                    target_model,
+                    include_include=True,
+                    include_fields=True,
+                    include_pagination=is_many,
+                    include_sort=is_many,
+                    include_filter=is_many,
+                )
+            )
+            rel_item_get_openapi = self._openapi_query_parameters(
+                self._jsonapi_query_parameters(
+                    target_model,
+                    include_include=True,
+                    include_fields=True,
+                )
+            )
 
             route_specs: List[Tuple[str, Any, List[str], str, str, Optional[int], Optional[Type[Any]], Optional[Dict[str, Any]]]] = [
                 (
@@ -325,7 +368,7 @@ class SafrsFastAPI:
                     f"get_{tag}_{rel_name}_relationship",
                     200,
                     rel_get_model,
-                    None,
+                    rel_get_openapi,
                 ),
                 (
                     rel_item_path,
@@ -335,7 +378,7 @@ class SafrsFastAPI:
                     f"get_{tag}_{rel_name}_relationship_item",
                     200,
                     rel_item_model,
-                    None,
+                    rel_item_get_openapi,
                 ),
                 (
                     rel_path,
@@ -387,6 +430,98 @@ class SafrsFastAPI:
     def _schema_ref(model: Type[Any]) -> Dict[str, str]:
         return {"$ref": f"#/components/schemas/{model.__name__}"}
 
+    @staticmethod
+    def _openapi_query_parameters(parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
+        return {"parameters": parameters}
+
+    @staticmethod
+    def _merge_openapi_extra(*extras: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        merged: Dict[str, Any] = {}
+        seen_parameters: Set[Tuple[str, str]] = set()
+        merged_parameters: List[Dict[str, Any]] = []
+        for extra in extras:
+            if not extra:
+                continue
+            for key, value in extra.items():
+                if key == "parameters" and isinstance(value, list):
+                    for parameter in value:
+                        param_name = str(parameter.get("name", ""))
+                        param_in = str(parameter.get("in", ""))
+                        param_key = (param_in, param_name)
+                        if param_key in seen_parameters:
+                            continue
+                        seen_parameters.add(param_key)
+                        merged_parameters.append(parameter)
+                    continue
+                merged[key] = value
+        if merged_parameters:
+            merged["parameters"] = merged_parameters
+        return merged or None
+
+    @staticmethod
+    def _query_parameter(
+        name: str,
+        schema_type: str = "string",
+        description: str = "",
+    ) -> Dict[str, Any]:
+        return {
+            "name": name,
+            "in": "query",
+            "required": False,
+            "schema": {"type": schema_type},
+            "description": description,
+        }
+
+    def _model_filter_query_parameters(self, Model: Type[Any]) -> List[Dict[str, Any]]:
+        params: List[Dict[str, Any]] = [
+            self._query_parameter("filter", description=f"{Model._s_type} filter expression"),
+        ]
+        attrs = set(getattr(Model, "_s_jsonapi_attrs", {}).keys())
+        attrs.add("id")
+        for attr_name in sorted(attrs):
+            params.append(
+                self._query_parameter(
+                    f"filter[{attr_name}]",
+                    description=f"Filter {Model._s_type} by '{attr_name}'",
+                )
+            )
+        return params
+
+    def _jsonapi_query_parameters(
+        self,
+        Model: Type[Any],
+        *,
+        include_include: bool = False,
+        include_fields: bool = False,
+        include_pagination: bool = False,
+        include_sort: bool = False,
+        include_filter: bool = False,
+    ) -> List[Dict[str, Any]]:
+        params: List[Dict[str, Any]] = []
+        if include_include:
+            class_name = str(getattr(Model, "_s_class_name", getattr(Model, "__name__", "Resource")))
+            params.append(
+                self._query_parameter(
+                    "include",
+                    description=f"{class_name} relationships to include (csv)",
+                )
+            )
+        if include_fields:
+            params.append(
+                self._query_parameter(
+                    f"fields[{Model._s_type}]",
+                    description=f"Comma-separated fields for {Model._s_type}",
+                )
+            )
+        if include_pagination:
+            params.append(self._query_parameter("page[offset]", "integer", "Pagination offset"))
+            params.append(self._query_parameter("page[limit]", "integer", "Pagination limit"))
+        if include_sort:
+            params.append(self._query_parameter("sort", description="Sort field (prefix with '-' for descending)"))
+        if include_filter:
+            params.extend(self._model_filter_query_parameters(Model))
+        return params
+
     def _openapi_request_body(self, payload_model: Type[Any], required: bool = True) -> Dict[str, Any]:
         return {
             "requestBody": {
@@ -401,12 +536,17 @@ class SafrsFastAPI:
 
     def _jsonapi_error_responses(self) -> Dict[Union[int, str], Dict[str, Any]]:
         error_model = self.schemas.error_document()
+        error_content = {
+            JSONAPI_MEDIA_TYPE: {
+                "schema": self._schema_ref(error_model),
+            }
+        }
         return {
-            400: {"model": error_model},
-            403: {"model": error_model},
-            404: {"model": error_model},
-            409: {"model": error_model},
-            500: {"model": error_model},
+            400: {"description": HTTPStatus.BAD_REQUEST.phrase, "model": error_model, "content": error_content},
+            403: {"description": HTTPStatus.FORBIDDEN.phrase, "model": error_model, "content": error_content},
+            404: {"description": HTTPStatus.NOT_FOUND.phrase, "model": error_model, "content": error_content},
+            409: {"description": HTTPStatus.CONFLICT.phrase, "model": error_model, "content": error_content},
+            500: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.phrase, "model": error_model, "content": error_content},
         }
 
     def expose_object(
@@ -1252,20 +1392,40 @@ class SafrsFastAPI:
                 target_model = rel.mapper.class_
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(target_model._s_type))
+                include_paths = self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
 
                 if self._is_to_many_relationship(rel):
-                    items = self._iter_related_items(rel_value)
+                    items = self._apply_filter(target_model, request, rel_value)
+                    items = self._coerce_items(items)
                     items = self._apply_sort_query_or_items(target_model, items, request)
                     items = self._apply_pagination(items, request)
                     items = self._coerce_items(items)
                     data = [self._encode_resource(target_model, item, wanted_fields=wanted_fields) for item in items]
-                    return self._jsonapi_response(self._jsonapi_doc(data=data, meta={"count": len(data)}))
+                    included: List[Dict[str, Any]] = []
+                    seen: Set[Tuple[str, str]] = set()
+                    if include_paths:
+                        for item in items:
+                            self._collect_included(target_model, item, include_paths, fields_map, seen, included)
+                    return self._jsonapi_response(
+                        self._jsonapi_doc(
+                            data=data,
+                            included=included if include_paths else None,
+                            meta={"count": len(data)},
+                        )
+                    )
 
                 if rel_value is None:
                     self._jsonapi_error(404, "NotFound", f"Relationship '{rel_name}' is empty")
+                included_single: List[Dict[str, Any]] = []
+                seen_single: Set[Tuple[str, str]] = set()
+                if include_paths:
+                    self._collect_included(target_model, rel_value, include_paths, fields_map, seen_single, included_single)
                 return self._jsonapi_response(
-                    self._jsonapi_doc(data=self._encode_resource(target_model, rel_value, wanted_fields=wanted_fields))
+                    self._jsonapi_doc(
+                        data=self._encode_resource(target_model, rel_value, wanted_fields=wanted_fields),
+                        included=included_single if include_paths else None,
+                    )
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -1282,11 +1442,19 @@ class SafrsFastAPI:
                 target_model = rel.mapper.class_
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(target_model._s_type))
+                include_paths = self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
                 for item in self._iter_related_items(rel_value):
                     if str(item.jsonapi_id) == str(target_id):
+                        included: List[Dict[str, Any]] = []
+                        seen: Set[Tuple[str, str]] = set()
+                        if include_paths:
+                            self._collect_included(target_model, item, include_paths, fields_map, seen, included)
                         return self._jsonapi_response(
-                            self._jsonapi_doc(data=self._encode_resource(target_model, item, wanted_fields=wanted_fields))
+                            self._jsonapi_doc(
+                                data=self._encode_resource(target_model, item, wanted_fields=wanted_fields),
+                                included=included if include_paths else None,
+                            )
                         )
                 self._jsonapi_error(404, "NotFound", f"Relationship item '{target_id}' not found")
             except Exception as exc:
