@@ -298,12 +298,21 @@ class SafrsFastAPI:
             target_model = rel.mapper.class_
             if not hasattr(target_model, "_s_type"):
                 continue
+            is_many = self._is_to_many_relationship(rel)
+
+            # Relationship fetch returns full resource objects, not linkage.
+            rel_get_model = (
+                self.schemas.document_collection(target_model)
+                if is_many
+                else self.schemas.document_single(target_model)
+            )
+
+            # Relationship mutation payloads use JSON:API linkage documents.
             rel_doc_model = (
                 self.schemas.relationship_document_to_many(target_model)
-                if self._is_to_many_relationship(rel)
+                if is_many
                 else self.schemas.relationship_document_to_one(target_model)
             )
-            rel_get_model = rel_doc_model
             rel_item_model = self.schemas.document_single(target_model)
             rel_openapi = self._openapi_request_body(rel_doc_model)
 
