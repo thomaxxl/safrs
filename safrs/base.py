@@ -177,7 +177,7 @@ Type: classmethod
 Description: Applies filters to the query.
 """
 from __future__ import annotations
-from typing import Any, cast
+from typing import Any, cast, Callable, Optional
 import inspect
 import datetime
 import sqlalchemy
@@ -204,7 +204,74 @@ from .config import get_config
 from .jsonapi_filters import jsonapi_filter
 from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
-from .util import classproperty
+from .util import ClassPropertyDescriptor, classproperty
+from .model_config import SAFRSModelConfig
+
+
+# Mapping of legacy "_s_" class attributes to SAFRSModelConfig field names.
+_LEGACY_SAFRS_CONFIG_MAP = {
+    "_s_expose": "expose",
+    "_s_upsert": "upsert",
+    "_s_allow_add_rels": "allow_add_rels",
+    "_s_pk_delimiter": "pk_delimiter",
+    "_s_url_root": "url_root",
+    "_s_stateless": "stateless",
+}
+
+
+@lru_cache(maxsize=1024)
+def _resolve_safrs_model_config(model_cls: type) -> SAFRSModelConfig:
+    """Resolve a model's SAFRS configuration.
+
+    Resolution order is MRO-based: base classes first, subclasses last.
+
+    Supported override styles per class:
+    - ``class SAFRSConfig: ...`` nested class with attributes matching config fields.
+    - ``__safrs_config__`` attribute containing a SAFRSModelConfig or a dict of overrides.
+    - legacy ``_s_*`` class attributes.
+
+    Notes:
+    - The result is cached. If you mutate overrides at runtime, call
+      ``SAFRSBase._s_clear_config_cache()``.
+    """
+    cfg = SAFRSModelConfig()
+    field_names = set(cfg.__dataclass_fields__.keys())
+
+    for base in reversed(getattr(model_cls, "__mro__", ())):
+        if base is object:
+            continue
+
+        # Full config / dict overrides
+        raw_cfg = getattr(base, "__dict__", {}).get("__safrs_config__", None)
+        if isinstance(raw_cfg, SAFRSModelConfig):
+            cfg = raw_cfg
+        elif isinstance(raw_cfg, dict):
+            cfg = cfg.with_overrides(raw_cfg)
+
+        # Nested class overrides: class SAFRSConfig: expose = ...
+        cfg_cls = getattr(base, "__dict__", {}).get("SAFRSConfig", None)
+        if cfg_cls is not None:
+            overrides = {}
+            for name in field_names:
+                if hasattr(cfg_cls, name):
+                    overrides[name] = getattr(cfg_cls, name)
+            cfg = cfg.with_overrides(overrides)
+
+        # Legacy overrides: _s_expose, _s_pk_delimiter, ...
+        legacy_overrides = {}
+        base_dict = getattr(base, "__dict__", {})
+        for legacy_attr, field_name in _LEGACY_SAFRS_CONFIG_MAP.items():
+            if legacy_attr not in base_dict:
+                continue
+            value = base_dict[legacy_attr]
+            # SAFRSBase defines some of these as classproperties.
+            # Only treat concrete values (bool/str/None/...) as legacy overrides.
+            if isinstance(value, ClassPropertyDescriptor):
+                continue
+            legacy_overrides[field_name] = value
+        cfg = cfg.with_overrides(legacy_overrides)
+
+    return cfg
 
 #
 # Map SQLA types to swagger2 json types
@@ -274,7 +341,6 @@ class SAFRSBase(Model):
     # The swagger models are kept here, this lookup table will be used when the api swagger is generated
     # on startup
     swagger_models = {"instance": None, "collection": None}
-    _s_expose = True  # indicates we want to expose this (see _s_check_perms)
     jsonapi_filter = jsonapi_filter  # filtering implementation
 
     # Cached lookup tables
@@ -287,12 +353,72 @@ class SAFRSBase(Model):
     _relationship_api = safrs.jsonapi.SAFRSRestRelationshipAPI
     _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
 
-    _s_upsert = True  # indicates we want to lookup and use existing objects
-    _s_allow_add_rels = True  # allow relationships to be added in post requests
+    @classproperty
+    def safrs_config(cls: Any) -> SAFRSModelConfig:
+        """Resolved configuration for this SAFRS model class."""
+        return _resolve_safrs_model_config(cls)
 
-    _s_pk_delimiter = "_"
+    @classmethod
+    def _s_clear_config_cache(cls: Any) -> None:
+        """Clear the SAFRS model config cache.
 
-    _s_url_root = None  # url prefix shown in the "links" field, if not set, request.url_root will be
+        Use this if you mutate configuration overrides at runtime.
+        """
+        _resolve_safrs_model_config.cache_clear()
+
+    @classproperty
+    def _s_expose(cls: Any) -> bool:
+        """Indicates whether this class should be exposed in the API."""
+        return bool(cls.safrs_config.expose)
+
+    @classproperty
+    def _s_upsert(cls: Any) -> bool:
+        """Indicates whether to look up and use existing objects during creation."""
+        return bool(cls.safrs_config.upsert)
+
+    @classproperty
+    def _s_allow_add_rels(cls: Any) -> bool:
+        """Allows relationships to be added in POST requests."""
+        return bool(cls.safrs_config.allow_add_rels)
+
+    @classproperty
+    def _s_pk_delimiter(cls: Any) -> str:
+        """Delimiter used to concatenate primary key values in jsonapi ids."""
+        return str(cls.safrs_config.pk_delimiter)
+
+    @classproperty
+    def _s_url_root(cls: Any) -> Any:
+        """URL prefix shown in the JSON:API "links" field."""
+        return cls.safrs_config.url_root
+
+    # ---------------------------------------------------------------------
+    # Phase 2: Hook infrastructure (no behavior changes yet)
+    # ---------------------------------------------------------------------
+    @classmethod
+    def _s_get_class_hook(cls: Any, name: str) -> Optional[Callable[..., Any]]:
+        """Return a class-level hook override by name, if configured."""
+        hooks = getattr(cls.safrs_config, "hooks", None)
+        if not hooks:
+            return None
+        return hooks.get(name)
+
+    def _s_get_hook(self: Any, name: str) -> Optional[Callable[..., Any]]:
+        """Return an instance-level hook override by name.
+
+        Instance hooks take precedence over class hooks.
+        """
+        inst_hooks = cast(Optional[dict[str, Callable[..., Any]]], getattr(self, "__safrs_instance_hooks__", None))
+        if inst_hooks and name in inst_hooks:
+            return inst_hooks[name]
+        return self.__class__._s_get_class_hook(name)
+
+    def _s_set_hook(self: Any, name: str, fn: Callable[..., Any]) -> None:
+        """Set an instance-level hook override."""
+        inst_hooks = cast(Optional[dict[str, Callable[..., Any]]], getattr(self, "__safrs_instance_hooks__", None))
+        if inst_hooks is None:
+            inst_hooks = {}
+            setattr(self, "__safrs_instance_hooks__", inst_hooks)
+        inst_hooks[name] = fn
 
     included_list = None
 
@@ -892,7 +1018,7 @@ class SAFRSBase(Model):
             safrs.log.exception(exc)
             safrs.log.error(f"Query failed for {cls_or_self}: {exc}")
 
-        if _table:
+        if _table is not None:
             result = safrs.DB.session.query(_table)
 
         return result
@@ -955,6 +1081,62 @@ class SAFRSBase(Model):
 
         return data
 
+    def _s_get_include_settings(self: Any) -> tuple[list[str], set[str], list[str]]:
+        included_list = getattr(self, "included_list", None)
+        if included_list is None:
+            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+            included_list = [inc for inc in included_csv.split(",") if inc]
+
+        excluded_csv = request.args.get("exclude", "")
+        excluded_list = excluded_csv.split(",")
+        included_rels = {item.split(".")[0] for item in included_list}
+        return included_list, included_rels, excluded_list
+
+    def _s_validate_included_relationships(self: Any, included_rels: set[str], included_list: list[str]) -> None:
+        for rel_name in included_rels:
+            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
+                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
+
+    @staticmethod
+    def _s_nested_included_list(included_list: list[str], rel_name: str) -> list[list[str]]:
+        return [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
+
+    @staticmethod
+    def _s_relationship_result(rel_url: str, data: Any, meta: dict[str, Any]) -> dict[str, Any]:
+        rel_data: dict[str, Any] = {"links": {"self": rel_url}, "data": data}
+        if meta:
+            rel_data["meta"] = meta
+        return rel_data
+
+    def _s_related_collection_data(self: Any, rel_name: str, next_included_list: list[list[str]]) -> tuple[list[Any], dict[str, Any]]:
+        data: list[Any] = []
+        meta: dict[str, Any] = {}
+        rel_query = getattr(self, rel_name)
+        limit = cast(Any, request).get_page_limit(rel_name)
+        if not get_config("ENABLE_RELATIONSHIPS"):
+            meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
+            return data, meta
+        if not rel_query:
+            return data, meta
+
+        if getattr(rel_query, "limit", False):
+            count = rel_query.count()
+            rel_query = rel_query.limit(limit)
+            if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
+                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
+                safrs.log.warning(warning)
+                meta["warning"] = warning
+            items = rel_query.all()
+        else:  # rel_query is an 'InstrumentedList'
+            items = list(rel_query)[:limit]
+            count = len(items)
+
+        meta["count"] = meta["total"] = count
+        meta["limit"] = limit
+        for rel_item in items:
+            data.append(Included(rel_item, next_included_list))
+        return data, meta
+
     def _s_get_related(self: Any) -> Any:
         """
         :return: dict of relationship names -> [related instances]
@@ -979,26 +1161,9 @@ class SAFRSBase(Model):
         # it may have been set previously by Included() when called recursively
         # if it's not set, parse the include= request param here
         # included_list example: ['friends.books_read', 'friends.books_written']
-        included_list = getattr(self, "included_list", None)
-        if included_list is None:
-            # Multiple related resources can be requested in a comma-separated list
-            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
-            included_list = [inc for inc in included_csv.split(",") if inc]
-
-        excluded_csv = request.args.get("exclude", "")
-        excluded_list = excluded_csv.split(",")
-        # In order to recursively request related resources
-        # a dot-separated path for each relationship name can be specified
-        included_rels = {i.split(".")[0] for i in included_list}
-        relationships = dict()
-
-        for rel_name in included_rels:
-            """
-            If a server is unable to identify a relationship path or does not support inclusion of resources from a path,
-            it MUST respond with 400 Bad Request.
-            """
-            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
-                raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
+        included_list, included_rels, excluded_list = self._s_get_include_settings()
+        relationships = {}
+        self._s_validate_included_relationships(included_rels, included_list)
 
         for rel_name, relationship in self._s_relationships.items():
             """
@@ -1023,7 +1188,7 @@ class SAFRSBase(Model):
             MAY also contain pagination links under the links member, as described below.
             SAFRS currently implements links with self
             """
-            meta = {}
+            meta: dict[str, Any] = {}
             rel_name = relationship.key
             data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
@@ -1032,7 +1197,7 @@ class SAFRSBase(Model):
                 pass
             if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
                 # next_included_list contains the recursive relationship names
-                next_included_list = [inc_item.split(".")[1:] for inc_item in included_list if inc_item.startswith(rel_name + ".")]
+                next_included_list = self._s_nested_included_list(included_list, rel_name)
                 if relationship.direction == MANYTOONE:
                     # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
@@ -1040,45 +1205,13 @@ class SAFRSBase(Model):
                         # create an Included instance that will be used for serialization eventually
                         data = Included(rel_item, next_included_list)
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
-                    # manytoone relationship contains a list of instances
-                    # Data is optional, it's also really slow for large sets!
-                    data = []
-                    rel_query = getattr(self, rel_name)
-                    limit = cast(Any, request).get_page_limit(rel_name)
-                    if not get_config("ENABLE_RELATIONSHIPS"):
-                        meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
-                    elif rel_query:
-                        # todo: check if lazy=dynamic
-                        # In order to work with the relationship as with Query,
-                        # you need to configure it with lazy='dynamic'
-                        # "limit" may not be possible !
-                        if getattr(rel_query, "limit", False):
-                            count = rel_query.count()
-                            rel_query = rel_query.limit(limit)
-                            if rel_query.count() >= get_config("BIG_QUERY_THRESHOLD"):
-                                warning = f'Truncated result for relationship "{rel_name}",consider paginating this request'
-                                safrs.log.warning(warning)
-                                meta["warning"] = warning
-                            items = rel_query.all()
-                        else:  # rel_query is an 'InstrumentedList'
-                            items = list(rel_query)[:limit]
-                            count = len(items)
-                        meta["count"] = meta["total"] = count
-                        meta["limit"] = limit
-                        for rel_item in items:
-                            data.append(Included(rel_item, next_included_list))
+                    data, meta = self._s_related_collection_data(rel_name, next_included_list)
                 else:  # pragma: no cover
                     # should never happen
                     safrs.log.error(f"Unknown relationship direction for relationship {rel_name}: {relationship.direction}")
 
             rel_link = urljoin(self._s_url, rel_name)
-            links = dict(self=rel_link)
-            rel_data: dict[str, Any] = dict(links=links)
-
-            rel_data["data"] = data
-            if meta:
-                rel_data["meta"] = meta
-            relationships[rel_name] = rel_data
+            relationships[rel_name] = self._s_relationship_result(rel_link, data, meta)
 
         return relationships
 

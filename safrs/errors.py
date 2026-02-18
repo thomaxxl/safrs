@@ -59,7 +59,7 @@ class UnAuthorizedError(JsonapiError):
     message = "Authorization Error: "
 
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.FORBIDDEN.value, api_code: Any=None) -> None:
-        Exception.__init__(self)
+        super().__init__()
         self.status_code = status_code
         safrs.log.error("UnAuthorizedError: %s", message)
         if is_debug():
@@ -77,7 +77,7 @@ class GenericError(JsonapiError):
     message = "Generic Error: "
 
     def __init__(self: Any, message: Any, status_code: Any=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code: Any=None) -> None:
-        Exception.__init__(self)
+        super().__init__()
         self.status_code = status_code
         safrs.log.error("Generic Error: %s", message)
         if is_debug():
@@ -97,7 +97,7 @@ class SystemValidationError(JsonapiError):  # pragma: no cover
     message = "Validation Error: "
 
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
-        Exception.__init__(self)
+        super().__init__()
         self.status_code = status_code
         safrs.log.error("ValidationError: %s", message)
         if is_debug():
@@ -116,7 +116,7 @@ class ValidationError(JsonapiError):
     message = "Validation Error: "
 
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
-        Exception.__init__(self)
+        super().__init__()
         self.status_code = status_code
         safrs.log.warning("ValidationError: %s", message)
         self.message += message
