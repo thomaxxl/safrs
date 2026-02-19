@@ -212,7 +212,7 @@ def schema_from_object(name: Any, object: Any) -> Any:
                     "example": encode_schema(v),
                 }
             elif isinstance(v, list):
-                item_schema: dict[str, Any] = {}
+                item_schema: Dict[str, Any] = {}
                 if v and isinstance(v[0], dict):
                     item_schema = {"type": "object", "additionalProperties": {}}
                 properties[k] = {
@@ -232,6 +232,12 @@ def schema_from_object(name: Any, object: Any) -> Any:
     properties = encode_schema(properties)
     schema = SchemaClassFactory(name, properties)
     return schema
+
+
+def _ensure_bad_request_response(responses: Dict[Any, Any]) -> None:
+    bad_request_code = HTTPStatus.BAD_REQUEST.value
+    if bad_request_code not in responses and str(bad_request_code) not in responses:
+        responses[bad_request_code] = {"description": HTTPStatus.BAD_REQUEST.description}
 
 
 def update_response_schema(responses: Any) -> None:
@@ -474,6 +480,7 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
         method_doc = parse_object_doc(func)
         safrs.dict_merge(doc, method_doc)
         apply_fstring(doc, locals())
+        _ensure_bad_request_response(doc["responses"])
         update_response_schema(doc["responses"])
         return swagger.doc(doc)(func)
 
@@ -614,6 +621,7 @@ def swagger_relationship_doc(cls: Any, tags: Any=None) -> Any:
         child_name = child_class.__name__
         direction = "to-many" if relationship.direction in (ONETOMANY, MANYTOMANY) else "to-one"
         apply_fstring(doc, locals())
+        _ensure_bad_request_response(doc["responses"])
         update_response_schema(doc["responses"])
         return swagger.doc(doc)(func)
 
@@ -672,6 +680,8 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
         doc["produces"] = ["application/vnd.api+json"]
 
         apply_fstring(doc, locals())
+        _ensure_bad_request_response(doc["responses"])
+        update_response_schema(doc["responses"])
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen
