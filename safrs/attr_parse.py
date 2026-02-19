@@ -2,6 +2,7 @@ from typing import Any
 import datetime
 import safrs
 import sqlalchemy
+from .errors import ValidationError
 
 
 def _parse_datetime_value(attr_val: Any) -> datetime.datetime:
@@ -57,7 +58,11 @@ def parse_attr(column: Any, attr_val: Any) -> Any:
 
     if getattr(column, "python_type", None):
         # It's possible for a column to specify a custom python_type to use for deserialization
-        attr_val = column.python_type(attr_val)
+        try:
+            attr_val = column.python_type(attr_val)
+        except (TypeError, ValueError, OverflowError) as exc:
+            column_name = getattr(column, "name", getattr(column, "key", "<unknown>"))
+            raise ValidationError(f'Invalid value "{attr_val}" for attribute "{column_name}"') from exc
 
     try:
         column.type.python_type
@@ -79,6 +84,10 @@ def parse_attr(column: Any, attr_val: Any) -> Any:
     parsed, parsed_value = _parse_temporal_attr(column, attr_val)
     if parsed:
         return parsed_value
-    attr_val = column.type.python_type(attr_val)
+    try:
+        attr_val = column.type.python_type(attr_val)
+    except (TypeError, ValueError, OverflowError) as exc:
+        column_name = getattr(column, "name", getattr(column, "key", "<unknown>"))
+        raise ValidationError(f'Invalid value "{attr_val}" for attribute "{column_name}"') from exc
 
     return attr_val
