@@ -3,6 +3,7 @@
 import base64
 import datetime as dt
 import inspect
+import re
 from http import HTTPStatus
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
 
@@ -716,8 +717,9 @@ class SafrsFastAPI:
         raw_methods = getattr(Model, "http_methods", None)
         if raw_methods is None:
             return set(DEFAULT_HTTP_METHODS)
+        candidates: Iterable[Any]
         if isinstance(raw_methods, str):
-            candidates: Iterable[Any] = [raw_methods]
+            candidates = [part for part in re.split(r"[\s,]+", raw_methods) if part]
         elif isinstance(raw_methods, (set, list, tuple, frozenset)):
             candidates = cast(Iterable[Any], raw_methods)
         else:
