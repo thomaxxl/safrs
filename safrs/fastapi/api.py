@@ -792,6 +792,7 @@ class SafrsFastAPI:
             400: {"description": HTTPStatus.BAD_REQUEST.phrase, "model": error_model, "content": error_content},
             403: {"description": HTTPStatus.FORBIDDEN.phrase, "model": error_model, "content": error_content},
             404: {"description": HTTPStatus.NOT_FOUND.phrase, "model": error_model, "content": error_content},
+            405: {"description": HTTPStatus.METHOD_NOT_ALLOWED.phrase, "model": error_model, "content": error_content},
             409: {"description": HTTPStatus.CONFLICT.phrase, "model": error_model, "content": error_content},
             422: {"description": HTTPStatus.UNPROCESSABLE_ENTITY.phrase, "model": error_model, "content": error_content},
             500: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.phrase, "model": error_model, "content": error_content},
