@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Type, cast
 from pydantic import Field, create_model
 from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY, ONETOMANY
 
+from ..relationships import iter_exposed_relationship_properties
 from .from_sqlalchemy import create_attributes_model
 from .jsonapi_primitives import (
     JsonApiErrorDocument,
@@ -14,25 +15,6 @@ from .jsonapi_primitives import (
     RelationshipToOne,
     ResourceIdentifierBase,
 )
-
-
-def _resolve_relationships(Model: Type[Any]) -> Dict[str, Any]:
-    rels = getattr(Model, "_s_relationships", None)
-    mapper = getattr(Model, "__mapper__", None)
-    mapper_rels = {rel.key: rel for rel in mapper.relationships} if mapper is not None else {}
-    if not isinstance(rels, dict):
-        return mapper_rels
-
-    resolved: Dict[str, Any] = {}
-    for rel_name, rel in rels.items():
-        candidate = rel
-        if not hasattr(candidate, "mapper"):
-            candidate = getattr(rel, "relationship", None)
-        if candidate is None or not hasattr(candidate, "mapper"):
-            candidate = mapper_rels.get(rel_name)
-        if candidate is not None and hasattr(candidate, "mapper"):
-            resolved[rel_name] = candidate
-    return resolved
 
 
 class SchemaRegistry:
@@ -77,7 +59,7 @@ class SchemaRegistry:
         if cached is not None:
             return cached
 
-        rels = _resolve_relationships(Model)
+        rels = dict(iter_exposed_relationship_properties(Model))
         if not rels:
             return None
 
