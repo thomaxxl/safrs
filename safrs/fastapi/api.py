@@ -4,6 +4,7 @@ import base64
 import datetime as dt
 import inspect
 import re
+from enum import Enum
 from http import HTTPStatus
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
 
@@ -26,6 +27,12 @@ from .responses import JSONAPIResponse
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
 DEFAULT_HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE"}
+
+
+class RelationshipItemMode(str, Enum):
+    DISABLED = "disabled"
+    HIDDEN = "hidden"
+    ENABLED = "enabled"
 
 
 class JSONAPIHTTPError(Exception):
@@ -139,13 +146,20 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
 
 
 class SafrsFastAPI:
-    def __init__(self, app: FastAPI, prefix: str = "", dependencies: Optional[List[Any]] = None) -> None:
+    def __init__(
+        self,
+        app: FastAPI,
+        prefix: str = "",
+        dependencies: Optional[List[Any]] = None,
+        relationship_item_mode: Union[RelationshipItemMode, str] = RelationshipItemMode.HIDDEN,
+    ) -> None:
         self.app = app
         self.prefix = prefix
         self.max_union_included_types = int(getattr(safrs.SAFRS, "MAX_UNION_INCLUDED_TYPES", 0))
         self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
         self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
         self.validate_responses = bool(getattr(safrs.SAFRS, "VALIDATE_RESPONSES", False))
+        self.relationship_item_mode = self._coerce_relationship_item_mode(relationship_item_mode)
         self.schemas = SchemaRegistry(
             document_relationships=self.document_relationships,
             max_union_included_types=self.max_union_included_types,
@@ -153,6 +167,17 @@ class SafrsFastAPI:
         self.default_dependencies = self._normalize_dependencies(dependencies)
         install_jsonapi_exception_handlers(app)
         self._install_swagger_alias()
+
+    @staticmethod
+    def _coerce_relationship_item_mode(mode: Union[RelationshipItemMode, str]) -> RelationshipItemMode:
+        if isinstance(mode, RelationshipItemMode):
+            return mode
+        normalized = str(mode).strip().lower()
+        for candidate in RelationshipItemMode:
+            if candidate.value == normalized:
+                return candidate
+        valid_values = ", ".join(candidate.value for candidate in RelationshipItemMode)
+        raise ValueError(f"Invalid relationship_item_mode '{mode}', expected one of: {valid_values}")
 
     def _install_swagger_alias(self) -> None:
         for route in self.app.routes:
@@ -253,6 +278,7 @@ class SafrsFastAPI:
         response_model: Optional[Type[Any]] = None,
         responses: Optional[Dict[Union[int, str], Dict[str, Any]]] = None,
         openapi_extra: Optional[Dict[str, Any]] = None,
+        include_in_schema: bool = True,
     ) -> None:
         for method in methods:
             method_name = str(method).upper()
@@ -266,7 +292,7 @@ class SafrsFastAPI:
                     summary=summary,
                     dependencies=dependencies,
                     operation_id=method_operation_id if idx == 0 else None,
-                    include_in_schema=(idx == 0),
+                    include_in_schema=(idx == 0 and include_in_schema),
                     status_code=status_code,
                     response_model=response_model,
                     responses=responses,
@@ -510,6 +536,7 @@ class SafrsFastAPI:
                     Optional[Type[Any]],
                     Optional[Dict[str, Any]],
                     Optional[Dict[Union[int, str], Dict[str, Any]]],
+                    bool,
                 ]
             ] = []
             if "GET" in rel_methods:
@@ -524,21 +551,24 @@ class SafrsFastAPI:
                         rel_get_model,
                         rel_get_openapi,
                         error_responses,
+                        True,
                     )
                 )
-                route_specs.append(
-                    (
-                        rel_item_path,
-                        self._get_relationship_item(Model, rel_name),
-                        ["GET"],
-                        f"Get relationship item {tag}.{rel_name}",
-                        f"get_{tag}_{rel_name}_relationship_item",
-                        200,
-                        rel_item_model,
-                        rel_item_get_openapi,
-                        error_responses,
+                if self.relationship_item_mode != RelationshipItemMode.DISABLED:
+                    route_specs.append(
+                        (
+                            rel_item_path,
+                            self._get_relationship_item(Model, rel_name),
+                            ["GET"],
+                            f"Get relationship item {tag}.{rel_name}",
+                            f"get_{tag}_{rel_name}_relationship_item",
+                            200,
+                            rel_item_model,
+                            rel_item_get_openapi,
+                            error_responses,
+                            self.relationship_item_mode == RelationshipItemMode.ENABLED,
+                        )
                     )
-                )
             if "PATCH" in rel_methods:
                 route_specs.append(
                     (
@@ -551,6 +581,7 @@ class SafrsFastAPI:
                         None,
                         rel_openapi,
                         rel_patch_responses,
+                        True,
                     )
                 )
             if "POST" in rel_methods:
@@ -565,6 +596,7 @@ class SafrsFastAPI:
                         None,
                         rel_openapi,
                         rel_post_responses,
+                        True,
                     )
                 )
             if "DELETE" in rel_methods:
@@ -579,6 +611,7 @@ class SafrsFastAPI:
                         None,
                         rel_openapi,
                         rel_delete_responses,
+                        True,
                     )
                 )
             for (
@@ -591,6 +624,7 @@ class SafrsFastAPI:
                 response_model,
                 openapi_extra,
                 response_docs,
+                include_in_schema,
             ) in route_specs:
                 self._add_route_with_slash_parity(
                     router,
@@ -604,6 +638,7 @@ class SafrsFastAPI:
                     response_model=response_model,
                     responses=response_docs,
                     openapi_extra=openapi_extra,
+                    include_in_schema=include_in_schema,
                 )
 
     @staticmethod
