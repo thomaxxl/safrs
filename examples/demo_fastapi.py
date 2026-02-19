@@ -5,7 +5,6 @@
 FastAPI port of examples/demo_pythonanywhere_com.py.
 
 Run:
-  pip install -e . "fastapi[standard]"
   python examples/demo_fastapi.py [HOST] [PORT]
 
 Then open:
@@ -215,7 +214,7 @@ def _seed_data(session: Any, nr_instances: int = 100) -> None:
     session.commit()
 
 
-def create_app(host: str = "127.0.0.1", port: int = 5000) -> FastAPI:
+def create_app(host: str = "127.0.0.1", port: int = 8000) -> FastAPI:
     engine = create_engine(DB_URL, future=True)
     SessionFactory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     Session = scoped_session(SessionFactory)
@@ -261,7 +260,7 @@ def create_app(host: str = "127.0.0.1", port: int = 5000) -> FastAPI:
 
 def main() -> None:
     host = "127.0.0.1"
-    port = 5000
+    port = 8000
     if len(sys.argv) > 1:
         host = sys.argv[1]
     if len(sys.argv) > 2:
