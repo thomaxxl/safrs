@@ -4,7 +4,7 @@ import base64
 import datetime as dt
 import inspect
 from http import HTTPStatus
-from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple, Type, Union, cast
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
 
 import safrs
 from safrs.attr_parse import parse_attr
@@ -14,7 +14,9 @@ from safrs.swagger_doc import get_doc, get_http_methods
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 
 from .schemas import SchemaRegistry
@@ -29,10 +31,108 @@ class JSONAPIHTTPError(Exception):
         self.payload = payload
 
 
+def _escape_json_pointer_segment(segment: str) -> str:
+    return segment.replace("~", "~0").replace("/", "~1")
+
+
+def _json_pointer_from_loc(loc: Sequence[Union[str, int]]) -> Optional[str]:
+    if not loc:
+        return None
+    if str(loc[0]) != "body":
+        return None
+    pointer_segments: List[str] = []
+    for segment in loc[1:]:
+        pointer_segments.append(_escape_json_pointer_segment(str(segment)))
+    if not pointer_segments:
+        return None
+    return "/" + "/".join(pointer_segments)
+
+
+def _jsonapi_error_document(errors: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {"jsonapi": {"version": "1.0"}, "errors": errors}
+
+
+def _jsonapi_validation_errors(exc: RequestValidationError) -> List[Dict[str, Any]]:
+    result: List[Dict[str, Any]] = []
+    for raw_error in exc.errors():
+        location = raw_error.get("loc", ())
+        loc_items: Sequence[Union[str, int]]
+        if isinstance(location, tuple):
+            loc_items = cast(Sequence[Union[str, int]], location)
+        elif isinstance(location, list):
+            loc_items = cast(Sequence[Union[str, int]], location)
+        else:
+            loc_items = ()
+
+        error_item: Dict[str, Any] = {
+            "status": str(HTTPStatus.UNPROCESSABLE_ENTITY.value),
+            "title": "Validation Error",
+            "detail": str(raw_error.get("msg", "Validation error")),
+        }
+        error_code = raw_error.get("type")
+        if error_code is not None:
+            error_item["code"] = str(error_code)
+
+        source: Dict[str, Any] = {}
+        root = str(loc_items[0]) if loc_items else ""
+        if root == "body":
+            pointer = _json_pointer_from_loc(loc_items)
+            if pointer:
+                source["pointer"] = pointer
+        elif root == "query" and len(loc_items) > 1:
+            source["parameter"] = str(loc_items[1])
+        if source:
+            error_item["source"] = source
+        elif root in {"path", "header", "cookie"}:
+            error_item["meta"] = {"location": [str(item) for item in loc_items]}
+        result.append(error_item)
+    if result:
+        return result
+    return [
+        {
+            "status": str(HTTPStatus.UNPROCESSABLE_ENTITY.value),
+            "title": "Validation Error",
+            "detail": "Request validation failed",
+        }
+    ]
+
+
+def _jsonapi_http_exception_payload(exc: StarletteHTTPException) -> Dict[str, Any]:
+    detail = exc.detail
+    if isinstance(detail, str):
+        detail_text = detail
+    else:
+        detail_text = str(detail)
+    status_code = int(exc.status_code)
+    try:
+        title = HTTPStatus(status_code).phrase
+    except ValueError:
+        title = "HTTP Error"
+    return _jsonapi_error_document(
+        [
+            {
+                "status": str(status_code),
+                "title": title,
+                "detail": detail_text,
+            }
+        ]
+    )
+
+
 def install_jsonapi_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(JSONAPIHTTPError)
     async def _jsonapi_http_error_handler(_request: Request, exc: JSONAPIHTTPError):
         return JSONAPIResponse(status_code=exc.status_code, content=exc.payload)
+
+    @app.exception_handler(RequestValidationError)
+    async def _jsonapi_validation_error_handler(_request: Request, exc: RequestValidationError):
+        payload = _jsonapi_error_document(_jsonapi_validation_errors(exc))
+        return JSONAPIResponse(status_code=HTTPStatus.UNPROCESSABLE_ENTITY.value, content=payload)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _jsonapi_starlette_http_error_handler(_request: Request, exc: StarletteHTTPException):
+        payload = _jsonapi_http_exception_payload(exc)
+        return JSONAPIResponse(status_code=int(exc.status_code), content=payload)
 
 
 class SafrsFastAPI:
@@ -183,6 +283,18 @@ class SafrsFastAPI:
         error_responses = self._jsonapi_error_responses()
         collection_response_model = self.schemas.document_collection(Model)
         instance_response_model = self.schemas.document_single(Model)
+        collection_post_responses = self._merge_response_docs(
+            error_responses,
+            self._jsonapi_status_responses([202]),
+        )
+        instance_patch_responses = self._merge_response_docs(
+            error_responses,
+            self._jsonapi_status_responses([202, 204]),
+        )
+        instance_delete_responses = self._merge_response_docs(
+            error_responses,
+            self._jsonapi_status_responses([200, 202, 204]),
+        )
         collection_query_openapi = self._openapi_query_parameters(
             self._jsonapi_query_parameters(
                 Model,
@@ -222,7 +334,7 @@ class SafrsFastAPI:
             f"post_{tag}_collection",
             status_code=201,
             response_model=instance_response_model,
-            responses=error_responses,
+            responses=collection_post_responses,
             openapi_extra=self._merge_openapi_extra(
                 instance_query_openapi,
                 self._openapi_request_body(self.schemas.document_create(Model)),
@@ -249,7 +361,7 @@ class SafrsFastAPI:
             write_route_dependencies,
             f"patch_{tag}_instance",
             response_model=instance_response_model,
-            responses=error_responses,
+            responses=instance_patch_responses,
             openapi_extra=self._merge_openapi_extra(
                 instance_query_openapi,
                 self._openapi_request_body(self.schemas.document_patch(Model)),
@@ -264,7 +376,7 @@ class SafrsFastAPI:
             write_route_dependencies,
             f"delete_{tag}_instance",
             status_code=204,
-            responses=error_responses,
+            responses=instance_delete_responses,
         )
 
     def _register_rpc_routes(
@@ -358,8 +470,32 @@ class SafrsFastAPI:
                     include_fields=True,
                 )
             )
+            rel_patch_responses = self._merge_response_docs(
+                error_responses,
+                self._jsonapi_status_responses([204]),
+            )
+            rel_post_responses = self._merge_response_docs(
+                error_responses,
+                self._jsonapi_status_responses([202, 204] if is_many else [202]),
+            )
+            rel_delete_responses = self._merge_response_docs(
+                error_responses,
+                self._jsonapi_status_responses([200, 202, 204]),
+            )
 
-            route_specs: List[Tuple[str, Any, List[str], str, str, Optional[int], Optional[Type[Any]], Optional[Dict[str, Any]]]] = [
+            route_specs: List[
+                Tuple[
+                    str,
+                    Any,
+                    List[str],
+                    str,
+                    str,
+                    Optional[int],
+                    Optional[Type[Any]],
+                    Optional[Dict[str, Any]],
+                    Optional[Dict[Union[int, str], Dict[str, Any]]],
+                ]
+            ] = [
                 (
                     rel_path,
                     self._get_relationship(Model, rel_name),
@@ -369,6 +505,7 @@ class SafrsFastAPI:
                     200,
                     rel_get_model,
                     rel_get_openapi,
+                    error_responses,
                 ),
                 (
                     rel_item_path,
@@ -379,6 +516,7 @@ class SafrsFastAPI:
                     200,
                     rel_item_model,
                     rel_item_get_openapi,
+                    error_responses,
                 ),
                 (
                     rel_path,
@@ -389,6 +527,7 @@ class SafrsFastAPI:
                     None,
                     None,
                     rel_openapi,
+                    rel_patch_responses,
                 ),
                 (
                     rel_path,
@@ -399,6 +538,7 @@ class SafrsFastAPI:
                     None,
                     None,
                     rel_openapi,
+                    rel_post_responses,
                 ),
                 (
                     rel_path,
@@ -409,9 +549,20 @@ class SafrsFastAPI:
                     204,
                     None,
                     rel_openapi,
+                    rel_delete_responses,
                 ),
             ]
-            for path, endpoint, methods, summary, operation_id, status_code, response_model, openapi_extra in route_specs:
+            for (
+                path,
+                endpoint,
+                methods,
+                summary,
+                operation_id,
+                status_code,
+                response_model,
+                openapi_extra,
+                response_docs,
+            ) in route_specs:
                 self._add_route_with_slash_parity(
                     router,
                     path,
@@ -422,7 +573,7 @@ class SafrsFastAPI:
                     operation_id,
                     status_code=status_code,
                     response_model=response_model,
-                    responses=error_responses,
+                    responses=response_docs,
                     openapi_extra=openapi_extra,
                 )
 
@@ -433,6 +584,30 @@ class SafrsFastAPI:
     @staticmethod
     def _openapi_query_parameters(parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
         return {"parameters": parameters}
+
+    @staticmethod
+    def _merge_response_docs(
+        *response_maps: Optional[Dict[Union[int, str], Dict[str, Any]]]
+    ) -> Optional[Dict[Union[int, str], Dict[str, Any]]]:
+        merged: Dict[Union[int, str], Dict[str, Any]] = {}
+        for response_map in response_maps:
+            if not response_map:
+                continue
+            for status_code, response_spec in response_map.items():
+                existing = merged.get(status_code)
+                if existing is None:
+                    merged[status_code] = dict(response_spec)
+                    continue
+                combined = dict(existing)
+                combined.update(response_spec)
+                existing_content = existing.get("content")
+                new_content = response_spec.get("content")
+                if isinstance(existing_content, dict) and isinstance(new_content, dict):
+                    merged_content = dict(existing_content)
+                    merged_content.update(new_content)
+                    combined["content"] = merged_content
+                merged[status_code] = combined
+        return merged or None
 
     @staticmethod
     def _merge_openapi_extra(*extras: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -534,6 +709,24 @@ class SafrsFastAPI:
             }
         }
 
+    @staticmethod
+    def _jsonapi_status_responses(status_codes: Iterable[int]) -> Dict[Union[int, str], Dict[str, Any]]:
+        responses: Dict[Union[int, str], Dict[str, Any]] = {}
+        for status_code in status_codes:
+            try:
+                description = HTTPStatus(int(status_code)).phrase
+            except ValueError:
+                description = "Response"
+            responses[int(status_code)] = {
+                "description": description,
+                "content": {
+                    JSONAPI_MEDIA_TYPE: {
+                        "schema": {"type": "object"},
+                    }
+                },
+            }
+        return responses
+
     def _jsonapi_error_responses(self) -> Dict[Union[int, str], Dict[str, Any]]:
         error_model = self.schemas.error_document()
         error_content = {
@@ -546,6 +739,7 @@ class SafrsFastAPI:
             403: {"description": HTTPStatus.FORBIDDEN.phrase, "model": error_model, "content": error_content},
             404: {"description": HTTPStatus.NOT_FOUND.phrase, "model": error_model, "content": error_content},
             409: {"description": HTTPStatus.CONFLICT.phrase, "model": error_model, "content": error_content},
+            422: {"description": HTTPStatus.UNPROCESSABLE_ENTITY.phrase, "model": error_model, "content": error_content},
             500: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.phrase, "model": error_model, "content": error_content},
         }
 
