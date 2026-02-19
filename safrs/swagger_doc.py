@@ -188,6 +188,9 @@ def schema_from_object(name: Any, object: Any) -> Any:
     if isinstance(object, str):
         properties = {"example": "", "type": "string"}
 
+    elif isinstance(object, bool):
+        properties = {"example": object, "type": "boolean"}
+
     elif isinstance(object, int):
         properties = {"example": 0, "type": "integer"}
 
@@ -198,12 +201,25 @@ def schema_from_object(name: Any, object: Any) -> Any:
         for k, v in object.items():
             if isinstance(v, str):
                 properties[k] = {"example": v, "type": "string"}
+            elif isinstance(v, bool):
+                properties[k] = {"example": v, "type": "boolean"}
             elif isinstance(v, int):
                 properties[k] = {"example": v, "type": "integer"}
-            elif isinstance(v, (dict, list)):
-                if isinstance(v, dict):
-                    v = encode_schema(v)
-                properties[k] = {"example": v, "type": "string"}
+            elif isinstance(v, dict):
+                properties[k] = {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "example": encode_schema(v),
+                }
+            elif isinstance(v, list):
+                item_schema: dict[str, Any] = {}
+                if v and isinstance(v[0], dict):
+                    item_schema = {"type": "object", "additionalProperties": {}}
+                properties[k] = {
+                    "type": "array",
+                    "items": item_schema,
+                    "example": encode_schema(v),
+                }
             elif v is None:
                 # swagger doesn't allow null values
                 properties[k] = {"example": "", "type": "string"}
