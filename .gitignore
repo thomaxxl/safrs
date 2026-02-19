@@ -115,11 +115,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-tmp/*
-!tmp/README.md
-!tmp/models.py
-!tmp/flask_app.py
-!tmp/fastapi_app.py
-!tmp/export_specs.py
-!tmp/spec_diff.py
-!tmp/spec_parity_rules.md
+tmp/
