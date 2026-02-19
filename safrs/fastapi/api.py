@@ -23,6 +23,7 @@ from .schemas import SchemaRegistry
 from .responses import JSONAPIResponse
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
+DEFAULT_HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE"}
 
 
 class JSONAPIHTTPError(Exception):
@@ -312,72 +313,78 @@ class SafrsFastAPI:
                 include_fields=True,
             )
         )
-        self._add_route_with_slash_parity(
-            router,
-            collection_path,
-            self._get_collection(Model),
-            ["GET"],
-            f"List {tag}",
-            route_dependencies,
-            f"get_{tag}_collection",
-            response_model=collection_response_model,
-            responses=error_responses,
-            openapi_extra=collection_query_openapi,
-        )
-        self._add_route_with_slash_parity(
-            router,
-            collection_path,
-            self._post_collection(Model),
-            ["POST"],
-            f"Create {tag}",
-            write_route_dependencies,
-            f"post_{tag}_collection",
-            status_code=201,
-            response_model=instance_response_model,
-            responses=collection_post_responses,
-            openapi_extra=self._merge_openapi_extra(
-                instance_query_openapi,
-                self._openapi_request_body(self.schemas.document_create(Model)),
-            ),
-        )
-        self._add_route_with_slash_parity(
-            router,
-            instance_path,
-            self._get_instance(Model),
-            ["GET"],
-            f"Get {tag} by id",
-            route_dependencies,
-            f"get_{tag}_instance",
-            response_model=instance_response_model,
-            responses=error_responses,
-            openapi_extra=instance_query_openapi,
-        )
-        self._add_route_with_slash_parity(
-            router,
-            instance_path,
-            self._patch_instance(Model),
-            ["PATCH"],
-            f"Update {tag}",
-            write_route_dependencies,
-            f"patch_{tag}_instance",
-            response_model=instance_response_model,
-            responses=instance_patch_responses,
-            openapi_extra=self._merge_openapi_extra(
-                instance_query_openapi,
-                self._openapi_request_body(self.schemas.document_patch(Model)),
-            ),
-        )
-        self._add_route_with_slash_parity(
-            router,
-            instance_path,
-            self._delete_instance(Model),
-            ["DELETE"],
-            f"Delete {tag}",
-            write_route_dependencies,
-            f"delete_{tag}_instance",
-            status_code=204,
-            responses=instance_delete_responses,
-        )
+        allowed_methods = self._model_http_methods(Model)
+        if "GET" in allowed_methods:
+            self._add_route_with_slash_parity(
+                router,
+                collection_path,
+                self._get_collection(Model),
+                ["GET"],
+                f"List {tag}",
+                route_dependencies,
+                f"get_{tag}_collection",
+                response_model=collection_response_model,
+                responses=error_responses,
+                openapi_extra=collection_query_openapi,
+            )
+        if "POST" in allowed_methods:
+            self._add_route_with_slash_parity(
+                router,
+                collection_path,
+                self._post_collection(Model),
+                ["POST"],
+                f"Create {tag}",
+                write_route_dependencies,
+                f"post_{tag}_collection",
+                status_code=201,
+                response_model=instance_response_model,
+                responses=collection_post_responses,
+                openapi_extra=self._merge_openapi_extra(
+                    instance_query_openapi,
+                    self._openapi_request_body(self.schemas.document_create(Model)),
+                ),
+            )
+        if "GET" in allowed_methods:
+            self._add_route_with_slash_parity(
+                router,
+                instance_path,
+                self._get_instance(Model),
+                ["GET"],
+                f"Get {tag} by id",
+                route_dependencies,
+                f"get_{tag}_instance",
+                response_model=instance_response_model,
+                responses=error_responses,
+                openapi_extra=instance_query_openapi,
+            )
+        if "PATCH" in allowed_methods:
+            self._add_route_with_slash_parity(
+                router,
+                instance_path,
+                self._patch_instance(Model),
+                ["PATCH"],
+                f"Update {tag}",
+                write_route_dependencies,
+                f"patch_{tag}_instance",
+                response_model=instance_response_model,
+                responses=instance_patch_responses,
+                openapi_extra=self._merge_openapi_extra(
+                    instance_query_openapi,
+                    self._openapi_request_body(self.schemas.document_patch(Model)),
+                ),
+            )
+        if "DELETE" in allowed_methods:
+            self._add_route_with_slash_parity(
+                router,
+                instance_path,
+                self._delete_instance(Model),
+                ["DELETE"],
+                f"Delete {tag}",
+                write_route_dependencies,
+                f"delete_{tag}_instance",
+                status_code=204,
+                responses=instance_delete_responses,
+            )
 
     def _register_rpc_routes(
         self,
@@ -702,6 +709,27 @@ class SafrsFastAPI:
         if include_filter:
             params.extend(self._model_filter_query_parameters(Model))
         return params
+
+    @staticmethod
+    def _model_http_methods(Model: Type[Any]) -> Set[str]:
+        raw_methods = getattr(Model, "http_methods", None)
+        if raw_methods is None:
+            return set(DEFAULT_HTTP_METHODS)
+        if isinstance(raw_methods, str):
+            candidates: Iterable[Any] = [raw_methods]
+        elif isinstance(raw_methods, (set, list, tuple, frozenset)):
+            candidates = cast(Iterable[Any], raw_methods)
+        else:
+            candidates = [raw_methods]
+
+        normalized: Set[str] = set()
+        for method in candidates:
+            method_name = str(method).upper()
+            if method_name in DEFAULT_HTTP_METHODS:
+                normalized.add(method_name)
+        if normalized:
+            return normalized
+        return set(DEFAULT_HTTP_METHODS)
 
     def _rpc_query_parameters(
         self,
