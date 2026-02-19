@@ -237,7 +237,7 @@ def schema_from_object(name: Any, object: Any) -> Any:
 def _ensure_bad_request_response(responses: Dict[Any, Any]) -> None:
     bad_request_code = HTTPStatus.BAD_REQUEST.value
     if bad_request_code not in responses and str(bad_request_code) not in responses:
-        responses[bad_request_code] = {"description": HTTPStatus.BAD_REQUEST.description}
+        responses[str(bad_request_code)] = {"description": HTTPStatus.BAD_REQUEST.description}
 
 
 def update_response_schema(responses: Any) -> None:
