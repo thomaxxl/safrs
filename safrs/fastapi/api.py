@@ -23,6 +23,12 @@ from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 
 from .relationships import relationship_is_exposed, relationship_property, resolve_relationships
 from .schemas import SchemaRegistry
+from .schemas.examples import (
+    create_document_example,
+    patch_document_example,
+    relationship_document_to_many_example,
+    relationship_document_to_one_example,
+)
 from .responses import JSONAPIResponse
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
@@ -152,6 +158,7 @@ class SafrsFastAPI:
         prefix: str = "",
         dependencies: Optional[List[Any]] = None,
         relationship_item_mode: Union[RelationshipItemMode, str] = RelationshipItemMode.HIDDEN,
+        include_examples_in_openapi: Optional[bool] = None,
     ) -> None:
         self.app = app
         self.prefix = prefix
@@ -159,6 +166,11 @@ class SafrsFastAPI:
         self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
         self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
         self.validate_responses = bool(getattr(safrs.SAFRS, "VALIDATE_RESPONSES", False))
+        if include_examples_in_openapi is None:
+            include_examples_default = bool(getattr(safrs.SAFRS, "INCLUDE_OPENAPI_EXAMPLES", True))
+            self.include_examples_in_openapi = include_examples_default
+        else:
+            self.include_examples_in_openapi = bool(include_examples_in_openapi)
         self.relationship_item_mode = self._coerce_relationship_item_mode(relationship_item_mode)
         self.schemas = SchemaRegistry(
             document_relationships=self.document_relationships,
@@ -356,6 +368,10 @@ class SafrsFastAPI:
                 openapi_extra=collection_query_openapi,
             )
         if "POST" in allowed_methods:
+            create_body_openapi = self._openapi_request_body(
+                self.schemas.document_create(Model),
+                example=create_document_example(Model),
+            )
             self._add_route_with_slash_parity(
                 router,
                 collection_path,
@@ -369,7 +385,7 @@ class SafrsFastAPI:
                 responses=collection_post_responses,
                 openapi_extra=self._merge_openapi_extra(
                     instance_query_openapi,
-                    self._openapi_request_body(self.schemas.document_create(Model)),
+                    create_body_openapi,
                 ),
             )
         if "GET" in allowed_methods:
@@ -386,6 +402,10 @@ class SafrsFastAPI:
                 openapi_extra=instance_query_openapi,
             )
         if "PATCH" in allowed_methods:
+            patch_body_openapi = self._openapi_request_body(
+                self.schemas.document_patch(Model),
+                example=patch_document_example(Model),
+            )
             self._add_route_with_slash_parity(
                 router,
                 instance_path,
@@ -398,7 +418,7 @@ class SafrsFastAPI:
                 responses=instance_patch_responses,
                 openapi_extra=self._merge_openapi_extra(
                     instance_query_openapi,
-                    self._openapi_request_body(self.schemas.document_patch(Model)),
+                    patch_body_openapi,
                 ),
             )
         if "DELETE" in allowed_methods:
@@ -494,7 +514,12 @@ class SafrsFastAPI:
                 else self.schemas.relationship_document_to_one(target_model)
             )
             rel_item_model = self.schemas.document_single(target_model)
-            rel_openapi = self._openapi_request_body(rel_doc_model)
+            rel_example = (
+                relationship_document_to_many_example(target_model)
+                if is_many
+                else relationship_document_to_one_example(target_model)
+            )
+            rel_openapi = self._openapi_request_body(rel_doc_model, example=rel_example)
             rel_get_openapi = self._openapi_query_parameters(
                 self._jsonapi_query_parameters(
                     target_model,
@@ -831,14 +856,22 @@ class SafrsFastAPI:
             by_name[tag] = {"name": tag, "description": description}
         self.app.openapi_tags = [by_name[name] for name in ordered_names]
 
-    def _openapi_request_body(self, payload_model: Type[Any], required: bool = True) -> Dict[str, Any]:
+    def _openapi_request_body(
+        self,
+        payload_model: Type[Any],
+        required: bool = True,
+        example: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        media_spec: Dict[str, Any] = {
+            "schema": self._schema_ref(payload_model),
+        }
+        if self.include_examples_in_openapi and example is not None:
+            media_spec["example"] = example
         return {
             "requestBody": {
                 "required": required,
                 "content": {
-                    JSONAPI_MEDIA_TYPE: {
-                        "schema": self._schema_ref(payload_model),
-                    }
+                    JSONAPI_MEDIA_TYPE: media_spec
                 },
             }
         }
