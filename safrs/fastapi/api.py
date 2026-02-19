@@ -395,6 +395,8 @@ class SafrsFastAPI:
         for method_name, class_level, http_methods in rpc_methods:
             if not class_level:
                 continue
+            rpc_params = self._rpc_query_parameters(Model, class_level=class_level, http_methods=http_methods)
+            rpc_openapi = self._openapi_query_parameters(rpc_params) if rpc_params else None
             self._add_route_with_slash_parity(
                 router,
                 f"{collection_path}/{method_name}",
@@ -404,11 +406,14 @@ class SafrsFastAPI:
                 route_dependencies,
                 f"class_{tag}_{method_name}_rpc",
                 responses=error_responses,
+                openapi_extra=rpc_openapi,
             )
 
         for method_name, class_level, http_methods in rpc_methods:
             if class_level:
                 continue
+            rpc_params = self._rpc_query_parameters(Model, class_level=class_level, http_methods=http_methods)
+            rpc_openapi = self._openapi_query_parameters(rpc_params) if rpc_params else None
             self._add_route_with_slash_parity(
                 router,
                 f"{instance_path}/{method_name}",
@@ -418,6 +423,7 @@ class SafrsFastAPI:
                 route_dependencies,
                 f"instance_{tag}_{method_name}_rpc",
                 responses=error_responses,
+                openapi_extra=rpc_openapi,
             )
 
     def _register_relationship_routes(
@@ -697,6 +703,54 @@ class SafrsFastAPI:
             params.extend(self._model_filter_query_parameters(Model))
         return params
 
+    def _rpc_query_parameters(
+        self,
+        Model: Type[Any],
+        *,
+        class_level: bool,
+        http_methods: List[str],
+    ) -> List[Dict[str, Any]]:
+        if not class_level:
+            return []
+        params = self._jsonapi_query_parameters(
+            Model,
+            include_include=True,
+            include_fields=True,
+            include_pagination=True,
+        )
+        if any(str(method).upper() == "GET" for method in http_methods):
+            params.append(self._query_parameter("varargs", description="Additional positional RPC arguments"))
+        return params
+
+    @staticmethod
+    def _model_tag_description(Model: Type[Any], tag: str) -> str:
+        model_doc = inspect.getdoc(Model)
+        if model_doc:
+            return model_doc
+        return f"{tag} operations"
+
+    def _ensure_tag_metadata(self, Model: Type[Any], tag: str) -> None:
+        description = self._model_tag_description(Model, tag)
+        existing = list(getattr(self.app, "openapi_tags", None) or [])
+        by_name: Dict[str, Dict[str, Any]] = {}
+        ordered_names: List[str] = []
+        for item in existing:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", ""))
+            if not name:
+                continue
+            if name not in by_name:
+                ordered_names.append(name)
+                by_name[name] = dict(item)
+        if tag in by_name:
+            if not by_name[tag].get("description"):
+                by_name[tag]["description"] = description
+        else:
+            ordered_names.append(tag)
+            by_name[tag] = {"name": tag, "description": description}
+        self.app.openapi_tags = [by_name[name] for name in ordered_names]
+
     def _openapi_request_body(self, payload_model: Type[Any], required: bool = True) -> Dict[str, Any]:
         return {
             "requestBody": {
@@ -762,6 +816,7 @@ class SafrsFastAPI:
         route_dependencies = self.default_dependencies + self._normalize_dependencies(dependencies)
         write_route_dependencies = route_dependencies + self._write_dependencies_for_model(Model)
         tag = str(Model._s_collection_name)
+        self._ensure_tag_metadata(Model, tag)
 
         router = APIRouter(prefix=self.prefix, tags=[tag])
         collection_path = "/" + str(Model._s_collection_name)
