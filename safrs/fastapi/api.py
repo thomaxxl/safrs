@@ -452,6 +452,7 @@ class SafrsFastAPI:
             if not hasattr(target_model, "_s_type"):
                 continue
             is_many = self._is_to_many_relationship(rel)
+            rel_methods = self._relationship_methods(Model, rel)
 
             # Relationship fetch returns full resource objects, not linkage.
             rel_get_model = (
@@ -510,63 +511,76 @@ class SafrsFastAPI:
                     Optional[Dict[str, Any]],
                     Optional[Dict[Union[int, str], Dict[str, Any]]],
                 ]
-            ] = [
-                (
-                    rel_path,
-                    self._get_relationship(Model, rel_name),
-                    ["GET"],
-                    f"Get relationship {tag}.{rel_name}",
-                    f"get_{tag}_{rel_name}_relationship",
-                    200,
-                    rel_get_model,
-                    rel_get_openapi,
-                    error_responses,
-                ),
-                (
-                    rel_item_path,
-                    self._get_relationship_item(Model, rel_name),
-                    ["GET"],
-                    f"Get relationship item {tag}.{rel_name}",
-                    f"get_{tag}_{rel_name}_relationship_item",
-                    200,
-                    rel_item_model,
-                    rel_item_get_openapi,
-                    error_responses,
-                ),
-                (
-                    rel_path,
-                    self._patch_relationship(Model, rel_name),
-                    ["PATCH"],
-                    f"Patch relationship {tag}.{rel_name}",
-                    f"patch_{tag}_{rel_name}_relationship",
-                    None,
-                    None,
-                    rel_openapi,
-                    rel_patch_responses,
-                ),
-                (
-                    rel_path,
-                    self._post_relationship(Model, rel_name),
-                    ["POST"],
-                    f"Post relationship {tag}.{rel_name}",
-                    f"post_{tag}_{rel_name}_relationship",
-                    None,
-                    None,
-                    rel_openapi,
-                    rel_post_responses,
-                ),
-                (
-                    rel_path,
-                    self._delete_relationship(Model, rel_name),
-                    ["DELETE"],
-                    f"Delete relationship {tag}.{rel_name}",
-                    f"delete_{tag}_{rel_name}_relationship",
-                    204,
-                    None,
-                    rel_openapi,
-                    rel_delete_responses,
-                ),
-            ]
+            ] = []
+            if "GET" in rel_methods:
+                route_specs.append(
+                    (
+                        rel_path,
+                        self._get_relationship(Model, rel_name),
+                        ["GET"],
+                        f"Get relationship {tag}.{rel_name}",
+                        f"get_{tag}_{rel_name}_relationship",
+                        200,
+                        rel_get_model,
+                        rel_get_openapi,
+                        error_responses,
+                    )
+                )
+                route_specs.append(
+                    (
+                        rel_item_path,
+                        self._get_relationship_item(Model, rel_name),
+                        ["GET"],
+                        f"Get relationship item {tag}.{rel_name}",
+                        f"get_{tag}_{rel_name}_relationship_item",
+                        200,
+                        rel_item_model,
+                        rel_item_get_openapi,
+                        error_responses,
+                    )
+                )
+            if "PATCH" in rel_methods:
+                route_specs.append(
+                    (
+                        rel_path,
+                        self._patch_relationship(Model, rel_name),
+                        ["PATCH"],
+                        f"Patch relationship {tag}.{rel_name}",
+                        f"patch_{tag}_{rel_name}_relationship",
+                        None,
+                        None,
+                        rel_openapi,
+                        rel_patch_responses,
+                    )
+                )
+            if "POST" in rel_methods:
+                route_specs.append(
+                    (
+                        rel_path,
+                        self._post_relationship(Model, rel_name),
+                        ["POST"],
+                        f"Post relationship {tag}.{rel_name}",
+                        f"post_{tag}_{rel_name}_relationship",
+                        None,
+                        None,
+                        rel_openapi,
+                        rel_post_responses,
+                    )
+                )
+            if "DELETE" in rel_methods:
+                route_specs.append(
+                    (
+                        rel_path,
+                        self._delete_relationship(Model, rel_name),
+                        ["DELETE"],
+                        f"Delete relationship {tag}.{rel_name}",
+                        f"delete_{tag}_{rel_name}_relationship",
+                        204,
+                        None,
+                        rel_openapi,
+                        rel_delete_responses,
+                    )
+                )
             for (
                 path,
                 endpoint,
@@ -1011,6 +1025,21 @@ class SafrsFastAPI:
             return bool(getattr(rel, "uselist"))
         direction = getattr(rel, "direction", None)
         return direction in (ONETOMANY, MANYTOMANY)
+
+    def _relationship_mutations_enabled(self, Model: Type[Any], rel: Any) -> bool:
+        if bool(getattr(rel, "viewonly", False)):
+            return False
+        return "PATCH" in self._model_http_methods(Model)
+
+    def _relationship_methods(self, Model: Type[Any], rel: Any) -> Set[str]:
+        methods: Set[str] = {"GET"}
+        if not self._relationship_mutations_enabled(Model, rel):
+            return methods
+        if self._is_to_many_relationship(rel):
+            methods.update({"POST", "PATCH", "DELETE"})
+        else:
+            methods.update({"PATCH", "DELETE"})
+        return methods
 
     def _resolve_relationship_properties(self, Model: Type[Any]) -> Dict[str, Any]:
         raw_rels = self._resolve_relationships(Model)
