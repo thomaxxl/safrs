@@ -9,6 +9,7 @@ import flask
 from http import HTTPStatus
 import yaml  # type: ignore[import-untyped]
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY, MANYTOONE
+from sqlalchemy.sql.schema import Column
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
@@ -252,6 +253,181 @@ def update_response_schema(responses: Any) -> None:
             responses[code]["schema"] = err_schema
 
 
+def _schema_for_example_value(value: Any) -> dict[str, Any]:
+    if isinstance(value, bool):
+        return {"type": "boolean", "example": value}
+    if isinstance(value, int):
+        return {"type": "integer", "example": value}
+    if isinstance(value, float):
+        return {"type": "number", "example": value}
+    if isinstance(value, dict):
+        return {"type": "object", "additionalProperties": True, "example": encode_schema(value)}
+    if isinstance(value, list):
+        return {"type": "array", "items": {}, "example": encode_schema(value)}
+    return {"type": "string", "example": str(value) if value is not None else ""}
+
+
+def _jsonapi_rpc_meta_schema(method_args: dict[str, Any]) -> dict[str, Any]:
+    args_properties = {arg_name: _schema_for_example_value(arg_value) for arg_name, arg_value in method_args.items()}
+    args_schema: dict[str, Any] = {"type": "object", "additionalProperties": True}
+    if args_properties:
+        args_schema["properties"] = args_properties
+    return {
+        "type": "object",
+        "required": ["args"],
+        "properties": {"args": args_schema},
+        "additionalProperties": False,
+    }
+
+
+def _resource_identifier_schema(resource_type: Optional[str] = None) -> dict[str, Any]:
+    type_schema: dict[str, Any] = {"type": "string"}
+    if resource_type:
+        type_schema["enum"] = [resource_type]
+    return {
+        "type": "object",
+        "required": ["type", "id"],
+        "properties": {
+            "type": type_schema,
+            "id": {"type": "string", "minLength": 1},
+        },
+        "additionalProperties": False,
+    }
+
+
+def _safe_column_python_type(column: Column) -> Any:
+    try:
+        return column.type.python_type
+    except Exception:
+        return None
+
+
+def _column_has_default(column: Column) -> bool:
+    return bool(column.default is not None or column.server_default is not None)
+
+
+def _column_swagger_type(column: Column) -> str:
+    from safrs.base import SQLALCHEMY_SWAGGER2_TYPE
+
+    visit_name = getattr(column.type, "__visit_name__", "")
+    visit_name = str(visit_name).upper() if visit_name else ""
+    if visit_name and visit_name in SQLALCHEMY_SWAGGER2_TYPE:
+        return SQLALCHEMY_SWAGGER2_TYPE[visit_name]
+    column_type_name = type(column.type).__name__.upper()
+    return SQLALCHEMY_SWAGGER2_TYPE.get(column_type_name, "string")
+
+
+def _column_schema(column: Column) -> dict[str, Any]:
+    schema: dict[str, Any] = {"type": _column_swagger_type(column)}
+    python_type = _safe_column_python_type(column)
+
+    if python_type is datetime.datetime:
+        schema["type"] = "string"
+        schema["format"] = "date-time"
+    elif python_type is datetime.date:
+        schema["type"] = "string"
+        schema["format"] = "date"
+    elif python_type is datetime.time:
+        schema["type"] = "string"
+
+    is_id_like = bool(column.primary_key or column.foreign_keys or column.name.endswith("_id"))
+    if schema["type"] == "string" and is_id_like:
+        schema["minLength"] = 1
+    if schema["type"] == "integer" and is_id_like:
+        schema["minimum"] = 1
+
+    return schema
+
+
+def _is_required_create_column(column: Column) -> bool:
+    if column.nullable:
+        return False
+    if _column_has_default(column):
+        return False
+    python_type = _safe_column_python_type(column)
+    if column.primary_key and python_type is int and getattr(column, "autoincrement", None) in (True, "auto"):
+        return False
+    return True
+
+
+def _attributes_schema_for_model(cls: Any, for_patch: bool) -> dict[str, Any]:
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+
+    for attr_name, attr in cls._s_jsonapi_attrs.items():
+        if not isinstance(attr, Column):
+            continue
+        properties[attr_name] = _column_schema(attr)
+        if not for_patch and _is_required_create_column(attr):
+            required.append(attr_name)
+
+    result: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
+    if required:
+        result["required"] = sorted(required)
+    return result
+
+
+def _resource_request_body_schema(cls: Any, for_patch: bool) -> dict[str, Any]:
+    attributes_schema = _attributes_schema_for_model(cls, for_patch=for_patch)
+    data_required = ["type", "id"] if for_patch else ["type"]
+
+    data_properties: dict[str, Any] = {
+        "type": {"type": "string", "enum": [cls._s_type]},
+        "attributes": attributes_schema,
+        "relationships": {"type": "object", "additionalProperties": True},
+    }
+    if for_patch:
+        data_properties["id"] = {"type": "string", "minLength": 1}
+    elif cls.allow_client_generated_ids:
+        data_properties["id"] = {"type": "string", "minLength": 1}
+
+    if not for_patch and attributes_schema.get("required"):
+        data_required.append("attributes")
+
+    return {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+            "data": {
+                "type": "object",
+                "required": data_required,
+                "properties": data_properties,
+                "additionalProperties": False,
+            }
+        },
+        "additionalProperties": False,
+    }
+
+
+def _relationship_request_body_schema(relationship: Any, child_class: Any) -> dict[str, Any]:
+    identifier_schema = _resource_identifier_schema(child_class._s_type)
+    if relationship.direction in (ONETOMANY, MANYTOMANY):
+        data_schema: dict[str, Any] = {"type": "array", "items": identifier_schema}
+    else:
+        data_schema = identifier_schema
+    return {
+        "type": "object",
+        "required": ["data"],
+        "properties": {"data": data_schema},
+        "additionalProperties": False,
+    }
+
+
+def _rpc_request_body_schema(fields: dict[str, Any]) -> dict[str, Any]:
+    if "meta" in fields:
+        return {
+            "type": "object",
+            "required": ["meta"],
+            "properties": {"meta": fields["meta"]},
+            "additionalProperties": False,
+        }
+    return {"type": "object", "properties": fields, "additionalProperties": True}
+
+
 def _find_method_on_class(cls: Any, method_name: Any) -> Any:
     for name, method in inspect.getmembers(cls):
         if name == method_name:
@@ -263,10 +439,8 @@ def _populate_post_method_fields(cls: Any, method: Any, method_name: Any, http_m
     parameters = rest_doc.get("parameters", [])
     method_args = rest_doc.get("args", [])
     if method_args and isinstance(method_args, dict) and http_method == "post":
-        model_name = f"{cls.__name__}_{method_name}"
-        method_field = {"method": method_name, "args": method_args}
         if getattr(method, "valid_jsonapi", True):
-            fields["meta"] = schema_from_object(model_name, method_field)
+            fields["meta"] = _jsonapi_rpc_meta_schema(method_args)
         else:
             for k, v in method_args.items():
                 fields[k] = {"example": v}
@@ -297,10 +471,8 @@ def _populate_undocumented_method_fields(method: Any, cls: Any, method_name: Any
     if f_args and f_args[0] in ("cls", "self"):
         f_args = f_args[1:]
     args = dict(zip(f_args, f_defaults))
-    model_name = f"{cls.__name__}_{method_name}"
-    method_field = {"method": method_name, "args": args}
     if getattr(method, "valid_jsonapi", True):
-        fields["meta"] = schema_from_object(model_name, method_field)
+        fields["meta"] = _jsonapi_rpc_meta_schema(args)
 
 
 def _normalize_parameters(parameters: list[Any]) -> None:
@@ -432,13 +604,13 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
             responses[HTTPStatus.OK.value] = {"schema": coll_sample_data, "description": HTTPStatus.OK.description}
 
         elif http_method == "patch":
-            post_model, responses = cls._s_get_swagger_doc(http_method)
+            _, responses = cls._s_get_swagger_doc(http_method)
             parameters.append(
                 {
                     "name": "PATCH body",
                     "in": "body",
                     "description": f"{class_name} attributes",
-                    "schema": inst_sample_data,
+                    "schema": _resource_request_body_schema(cls, for_patch=True),
                     "required": True,
                 }
             )
@@ -447,20 +619,14 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
         elif http_method == "post":
             _, responses = cls._s_get_swagger_doc(http_method)
             doc["summary"] = f"Create a {class_name} object"
-            # Create the default POST body schema
-            sample_dict = cls._s_sample_dict()
-            # The POST sample doesn't contain an "id", unless cls.allow_client_generated_ids is True
-            if cls.allow_client_generated_ids:
-                sample_data = schema_from_object(
-                    inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type, "id": "client_generated"}}
-                )
-            else:
-                sample_data = schema_from_object(inst_model_name, {"data": {"attributes": sample_dict, "type": cls._s_type}})
-
-            sample_data.description += f"{class_name} {http_method};"
-
             parameters.append(
-                {"name": "POST body", "in": "body", "description": f"{class_name} attributes", "schema": sample_data, "required": True}
+                {
+                    "name": "POST body",
+                    "in": "body",
+                    "description": f"{class_name} attributes",
+                    "schema": _resource_request_body_schema(cls, for_patch=False),
+                    "required": True,
+                }
             )
             responses[HTTPStatus.CREATED.value] = {"schema": inst_sample_data, "description": HTTPStatus.CREATED.description}
 
@@ -476,6 +642,8 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
         doc["parameters"] = parameters
         doc["responses"] = responses
         doc["produces"] = ["application/vnd.api+json"]
+        if any(param.get("in") == "body" for param in parameters):
+            doc["consumes"] = ["application/vnd.api+json"]
 
         method_doc = parse_object_doc(func)
         safrs.dict_merge(doc, method_doc)
@@ -570,15 +738,14 @@ def _relationship_responses_and_parameters(
         rel_post_schema.description += f"{class_name} {http_method} relationship;"
         cls.swagger_models["instance"] = rel_post_schema
         cls.swagger_models["collection"] = rel_post_schema
-        _append_relationship_body_param(parameters, class_name, rel_post_schema)
+        _append_relationship_body_param(parameters, class_name, _relationship_request_body_schema(relationship, child_class))
         if relationship.direction is MANYTOONE:
             responses[HTTPStatus.OK.value] = {"schema": rel_post_schema, "description": HTTPStatus.OK.description}
         return responses
 
     if http_method == "delete":
         _, responses = child_class._s_get_swagger_doc("patch")
-        rel_del_schema = schema_from_object(model_name, {"data": _relationship_data_payload(relationship, child_class)})
-        _append_relationship_body_param(parameters, class_name, rel_del_schema)
+        _append_relationship_body_param(parameters, class_name, _relationship_request_body_schema(relationship, child_class))
         return responses
 
     if http_method != "options":
@@ -616,6 +783,8 @@ def swagger_relationship_doc(cls: Any, tags: Any=None) -> Any:
         if is_debug():
             responses.update(debug_responses)
         doc["responses"] = responses
+        if any(param.get("in") == "body" for param in parameters):
+            doc["consumes"] = ["application/vnd.api+json"]
 
         parent_name = parent_class.__name__
         child_name = child_class.__name__
@@ -654,8 +823,6 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
 
         doc = {"tags": doc_tags, "description": description, "summary": summary, "responses": responses}
 
-        model_name = f"Invoke _{class_name}_{method_name}"
-        param_model = SchemaClassFactory(model_name, {})
         parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
 
         if func.__name__ == "get":
@@ -667,9 +834,15 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
             # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
             parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
             model_name = f"{func.__name__}_{cls.__name__}_{method_name}"
-            param_model = SchemaClassFactory(model_name, fields)
-
-            parameters.append({"name": model_name, "in": "body", "description": description, "schema": param_model, "required": True})
+            parameters.append(
+                {
+                    "name": model_name,
+                    "in": "body",
+                    "description": description,
+                    "schema": _rpc_request_body_schema(fields),
+                    "required": True,
+                }
+            )
 
         # URL Path Parameter
         default_id = cls._s_sample_id()
@@ -678,6 +851,8 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
         )  # parameter id, e.g. UserId
         doc["parameters"] = parameters
         doc["produces"] = ["application/vnd.api+json"]
+        if any(param.get("in") == "body" for param in parameters):
+            doc["consumes"] = ["application/vnd.api+json"]
 
         apply_fstring(doc, locals())
         _ensure_bad_request_response(doc["responses"])
@@ -699,6 +874,8 @@ def default_paging_parameters() -> list[dict[str, Any]]:
         "name": "page[offset]",
         "in": "query",
         "format": "int64",
+        "minimum": 0,
+        "maximum": 100000,
         "required": False,
         "description": "Page offset",
     }
@@ -710,6 +887,8 @@ def default_paging_parameters() -> list[dict[str, Any]]:
         "name": "page[limit]",
         "in": "query",
         "format": "int64",
+        "minimum": 1,
+        "maximum": 100,
         "required": False,
         "description": "Max number of items",
     }
