@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Optional, Tuple, Type, cast
 
-from pydantic import ConfigDict, Field, create_model
+from pydantic import ConfigDict, create_model
 
 from .jsonapi_primitives import PermissiveModel
 
