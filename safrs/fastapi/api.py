@@ -19,6 +19,7 @@ from fastapi.params import Depends as DependsParam
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 
+from .relationships import relationship_is_exposed, relationship_property, resolve_relationships
 from .schemas import SchemaRegistry
 from .responses import JSONAPIResponse
 
@@ -996,22 +997,11 @@ class SafrsFastAPI:
         return result
 
     def _resolve_relationships(self, Model: Type[Any]) -> Dict[str, Any]:
-        rels = getattr(Model, "_s_relationships", None)
-        if isinstance(rels, dict):
-            return rels
-        mapper = getattr(Model, "__mapper__", None)
-        if mapper is None:
-            return {}
-        return {rel.key: rel for rel in mapper.relationships}
+        return resolve_relationships(Model)
 
     @staticmethod
     def _relationship_property(rel: Any) -> Optional[Any]:
-        candidate = rel
-        if not hasattr(candidate, "mapper"):
-            candidate = getattr(rel, "relationship", None)
-        if candidate is None or not hasattr(candidate, "mapper"):
-            return None
-        return candidate
+        return relationship_property(rel)
 
     @staticmethod
     def _is_to_many_relationship(rel: Any) -> bool:
@@ -1032,7 +1022,7 @@ class SafrsFastAPI:
             rel_prop = self._relationship_property(rel)
             if rel_prop is None:
                 rel_prop = self._relationship_property(mapper_rels.get(rel_name))
-            if rel_prop is not None:
+            if rel_prop is not None and relationship_is_exposed(Model, rel_name, rel_prop):
                 resolved[rel_name] = rel_prop
         return resolved
 
