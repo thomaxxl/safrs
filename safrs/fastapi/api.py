@@ -161,9 +161,11 @@ class SafrsFastAPI:
         dependencies: Optional[List[Any]] = None,
         relationship_item_mode: Union[RelationshipItemMode, str] = RelationshipItemMode.HIDDEN,
         include_examples_in_openapi: bool = True,
+        cleanup_session: bool = True,
     ) -> None:
         self.app = app
         self.prefix = prefix
+        self.cleanup_session = bool(cleanup_session)
         self.max_union_included_types = int(getattr(safrs.SAFRS, "MAX_UNION_INCLUDED_TYPES", 0))
         self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
         self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
@@ -218,20 +220,13 @@ class SafrsFastAPI:
             raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
         return normalized
 
-    @staticmethod
-    def _cleanup_session() -> None:
+    def _cleanup_session(self) -> None:
+        if not self.cleanup_session:
+            return
         session = safrs.DB.session
-        # Tests may bind a shared scoped_session with scopefunc=lambda: 1 so request
-        # handlers and assertions share the same outer transaction. Removing that
-        # session per request detaches fixtures and breaks test isolation semantics.
-        registry = getattr(session, "registry", None)
-        scopefunc = getattr(registry, "scopefunc", None)
-        if callable(scopefunc):
-            try:
-                if scopefunc() == 1:
-                    return
-            except Exception:
-                pass
+        info = getattr(session, "info", None)
+        if isinstance(info, dict) and bool(info.get("_safrs_skip_cleanup", False)):
+            return
         remove = getattr(session, "remove", None)
         if callable(remove):
             remove()
@@ -259,10 +254,7 @@ class SafrsFastAPI:
         state["_safrs_auto_commit_enabled"] = True
 
     def _note_write(self, Model: Type[Any]) -> None:
-        state = self._uow_session_state()
-        state["_safrs_writes_seen"] = True
-        if tx.model_auto_commit_enabled(Model) is False:
-            state["_safrs_auto_commit_enabled"] = False
+        tx.note_write(Model)
 
     def _safrs_uow_dependency(self, request: Request):
         self._reset_uow_state()
@@ -272,14 +264,15 @@ class SafrsFastAPI:
             safrs.DB.session.rollback()
             raise
         else:
-            request_method = str(getattr(request, "method", "")).upper()
-            state = self._uow_session_state()
-            writes_seen = bool(state.get("_safrs_writes_seen", False))
-            auto_commit_enabled = bool(state.get("_safrs_auto_commit_enabled", True))
-            if request_method in WRITE_HTTP_METHODS and writes_seen and auto_commit_enabled:
-                safrs.DB.session.commit()
-            else:
+            try:
+                request_method = str(getattr(request, "method", "")).upper()
+                if request_method in WRITE_HTTP_METHODS and tx.should_autocommit():
+                    safrs.DB.session.commit()
+                else:
+                    safrs.DB.session.rollback()
+            except Exception:
                 safrs.DB.session.rollback()
+                raise
         finally:
             self._uow_session_state()["_safrs_uow_active"] = False
             self._cleanup_session()
