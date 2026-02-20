@@ -20,6 +20,7 @@ from .errors import JsonapiError, SystemValidationError, GenericError
 from .config import get_config
 from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
+from . import tx
 from sqlalchemy.orm.interfaces import MANYTOONE
 from flask import current_app, Response
 import json
@@ -29,6 +30,7 @@ from typing import Any, Callable, Optional, Type, cast
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
+WRITE_HTTP_METHODS = {"POST", "PATCH", "DELETE", "PUT"}
 
 
 class SAFRSAPI(FRSApiBase):
@@ -717,44 +719,58 @@ def http_method_decorator(fun: Callable) -> Callable:
         safrs_exception: Any = None
         status_code: int = 500
         message: str = ""
+        token = tx.begin_request()
         try:
-            if not cast(Any, request).is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
-                # reuire jsonapi content type for requests to these routes
-                raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
-            result = fun(*args, **kwargs)
-            safrs.DB.session.commit()
-            return result
+            try:
+                if not cast(Any, request).is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
+                    # reuire jsonapi content type for requests to these routes
+                    raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)
 
-        except werkzeug.exceptions.NotFound as exc:
-            # this also catches safrs.errors.NotFoundError
-            status_code = 404
-            safrs_exception = exc
-            message = HTTPStatus.NOT_FOUND.description
+                request_method = str(getattr(request, "method", "")).upper()
+                if request_method in WRITE_HTTP_METHODS and args:
+                    safrs_object = getattr(args[0], "SAFRSObject", None)
+                    if safrs_object is not None:
+                        tx.note_write(safrs_object)
 
-        except JsonapiError as exc:
-            safrs.log.exception(exc)
-            safrs_exception = exc
+                result = fun(*args, **kwargs)
+                if request_method in WRITE_HTTP_METHODS and tx.should_autocommit():
+                    safrs.DB.session.commit()
+                else:
+                    safrs.DB.session.rollback()
+                return result
 
-        except werkzeug.exceptions.HTTPException as exc:
-            status_code = cast(int, exc.code)
-            message = cast(str, exc.description)
-            safrs.log.error(message)
+            except werkzeug.exceptions.NotFound as exc:
+                # this also catches safrs.errors.NotFoundError
+                status_code = 404
+                safrs_exception = exc
+                message = HTTPStatus.NOT_FOUND.description
 
-        except Exception as exc:
-            safrs.log.exception(exc)
-            safrs_exception = exc
-            if safrs.log.getEffectiveLevel() > logging.DEBUG:
-                safrs_exception.message = "Logging Disabled"
-            else:
-                safrs_exception.message = str(exc)
+            except JsonapiError as exc:
+                safrs.log.exception(exc)
+                safrs_exception = exc
 
-        status_code = getattr(safrs_exception, "status_code", status_code)
-        api_code = getattr(safrs_exception, "api_code", status_code)
-        title = getattr(safrs_exception, "message", message)
-        detail = getattr(safrs_exception, "detail", title)
+            except werkzeug.exceptions.HTTPException as exc:
+                status_code = cast(int, exc.code)
+                message = cast(str, exc.description)
+                safrs.log.error(message)
 
-        safrs.DB.session.rollback()
-        errors = dict(title=title, detail=detail, code=str(api_code))
-        abort(status_code, errors=[errors])
+            except Exception as exc:
+                safrs.log.exception(exc)
+                safrs_exception = exc
+                if safrs.log.getEffectiveLevel() > logging.DEBUG:
+                    safrs_exception.message = "Logging Disabled"
+                else:
+                    safrs_exception.message = str(exc)
+
+            status_code = getattr(safrs_exception, "status_code", status_code)
+            api_code = getattr(safrs_exception, "api_code", status_code)
+            title = getattr(safrs_exception, "message", message)
+            detail = getattr(safrs_exception, "detail", title)
+
+            safrs.DB.session.rollback()
+            errors = dict(title=title, detail=detail, code=str(api_code))
+            abort(status_code, errors=[errors])
+        finally:
+            tx.end_request(token)
 
     return method_wrapper

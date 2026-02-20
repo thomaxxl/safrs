@@ -2,6 +2,7 @@ from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
+from . import tx
 from .jsonapi import paginate, jsonapi_sort
 from .json_encoder import SAFRSFormattedResponse
 from .swagger_doc import jsonapi_rpc
@@ -18,7 +19,11 @@ def duplicate(self: Any) -> SAFRSFormattedResponse:
     make_transient(self)
     self.id = self.id_type()
     session.add(self)
-    session.commit()
+    tx.note_write(self.__class__)
+    session_info = getattr(session, "info", None)
+    in_uow = bool(tx.in_request() or (isinstance(session_info, dict) and session_info.get("_safrs_uow_active", False)))
+    if in_uow:
+        session.flush()
     return SAFRSFormattedResponse(self)
 
 

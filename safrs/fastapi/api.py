@@ -9,6 +9,7 @@ from http import HTTPStatus
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
 
 import safrs
+from safrs import tx
 from safrs.attr_parse import parse_attr
 from safrs.errors import GenericError, JsonapiError, SystemValidationError, ValidationError
 from safrs.json_encoder import SAFRSFormattedResponse
@@ -33,6 +34,7 @@ from .responses import JSONAPIResponse
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
 DEFAULT_HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE"}
+WRITE_HTTP_METHODS = {"POST", "PATCH", "DELETE", "PUT"}
 
 
 class RelationshipItemMode(str, Enum):
@@ -172,7 +174,7 @@ class SafrsFastAPI:
             document_relationships=self.document_relationships,
             max_union_included_types=self.max_union_included_types,
         )
-        self.default_dependencies = self._normalize_dependencies(dependencies)
+        self.default_dependencies = [FastAPIDepends(self._safrs_uow_dependency)] + self._normalize_dependencies(dependencies)
         install_jsonapi_exception_handlers(app)
         self._install_swagger_alias()
 
@@ -215,6 +217,59 @@ class SafrsFastAPI:
                 continue
             raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
         return normalized
+
+    @staticmethod
+    def _cleanup_session() -> None:
+        session = safrs.DB.session
+        remove = getattr(session, "remove", None)
+        if callable(remove):
+            remove()
+            return
+        close = getattr(session, "close", None)
+        if callable(close):
+            close()
+
+    @staticmethod
+    def _uow_session_state() -> Dict[str, Any]:
+        session = safrs.DB.session
+        info = getattr(session, "info", None)
+        if isinstance(info, dict):
+            return info
+        state = cast(Optional[Dict[str, Any]], getattr(session, "_safrs_uow_state", None))
+        if state is None:
+            state = {}
+            setattr(session, "_safrs_uow_state", state)
+        return state
+
+    def _reset_uow_state(self) -> None:
+        state = self._uow_session_state()
+        state["_safrs_uow_active"] = True
+        state["_safrs_writes_seen"] = False
+        state["_safrs_auto_commit_enabled"] = True
+
+    def _note_write(self, Model: Type[Any]) -> None:
+        state = self._uow_session_state()
+        state["_safrs_writes_seen"] = True
+        if tx.model_auto_commit_enabled(Model) is False:
+            state["_safrs_auto_commit_enabled"] = False
+
+    def _safrs_uow_dependency(self, request: Request):
+        self._reset_uow_state()
+        try:
+            yield
+            request_method = str(request.method).upper()
+            state = self._uow_session_state()
+            writes_seen = bool(state.get("_safrs_writes_seen", False))
+            auto_commit_enabled = bool(state.get("_safrs_auto_commit_enabled", True))
+            if request_method in WRITE_HTTP_METHODS and writes_seen and auto_commit_enabled:
+                safrs.DB.session.commit()
+            else:
+                safrs.DB.session.rollback()
+        except Exception:
+            safrs.DB.session.rollback()
+            raise
+        finally:
+            self._uow_session_state()["_safrs_uow_active"] = False
 
     @staticmethod
     def _write_auth_dependency(request: Request) -> None:
@@ -1257,6 +1312,8 @@ class SafrsFastAPI:
                 payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
             ):
                 try:
+                    if str(request.method).upper() in WRITE_HTTP_METHODS:
+                        self._note_write(Model)
                     return self._call_class_rpc(Model, method_name, request, payload)
                 except JSONAPIHTTPError:
                     raise
@@ -1271,6 +1328,8 @@ class SafrsFastAPI:
             payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
         ):
             try:
+                if str(request.method).upper() in WRITE_HTTP_METHODS:
+                    self._note_write(Model)
                 return self._call_instance_rpc(Model, method_name, object_id, request, payload)
             except JSONAPIHTTPError:
                 raise
@@ -1675,6 +1734,7 @@ class SafrsFastAPI:
                 include_paths = self._parse_include_paths(Model, request)
                 created: List[Any] = []
                 for data in items:
+                    self._note_write(Model)
                     obj = self._create_post_object(Model, data)
                     created.append(obj)
                     self._append_auto_include_paths(include_paths, obj)
@@ -1710,6 +1770,7 @@ class SafrsFastAPI:
                 attrs = self._parse_attributes_for_model(Model, attrs)
 
                 obj = Model.get_instance(object_id)
+                self._note_write(Model)
                 obj = obj._s_patch(**attrs)
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
@@ -1735,8 +1796,8 @@ class SafrsFastAPI:
         def handler(object_id: str):
             try:
                 obj = Model.get_instance(object_id)
+                self._note_write(Model)
                 obj._s_delete()
-                safrs.DB.session.commit()
                 return Response(status_code=204)
             except JSONAPIHTTPError:
                 raise
@@ -1835,6 +1896,7 @@ class SafrsFastAPI:
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
+                self._note_write(Model)
 
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
@@ -1843,7 +1905,8 @@ class SafrsFastAPI:
                     for item in data:
                         target = self._lookup_related_instance(target_model, item)
                         self._append_relationship_item(rel_value, target)
-                    safrs.DB.session.commit()
+                    if tx.in_request():
+                        safrs.DB.session.flush()
                     items = self._iter_related_items(rel_value)
                     return self._jsonapi_response(
                         self._jsonapi_doc(
@@ -1854,13 +1917,15 @@ class SafrsFastAPI:
 
                 if data is None:
                     setattr(parent, rel_name, None)
-                    safrs.DB.session.commit()
+                    if tx.in_request():
+                        safrs.DB.session.flush()
                     return Response(status_code=204)
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                 target = self._lookup_related_instance(target_model, data)
                 setattr(parent, rel_name, target)
-                safrs.DB.session.commit()
+                if tx.in_request():
+                    safrs.DB.session.flush()
                 if rel_name == "thing":
                     return self._jsonapi_response(self._jsonapi_doc(data=self._encode_resource(target_model, target)))
                 return Response(status_code=204)
@@ -1879,6 +1944,7 @@ class SafrsFastAPI:
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
+                self._note_write(Model)
 
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
@@ -1886,14 +1952,16 @@ class SafrsFastAPI:
                     for item in data:
                         target = self._lookup_related_instance(target_model, item)
                         self._append_relationship_item(rel_value, target)
-                    safrs.DB.session.commit()
+                    if tx.in_request():
+                        safrs.DB.session.flush()
                     return Response(status_code=204)
 
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                 target = self._lookup_related_instance(target_model, data)
                 setattr(parent, rel_name, target)
-                safrs.DB.session.commit()
+                if tx.in_request():
+                    safrs.DB.session.flush()
                 return self._jsonapi_response(self._jsonapi_doc(data=self._encode_resource(target_model, target)))
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -1910,6 +1978,7 @@ class SafrsFastAPI:
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
+                self._note_write(Model)
 
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
@@ -1917,7 +1986,8 @@ class SafrsFastAPI:
                     for item in data:
                         target = self._lookup_related_instance(target_model, item)
                         self._remove_relationship_item(rel_value, target)
-                    safrs.DB.session.commit()
+                    if tx.in_request():
+                        safrs.DB.session.flush()
                     return Response(status_code=204)
 
                 if isinstance(data, list):
@@ -1934,7 +2004,8 @@ class SafrsFastAPI:
                     setattr(parent, rel_name, None)
                 else:
                     safrs.log.warning("child not in relation")
-                safrs.DB.session.commit()
+                if tx.in_request():
+                    safrs.DB.session.flush()
                 return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)
