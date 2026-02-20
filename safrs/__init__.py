@@ -13,6 +13,7 @@ from .jsonapi_attr import jsonapi_attr
 from .jsonapi import jsonapi_format_response, paginate
 from .api_methods import search, startswith
 from .swagger_doc import jsonapi_rpc
+from . import tx
 from .__about__ import __version__, __description__
 
 SafrsApi = SAFRSAPI
@@ -43,4 +44,6 @@ __all__ = (
     "NotFoundError",
     # request
     "SAFRSRequest",
+    # tx helper
+    "tx",
 )

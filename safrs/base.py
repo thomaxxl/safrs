@@ -206,6 +206,7 @@ from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
 from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
+from . import tx
 
 
 # Mapping of legacy "_s_" class attributes to SAFRSModelConfig field names.
@@ -217,6 +218,16 @@ _LEGACY_SAFRS_CONFIG_MAP = {
     "_s_url_root": "url_root",
     "_s_stateless": "stateless",
 }
+
+
+def _request_uow_active() -> bool:
+    if tx.in_request():
+        return True
+    try:
+        session_info = getattr(safrs.DB.session, "info", None)
+    except Exception:
+        return False
+    return isinstance(session_info, dict) and bool(session_info.get("_safrs_uow_active", False))
 
 
 @lru_cache(maxsize=1024)
@@ -331,7 +342,7 @@ class SAFRSBase(Model):
     (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
 
-    db_commit = has_request_context() # commit instances automatically, see also _s_auto_commit property below
+    db_commit = True  # request-level auto-commit is enabled by default
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
     exclude_attrs: list[str] = []  # list of attribute names that should not be serialized
@@ -489,15 +500,6 @@ class SAFRSBase(Model):
             safrs.log.exception(exc)
             safrs.DB.Model.__init__(self)
 
-        if self._s_auto_commit:
-            # Add the object to the database if specified by the class parameters
-            safrs.DB.session.add(self)
-            try:
-                safrs.DB.session.commit()
-            except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
-                # Exception may arise when a DB constrained has been violated (e.g. duplicate key)
-                raise GenericError(exc)
-
     def __setattr__(self: Any, attr_name: Any, attr_val: Any) -> Any:
         """
         setattr behaves differently for `jsonapi_attr` decorated attributes
@@ -579,14 +581,10 @@ class SAFRSBase(Model):
 
         if not instance in safrs.DB.session:
             safrs.DB.session.add(instance)
-        if not instance._s_auto_commit or sqla_inspect(instance).pending:
-            #
-            # The item has not yet been added/commited by the SAFRSBase,
-            # in that case we have to do it ourselves
-            #
-            safrs.DB.session.add(instance)
+        tx.note_write(cls)
+        if _request_uow_active():
             try:
-                safrs.DB.session.commit()
+                safrs.DB.session.flush()
             except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Exception may arise when a db constraint has been violated
                 # (e.g. duplicate key)
@@ -609,7 +607,9 @@ class SAFRSBase(Model):
             attr_val = self._s_parse_attr_value(attr_name, attr_val)
             setattr(self, attr_name, attr_val)
 
-        safrs.DB.session.commit()
+        tx.note_write(self.__class__)
+        if _request_uow_active():
+            safrs.DB.session.flush()
         # query ourself, this will also execute sqla hooks
         return self.get_instance(self.jsonapi_id)
 
@@ -617,7 +617,10 @@ class SAFRSBase(Model):
         """
         Delete the instance from the database
         """
+        tx.note_write(self.__class__)
         safrs.DB.session.delete(self)
+        if _request_uow_active():
+            safrs.DB.session.flush()
 
     def _add_rels(self: Any, **params: Any) -> None:
         """
@@ -926,8 +929,9 @@ class SAFRSBase(Model):
             if value is not None:
                 setattr(self, parameter, value)
         safrs.DB.session.add(self)
-        if self._s_auto_commit:
-            safrs.DB.session.commit()
+        tx.note_write(self.__class__)
+        if _request_uow_active():
+            safrs.DB.session.flush()
         return self
 
     @classmethod
