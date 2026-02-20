@@ -977,10 +977,35 @@ class SAFRSJSONRPCAPI(Resource):
         args = dict(request.args)
         if getattr(method, "valid_jsonapi", False):
             payload = cast(Any, request).get_jsonapi_payload()
-            if payload:
-                args = payload.get("meta", {}).get("args", {})
+            if not isinstance(payload, dict):
+                raise ValidationError("Invalid JSON:API payload (expected object)")
+
+            meta = payload.get("meta", None)
+            if meta is None:
+                args = {}
+            elif not isinstance(meta, dict):
+                raise ValidationError(
+                    "Invalid JSON:API RPC payload: 'meta' must be an object",
+                    HTTPStatus.BAD_REQUEST.value,
+                )
+            else:
+                rpc_args = meta.get("args", {})
+                if rpc_args is None:
+                    rpc_args = {}
+                if not isinstance(rpc_args, dict):
+                    raise ValidationError(
+                        "Invalid JSON:API RPC payload: 'meta.args' must be an object",
+                        HTTPStatus.BAD_REQUEST.value,
+                    )
+                args = rpc_args
         else:
-            args = request.get_json()
+            body = request.get_json()
+            if body is None:
+                args = {}
+            elif not isinstance(body, dict):
+                raise ValidationError("Invalid RPC payload (expected object)")
+            else:
+                args = body
 
         return self._create_rpc_response(method, args)
 
@@ -1020,7 +1045,14 @@ class SAFRSJSONRPCAPI(Resource):
 
     def _create_rpc_response(self: Any, method: Any, args: Any) -> Any:
         safrs.log.debug(f"method {self.method_name} args {args}")
-        result = method(**args)
+        if not isinstance(args, dict):
+            raise ValidationError("Invalid RPC args (expected object)")
+        try:
+            result = method(**args)
+        except TypeError as exc:
+            if self._is_invalid_rpc_args_error(exc):
+                raise ValidationError("Invalid RPC args") from exc
+            raise
 
         response: Any
         if isinstance(result, safrs.SAFRSFormattedResponse):
@@ -1031,3 +1063,14 @@ class SAFRSJSONRPCAPI(Resource):
             response = {"meta": {"result": result}}
 
         return make_response(jsonify(response), HTTPStatus.OK)
+
+    @staticmethod
+    def _is_invalid_rpc_args_error(exc: TypeError) -> bool:
+        message = str(exc)
+        markers = (
+            "unexpected keyword argument",
+            "required positional argument",
+            "positional argument",
+            "multiple values for argument",
+        )
+        return any(marker in message for marker in markers)
