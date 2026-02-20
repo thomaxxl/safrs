@@ -257,7 +257,11 @@ class SafrsFastAPI:
         self._reset_uow_state()
         try:
             yield
-            request_method = str(request.method).upper()
+        except Exception:
+            safrs.DB.session.rollback()
+            raise
+        else:
+            request_method = str(getattr(request, "method", "")).upper()
             state = self._uow_session_state()
             writes_seen = bool(state.get("_safrs_writes_seen", False))
             auto_commit_enabled = bool(state.get("_safrs_auto_commit_enabled", True))
@@ -265,9 +269,6 @@ class SafrsFastAPI:
                 safrs.DB.session.commit()
             else:
                 safrs.DB.session.rollback()
-        except Exception:
-            safrs.DB.session.rollback()
-            raise
         finally:
             self._uow_session_state()["_safrs_uow_active"] = False
 
