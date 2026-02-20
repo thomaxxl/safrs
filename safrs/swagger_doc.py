@@ -241,6 +241,17 @@ def _ensure_bad_request_response(responses: Dict[Any, Any]) -> None:
         responses[str(bad_request_code)] = {"description": HTTPStatus.BAD_REQUEST.description}
 
 
+def _ensure_not_found_response(responses: Dict[Any, Any]) -> None:
+    not_found_code = HTTPStatus.NOT_FOUND.value
+    if not_found_code not in responses and str(not_found_code) not in responses:
+        responses[str(not_found_code)] = {"description": HTTPStatus.NOT_FOUND.description}
+
+
+def _is_class_level_rpc_method(model_cls: Any, method_name: str) -> bool:
+    raw_method = inspect.getattr_static(model_cls, method_name, None)
+    return isinstance(raw_method, (classmethod, staticmethod))
+
+
 def update_response_schema(responses: Any) -> None:
     """
     Add predefined response schemas if none is available yet
@@ -855,6 +866,8 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
             doc["consumes"] = ["application/vnd.api+json"]
 
         apply_fstring(doc, locals())
+        if not _is_class_level_rpc_method(cls, method_name):
+            _ensure_not_found_response(doc["responses"])
         _ensure_bad_request_response(doc["responses"])
         update_response_schema(doc["responses"])
         return swagger.doc(doc)(func)
