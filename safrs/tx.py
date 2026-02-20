@@ -108,7 +108,11 @@ def disable_autocommit() -> None:
 
 
 def model_auto_commit_enabled(model_cls: Any) -> bool:
-    """Return model auto-commit flag, defaulting to True."""
+    """Return model auto-commit flag, defaulting to True.
+
+    Only values defined on the concrete model class are honored. Inherited
+    ``db_commit`` values are intentionally ignored for compatibility.
+    """
     class_dict = getattr(model_cls, "__dict__", None)
     if isinstance(class_dict, Mapping) and "db_commit" in class_dict:
         return bool(class_dict.get("db_commit"))
