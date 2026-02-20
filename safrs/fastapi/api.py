@@ -221,6 +221,17 @@ class SafrsFastAPI:
     @staticmethod
     def _cleanup_session() -> None:
         session = safrs.DB.session
+        # Tests may bind a shared scoped_session with scopefunc=lambda: 1 so request
+        # handlers and assertions share the same outer transaction. Removing that
+        # session per request detaches fixtures and breaks test isolation semantics.
+        registry = getattr(session, "registry", None)
+        scopefunc = getattr(registry, "scopefunc", None)
+        if callable(scopefunc):
+            try:
+                if scopefunc() == 1:
+                    return
+            except Exception:
+                pass
         remove = getattr(session, "remove", None)
         if callable(remove):
             remove()
@@ -271,6 +282,7 @@ class SafrsFastAPI:
                 safrs.DB.session.rollback()
         finally:
             self._uow_session_state()["_safrs_uow_active"] = False
+            self._cleanup_session()
 
     @staticmethod
     def _write_auth_dependency(request: Request) -> None:
