@@ -113,6 +113,9 @@ def model_auto_commit_enabled(model_cls: Any) -> bool:
     Only values defined on the concrete model class are honored. Inherited
     ``db_commit`` values are intentionally ignored for compatibility.
     """
+    # Intentionally read from __dict__ instead of getattr(...): inherited
+    # db_commit=False on abstract base classes should not globally disable
+    # request-boundary auto-commit for all descendants.
     class_dict = getattr(model_cls, "__dict__", None)
     if isinstance(class_dict, Mapping) and "db_commit" in class_dict:
         return bool(class_dict.get("db_commit"))
@@ -124,6 +127,7 @@ def note_write(model_cls: Any) -> None:
     state = _TX_STATE.get()
     if state.in_request:
         auto_commit_enabled = state.auto_commit_enabled
+        # Latch auto-commit off once any written model opts out.
         if auto_commit_enabled and model_auto_commit_enabled(model_cls) is False:
             auto_commit_enabled = False
         _TX_STATE.set(
@@ -140,6 +144,8 @@ def note_write(model_cls: Any) -> None:
         return
 
     session_state[_SESSION_WRITES_KEY] = True
+    # Mirror the same "opt-out latches request state" behavior for the
+    # session-backed (FastAPI) state carrier.
     if bool(session_state.get(_SESSION_AUTOCOMMIT_KEY, True)) and model_auto_commit_enabled(model_cls) is False:
         session_state[_SESSION_AUTOCOMMIT_KEY] = False
 
