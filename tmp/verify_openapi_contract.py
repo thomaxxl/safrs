@@ -50,7 +50,7 @@ import time
 from collections import deque
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Any
+from typing import Any, Optional
 
 
 def _find_free_port(host: str) -> int:
@@ -153,6 +153,222 @@ def _seed_key_for_field(field_name: str) -> str:
     return "".join(part[:1].upper() + part[1:] for part in parts)
 
 
+def _spec_major(spec: dict[str, Any]) -> int:
+    if "openapi" in spec:
+        return 3
+    return 2
+
+
+def _operation_summary_text(operation: dict[str, Any]) -> str:
+    summary = str(operation.get("summary", ""))
+    description = str(operation.get("description", ""))
+    return (summary + " " + description).lower()
+
+
+def _is_relationship_path(path: str) -> Optional[tuple[str, str, str]]:
+    segments = [segment for segment in str(path).split("/") if segment]
+    if segments and segments[0] == "api":
+        segments = segments[1:]
+    if len(segments) != 3:
+        return None
+    parent_collection, parent_id_segment, rel_name = segments
+    if not (parent_id_segment.startswith("{") and parent_id_segment.endswith("}")):
+        return None
+    if not rel_name or (rel_name.startswith("{") and rel_name.endswith("}")):
+        return None
+    return parent_collection, parent_id_segment[1:-1], rel_name
+
+
+def _swagger2_body_schema(operation: dict[str, Any]) -> Optional[dict[str, Any]]:
+    parameters = operation.get("parameters")
+    if not isinstance(parameters, list):
+        return None
+    for parameter in parameters:
+        if not isinstance(parameter, dict):
+            continue
+        if str(parameter.get("in")) != "body":
+            continue
+        schema = parameter.get("schema")
+        if isinstance(schema, dict):
+            return schema
+    return None
+
+
+def _openapi3_body_schema(operation: dict[str, Any]) -> Optional[dict[str, Any]]:
+    request_body = operation.get("requestBody")
+    if not isinstance(request_body, dict):
+        return None
+    content = request_body.get("content")
+    if not isinstance(content, dict):
+        return None
+    preferred_types = ["application/vnd.api+json", "application/json"]
+    for media_type in preferred_types:
+        media_spec = content.get(media_type)
+        if isinstance(media_spec, dict):
+            schema = media_spec.get("schema")
+            if isinstance(schema, dict):
+                return schema
+    for media_spec in content.values():
+        if not isinstance(media_spec, dict):
+            continue
+        schema = media_spec.get("schema")
+        if isinstance(schema, dict):
+            return schema
+    return None
+
+
+def _operation_body_schema(operation: dict[str, Any], spec_major: int) -> Optional[dict[str, Any]]:
+    if spec_major == 3:
+        return _openapi3_body_schema(operation)
+    return _swagger2_body_schema(operation)
+
+
+def _relationship_data_schema(body_schema: dict[str, Any]) -> Optional[dict[str, Any]]:
+    if str(body_schema.get("type", "object")) != "object":
+        return None
+    properties = body_schema.get("properties")
+    if not isinstance(properties, dict):
+        return None
+    data_schema = properties.get("data")
+    if not isinstance(data_schema, dict):
+        return None
+    data_type = str(data_schema.get("type", ""))
+    if data_type not in ("array", "object"):
+        return None
+    return data_schema
+
+
+def _relationship_type_enum(data_schema: dict[str, Any]) -> list[str]:
+    data_type = str(data_schema.get("type", ""))
+    type_schema: Optional[dict[str, Any]] = None
+    if data_type == "array":
+        items = data_schema.get("items")
+        if isinstance(items, dict):
+            properties = items.get("properties")
+            if isinstance(properties, dict):
+                type_value = properties.get("type")
+                if isinstance(type_value, dict):
+                    type_schema = type_value
+    else:
+        properties = data_schema.get("properties")
+        if isinstance(properties, dict):
+            type_value = properties.get("type")
+            if isinstance(type_value, dict):
+                type_schema = type_value
+    if not isinstance(type_schema, dict):
+        return []
+    enum_values = type_schema.get("enum")
+    if not isinstance(enum_values, list):
+        return []
+    return [str(value) for value in enum_values]
+
+
+def _validate_relationship_seed(
+    rel_doc: Any,
+    data_schema: dict[str, Any],
+    seed_key: str,
+    path: str,
+    method: str,
+) -> list[dict[str, Any]]:
+    if not isinstance(rel_doc, dict):
+        raise RuntimeError(f"Seed relationship payload for {seed_key} must be an object ({method.upper()} {path})")
+    if "data" not in rel_doc:
+        raise RuntimeError(f"Seed relationship payload for {seed_key} must include 'data' ({method.upper()} {path})")
+
+    payload_data = rel_doc.get("data")
+    data_type = str(data_schema.get("type", ""))
+
+    items: list[dict[str, Any]] = []
+    if data_type == "array":
+        if not isinstance(payload_data, list):
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} must use array data ({method.upper()} {path})"
+            )
+        if not payload_data:
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} must include at least one identifier ({method.upper()} {path})"
+            )
+        items = [item for item in payload_data if isinstance(item, dict)]
+        if len(items) != len(payload_data):
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} has invalid identifier objects ({method.upper()} {path})"
+            )
+    else:
+        if payload_data is None:
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} must provide an identifier object ({method.upper()} {path})"
+            )
+        if not isinstance(payload_data, dict):
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} must use object data ({method.upper()} {path})"
+            )
+        items = [payload_data]
+
+    for item in items:
+        item_id = item.get("id")
+        item_type = item.get("type")
+        if item_id in (None, "") or item_type in (None, ""):
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} must include non-empty id/type ({method.upper()} {path})"
+            )
+
+    expected_types = _relationship_type_enum(data_schema)
+    if expected_types:
+        invalid_types = sorted({str(item.get("type")) for item in items if str(item.get("type")) not in expected_types})
+        if invalid_types:
+            raise RuntimeError(
+                f"Seed relationship payload for {seed_key} has incompatible types {invalid_types} "
+                f"(expected {expected_types}) for {method.upper()} {path}"
+            )
+
+    return items
+
+
+def _apply_relationship_seed_to_schema(data_schema: dict[str, Any], items: list[dict[str, Any]]) -> None:
+    ids = [str(item.get("id")) for item in items]
+    types: list[str] = []
+    for item in items:
+        item_type = str(item.get("type"))
+        if item_type not in types:
+            types.append(item_type)
+
+    data_type = str(data_schema.get("type", ""))
+    if data_type == "array":
+        data_schema["minItems"] = len(items)
+        data_schema["maxItems"] = len(items)
+        items_schema = data_schema.setdefault("items", {})
+        if not isinstance(items_schema, dict):
+            return
+        properties = items_schema.setdefault("properties", {})
+        if not isinstance(properties, dict):
+            return
+        id_schema = properties.setdefault("id", {"type": "string"})
+        if isinstance(id_schema, dict):
+            coerced_ids = _coerce_seed_values(ids, str(id_schema.get("type", "string")))
+            if coerced_ids:
+                id_schema["enum"] = coerced_ids
+                id_schema.setdefault("default", coerced_ids[0])
+        type_schema = properties.setdefault("type", {"type": "string"})
+        if isinstance(type_schema, dict) and types:
+            type_schema["enum"] = types
+            type_schema.setdefault("default", types[0])
+        return
+
+    properties = data_schema.setdefault("properties", {})
+    if not isinstance(properties, dict):
+        return
+    id_schema = properties.setdefault("id", {"type": "string"})
+    if isinstance(id_schema, dict):
+        coerced_ids = _coerce_seed_values(ids, str(id_schema.get("type", "string")))
+        if coerced_ids:
+            id_schema["enum"] = coerced_ids
+            id_schema.setdefault("default", coerced_ids[0])
+    type_schema = properties.setdefault("type", {"type": "string"})
+    if isinstance(type_schema, dict) and types:
+        type_schema["enum"] = types
+        type_schema.setdefault("default", types[0])
+
+
 def _patch_schema_with_seed(schema: dict[str, Any], seed: dict[str, Any]) -> None:
     schema_type = str(schema.get("type", ""))
     properties = schema.get("properties")
@@ -194,33 +410,72 @@ def _patch_schema_with_seed(schema: dict[str, Any], seed: dict[str, Any]) -> Non
 
 def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[str, Any]:
     patched = json.loads(json.dumps(spec))
+    major = _spec_major(patched)
     paths = patched.get("paths")
     if not isinstance(paths, dict):
         return patched
 
-    for _path, operations in paths.items():
+    relationships_map = seed.get("relationships")
+    for path, operations in paths.items():
         if not isinstance(operations, dict):
             continue
-        for _method, operation in operations.items():
+        relationship_info = _is_relationship_path(path)
+        for method, operation in operations.items():
             if not isinstance(operation, dict):
                 continue
             parameters = operation.get("parameters")
             if not isinstance(parameters, list):
-                continue
+                parameters = []
             for parameter in parameters:
                 if not isinstance(parameter, dict):
                     continue
-                if str(parameter.get("in")) == "path":
-                    name = str(parameter.get("name", ""))
-                    if name in seed:
-                        value = seed[name]
-                        parameter["enum"] = [value]
-                        parameter.setdefault("default", value)
+                if str(parameter.get("in")) != "path":
                     continue
-                if str(parameter.get("in")) == "body":
-                    schema = parameter.get("schema")
-                    if isinstance(schema, dict):
-                        _patch_schema_with_seed(schema, seed)
+                name = str(parameter.get("name", ""))
+                if name in seed:
+                    value = seed[name]
+                    parameter["enum"] = [value]
+                    parameter.setdefault("default", value)
+
+            body_schema = _operation_body_schema(operation, major)
+            if isinstance(body_schema, dict):
+                _patch_schema_with_seed(body_schema, seed)
+
+            method_lc = str(method).lower()
+            if method_lc not in {"post", "patch", "delete"}:
+                continue
+            if relationship_info is None:
+                continue
+
+            parent_collection, _parent_id_param, rel_name = relationship_info
+            seed_key = f"{parent_collection}.{rel_name}"
+            summary_text = _operation_summary_text(operation)
+            is_relationship_operation = ("relationship" in summary_text) or (
+                isinstance(relationships_map, dict) and seed_key in relationships_map
+            )
+            if not is_relationship_operation:
+                continue
+
+            if not isinstance(body_schema, dict):
+                raise RuntimeError(f"Missing request body schema for relationship operation {method_lc.upper()} {path}")
+            data_schema = _relationship_data_schema(body_schema)
+            if not isinstance(data_schema, dict):
+                raise RuntimeError(
+                    f"Invalid relationship schema for {method_lc.upper()} {path}: expected JSON:API relationship document"
+                )
+
+            if not isinstance(relationships_map, dict):
+                raise RuntimeError(
+                    f"Seed payload missing 'relationships' map required by {method_lc.upper()} {path}"
+                )
+            if seed_key not in relationships_map:
+                raise RuntimeError(
+                    f"Missing seed relationship payload for {seed_key} required by {method_lc.upper()} {path}"
+                )
+
+            rel_doc = relationships_map[seed_key]
+            items = _validate_relationship_seed(rel_doc, data_schema, seed_key, path, method_lc)
+            _apply_relationship_seed_to_schema(data_schema, items)
     return patched
 
 
