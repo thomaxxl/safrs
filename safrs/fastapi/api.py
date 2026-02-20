@@ -26,8 +26,8 @@ from .schemas import SchemaRegistry
 from .schemas.examples import (
     create_document_example,
     patch_document_example,
-    relationship_document_to_many_example,
-    relationship_document_to_one_example,
+    relationship_to_many_example,
+    relationship_to_one_example,
 )
 from .responses import JSONAPIResponse
 
@@ -158,7 +158,7 @@ class SafrsFastAPI:
         prefix: str = "",
         dependencies: Optional[List[Any]] = None,
         relationship_item_mode: Union[RelationshipItemMode, str] = RelationshipItemMode.HIDDEN,
-        include_examples_in_openapi: Optional[bool] = None,
+        include_examples_in_openapi: bool = True,
     ) -> None:
         self.app = app
         self.prefix = prefix
@@ -166,11 +166,7 @@ class SafrsFastAPI:
         self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
         self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
         self.validate_responses = bool(getattr(safrs.SAFRS, "VALIDATE_RESPONSES", False))
-        if include_examples_in_openapi is None:
-            include_examples_default = bool(getattr(safrs.SAFRS, "INCLUDE_OPENAPI_EXAMPLES", True))
-            self.include_examples_in_openapi = include_examples_default
-        else:
-            self.include_examples_in_openapi = bool(include_examples_in_openapi)
+        self.include_examples_in_openapi = bool(include_examples_in_openapi)
         self.relationship_item_mode = self._coerce_relationship_item_mode(relationship_item_mode)
         self.schemas = SchemaRegistry(
             document_relationships=self.document_relationships,
@@ -515,9 +511,9 @@ class SafrsFastAPI:
             )
             rel_item_model = self.schemas.document_single(target_model)
             rel_example = (
-                relationship_document_to_many_example(target_model)
+                relationship_to_many_example(target_model)
                 if is_many
-                else relationship_document_to_one_example(target_model)
+                else relationship_to_one_example(target_model)
             )
             rel_openapi = self._openapi_request_body(rel_doc_model, example=rel_example)
             rel_get_openapi = self._openapi_query_parameters(
