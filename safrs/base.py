@@ -342,7 +342,10 @@ class SAFRSBase(Model):
     (or should have, hindsight is great :/) the distinguishing `_s_` prefix
     """
 
-    db_commit = True  # request-level auto-commit is enabled by default
+    # Per-model request-boundary auto-commit switch (default on). This flag is
+    # evaluated by safrs.tx on each write and only concrete-class values are
+    # honored (inherited values are intentionally ignored).
+    db_commit = True
     url_prefix = ""
     allow_client_generated_ids = False  # Indicates whether the client is allowed to create the id
     exclude_attrs: list[str] = []  # list of attribute names that should not be serialized
