@@ -730,7 +730,17 @@ def http_method_decorator(fun: Callable) -> Callable:
                 if request_method in WRITE_HTTP_METHODS and args:
                     safrs_object = getattr(args[0], "SAFRSObject", None)
                     if safrs_object is not None:
-                        tx.note_write(safrs_object)
+                        # Relationship resources expose a synthetic wrapper class.
+                        # Track writes against underlying models so db_commit opt-out
+                        # on parent/target classes is honored.
+                        parent = getattr(safrs_object, "parent", None)
+                        target = getattr(safrs_object, "_target", None)
+                        if parent is not None:
+                            tx.note_write(parent)
+                        if target is not None:
+                            tx.note_write(target)
+                        if parent is None and target is None:
+                            tx.note_write(safrs_object)
 
                 result = fun(*args, **kwargs)
                 if request_method in WRITE_HTTP_METHODS and tx.should_autocommit():
