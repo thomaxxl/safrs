@@ -585,9 +585,15 @@ class SAFRSBase(Model):
         if _request_uow_active():
             try:
                 safrs.DB.session.flush()
+            except sqlalchemy.exc.IntegrityError:
+                safrs.DB.session.rollback()
+                raise ValidationError("Database constraint violation", HTTPStatus.CONFLICT.value)
+            except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError):
+                safrs.DB.session.rollback()
+                raise ValidationError("Invalid attribute value")
             except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
-                # Exception may arise when a db constraint has been violated
-                # (e.g. duplicate key)
+                # Keep true server/database failures as 500 responses.
+                safrs.DB.session.rollback()
                 safrs.log.warning(str(exc))
                 raise GenericError(str(exc))
 

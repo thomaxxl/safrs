@@ -1179,15 +1179,36 @@ class SafrsFastAPI:
     @staticmethod
     def _parse_rpc_args(request: Request, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         args: Dict[str, Any] = {}
-        if isinstance(payload, dict):
-            meta = payload.get("meta")
-            if isinstance(meta, dict):
-                meta_args = meta.get("args")
-                if isinstance(meta_args, dict):
-                    args.update(meta_args)
+        if payload is not None:
+            if not isinstance(payload, dict):
+                raise ValidationError("Invalid JSON:API payload (expected object)")
+
+            meta = payload.get("meta", None)
+            if meta is None:
+                pass
+            elif not isinstance(meta, dict):
+                raise ValidationError("Invalid JSON:API RPC payload: 'meta' must be an object")
+            else:
+                meta_args = meta.get("args", {})
+                if meta_args is None:
+                    meta_args = {}
+                if not isinstance(meta_args, dict):
+                    raise ValidationError("Invalid JSON:API RPC payload: 'meta.args' must be an object")
+                args.update(meta_args)
         for key, value in request.query_params.items():
             args.setdefault(key, value)
         return args
+
+    @staticmethod
+    def _is_invalid_rpc_args_error(exc: TypeError) -> bool:
+        message = str(exc)
+        markers = (
+            "unexpected keyword argument",
+            "required positional argument",
+            "positional argument",
+            "multiple values for argument",
+        )
+        return any(marker in message for marker in markers)
 
     @staticmethod
     def _rpc_request_context(request: Request):
@@ -1283,6 +1304,13 @@ class SafrsFastAPI:
         try:
             with self._rpc_request_context(request):
                 result = method(**args)
+        except TypeError as exc:
+            if self._is_invalid_rpc_args_error(exc):
+                raise ValidationError("Invalid RPC args") from exc
+            fallback = self._rpc_special_fallback(Model, method_name, args)
+            if fallback is not None:
+                return fallback
+            raise
         except Exception:
             fallback = self._rpc_special_fallback(Model, method_name, args)
             if fallback is not None:
@@ -1301,8 +1329,13 @@ class SafrsFastAPI:
         args = self._parse_rpc_args(request, payload)
         instance = Model.get_instance(object_id)
         method = getattr(instance, method_name)
-        with self._rpc_request_context(request):
-            result = method(**args)
+        try:
+            with self._rpc_request_context(request):
+                result = method(**args)
+        except TypeError as exc:
+            if self._is_invalid_rpc_args_error(exc):
+                raise ValidationError("Invalid RPC args") from exc
+            raise
         return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
 
     def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool):
