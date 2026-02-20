@@ -594,6 +594,9 @@ class SAFRSBase(Model):
             except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError):
                 safrs.DB.session.rollback()
                 raise ValidationError("Invalid attribute value")
+            except OverflowError:
+                safrs.DB.session.rollback()
+                raise ValidationError("Invalid attribute value")
             except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Keep true server/database failures as 500 responses.
                 safrs.DB.session.rollback()
@@ -618,7 +621,14 @@ class SAFRSBase(Model):
 
         tx.note_write(self.__class__)
         if _request_uow_active():
-            safrs.DB.session.flush()
+            try:
+                safrs.DB.session.flush()
+            except sqlalchemy.exc.IntegrityError:
+                safrs.DB.session.rollback()
+                raise ValidationError("Database constraint violation", HTTPStatus.CONFLICT.value)
+            except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError, OverflowError):
+                safrs.DB.session.rollback()
+                raise ValidationError("Invalid attribute value")
         # query ourself, this will also execute sqla hooks
         return self.get_instance(self.jsonapi_id)
 

@@ -22,6 +22,7 @@ from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 from . import tx
 from sqlalchemy.orm.interfaces import MANYTOONE
+import sqlalchemy
 from flask import current_app, Response
 import json
 import yaml  # type: ignore[import-untyped]
@@ -758,6 +759,24 @@ def http_method_decorator(fun: Callable) -> Callable:
             except JsonapiError as exc:
                 safrs.log.exception(exc)
                 safrs_exception = exc
+
+            except sqlalchemy.exc.IntegrityError:
+                safrs.DB.session.rollback()
+                errors = dict(
+                    title=HTTPStatus.CONFLICT.description,
+                    detail="Database constraint violation",
+                    code=str(HTTPStatus.CONFLICT.value),
+                )
+                abort(HTTPStatus.CONFLICT.value, errors=[errors])
+
+            except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError, OverflowError):
+                safrs.DB.session.rollback()
+                errors = dict(
+                    title=HTTPStatus.BAD_REQUEST.description,
+                    detail="Invalid attribute value",
+                    code=str(HTTPStatus.BAD_REQUEST.value),
+                )
+                abort(HTTPStatus.BAD_REQUEST.value, errors=[errors])
 
             except werkzeug.exceptions.HTTPException as exc:
                 status_code = cast(int, exc.code)
