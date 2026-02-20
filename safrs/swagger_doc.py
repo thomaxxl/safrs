@@ -331,6 +331,7 @@ def _column_swagger_type(column: Column) -> str:
 def _column_schema(column: Column) -> dict[str, Any]:
     schema: dict[str, Any] = {"type": _column_swagger_type(column)}
     python_type = _safe_column_python_type(column)
+    visit_name = str(getattr(column.type, "__visit_name__", "")).lower()
 
     if python_type is datetime.datetime:
         schema["type"] = "string"
@@ -340,6 +341,15 @@ def _column_schema(column: Column) -> dict[str, Any]:
         schema["format"] = "date"
     elif python_type is datetime.time:
         schema["type"] = "string"
+    elif schema["type"] == "integer" or python_type is int:
+        schema["type"] = "integer"
+        type_name = f"{visit_name} {type(column.type).__name__.lower()}"
+        if "big" in type_name:
+            schema["format"] = "int64"
+            schema["maximum"] = 9223372036854775807
+        else:
+            schema["format"] = "int32"
+            schema["maximum"] = 2147483647
 
     is_id_like = bool(column.primary_key or column.foreign_keys or column.name.endswith("_id"))
     if schema["type"] == "string" and is_id_like:
