@@ -22,7 +22,7 @@ import sqlalchemy.orm.collections
 from flask import jsonify, make_response as flask_make_response, url_for, request
 from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
-from sqlalchemy.orm.interfaces import MANYTOONE
+from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY
 from urllib.parse import urljoin
 from .swagger_doc import is_public
 from .errors import ValidationError, NotFoundError
@@ -586,6 +586,41 @@ class SAFRSRestRelationshipAPI(Resource):
             # two same objects, the object_id should be different (i.e. append "2")
             self.child_object_id += "2"
 
+    @staticmethod
+    def _disassociation_is_safe(relationship: Any) -> bool:
+        if relationship.direction == MANYTOMANY:
+            return True
+
+        cascade = getattr(relationship, "cascade", None)
+        if cascade is not None and getattr(cascade, "delete_orphan", False):
+            return True
+
+        fk_columns = list(getattr(relationship, "_calculated_foreign_keys", []) or [])
+        if not fk_columns:
+            for pair in getattr(relationship, "synchronize_pairs", []) or []:
+                if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                    continue
+                local_col, remote_col = pair
+                candidate = remote_col
+                if getattr(local_col, "foreign_keys", None):
+                    candidate = local_col
+                fk_columns.append(candidate)
+
+        for column in fk_columns:
+            if getattr(column, "primary_key", False):
+                return False
+            if getattr(column, "nullable", True) is False:
+                return False
+        return True
+
+    def _ensure_disassociation_allowed(self: Any, operation_hint: str) -> None:
+        if self._disassociation_is_safe(self.relationship):
+            return
+        raise ValidationError(
+            f"Relationship operation '{operation_hint}' is not allowed for {self.source_class.__name__}.{self.rel_name}",
+            HTTPStatus.CONFLICT.value,
+        )
+
     # Retrieve relationship data
     def get(self: Any, **kwargs: Any) -> Any:
         """
@@ -719,6 +754,11 @@ class SAFRSRestRelationshipAPI(Resource):
                 child = self._parse_target_data(child_data)
                 tmp_rel.append(child)
 
+            existing_children = list(relation)
+            needs_disassociation = any(child not in tmp_rel for child in existing_children)
+            if needs_disassociation:
+                self._ensure_disassociation_allowed("patch")
+
             if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
                 relation[:] = tmp_rel
             else:
@@ -729,6 +769,7 @@ class SAFRSRestRelationshipAPI(Resource):
             child = getattr(parent, self.SAFRSObject.relationship.key)
             if child:
                 pass
+            self._ensure_disassociation_allowed("patch")
             setattr(parent, self.rel_name, None)
         else:
             raise ValidationError(
@@ -870,6 +911,7 @@ class SAFRSRestRelationshipAPI(Resource):
             child = self.target.get_instance(child_id)
             if child == relation and getattr(parent, self.rel_name, None) == child:
                 # Delete the item from the many-to-one relationship
+                self._ensure_disassociation_allowed("delete")
                 delattr(parent, self.rel_name)
             else:
                 safrs.log.warning("child not in relation")
@@ -879,6 +921,7 @@ class SAFRSRestRelationshipAPI(Resource):
             children = data
             if not isinstance(data, list) or not children:
                 raise ValidationError("Invalid data payload")
+            self._ensure_disassociation_allowed("delete")
             for child in children:
                 child_id = child.get("id", None)
                 child_type = child.get("type", None)
