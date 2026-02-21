@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from safrs import SAFRSBase, jsonapi_attr, jsonapi_rpc
 from safrs.api_methods import search, startswith
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table, Text, Time, create_engine
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table, Text, Time, create_engine, inspect as sa_inspect
 from sqlalchemy.orm import DeclarativeBase, relationship, scoped_session, sessionmaker
 
 DESCRIPTION = """
@@ -207,6 +207,104 @@ def seed_data(session: Any, nr_instances: int = 50) -> None:
     session.commit()
 
 
+def _resource_exists(model_cls: Any, jsonapi_id: Any) -> bool:
+    try:
+        return model_cls.get_instance(str(jsonapi_id)) is not None
+    except Exception:
+        return False
+
+
+def _validate_relationship_identifier(identifier: Any, expected_type: str, target_model: Any, seed_key: str) -> None:
+    if not isinstance(identifier, dict):
+        raise RuntimeError(f"Seed relationship '{seed_key}' must contain resource identifier objects")
+    if set(identifier.keys()) != {"type", "id"}:
+        raise RuntimeError(f"Seed relationship '{seed_key}' resource identifiers must contain only 'type' and 'id'")
+
+    rel_type = str(identifier.get("type", ""))
+    rel_id = str(identifier.get("id", ""))
+    if not rel_type or not rel_id:
+        raise RuntimeError(f"Seed relationship '{seed_key}' resource identifiers must use non-empty 'type' and 'id'")
+    if rel_type != expected_type:
+        raise RuntimeError(f"Seed relationship '{seed_key}' type '{rel_type}' does not match expected '{expected_type}'")
+    if not _resource_exists(target_model, rel_id):
+        raise RuntimeError(f"Seed relationship '{seed_key}' references missing {expected_type} id '{rel_id}'")
+
+
+def _validate_seed_relationship_doc(rel_doc: Any, rel_property: Any, seed_key: str) -> None:
+    if not isinstance(rel_doc, dict) or set(rel_doc.keys()) != {"data"}:
+        raise RuntimeError(f"Seed relationship '{seed_key}' must be a JSON:API linkage object with only 'data'")
+
+    if getattr(rel_property, "expose", True) is False:
+        raise RuntimeError(f"Seed relationship '{seed_key}' targets a hidden relationship")
+
+    target_model = rel_property.mapper.class_
+    expected_type = str(getattr(target_model, "_s_type", target_model.__name__))
+    data = rel_doc.get("data")
+
+    if bool(rel_property.uselist):
+        if not isinstance(data, list) or not data:
+            raise RuntimeError(f"Seed relationship '{seed_key}' must use non-empty list data for to-many relationship")
+        for identifier in data:
+            _validate_relationship_identifier(identifier, expected_type, target_model, seed_key)
+        return
+
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Seed relationship '{seed_key}' must use object data for to-one relationship")
+    _validate_relationship_identifier(data, expected_type, target_model, seed_key)
+
+
+def _validate_seed_payload(payload: dict[str, Any]) -> None:
+    required_ids = {
+        "PersonId": Person,
+        "FriendId": Person,
+        "BookId": Book,
+        "PublisherId": Publisher,
+        "ReviewId": Review,
+    }
+    for key, model_cls in required_ids.items():
+        value = payload.get(key)
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"Seed payload is missing required non-empty '{key}'")
+        if not _resource_exists(model_cls, value):
+            raise RuntimeError(f"Seed payload '{key}' references missing {model_cls.__name__} row '{value}'")
+
+    if payload["PersonId"] == payload["FriendId"]:
+        raise RuntimeError("Seed payload must use distinct values for PersonId and FriendId")
+
+    relationships = payload.get("relationships")
+    if not isinstance(relationships, dict) or not relationships:
+        raise RuntimeError("Seed payload must include a non-empty 'relationships' object")
+
+    required_relationship_keys = {
+        "People.friends",
+        "People.books_read",
+        "People.books_written",
+        "People.reviews",
+        "Books.author",
+        "Books.reader",
+        "Books.publisher",
+        "Books.reviews",
+        "Publishers.books",
+    }
+    missing_keys = sorted(required_relationship_keys - set(relationships.keys()))
+    if missing_keys:
+        raise RuntimeError(f"Seed payload missing required relationship entries: {missing_keys}")
+
+    collection_model_map = {str(getattr(model_cls, "__tablename__", "")): model_cls for model_cls in EXPOSED_MODELS}
+    for seed_key, rel_doc in relationships.items():
+        if not isinstance(seed_key, str) or "." not in seed_key:
+            raise RuntimeError(f"Invalid seed relationship key '{seed_key}'")
+        collection, rel_name = seed_key.split(".", 1)
+        source_model = collection_model_map.get(collection)
+        if source_model is None:
+            raise RuntimeError(f"Seed relationship '{seed_key}' uses unknown source collection '{collection}'")
+        mapper = sa_inspect(source_model)
+        if rel_name not in mapper.relationships:
+            raise RuntimeError(f"Seed relationship '{seed_key}' uses unknown relationship '{rel_name}'")
+        rel_property = mapper.relationships[rel_name]
+        _validate_seed_relationship_doc(rel_doc, rel_property, seed_key)
+
+
 def build_seed_payload(session: Any) -> dict[str, Any]:
     person = session.query(Person).order_by(Person.id).first()
     friend = None
@@ -280,4 +378,5 @@ def build_seed_payload(session: Any) -> dict[str, Any]:
     if book is not None and publisher is not None:
         payload["relationships"]["Publishers.books"] = {"data": [{"type": "Book", "id": str(book.id)}]}
 
+    _validate_seed_payload(payload)
     return payload
