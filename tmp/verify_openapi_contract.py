@@ -308,10 +308,28 @@ def _relationship_data_schema(body_schema: dict[str, Any]) -> Optional[dict[str,
     data_schema = properties.get("data")
     if not isinstance(data_schema, dict):
         return None
-    data_type = str(data_schema.get("type", ""))
-    if data_type not in ("array", "object"):
-        return None
-    return data_schema
+
+    data_type = data_schema.get("type")
+    if isinstance(data_type, str) and data_type in ("array", "object"):
+        return data_schema
+    if "$ref" in data_schema:
+        return data_schema
+
+    for union_key in ("anyOf", "oneOf"):
+        union_variants = data_schema.get(union_key)
+        if not isinstance(union_variants, list):
+            continue
+        for variant in union_variants:
+            if not isinstance(variant, dict):
+                continue
+            if variant.get("type") == "null":
+                continue
+            variant_type = variant.get("type")
+            if isinstance(variant_type, str) and variant_type in ("array", "object"):
+                return variant
+            if "$ref" in variant:
+                return variant
+    return None
 
 
 def _relationship_type_enum(data_schema: dict[str, Any]) -> list[str]:
