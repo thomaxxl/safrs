@@ -671,6 +671,14 @@ def main() -> int:
 
     env = dict(os.environ)
     env.setdefault("PYTHONUNBUFFERED", "1")
+    app_stem = app_path.stem.lower()
+    if "flask" in app_stem:
+        framework = "flask"
+    elif "fastapi" in app_stem:
+        framework = "fastapi"
+    else:
+        framework = "app"
+    env.setdefault("SAFRS_TMP_DB", f"tmp_{framework}_{port}.db")
 
     cmd = [sys.executable, str(app_path), host, str(port)]
     print("[+] Starting app:")
