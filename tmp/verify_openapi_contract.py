@@ -244,6 +244,61 @@ def _operation_body_schema(operation: dict[str, Any], spec_major: int) -> Option
     return _swagger2_body_schema(operation)
 
 
+def _resolve_ref(spec: dict[str, Any], ref: str) -> Optional[dict[str, Any]]:
+    if not isinstance(ref, str):
+        return None
+
+    if ref.startswith("#/components/schemas/"):
+        name = ref.split("/", 3)[-1]
+        components = spec.get("components", {})
+        if isinstance(components, dict):
+            schemas = components.get("schemas", {})
+            if isinstance(schemas, dict):
+                target = schemas.get(name)
+                if isinstance(target, dict):
+                    return target
+
+    if ref.startswith("#/definitions/"):
+        name = ref.split("/", 2)[-1]
+        definitions = spec.get("definitions", {})
+        if isinstance(definitions, dict):
+            target = definitions.get(name)
+            if isinstance(target, dict):
+                return target
+
+    return None
+
+
+def _deref_schema(
+    spec: dict[str, Any],
+    schema: dict[str, Any],
+    *,
+    path: str,
+    method: str,
+    strict: bool = False,
+) -> dict[str, Any]:
+    seen: set[str] = set()
+    current = schema
+    while isinstance(current, dict) and "$ref" in current:
+        ref = current.get("$ref")
+        if not isinstance(ref, str) or not ref:
+            if strict:
+                raise RuntimeError(f"Invalid schema reference in {method.upper()} {path}: {ref!r}")
+            return current
+        if ref in seen:
+            if strict:
+                raise RuntimeError(f"Cyclic schema reference {ref!r} in {method.upper()} {path}")
+            return current
+        seen.add(ref)
+        resolved = _resolve_ref(spec, ref)
+        if not isinstance(resolved, dict):
+            if strict:
+                raise RuntimeError(f"Unresolvable schema reference {ref!r} in {method.upper()} {path}")
+            return current
+        current = resolved
+    return current
+
+
 def _relationship_data_schema(body_schema: dict[str, Any]) -> Optional[dict[str, Any]]:
     if str(body_schema.get("type", "object")) != "object":
         return None
@@ -499,6 +554,7 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
         for method, operation in operations.items():
             if not isinstance(operation, dict):
                 continue
+            method_lc = str(method).lower()
             parameters = operation.get("parameters")
             if not isinstance(parameters, list):
                 parameters = []
@@ -525,10 +581,17 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
                     parameter.setdefault("default", value)
 
             body_schema = _operation_body_schema(operation, major)
+            resolved_body_schema: Optional[dict[str, Any]] = None
             if isinstance(body_schema, dict):
-                _patch_schema_with_seed(body_schema, seed)
+                resolved_body_schema = _deref_schema(
+                    patched,
+                    body_schema,
+                    path=path,
+                    method=method_lc,
+                    strict=False,
+                )
+                _patch_schema_with_seed(resolved_body_schema, seed)
 
-            method_lc = str(method).lower()
             if method_lc not in {"post", "patch", "delete"}:
                 continue
             if relationship_info is None:
@@ -579,7 +642,14 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
 
             if not isinstance(body_schema, dict):
                 raise RuntimeError(f"Missing request body schema for relationship operation {method_lc.upper()} {path}")
-            data_schema = _relationship_data_schema(body_schema)
+            resolved_relationship_body = _deref_schema(
+                patched,
+                body_schema,
+                path=path,
+                method=method_lc,
+                strict=True,
+            )
+            data_schema = _relationship_data_schema(resolved_relationship_body)
             if not isinstance(data_schema, dict):
                 raise RuntimeError(
                     f"Invalid relationship schema for {method_lc.upper()} {path}: expected JSON:API relationship document"

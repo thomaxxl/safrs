@@ -19,6 +19,8 @@ from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPExc
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
+from pydantic import BaseModel
+from pydantic.json_schema import models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 
@@ -176,8 +178,10 @@ class SafrsFastAPI:
             document_relationships=self.document_relationships,
             max_union_included_types=self.max_union_included_types,
         )
+        self._openapi_payload_models: Set[Type[BaseModel]] = set()
         self.default_dependencies = [FastAPIDepends(self._safrs_uow_dependency)] + self._normalize_dependencies(dependencies)
         install_jsonapi_exception_handlers(app)
+        self._install_openapi_schema_patch()
         self._install_swagger_alias()
 
     @staticmethod
@@ -199,6 +203,58 @@ class SafrsFastAPI:
         @self.app.get("/swagger.json", include_in_schema=False)
         def swagger_json() -> Dict[str, Any]:
             return self.app.openapi()
+
+    def _install_openapi_schema_patch(self) -> None:
+        if bool(getattr(self.app, "_safrs_openapi_patch_installed", False)):
+            return
+
+        original_openapi = self.app.openapi
+
+        def patched_openapi() -> Dict[str, Any]:
+            schema = original_openapi()
+            components = schema.setdefault("components", {})
+            if not isinstance(components, dict):
+                return schema
+            schemas = components.setdefault("schemas", {})
+            if not isinstance(schemas, dict):
+                return schema
+
+            missing_models: List[Type[BaseModel]] = []
+            for model in self._openapi_payload_models:
+                model_name = str(getattr(model, "__name__", ""))
+                if not model_name:
+                    continue
+                if model_name in schemas:
+                    continue
+                missing_models.append(model)
+
+            if not missing_models:
+                return schema
+
+            try:
+                _, json_schema = models_json_schema(
+                    [(model, "validation") for model in missing_models],
+                    ref_template="#/components/schemas/{model}",
+                )
+            except Exception as exc:
+                safrs.log.debug("Failed to generate payload component schemas: %s", exc)
+                return schema
+
+            definitions = json_schema.get("$defs", {})
+            if not isinstance(definitions, dict):
+                return schema
+
+            for name, definition in definitions.items():
+                if name in schemas:
+                    continue
+                if isinstance(definition, dict):
+                    schemas[name] = definition
+
+            self.app.openapi_schema = schema
+            return schema
+
+        self.app.openapi = patched_openapi
+        setattr(self.app, "_safrs_openapi_patch_installed", True)
 
     @staticmethod
     def _with_slash_parity(path: str) -> List[str]:
@@ -919,6 +975,8 @@ class SafrsFastAPI:
         required: bool = True,
         example: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        if isinstance(payload_model, type) and issubclass(payload_model, BaseModel):
+            self._openapi_payload_models.add(payload_model)
         media_spec: Dict[str, Any] = {
             "schema": self._schema_ref(payload_model),
         }
