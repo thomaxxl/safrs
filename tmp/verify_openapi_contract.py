@@ -174,6 +174,63 @@ def _seed_key_for_collection(collection: str) -> Optional[str]:
     return _COLLECTION_TO_SEED_ID_KEY.get(str(collection))
 
 
+def _collections_requiring_object_id_seed(paths: dict[str, Any]) -> set[str]:
+    collections: set[str] = set()
+    for path, operations in paths.items():
+        if not isinstance(operations, dict):
+            continue
+        collection = _collection_from_path(path)
+        if not collection:
+            continue
+        for operation in operations.values():
+            if not isinstance(operation, dict):
+                continue
+            parameters = operation.get("parameters")
+            if not isinstance(parameters, list):
+                continue
+            for parameter in parameters:
+                if not isinstance(parameter, dict):
+                    continue
+                if str(parameter.get("in")) != "path":
+                    continue
+                if str(parameter.get("name", "")) != "object_id":
+                    continue
+                collections.add(collection)
+                break
+    return collections
+
+
+def _validate_object_id_seed_coverage(paths: dict[str, Any], seed: dict[str, Any]) -> None:
+    required_collections = sorted(_collections_requiring_object_id_seed(paths))
+    if not required_collections:
+        return
+
+    unknown_collections: list[str] = []
+    missing_seed_keys: list[tuple[str, str]] = []
+    for collection in required_collections:
+        seed_key = _seed_key_for_collection(collection)
+        if not seed_key:
+            unknown_collections.append(collection)
+            continue
+        if seed_key not in seed:
+            missing_seed_keys.append((collection, seed_key))
+
+    if unknown_collections:
+        raise RuntimeError(
+            "Spec contains collections not present in seed mapping required for object_id patching: %s. "
+            "You probably used the wrong spec. Did you mean fastapi.openapi.json?"
+            % (", ".join(unknown_collections),)
+        )
+
+    if missing_seed_keys:
+        detail = ", ".join(f"{collection}->{seed_key}" for collection, seed_key in missing_seed_keys)
+        raise RuntimeError(
+            "Seed payload missing ids required for object_id patching: %s. "
+            "Ensure /seed includes these identifiers."
+            % detail
+        )
+
+
 def _spec_major(spec: dict[str, Any]) -> int:
     if "openapi" in spec:
         return 3
@@ -562,6 +619,8 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
     paths = patched.get("paths")
     if not isinstance(paths, dict):
         return patched
+
+    _validate_object_id_seed_coverage(paths, seed)
 
     relationships_map = seed.get("relationships")
     for path, operations in paths.items():
