@@ -253,6 +253,65 @@ def _validate_seed_relationship_doc(rel_doc: Any, rel_property: Any, seed_key: s
     _validate_relationship_identifier(data, expected_type, target_model, seed_key)
 
 
+def _instance_jsonapi_id(instance: Any) -> str:
+    if isinstance(instance, Review):
+        return f"{instance.book_id}_{instance.reader_id}"
+    value = getattr(instance, "jsonapi_id", None)
+    if value in (None, ""):
+        value = getattr(instance, "id", None)
+    return str(value)
+
+
+def _instance_identifier(instance: Any) -> dict[str, str]:
+    return {"type": str(getattr(instance, "_s_type", type(instance).__name__)), "id": _instance_jsonapi_id(instance)}
+
+
+def _relationship_items(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if hasattr(value, "all") and callable(value.all):
+        return list(value.all())
+    if isinstance(value, list):
+        return list(value)
+    try:
+        return list(value)
+    except Exception:
+        return []
+
+
+def _first_sorted_related(value: Any) -> Any:
+    items = _relationship_items(value)
+    if not items:
+        return None
+    return sorted(items, key=lambda item: _instance_jsonapi_id(item))[0]
+
+
+def _relationship_linkage_matches_parent(parent: Any, rel_name: str, rel_doc: Any, rel_property: Any, seed_key: str) -> None:
+    data = rel_doc.get("data")
+    if bool(rel_property.uselist):
+        parent_pairs = {
+            (str(getattr(item, "_s_type", type(item).__name__)), _instance_jsonapi_id(item))
+            for item in _relationship_items(getattr(parent, rel_name))
+        }
+        for identifier in data:
+            pair = (str(identifier.get("type")), str(identifier.get("id")))
+            if pair not in parent_pairs:
+                raise RuntimeError(
+                    f"Seed relationship '{seed_key}' linkage {pair} is not present on parent {_instance_jsonapi_id(parent)}"
+                )
+        return
+
+    parent_item = getattr(parent, rel_name)
+    if parent_item is None:
+        raise RuntimeError(f"Seed relationship '{seed_key}' expects a to-one target on parent {_instance_jsonapi_id(parent)}")
+    parent_pair = (str(getattr(parent_item, "_s_type", type(parent_item).__name__)), _instance_jsonapi_id(parent_item))
+    seed_pair = (str(data.get("type")), str(data.get("id")))
+    if seed_pair != parent_pair:
+        raise RuntimeError(
+            f"Seed relationship '{seed_key}' linkage {seed_pair} does not match parent linkage {parent_pair}"
+        )
+
+
 def _validate_seed_payload(payload: dict[str, Any]) -> None:
     required_ids = {
         "PersonId": Person,
@@ -275,6 +334,10 @@ def _validate_seed_payload(payload: dict[str, Any]) -> None:
     if not isinstance(relationships, dict) or not relationships:
         raise RuntimeError("Seed payload must include a non-empty 'relationships' object")
 
+    relationship_path_params = payload.get("relationship_path_params")
+    if not isinstance(relationship_path_params, dict) or not relationship_path_params:
+        raise RuntimeError("Seed payload must include a non-empty 'relationship_path_params' object")
+
     required_relationship_keys = {
         "People.friends",
         "People.books_read",
@@ -289,8 +352,12 @@ def _validate_seed_payload(payload: dict[str, Any]) -> None:
     missing_keys = sorted(required_relationship_keys - set(relationships.keys()))
     if missing_keys:
         raise RuntimeError(f"Seed payload missing required relationship entries: {missing_keys}")
+    missing_param_keys = sorted(required_relationship_keys - set(relationship_path_params.keys()))
+    if missing_param_keys:
+        raise RuntimeError(f"Seed payload missing required relationship path params: {missing_param_keys}")
 
     collection_model_map = {str(getattr(model_cls, "__tablename__", "")): model_cls for model_cls in EXPOSED_MODELS}
+    path_param_key_map = {"People": "PersonId", "Books": "BookId", "Publishers": "PublisherId"}
     for seed_key, rel_doc in relationships.items():
         if not isinstance(seed_key, str) or "." not in seed_key:
             raise RuntimeError(f"Invalid seed relationship key '{seed_key}'")
@@ -304,79 +371,92 @@ def _validate_seed_payload(payload: dict[str, Any]) -> None:
         rel_property = mapper.relationships[rel_name]
         _validate_seed_relationship_doc(rel_doc, rel_property, seed_key)
 
+        expected_path_key = path_param_key_map.get(collection)
+        if not expected_path_key:
+            raise RuntimeError(f"Seed relationship '{seed_key}' has unsupported source collection '{collection}'")
+        path_params = relationship_path_params.get(seed_key)
+        if not isinstance(path_params, dict) or set(path_params.keys()) != {expected_path_key}:
+            raise RuntimeError(
+                f"Seed relationship '{seed_key}' must define exactly '{expected_path_key}' in relationship_path_params"
+            )
+        parent_id = path_params.get(expected_path_key)
+        if not isinstance(parent_id, str) or not parent_id:
+            raise RuntimeError(f"Seed relationship '{seed_key}' must use a non-empty '{expected_path_key}' path value")
+        parent = source_model.get_instance(parent_id)
+        if parent is None:
+            raise RuntimeError(
+                f"Seed relationship '{seed_key}' relationship_path_params references missing {source_model.__name__} id '{parent_id}'"
+            )
+        _relationship_linkage_matches_parent(parent, rel_name, rel_doc, rel_property, seed_key)
+
 
 def build_seed_payload(session: Any) -> dict[str, Any]:
-    person = session.query(Person).order_by(Person.id).first()
-    friend = None
-    if person is not None:
-        friend = session.query(Person).filter(Person.id != person.id).order_by(Person.id).first()
-    book = session.query(Book).order_by(Book.id).first()
-    publisher = session.query(Publisher).order_by(Publisher.id).first()
-    review = session.query(Review).order_by(Review.book_id, Review.reader_id).first()
+    people = session.query(Person).order_by(Person.id).all()
+    books = session.query(Book).order_by(Book.id).all()
+    publishers = session.query(Publisher).order_by(Publisher.id).all()
 
-    def _review_jsonapi_id(item: Any) -> str:
-        return f"{item.book_id}_{item.reader_id}"
+    def _select(items: list[Any], predicate: Any, label: str) -> Any:
+        for item in items:
+            if predicate(item):
+                return item
+        raise RuntimeError(f"Unable to build seed payload: no parent row found for {label}")
 
-    payload: dict[str, Any] = {"relationships": {}}
-    if person is not None:
-        payload["PersonId"] = str(person.id)
-    if friend is not None:
-        payload["FriendId"] = str(friend.id)
-    if book is not None:
-        payload["BookId"] = str(book.id)
-    if publisher is not None:
-        payload["PublisherId"] = str(publisher.id)
-    if review is not None:
-        payload["ReviewId"] = _review_jsonapi_id(review)
+    def _single_identifier(value: Any, label: str) -> dict[str, str]:
+        item = _first_sorted_related(value)
+        if item is None:
+            raise RuntimeError(f"Unable to build seed payload: relationship '{label}' has no linkage values")
+        return _instance_identifier(item)
 
-    if friend is not None:
-        payload["relationships"]["People.friends"] = {"data": [{"type": "Person", "id": str(friend.id)}]}
+    relationships: dict[str, Any] = {}
+    relationship_path_params: dict[str, dict[str, str]] = {}
 
-    if book is not None:
-        payload["relationships"]["People.books_read"] = {"data": [{"type": "Book", "id": str(book.id)}]}
+    person_friends = _select(people, lambda item: bool(_relationship_items(item.friends)), "People.friends")
+    relationships["People.friends"] = {"data": [_single_identifier(person_friends.friends, "People.friends")]}
+    relationship_path_params["People.friends"] = {"PersonId": _instance_jsonapi_id(person_friends)}
 
-    if person is not None:
-        authored_book = session.query(Book).filter(Book.author_id == person.id).order_by(Book.id).first()
-        if authored_book is not None:
-            payload["relationships"]["People.books_written"] = {"data": [{"type": "Book", "id": str(authored_book.id)}]}
-        elif book is not None:
-            # Fallback to a real object id so relationship write endpoints still get
-            # meaningful linkage values in verifier patching.
-            payload["relationships"]["People.books_written"] = {"data": [{"type": "Book", "id": str(book.id)}]}
+    person_books_read = _select(people, lambda item: bool(_relationship_items(item.books_read)), "People.books_read")
+    relationships["People.books_read"] = {"data": [_single_identifier(person_books_read.books_read, "People.books_read")]}
+    relationship_path_params["People.books_read"] = {"PersonId": _instance_jsonapi_id(person_books_read)}
 
-        person_review = session.query(Review).filter(Review.reader_id == person.id).order_by(Review.book_id, Review.reader_id).first()
-        if person_review is not None:
-            payload["relationships"]["People.reviews"] = {"data": [{"type": "Review", "id": _review_jsonapi_id(person_review)}]}
-        elif review is not None:
-            payload["relationships"]["People.reviews"] = {"data": [{"type": "Review", "id": _review_jsonapi_id(review)}]}
+    person_books_written = _select(people, lambda item: bool(_relationship_items(item.books_written)), "People.books_written")
+    relationships["People.books_written"] = {
+        "data": [_single_identifier(person_books_written.books_written, "People.books_written")]
+    }
+    relationship_path_params["People.books_written"] = {"PersonId": _instance_jsonapi_id(person_books_written)}
 
-    if book is not None:
-        reviews_for_book = session.query(Review).filter(Review.book_id == book.id).order_by(Review.book_id, Review.reader_id).all()
-        if reviews_for_book:
-            payload["relationships"]["Books.reviews"] = {
-                "data": [{"type": "Review", "id": _review_jsonapi_id(item)} for item in reviews_for_book]
-            }
-        elif review is not None:
-            payload["relationships"]["Books.reviews"] = {"data": [{"type": "Review", "id": _review_jsonapi_id(review)}]}
+    person_reviews = _select(people, lambda item: bool(_relationship_items(item.reviews)), "People.reviews")
+    relationships["People.reviews"] = {"data": [_single_identifier(person_reviews.reviews, "People.reviews")]}
+    relationship_path_params["People.reviews"] = {"PersonId": _instance_jsonapi_id(person_reviews)}
 
-    author_id = None
-    reader_id = None
-    if book is not None:
-        author_id = book.author_id
-        reader_id = book.reader_id
-    if author_id is None and friend is not None:
-        author_id = friend.id
-    if reader_id is None and person is not None:
-        reader_id = person.id
-    if author_id is not None:
-        payload["relationships"]["Books.author"] = {"data": {"type": "Person", "id": str(author_id)}}
-    if reader_id is not None:
-        payload["relationships"]["Books.reader"] = {"data": {"type": "Person", "id": str(reader_id)}}
-    if publisher is not None:
-        payload["relationships"]["Books.publisher"] = {"data": {"type": "Publisher", "id": str(publisher.id)}}
+    book_author = _select(books, lambda item: getattr(item, "author", None) is not None, "Books.author")
+    relationships["Books.author"] = {"data": _instance_identifier(book_author.author)}
+    relationship_path_params["Books.author"] = {"BookId": _instance_jsonapi_id(book_author)}
 
-    if book is not None and publisher is not None:
-        payload["relationships"]["Publishers.books"] = {"data": [{"type": "Book", "id": str(book.id)}]}
+    book_reader = _select(books, lambda item: getattr(item, "reader", None) is not None, "Books.reader")
+    relationships["Books.reader"] = {"data": _instance_identifier(book_reader.reader)}
+    relationship_path_params["Books.reader"] = {"BookId": _instance_jsonapi_id(book_reader)}
+
+    book_publisher = _select(books, lambda item: getattr(item, "publisher", None) is not None, "Books.publisher")
+    relationships["Books.publisher"] = {"data": _instance_identifier(book_publisher.publisher)}
+    relationship_path_params["Books.publisher"] = {"BookId": _instance_jsonapi_id(book_publisher)}
+
+    book_reviews = _select(books, lambda item: bool(_relationship_items(item.reviews)), "Books.reviews")
+    relationships["Books.reviews"] = {"data": [_single_identifier(book_reviews.reviews, "Books.reviews")]}
+    relationship_path_params["Books.reviews"] = {"BookId": _instance_jsonapi_id(book_reviews)}
+
+    publisher_books = _select(publishers, lambda item: bool(_relationship_items(item.books)), "Publishers.books")
+    relationships["Publishers.books"] = {"data": [_single_identifier(publisher_books.books, "Publishers.books")]}
+    relationship_path_params["Publishers.books"] = {"PublisherId": _instance_jsonapi_id(publisher_books)}
+
+    payload: dict[str, Any] = {
+        "PersonId": _instance_jsonapi_id(person_friends),
+        "FriendId": relationships["People.friends"]["data"][0]["id"],
+        "BookId": _instance_jsonapi_id(book_reviews),
+        "PublisherId": _instance_jsonapi_id(publisher_books),
+        "ReviewId": relationships["Books.reviews"]["data"][0]["id"],
+        "relationship_path_params": relationship_path_params,
+        "relationships": relationships,
+    }
 
     _validate_seed_payload(payload)
     return payload
