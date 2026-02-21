@@ -52,6 +52,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any, Optional
 
+_COLLECTION_TO_SEED_ID_KEY: dict[str, str] = {
+    "People": "PersonId",
+    "Books": "BookId",
+    "Publishers": "PublisherId",
+    "Reviews": "ReviewId",
+}
+
 
 def _find_free_port(host: str) -> int:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -151,6 +158,20 @@ def _coerce_seed_values(values: list[Any], schema_type: str) -> list[Any]:
 def _seed_key_for_field(field_name: str) -> str:
     parts = [part for part in str(field_name).split("_") if part]
     return "".join(part[:1].upper() + part[1:] for part in parts)
+
+
+def _collection_from_path(path: str) -> Optional[str]:
+    """Extract the top-level collection segment from a spec path."""
+    segments = [segment for segment in str(path).split("/") if segment]
+    if segments and segments[0] == "api":
+        segments = segments[1:]
+    if not segments:
+        return None
+    return str(segments[0])
+
+
+def _seed_key_for_collection(collection: str) -> Optional[str]:
+    return _COLLECTION_TO_SEED_ID_KEY.get(str(collection))
 
 
 def _spec_major(spec: dict[str, Any]) -> int:
@@ -431,6 +452,37 @@ def _relationship_path_params_for_seed_key(seed: dict[str, Any], seed_key: str, 
     return params
 
 
+def _translate_relationship_parent_param(
+    parent_collection: str,
+    parent_id_param: str,
+    seed_key: str,
+    path: str,
+    method: str,
+    relationship_path_params: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate canonical seed path params to operation-specific path param names."""
+    if parent_id_param in relationship_path_params:
+        return relationship_path_params
+
+    if parent_id_param != "object_id":
+        return relationship_path_params
+
+    canonical_key = _seed_key_for_collection(parent_collection)
+    if not canonical_key:
+        raise RuntimeError(
+            "Unsupported collection %r for relationship path translation (%s %s)"
+            % (parent_collection, method.upper(), path)
+        )
+
+    if canonical_key not in relationship_path_params:
+        raise RuntimeError(
+            "Seed relationship_path_params for %s missing canonical key %r required to fill %r (%s %s)"
+            % (seed_key, canonical_key, parent_id_param, method.upper(), path)
+        )
+
+    return {"object_id": relationship_path_params[canonical_key]}
+
+
 def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[str, Any]:
     patched = json.loads(json.dumps(spec))
     major = _spec_major(patched)
@@ -442,6 +494,7 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
     for path, operations in paths.items():
         if not isinstance(operations, dict):
             continue
+        collection = _collection_from_path(path)
         relationship_info = _is_relationship_path(path)
         for method, operation in operations.items():
             if not isinstance(operation, dict):
@@ -457,6 +510,17 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
                 name = str(parameter.get("name", ""))
                 if name in seed:
                     value = seed[name]
+                    parameter["enum"] = [value]
+                    parameter.setdefault("default", value)
+                    continue
+                if name == "object_id":
+                    seed_id_key = _seed_key_for_collection(collection or "")
+                    if not seed_id_key or seed_id_key not in seed:
+                        raise RuntimeError(
+                            "Missing seed id for object_id patching: collection=%r seed_key=%r (path %s)"
+                            % (collection, seed_id_key, path)
+                        )
+                    value = seed[seed_id_key]
                     parameter["enum"] = [value]
                     parameter.setdefault("default", value)
 
@@ -480,6 +544,14 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
                 continue
 
             relationship_path_params = _relationship_path_params_for_seed_key(seed, seed_key, path, method_lc)
+            relationship_path_params = _translate_relationship_parent_param(
+                parent_collection,
+                parent_id_param,
+                seed_key,
+                path,
+                method_lc,
+                relationship_path_params,
+            )
             if parent_id_param not in relationship_path_params:
                 raise RuntimeError(
                     f"Missing relationship path parameter '{parent_id_param}' for {seed_key} "
