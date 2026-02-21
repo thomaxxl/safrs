@@ -995,11 +995,15 @@ class SafrsFastAPI:
     def _jsonapi_status_responses(status_codes: Iterable[int]) -> Dict[Union[int, str], Dict[str, Any]]:
         responses: Dict[Union[int, str], Dict[str, Any]] = {}
         for status_code in status_codes:
+            status_code_int = int(status_code)
             try:
-                description = HTTPStatus(int(status_code)).phrase
+                description = HTTPStatus(status_code_int).phrase
             except ValueError:
                 description = "Response"
-            responses[int(status_code)] = {
+            if status_code_int == int(HTTPStatus.NO_CONTENT):
+                responses[status_code_int] = {"description": description}
+                continue
+            responses[status_code_int] = {
                 "description": description,
                 "content": {
                     JSONAPI_MEDIA_TYPE: {
@@ -1294,7 +1298,7 @@ class SafrsFastAPI:
             safrs.log.debug(f"Unable to import SAFRSJSONEncoder for rpc context: {exc}")
         return flask_app.test_request_context(
             path=request.url.path,
-            query_string=request.url.query.encode(),
+            query_string=request.url.query,
         )
 
     def _encode_rpc_value(self, value: Any) -> Any:
@@ -1617,7 +1621,11 @@ class SafrsFastAPI:
 
     def _remove_relationship_item(self, rel_value: Any, item: Any) -> None:
         if hasattr(rel_value, "remove"):
-            rel_value.remove(item)
+            try:
+                rel_value.remove(item)
+            except ValueError:
+                # DELETE relationship operations are idempotent; removing a non-member is a no-op.
+                return
             return
         self._jsonapi_error(400, "ValidationError", "Relationship is not removable")
 
@@ -1683,8 +1691,16 @@ class SafrsFastAPI:
                 attrs[attr_name] = None
 
         for key, value in list(attrs.items()):
-            if isinstance(value, (dt.datetime, dt.date, dt.time)):
-                attrs[key] = str(value)
+            if isinstance(value, dt.datetime):
+                if value.tzinfo is None:
+                    value = value.replace(tzinfo=dt.timezone.utc)
+                attrs[key] = value.isoformat()
+            elif isinstance(value, dt.date):
+                attrs[key] = value.isoformat()
+            elif isinstance(value, dt.time):
+                if value.tzinfo is None:
+                    value = value.replace(tzinfo=dt.timezone.utc)
+                attrs[key] = value.isoformat()
 
         return {
             "type": str(Model._s_type),
