@@ -28,10 +28,16 @@ import json
 import yaml  # type: ignore[import-untyped]
 from flask.app import Flask
 from typing import Any, Callable, Optional, Type, cast
+from sqlalchemy.orm.exc import FlushError
 
 HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE", "PUT"]
 DEFAULT_REPRESENTATIONS = [("application/vnd.api+json", output_json)]
 WRITE_HTTP_METHODS = {"POST", "PATCH", "DELETE", "PUT"}
+
+
+def _is_relationship_pk_disassociation_assertion(exc: AssertionError) -> bool:
+    message = str(exc).lower()
+    return "blank-out primary key" in message or ("dependency rule" in message and "primary key" in message)
 
 
 class SAFRSAPI(FRSApiBase):
@@ -777,6 +783,26 @@ def http_method_decorator(fun: Callable) -> Callable:
                     code=str(HTTPStatus.BAD_REQUEST.value),
                 )
                 abort(HTTPStatus.BAD_REQUEST.value, errors=[errors])
+
+            except (FlushError, sqlalchemy.exc.InvalidRequestError):
+                safrs.DB.session.rollback()
+                errors = dict(
+                    title=HTTPStatus.CONFLICT.description,
+                    detail="Relationship update violates DB constraints",
+                    code=str(HTTPStatus.CONFLICT.value),
+                )
+                abort(HTTPStatus.CONFLICT.value, errors=[errors])
+
+            except AssertionError as exc:
+                if not _is_relationship_pk_disassociation_assertion(exc):
+                    raise
+                safrs.DB.session.rollback()
+                errors = dict(
+                    title=HTTPStatus.CONFLICT.description,
+                    detail="Relationship update violates DB constraints",
+                    code=str(HTTPStatus.CONFLICT.value),
+                )
+                abort(HTTPStatus.CONFLICT.value, errors=[errors])
 
             except werkzeug.exceptions.HTTPException as exc:
                 status_code = cast(int, exc.code)

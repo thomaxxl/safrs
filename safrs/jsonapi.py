@@ -596,15 +596,35 @@ class SAFRSRestRelationshipAPI(Resource):
             return True
 
         fk_columns = list(getattr(relationship, "_calculated_foreign_keys", []) or [])
+        relationship_mapper = getattr(relationship, "mapper", None)
+        target_tables = set(getattr(relationship_mapper, "tables", []) or [])
+
+        def _belongs_to_target(column: Any) -> bool:
+            return bool(target_tables and getattr(column, "table", None) in target_tables)
+
         if not fk_columns:
-            for pair in getattr(relationship, "synchronize_pairs", []) or []:
+            pair_sources = []
+            pair_sources.extend(list(getattr(relationship, "synchronize_pairs", []) or []))
+            pair_sources.extend(list(getattr(relationship, "local_remote_pairs", []) or []))
+            for pair in pair_sources:
                 if not isinstance(pair, (list, tuple)) or len(pair) != 2:
                     continue
                 local_col, remote_col = pair
-                candidate = remote_col
-                if getattr(local_col, "foreign_keys", None):
+                candidate = None
+                if _belongs_to_target(local_col) and getattr(local_col, "foreign_keys", None):
                     candidate = local_col
-                fk_columns.append(candidate)
+                elif _belongs_to_target(remote_col) and getattr(remote_col, "foreign_keys", None):
+                    candidate = remote_col
+                elif _belongs_to_target(local_col) and not _belongs_to_target(remote_col):
+                    candidate = local_col
+                elif _belongs_to_target(remote_col) and not _belongs_to_target(local_col):
+                    candidate = remote_col
+                elif getattr(local_col, "foreign_keys", None):
+                    candidate = local_col
+                elif getattr(remote_col, "foreign_keys", None):
+                    candidate = remote_col
+                if candidate is not None:
+                    fk_columns.append(candidate)
 
         for column in fk_columns:
             if getattr(column, "primary_key", False):
@@ -617,7 +637,8 @@ class SAFRSRestRelationshipAPI(Resource):
         if self._disassociation_is_safe(self.relationship):
             return
         raise ValidationError(
-            f"Relationship operation '{operation_hint}' is not allowed for {self.source_class.__name__}.{self.rel_name}",
+            f"Relationship operation '{operation_hint}' is not allowed for "
+            f"{self.source_class.__name__}.{self.rel_name} (disassociation would violate DB constraints)",
             HTTPStatus.CONFLICT.value,
         )
 
@@ -755,7 +776,11 @@ class SAFRSRestRelationshipAPI(Resource):
                 tmp_rel.append(child)
 
             existing_children = list(relation)
-            needs_disassociation = any(child not in tmp_rel for child in existing_children)
+            if not tmp_rel and existing_children:
+                # Explicit "replace with []" is a disassociation request.
+                needs_disassociation = True
+            else:
+                needs_disassociation = any(child not in tmp_rel for child in existing_children)
             if needs_disassociation:
                 self._ensure_disassociation_allowed("patch")
 

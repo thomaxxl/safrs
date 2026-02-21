@@ -408,6 +408,29 @@ def _patch_schema_with_seed(schema: dict[str, Any], seed: dict[str, Any]) -> Non
             field_schema.setdefault("default", coerced_values[0])
 
 
+def _relationship_path_params_for_seed_key(seed: dict[str, Any], seed_key: str, path: str, method: str) -> dict[str, Any]:
+    relationship_path_params = seed.get("relationship_path_params")
+    if not isinstance(relationship_path_params, dict):
+        raise RuntimeError(
+            f"Seed payload missing 'relationship_path_params' required by {method.upper()} {path}"
+        )
+    params = relationship_path_params.get(seed_key)
+    if not isinstance(params, dict) or not params:
+        raise RuntimeError(
+            f"Missing relationship path params for {seed_key} required by {method.upper()} {path}"
+        )
+    for name, value in params.items():
+        if not isinstance(name, str) or not name:
+            raise RuntimeError(
+                f"Invalid relationship path parameter name for {seed_key} in {method.upper()} {path}"
+            )
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(
+                f"Invalid relationship path parameter value for {seed_key}.{name} in {method.upper()} {path}"
+            )
+    return params
+
+
 def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[str, Any]:
     patched = json.loads(json.dumps(spec))
     major = _spec_major(patched)
@@ -447,7 +470,7 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
             if relationship_info is None:
                 continue
 
-            parent_collection, _parent_id_param, rel_name = relationship_info
+            parent_collection, parent_id_param, rel_name = relationship_info
             seed_key = f"{parent_collection}.{rel_name}"
             summary_text = _operation_summary_text(operation)
             is_relationship_operation = ("relationship" in summary_text) or (
@@ -455,6 +478,32 @@ def _patch_spec_with_seed(spec: dict[str, Any], seed: dict[str, Any]) -> dict[st
             )
             if not is_relationship_operation:
                 continue
+
+            relationship_path_params = _relationship_path_params_for_seed_key(seed, seed_key, path, method_lc)
+            if parent_id_param not in relationship_path_params:
+                raise RuntimeError(
+                    f"Missing relationship path parameter '{parent_id_param}' for {seed_key} "
+                    f"required by {method_lc.upper()} {path}"
+                )
+            seen_path_param_names = set()
+            for parameter in parameters:
+                if not isinstance(parameter, dict):
+                    continue
+                if str(parameter.get("in")) != "path":
+                    continue
+                name = str(parameter.get("name", ""))
+                if name not in relationship_path_params:
+                    continue
+                seen_path_param_names.add(name)
+                value = relationship_path_params[name]
+                parameter["enum"] = [value]
+                parameter["default"] = value
+            missing_path_params = sorted(set(relationship_path_params.keys()) - seen_path_param_names)
+            if missing_path_params:
+                raise RuntimeError(
+                    f"Relationship path parameters {missing_path_params} for {seed_key} were not found in "
+                    f"{method_lc.upper()} {path}"
+                )
 
             if not isinstance(body_schema, dict):
                 raise RuntimeError(f"Missing request body schema for relationship operation {method_lc.upper()} {path}")
