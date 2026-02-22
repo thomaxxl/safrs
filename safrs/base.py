@@ -563,12 +563,33 @@ class SAFRSBase(Model):
         # remove attributes that are not declared in _s_jsonapi_attrs
         attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_attrs}
 
+        def _has_id_value(value: Any) -> bool:
+            if value is None:
+                return False
+            if isinstance(value, str) and value == "":
+                return False
+            return True
+
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
         # SAFRSObject allow_client_generated_ids attribute
         if cls.allow_client_generated_ids:
-            # this isn't required per the jsonapi spec
-            # the user may have supplied the PK in one of the attributes, in which case "id" will be ignored
-            attributes["id"] = jsonapi_id if jsonapi_id is not None else params.get("id", None)
+            # Prefer JSON:API resource id and map it to concrete PK column names.
+            # This prevents KeyError crashes when PK columns are named differently
+            # (for example "Id" or composite keys).
+            client_generated_id = jsonapi_id if jsonapi_id is not None else params.get("id", None)
+            if _has_id_value(client_generated_id):
+                parsed_pks = cls.id_type.get_pks(client_generated_id)
+                missing_pk = [pk for pk in cls.id_type.column_names if not _has_id_value(parsed_pks.get(pk))]
+                if missing_pk:
+                    raise ValidationError("Missing resource id", HTTPStatus.BAD_REQUEST.value)
+                attributes["id"] = client_generated_id
+                attributes.update(parsed_pks)
+            else:
+                missing_pk = [pk for pk in cls.id_type.column_names if not _has_id_value(attributes.get(pk))]
+                if missing_pk:
+                    raise ValidationError("Missing resource id", HTTPStatus.BAD_REQUEST.value)
+                synthesized_id = cls.id_type.delimiter.join(str(attributes[pk]) for pk in cls.id_type.column_names)
+                attributes["id"] = synthesized_id
         else:
             for attr_name in attributes.copy():
                 if attr_name in cls.id_type.column_names:
