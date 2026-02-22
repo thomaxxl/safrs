@@ -149,9 +149,15 @@ class SAFRSID:
         In case of composite keys we construct the jsonapi_id by using the delimiter to join the values
         :return: primary keys dict
         """
-        pks = {k: str(kw_dict[k]) for k in cls.column_names}
-        id = cls.delimiter.join(pks.values())
-        return cls.get_pks(id)
+        try:
+            pks = {k: str(kw_dict[k]) for k in cls.column_names}
+            id = cls.delimiter.join(pks.values())
+            return cls.get_pks(id)
+        except KeyError:
+            resource_id = kw_dict.get("id")
+            if resource_id is None or (isinstance(resource_id, str) and resource_id == ""):
+                raise
+            return cls.get_pks(resource_id)
 
     @classmethod
     def sample_id(cls: Any, obj: Any) -> Any:

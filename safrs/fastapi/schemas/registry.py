@@ -170,9 +170,15 @@ class SchemaRegistry:
         if cached is not None:
             return cached
         model_type = str(Model._s_type)
+        if kind == "doc_patch":
+            id_field: Tuple[Any, Any] = (str, ...)
+        elif bool(getattr(Model, "allow_client_generated_ids", False)):
+            id_field = (str, ...)
+        else:
+            id_field = (Optional[str], None)
         fields: Dict[str, Tuple[Any, Any]] = {
             "type": (Literal[model_type], Field(default=model_type)),
-            "id": (Optional[str], None),
+            "id": id_field,
             "attributes": (Optional[self.attributes(Model)], None),
         }
         relationships = self.relationships_container(Model)
