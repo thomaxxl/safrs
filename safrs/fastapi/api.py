@@ -7,6 +7,7 @@ import re
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
+from urllib.parse import quote
 
 import safrs
 from safrs import tx
@@ -22,7 +23,9 @@ from fastapi.params import Depends as DependsParam
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.exc import DataError, IntegrityError, InvalidRequestError, StatementError
 from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
+from sqlalchemy.orm.exc import FlushError
 
 from .relationships import relationship_is_exposed, relationship_property, resolve_relationships
 from .schemas import SchemaRegistry
@@ -1116,6 +1119,36 @@ class SafrsFastAPI:
     def _handle_safrs_exception(self, exc: Exception) -> None:
         if isinstance(exc, JSONAPIHTTPError):
             raise exc
+        if isinstance(exc, IntegrityError):
+            try:
+                safrs.DB.session.rollback()
+            except Exception:
+                pass
+            self._jsonapi_error(
+                HTTPStatus.CONFLICT.value,
+                HTTPStatus.CONFLICT.phrase,
+                "Database constraint violation",
+            )
+        if isinstance(exc, (DataError, StatementError, OverflowError)):
+            try:
+                safrs.DB.session.rollback()
+            except Exception:
+                pass
+            self._jsonapi_error(
+                HTTPStatus.BAD_REQUEST.value,
+                HTTPStatus.BAD_REQUEST.phrase,
+                "Invalid attribute value",
+            )
+        if isinstance(exc, (FlushError, InvalidRequestError)):
+            try:
+                safrs.DB.session.rollback()
+            except Exception:
+                pass
+            self._jsonapi_error(
+                HTTPStatus.CONFLICT.value,
+                HTTPStatus.CONFLICT.phrase,
+                "Relationship update violates DB constraints",
+            )
         if isinstance(exc, (SystemValidationError, ValidationError, GenericError)):
             status = int(getattr(exc, "status_code", 400))
             msg = str(getattr(exc, "message", str(exc)))
@@ -1823,7 +1856,13 @@ class SafrsFastAPI:
             data_doc = self._encode_resource(Model, created[0], wanted_fields=wanted_fields)
             collection_name = getattr(Model, "_s_collection_name", None)
             if collection_name:
-                headers = {"Location": f"/{collection_name}/{created[0].jsonapi_id}"}
+                prefix = (self.prefix or "").rstrip("/")
+                if prefix and not prefix.startswith("/"):
+                    prefix = "/" + prefix
+                encoded_id = quote(str(created[0].jsonapi_id), safe="")
+                collection = str(collection_name).strip("/")
+                location = f"{prefix}/{collection}/{encoded_id}" if prefix else f"/{collection}/{encoded_id}"
+                headers = {"Location": location}
         else:
             data_doc = [self._encode_resource(Model, item, wanted_fields=wanted_fields) for item in created]
         return JSONAPIResponse(
@@ -2007,6 +2046,8 @@ class SafrsFastAPI:
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
+                if "data" not in payload:
+                    self._jsonapi_error(400, "ValidationError", "Missing 'data' member in request body")
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
                 self._note_write(Model)
