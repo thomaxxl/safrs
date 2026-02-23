@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import decimal
 from typing import Any, Dict, Optional, Tuple, Type, cast
 
 from pydantic import ConfigDict, create_model
 
 from .jsonapi_primitives import PermissiveModel
+
+
+def _normalize_python_type(py_type: Any) -> Any:
+    if py_type is decimal.Decimal:
+        return float
+    return py_type
 
 
 def _safe_python_type(column_or_attr: Any) -> Any:
@@ -19,7 +26,7 @@ def _safe_python_type(column_or_attr: Any) -> Any:
         return Any
     if py_type is None:
         return Any
-    return py_type
+    return _normalize_python_type(py_type)
 
 
 def _jsonapi_attr_return_type(Model: Type[Any], attr_name: str) -> Any:
@@ -28,9 +35,9 @@ def _jsonapi_attr_return_type(Model: Type[Any], attr_name: str) -> Any:
         return Any
     if hasattr(model_attr, "fget") and callable(getattr(model_attr, "fget", None)):
         annotations = getattr(model_attr.fget, "__annotations__", {})
-        return annotations.get("return", Any)
+        return _normalize_python_type(annotations.get("return", Any))
     annotations = getattr(model_attr, "__annotations__", {})
-    return annotations.get("return", Any)
+    return _normalize_python_type(annotations.get("return", Any))
 
 
 def _attribute_type(Model: Type[Any], attr_name: str, column_or_attr: Any) -> Any:
