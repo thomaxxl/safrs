@@ -171,8 +171,13 @@ class Review(BaseModel):
 EXPOSED_MODELS = [Person, Book, Review, Publisher]
 
 
-def create_session(db_path: Path) -> Any:
-    engine = create_engine(f"sqlite:///{db_path}", future=True)
+def create_session(db_path: Path | None = None, database_url: str | None = None) -> Any:
+    if database_url:
+        engine = create_engine(str(database_url), future=True)
+    else:
+        if db_path is None:
+            raise ValueError("db_path is required when database_url is not provided")
+        engine = create_engine(f"sqlite:///{db_path}", future=True)
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     Session = scoped_session(session_factory)
     Base.metadata.create_all(engine)
