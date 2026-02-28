@@ -52,13 +52,25 @@ def _resolve_db_path(port: int, explicit_db_name: str | None = None) -> Path:
     return _resolve_db_dir() / db_name_path
 
 
-def create_app(host: str = "127.0.0.1", port: int = 5000, db_name: str | None = None) -> Flask:
-    db_path = _resolve_db_path(port=port, explicit_db_name=db_name)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    if _should_reset_tmp_db() and db_path.exists():
-        db_path.unlink()
+def _resolve_database_url() -> str:
+    for env_name in ("SAFRS_DATABASE_URL", "DATABASE_URL"):
+        value = os.environ.get(env_name, "").strip()
+        if value:
+            return value
+    return ""
 
-    Session = create_session(db_path)
+
+def create_app(host: str = "127.0.0.1", port: int = 5000, db_name: str | None = None) -> Flask:
+    database_url = _resolve_database_url()
+    db_path = _resolve_db_path(port=port, explicit_db_name=db_name)
+    db_description = database_url if database_url else str(db_path)
+    if database_url:
+        Session = create_session(database_url=database_url)
+    else:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        if _should_reset_tmp_db() and db_path.exists():
+            db_path.unlink()
+        Session = create_session(db_path=db_path)
     wrapper = SAFRSDBWrapper(Session, Base)
     setattr(safrs, "DB", wrapper)
     seed_data(Session)
@@ -90,7 +102,7 @@ def create_app(host: str = "127.0.0.1", port: int = 5000, db_name: str | None = 
 
     @app.route("/health", methods=["GET"])
     def health() -> Any:
-        return jsonify({"ok": True, "framework": "flask", "db": str(db_path), "api_prefix": API_PREFIX})
+        return jsonify({"ok": True, "framework": "flask", "db": db_description, "api_prefix": API_PREFIX})
 
     @app.route("/seed", methods=["GET"])
     def seed() -> Any:
