@@ -12,7 +12,14 @@ from urllib.parse import quote
 import safrs
 from safrs import tx
 from safrs.attr_parse import parse_attr
-from safrs.errors import GenericError, JsonapiError, SystemValidationError, ValidationError
+from safrs.errors import (
+    GenericError,
+    JsonapiError,
+    SystemValidationError,
+    ValidationError,
+    reset_fastapi_request_url,
+    set_fastapi_request_url,
+)
 from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.swagger_doc import get_doc, get_http_methods
 
@@ -157,6 +164,24 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
         payload = _jsonapi_http_exception_payload(exc)
         return JSONAPIResponse(status_code=int(exc.status_code), content=payload)
 
+    @app.exception_handler(Exception)
+    async def _jsonapi_unhandled_exception_handler(_request: Request, exc: Exception):
+        try:
+            safrs.DB.session.rollback()
+        except Exception:
+            pass
+        safrs.log.exception("Unhandled FastAPI exception: %s", exc)
+        payload = _jsonapi_error_document(
+            [
+                {
+                    "status": str(HTTPStatus.INTERNAL_SERVER_ERROR.value),
+                    "title": HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
+                    "detail": "Internal Server Error",
+                }
+            ]
+        )
+        return JSONAPIResponse(status_code=HTTPStatus.INTERNAL_SERVER_ERROR.value, content=payload)
+
 
 class SafrsFastAPI:
     def __init__(
@@ -256,7 +281,7 @@ class SafrsFastAPI:
             self.app.openapi_schema = schema
             return schema
 
-        self.app.openapi = patched_openapi
+        cast(Any, self.app).openapi = patched_openapi
         setattr(self.app, "_safrs_openapi_patch_installed", True)
 
     @staticmethod
@@ -295,6 +320,13 @@ class SafrsFastAPI:
             close()
 
     @staticmethod
+    def _rollback_session_quietly() -> None:
+        try:
+            safrs.DB.session.rollback()
+        except Exception:
+            pass
+
+    @staticmethod
     def _uow_session_state() -> Dict[str, Any]:
         session = safrs.DB.session
         info = getattr(session, "info", None)
@@ -316,11 +348,12 @@ class SafrsFastAPI:
         tx.note_write(Model)
 
     def _safrs_uow_dependency(self, request: Request):
+        request_url_token = set_fastapi_request_url(str(request.url))
         self._reset_uow_state()
         try:
             yield
         except Exception:
-            safrs.DB.session.rollback()
+            self._rollback_session_quietly()
             raise
         else:
             try:
@@ -328,13 +361,16 @@ class SafrsFastAPI:
                 if request_method in WRITE_HTTP_METHODS and tx.should_autocommit():
                     safrs.DB.session.commit()
                 else:
-                    safrs.DB.session.rollback()
+                    self._rollback_session_quietly()
             except Exception:
-                safrs.DB.session.rollback()
+                self._rollback_session_quietly()
                 raise
         finally:
             self._uow_session_state()["_safrs_uow_active"] = False
-            self._cleanup_session()
+            try:
+                self._cleanup_session()
+            finally:
+                reset_fastapi_request_url(request_url_token)
 
     @staticmethod
     def _write_auth_dependency(request: Request) -> None:
@@ -1120,44 +1156,50 @@ class SafrsFastAPI:
         if isinstance(exc, JSONAPIHTTPError):
             raise exc
         if isinstance(exc, IntegrityError):
-            try:
-                safrs.DB.session.rollback()
-            except Exception:
-                pass
+            self._rollback_session_quietly()
             self._jsonapi_error(
                 HTTPStatus.CONFLICT.value,
                 HTTPStatus.CONFLICT.phrase,
                 "Database constraint violation",
             )
         if isinstance(exc, (DataError, StatementError, OverflowError)):
-            try:
-                safrs.DB.session.rollback()
-            except Exception:
-                pass
+            self._rollback_session_quietly()
             self._jsonapi_error(
                 HTTPStatus.BAD_REQUEST.value,
                 HTTPStatus.BAD_REQUEST.phrase,
                 "Invalid attribute value",
             )
         if isinstance(exc, (FlushError, InvalidRequestError)):
-            try:
-                safrs.DB.session.rollback()
-            except Exception:
-                pass
+            self._rollback_session_quietly()
+            self._jsonapi_error(
+                HTTPStatus.CONFLICT.value,
+                HTTPStatus.CONFLICT.phrase,
+                "Relationship update violates DB constraints",
+            )
+        if isinstance(exc, AssertionError) and "Dependency rule on column" in str(exc):
+            self._rollback_session_quietly()
             self._jsonapi_error(
                 HTTPStatus.CONFLICT.value,
                 HTTPStatus.CONFLICT.phrase,
                 "Relationship update violates DB constraints",
             )
         if isinstance(exc, (SystemValidationError, ValidationError, GenericError)):
+            self._rollback_session_quietly()
             status = int(getattr(exc, "status_code", 400))
             msg = str(getattr(exc, "message", str(exc)))
             self._jsonapi_error(status, exc.__class__.__name__, msg)
         if isinstance(exc, JsonapiError):
+            self._rollback_session_quietly()
             status = int(getattr(exc, "status_code", 400))
             msg = str(getattr(exc, "message", str(exc)))
             self._jsonapi_error(status, exc.__class__.__name__, msg)
-        raise exc
+        self._rollback_session_quietly()
+        safrs.log.error("Unhandled SAFRS FastAPI error: %s", exc)
+        self._jsonapi_error(
+            HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
+            "Internal Server Error",
+        )
 
     def _require_type(self, Model: Type[Any], payload: Dict[str, Any]) -> None:
         data = payload.get("data")
@@ -1329,10 +1371,8 @@ class SafrsFastAPI:
             cast(Any, flask_app).json_encoder = SAFRSJSONEncoder
         except Exception as exc:
             safrs.log.debug(f"Unable to import SAFRSJSONEncoder for rpc context: {exc}")
-        return flask_app.test_request_context(
-            path=request.url.path,
-            query_string=request.url.query,
-        )
+        query_items = [(str(key), str(value)) for key, value in request.query_params.multi_items()]
+        return flask_app.test_request_context(path=request.url.path, query_string=query_items)
 
     def _encode_rpc_value(self, value: Any) -> Any:
         if value is None:
