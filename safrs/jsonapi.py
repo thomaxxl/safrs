@@ -41,6 +41,19 @@ def make_response(*args: Any, **kwargs: Any) -> Any:
     return response
 
 
+def _build_location_header(endpoint: str, instance: Any) -> str:
+    """
+    Build a location header for a newly created instance.
+
+    Use `url_for` with route params so Flask percent-encodes unsafe path bytes
+    (e.g. CR/LF from client-generated IDs) instead of emitting invalid header values.
+    """
+    object_id = getattr(instance, "_s_object_id", None)
+    if object_id is None:
+        return str(url_for(endpoint))
+    return str(url_for(endpoint, **{object_id: instance.jsonapi_id}))
+
+
 class Resource(FRSResource):
     """
     Superclass for the exposed endpoints
@@ -441,7 +454,7 @@ class SAFRSRestAPI(Resource):
                 obj_args = {instance._s_object_id: instance.jsonapi_id}
                 # Retrieve the object json and return it to the client
                 resp_data = self.get(**obj_args)
-                location = f"{url_for(self.endpoint)}{instance.jsonapi_id}"
+                location = _build_location_header(self.endpoint, instance)
             else:
                 safrs.log.warning(f"Created instance '{instance}' cannot be serialized")
 
@@ -492,6 +505,8 @@ class SAFRSRestAPI(Resource):
                 description: Forbidden
             404 :
                 description: Not Found
+            409 :
+                description: Conflict
 
         ---
         Delete an object by id or by filter
@@ -898,6 +913,8 @@ class SAFRSRestRelationshipAPI(Resource):
                 description: Forbidden
             404 :
                 description: Not Found
+            409 :
+                description: Conflict
         ----
         Remove an item from a relationship
         """
