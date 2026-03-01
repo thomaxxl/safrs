@@ -1,4 +1,5 @@
-from typing import Any
+from contextvars import ContextVar, Token
+from typing import Any, Optional
 # Exception Handlers
 #
 # The application loglevel determines the level of detail dhown to the user.
@@ -12,7 +13,7 @@ from typing import Any
 # }
 #
 import traceback
-from flask import request
+from flask import has_request_context, request
 from werkzeug.exceptions import NotFound
 import safrs
 from sqlalchemy.exc import DontWrapMixin
@@ -20,6 +21,31 @@ from http import HTTPStatus
 from .config import is_debug
 
 HIDDEN_LOG = "(debug logging disabled)"
+_FASTAPI_REQUEST_URL: ContextVar[Optional[str]] = ContextVar("safrs_fastapi_request_url", default=None)
+
+
+def set_fastapi_request_url(url: Optional[str]) -> Token[Optional[str]]:
+    if url is None:
+        return _FASTAPI_REQUEST_URL.set(None)
+    return _FASTAPI_REQUEST_URL.set(str(url))
+
+
+def reset_fastapi_request_url(token: Token[Optional[str]]) -> None:
+    try:
+        _FASTAPI_REQUEST_URL.reset(token)
+    except ValueError:
+        # FastAPI may execute dependency cleanup in a different worker context.
+        # In that case a token reset is invalid; clear the current context instead.
+        _FASTAPI_REQUEST_URL.set(None)
+
+
+def _current_request_url() -> Optional[str]:
+    if has_request_context():
+        try:
+            return str(request.url)
+        except Exception:
+            return None
+    return _FASTAPI_REQUEST_URL.get()
 
 
 class JsonapiError(Exception, DontWrapMixin):
@@ -81,7 +107,11 @@ class GenericError(JsonapiError):
         self.status_code = status_code
         safrs.log.error("Generic Error: %s", message)
         if is_debug():
-            safrs.log.info(f"Error in {request.url}")
+            url = _current_request_url()
+            if url:
+                safrs.log.info("Error in %s", url)
+            else:
+                safrs.log.info("Error location unavailable")
             safrs.log.debug(traceback.format_exc(120))
             self.message += str(message)
         else:
