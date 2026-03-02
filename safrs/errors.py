@@ -150,3 +150,18 @@ class ValidationError(JsonapiError):
         self.status_code = status_code
         safrs.log.warning("ValidationError: %s", message)
         self.message += message
+
+
+class IntegerOverflowError(ValidationError):
+    """
+    Raised when an integer value cannot be represented by the target DB type.
+    """
+
+    status_code = HTTPStatus.BAD_REQUEST.value
+    message = "Integer Overflow Error: "
+
+    def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
+        JsonapiError.__init__(self)
+        self.status_code = status_code
+        safrs.log.warning("IntegerOverflowError: %s", message)
+        self.message += message
