@@ -197,7 +197,7 @@ from functools import lru_cache
 # safrs dependencies:
 import safrs
 import safrs.jsonapi
-from .errors import GenericError, NotFoundError, ValidationError, SystemValidationError
+from .errors import GenericError, IntegerOverflowError, NotFoundError, ValidationError, SystemValidationError
 from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
@@ -1002,6 +1002,9 @@ class SAFRSBase(Model):
         if id is not None or not failsafe:
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
+            except OverflowError as exc:
+                safrs.log.warning(f"Integer overflow while getting instance with keys {primary_keys}")
+                raise IntegerOverflowError("Invalid integer value in id filter") from exc
             except Exception as exc:  # pragma: no cover
                 safrs.log.error(f"Failed to get instance with keys {primary_keys}")
                 raise GenericError(f"get_instance : {exc}")

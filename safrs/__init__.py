@@ -4,7 +4,7 @@
 # This is however required for backwards compatibility, we'll get rid of it eventually
 #
 from .safrs_init import DB, log, SAFRS, dict_merge, test_decorator, SAFRSRequest
-from .errors import ValidationError, GenericError, UnAuthorizedError, NotFoundError
+from .errors import ValidationError, GenericError, IntegerOverflowError, UnAuthorizedError, NotFoundError
 from .json_encoder import DefaultJSONProvider, SAFRSFormattedResponse
 from .safrs_api import SAFRSAPI
 from .base import SAFRSBase
@@ -39,6 +39,7 @@ __all__ = (
     "startswith",
     # Errors:
     "ValidationError",
+    "IntegerOverflowError",
     "GenericError",
     "UnAuthorizedError",
     "NotFoundError",
