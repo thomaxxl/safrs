@@ -99,6 +99,36 @@ def test_handle_safrs_exception_maps_dependency_rule_assertion_to_conflict(monke
     assert rollback_calls["count"] == 1
 
 
+def test_handle_safrs_exception_logs_traceback_in_debug(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = FastAPI()
+    api = SafrsFastAPI(app)
+    rollback_calls = {"count": 0}
+    log_calls = {"error": 0, "exception": 0}
+
+    class Session:
+        info: dict[str, Any] = {}
+
+        def rollback(self) -> None:
+            rollback_calls["count"] += 1
+
+    monkeypatch.setattr(safrs, "DB", SimpleNamespace(session=Session()))
+    monkeypatch.setattr("safrs.fastapi.api.is_debug", lambda: True)
+    monkeypatch.setattr(safrs.log, "error", lambda *args, **kwargs: log_calls.__setitem__("error", log_calls["error"] + 1))
+    monkeypatch.setattr(
+        safrs.log,
+        "exception",
+        lambda *args, **kwargs: log_calls.__setitem__("exception", log_calls["exception"] + 1),
+    )
+
+    with pytest.raises(JSONAPIHTTPError) as exc_info:
+        api._handle_safrs_exception(RuntimeError("boom"))
+
+    assert exc_info.value.status_code == 500
+    assert log_calls["exception"] == 1
+    assert log_calls["error"] == 0
+    assert rollback_calls["count"] == 1
+
+
 def test_rpc_request_context_handles_multi_value_query_params() -> None:
     request = _request("x=1&x=2&page[offset]=3")
     with SafrsFastAPI._rpc_request_context(request):

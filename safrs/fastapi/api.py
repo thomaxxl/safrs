@@ -23,6 +23,7 @@ from safrs.errors import (
 from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
+from safrs.config import is_debug
 from safrs.swagger_doc import get_doc, get_http_methods
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Request, Response
@@ -1261,7 +1262,10 @@ class SafrsFastAPI:
             msg = str(getattr(exc, "message", str(exc)))
             self._jsonapi_error(status, exc.__class__.__name__, msg)
         self._rollback_session_quietly()
-        safrs.log.error("Unhandled SAFRS FastAPI error: %s", exc)
+        if is_debug():
+            safrs.log.exception("Unhandled SAFRS FastAPI error: %s", exc)
+        else:
+            safrs.log.error("Unhandled SAFRS FastAPI error: %s", exc)
         self._jsonapi_error(
             HTTPStatus.INTERNAL_SERVER_ERROR.value,
             HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
