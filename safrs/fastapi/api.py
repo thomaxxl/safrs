@@ -1386,7 +1386,12 @@ class SafrsFastAPI:
         if isinstance(value, type) and value.__name__ == "Included":
             return []
         if hasattr(value, "_s_type") and hasattr(value, "jsonapi_id"):
-            return self._encode_resource(value.__class__, value)
+            return self._encode_resource(
+                value.__class__,
+                value,
+                include_relationships=False,
+                include_links=False,
+            )
         return jsonable_encoder(value)
 
     def _normalize_rpc_result(self, Model: Type[Any], result: Any) -> Dict[str, Any]:
@@ -1573,6 +1578,85 @@ class SafrsFastAPI:
             return list(value)
         return [value]
 
+    def _collection_path(self, Model: Type[Any]) -> str:
+        collection_name = getattr(Model, "_s_collection_name", None) or getattr(Model, "_s_type", Model.__name__)
+        collection = str(collection_name).strip("/")
+        prefix = (self.prefix or "").strip("/")
+        if prefix:
+            return f"/{prefix}/{collection}/"
+        return f"/{collection}/"
+
+    def _resource_self_path(self, Model: Type[Any], obj: Any) -> str:
+        encoded_id = quote(str(obj.jsonapi_id), safe="")
+        return f"{self._collection_path(Model)}{encoded_id}/"
+
+    def _relationship_self_path(self, Model: Type[Any], obj: Any, rel_name: str) -> str:
+        encoded_id = quote(str(obj.jsonapi_id), safe="")
+        return f"{self._collection_path(Model)}{encoded_id}/{rel_name}"
+
+    @staticmethod
+    def _build_query_string(params: List[Tuple[str, str]]) -> str:
+        if not params:
+            return ""
+        encoded_parts = [f"{quote(str(key), safe='[]')}={quote(str(value), safe=',')}" for key, value in params]
+        return "&".join(encoded_parts)
+
+    def _pagination_args(self, request: Request) -> Tuple[int, int]:
+        max_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", 100000))
+        offset = max(0, self._parse_page_param(request.query_params.get("page[offset]"), 0))
+        if offset > max_limit:
+            offset = max_limit
+        limit = self._parse_page_param(request.query_params.get("page[limit]"), max_limit)
+        if limit <= 0:
+            limit = 1
+        if limit > max_limit:
+            limit = max_limit
+        return offset, limit
+
+    def _page_link(self, request: Request, page_offset: int, limit: int) -> str:
+        params = [(str(key), str(value)) for key, value in request.query_params.multi_items() if key not in {"page[offset]", "page[limit]"}]
+        params.append(("page[offset]", str(page_offset)))
+        params.append(("page[limit]", str(limit)))
+        query = self._build_query_string(params)
+        return f"{request.url.path}?{query}" if query else str(request.url.path)
+
+    def _pagination_links(self, request: Request, *, count: int, page_offset: int, limit: int) -> Dict[str, str]:
+        page_base = int(page_offset / limit) * limit
+        first_args = (0, limit)
+        last_args = (int(int(count / limit) * limit), limit)
+        self_args = (page_base if page_base <= last_args[0] else last_args[0], limit)
+        next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
+        prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
+        links: Dict[str, str] = {
+            "first": self._page_link(request, *first_args),
+            "self": self._page_link(request, page_offset, limit),
+            "last": self._page_link(request, *last_args),
+            "prev": self._page_link(request, *prev_args),
+            "next": self._page_link(request, *next_args),
+        }
+        if last_args == self_args:
+            links.pop("last", None)
+        if first_args == self_args:
+            links.pop("first", None)
+        if next_args == last_args:
+            links.pop("next", None)
+        if prev_args == first_args:
+            links.pop("prev", None)
+        return links
+
+    @staticmethod
+    def _query_or_items_count(value: Any) -> int:
+        if value is None:
+            return 0
+        if hasattr(value, "count") and callable(value.count):
+            try:
+                return int(value.count())
+            except Exception:
+                pass
+        if isinstance(value, (list, tuple, set)):
+            return len(value)
+        return 1
+
     @staticmethod
     def _parse_page_param(raw: Optional[str], default: int) -> int:
         if raw is None:
@@ -1728,11 +1812,19 @@ class SafrsFastAPI:
                 if rel_obj is None:
                     continue
                 key = (str(target_model._s_type), str(rel_obj.jsonapi_id))
+                next_include_names: Set[str] = set()
+                if len(path) > 1:
+                    next_include_names.add(str(path[1]))
                 if key not in seen:
                     seen.add(key)
                     included.append(
                         self._encode_resource(
-                            target_model, rel_obj, wanted_fields=fields_map.get(str(target_model._s_type))
+                            target_model,
+                            rel_obj,
+                            wanted_fields=fields_map.get(str(target_model._s_type)),
+                            include_relationships=True,
+                            include_links=True,
+                            include_relationship_names=next_include_names,
                         )
                     )
                 if len(path) > 1:
@@ -1745,8 +1837,61 @@ class SafrsFastAPI:
                         included,
                     )
 
+    def _relationship_data(
+        self,
+        rel_prop: Any,
+        rel_name: str,
+        rel_value: Any,
+        *,
+        include_data: bool,
+    ) -> Any:
+        if self._is_to_many_relationship(rel_prop):
+            # Match Flask SAFRS responses: avoid embedding full linkage arrays by default.
+            return []
+        if not include_data:
+            return None
+        if rel_value is None:
+            return None
+        target_model = rel_prop.mapper.class_
+        target_type = str(getattr(target_model, "_s_type", target_model.__name__))
+        try:
+            return {"type": target_type, "id": str(rel_value.jsonapi_id)}
+        except Exception:
+            safrs.log.debug(f"Unable to build relationship linkage for {rel_name}")
+            return None
+
+    def _encode_relationships(
+        self,
+        Model: Type[Any],
+        obj: Any,
+        *,
+        include_relationship_names: Optional[Set[str]] = None,
+    ) -> Dict[str, Any]:
+        relationships: Dict[str, Any] = {}
+        include_all_relationships = include_relationship_names is None
+        for rel_name, rel_prop in self._resolve_relationship_properties(Model).items():
+            rel_value = getattr(obj, rel_name, None)
+            include_data = include_all_relationships or str(rel_name) in include_relationship_names
+            relationships[str(rel_name)] = {
+                "links": {"self": self._relationship_self_path(Model, obj, str(rel_name))},
+                "data": self._relationship_data(
+                    rel_prop,
+                    str(rel_name),
+                    rel_value,
+                    include_data=bool(include_data),
+                ),
+            }
+        return relationships
+
     def _encode_resource(
-        self, Model: Type[Any], obj: Any, wanted_fields: Optional[Set[str]] = None
+        self,
+        Model: Type[Any],
+        obj: Any,
+        wanted_fields: Optional[Set[str]] = None,
+        *,
+        include_relationships: bool = True,
+        include_links: bool = True,
+        include_relationship_names: Optional[Set[str]] = None,
     ) -> Dict[str, Any]:
         """
         Don’t call obj.to_dict() (Flask current_app dependency).
@@ -1775,11 +1920,20 @@ class SafrsFastAPI:
                     value = value.replace(tzinfo=dt.timezone.utc)
                 attrs[key] = value.isoformat()
 
-        return {
+        result: Dict[str, Any] = {
             "type": str(Model._s_type),
             "id": str(obj.jsonapi_id),
             "attributes": jsonable_encoder(attrs),
         }
+        if include_links:
+            result["links"] = {"self": self._resource_self_path(Model, obj)}
+        if include_relationships:
+            result["relationships"] = self._encode_relationships(
+                Model,
+                obj,
+                include_relationship_names=include_relationship_names,
+            )
+        return result
 
     def _get_collection(self, Model: Type[Any]):
         def handler(request: Request):
@@ -1787,22 +1941,42 @@ class SafrsFastAPI:
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
+                included_relationship_names = {str(path[0]) for path in include_paths if path}
                 query_or_items = self._apply_filter(Model, request, Model._s_query)
                 query_or_items = self._apply_sort_query_or_items(Model, query_or_items, request)
-                query_or_items = self._apply_pagination(query_or_items, request)
-                objs = self._coerce_items(query_or_items)
-                data = [self._encode_resource(Model, o, wanted_fields=wanted_fields) for o in objs]
+                total_count = self._query_or_items_count(query_or_items)
+                page_offset, page_limit = self._pagination_args(request)
+                paged = self._apply_pagination(query_or_items, request)
+                objs = self._coerce_items(paged)
+                data = [
+                    self._encode_resource(
+                        Model,
+                        obj,
+                        wanted_fields=wanted_fields,
+                        include_relationships=True,
+                        include_links=True,
+                        include_relationship_names=included_relationship_names,
+                    )
+                    for obj in objs
+                ]
                 included: List[Dict[str, Any]] = []
                 seen: Set[Tuple[str, str]] = set()
                 if include_paths:
                     for obj in objs:
                         self._collect_included(Model, obj, include_paths, fields_map, seen, included)
+                links = self._pagination_links(
+                    request,
+                    count=total_count,
+                    page_offset=page_offset,
+                    limit=page_limit,
+                )
                 return self._jsonapi_response(
                     self._jsonapi_doc(
                         data=data,
                         included=included if include_paths else None,
-                        meta={"count": len(data)},
+                        meta={"count": total_count, "total": total_count, "limit": page_limit},
                     )
+                    | {"links": links}
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -1816,13 +1990,21 @@ class SafrsFastAPI:
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
+                included_relationship_names = {str(path[0]) for path in include_paths if path}
                 included: List[Dict[str, Any]] = []
                 seen: Set[Tuple[str, str]] = set()
                 if include_paths:
                     self._collect_included(Model, obj, include_paths, fields_map, seen, included)
                 return self._jsonapi_response(
                     self._jsonapi_doc(
-                        data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                        data=self._encode_resource(
+                            Model,
+                            obj,
+                            wanted_fields=wanted_fields,
+                            include_relationships=True,
+                            include_links=True,
+                            include_relationship_names=included_relationship_names,
+                        ),
                         included=included if include_paths else None,
                     )
                 )
@@ -1892,8 +2074,16 @@ class SafrsFastAPI:
     ) -> JSONAPIResponse:
         data_doc: Any
         headers: Optional[Dict[str, str]] = None
+        included_relationship_names = {str(path[0]) for path in include_paths if path}
         if len(created) == 1:
-            data_doc = self._encode_resource(Model, created[0], wanted_fields=wanted_fields)
+            data_doc = self._encode_resource(
+                Model,
+                created[0],
+                wanted_fields=wanted_fields,
+                include_relationships=True,
+                include_links=True,
+                include_relationship_names=included_relationship_names,
+            )
             collection_name = getattr(Model, "_s_collection_name", None)
             if collection_name:
                 prefix = (self.prefix or "").rstrip("/")
@@ -1904,7 +2094,17 @@ class SafrsFastAPI:
                 location = f"{prefix}/{collection}/{encoded_id}" if prefix else f"/{collection}/{encoded_id}"
                 headers = {"Location": location}
         else:
-            data_doc = [self._encode_resource(Model, item, wanted_fields=wanted_fields) for item in created]
+            data_doc = [
+                self._encode_resource(
+                    Model,
+                    item,
+                    wanted_fields=wanted_fields,
+                    include_relationships=True,
+                    include_links=True,
+                    include_relationship_names=included_relationship_names,
+                )
+                for item in created
+            ]
         return JSONAPIResponse(
             status_code=201,
             headers=headers,
@@ -1967,13 +2167,21 @@ class SafrsFastAPI:
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
+                included_relationship_names = {str(path[0]) for path in include_paths if path}
                 included: List[Dict[str, Any]] = []
                 seen: Set[Tuple[str, str]] = set()
                 if include_paths:
                     self._collect_included(Model, obj, include_paths, fields_map, seen, included)
                 return self._jsonapi_response(
                     self._jsonapi_doc(
-                        data=self._encode_resource(Model, obj, wanted_fields=wanted_fields),
+                        data=self._encode_resource(
+                            Model,
+                            obj,
+                            wanted_fields=wanted_fields,
+                            include_relationships=True,
+                            include_links=True,
+                            include_relationship_names=included_relationship_names,
+                        ),
                         included=included if include_paths else None,
                     )
                 )
@@ -2009,6 +2217,7 @@ class SafrsFastAPI:
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(target_model._s_type))
                 include_paths = self._parse_include_paths(target_model, request)
+                included_relationship_names = {str(path[0]) for path in include_paths if path}
                 rel_value = getattr(parent, rel_name, None)
 
                 if self._is_to_many_relationship(rel):
@@ -2017,7 +2226,15 @@ class SafrsFastAPI:
                     items = self._apply_sort_query_or_items(target_model, items, request)
                     items = self._apply_pagination(items, request)
                     items = self._coerce_items(items)
-                    data = [self._encode_resource(target_model, item, wanted_fields=wanted_fields) for item in items]
+                    data = [
+                        self._encode_resource(
+                            target_model,
+                            item,
+                            wanted_fields=wanted_fields,
+                            include_relationship_names=included_relationship_names,
+                        )
+                        for item in items
+                    ]
                     included: List[Dict[str, Any]] = []
                     seen: Set[Tuple[str, str]] = set()
                     if include_paths:
@@ -2039,7 +2256,14 @@ class SafrsFastAPI:
                     self._collect_included(target_model, rel_value, include_paths, fields_map, seen_single, included_single)
                 return self._jsonapi_response(
                     self._jsonapi_doc(
-                        data=self._encode_resource(target_model, rel_value, wanted_fields=wanted_fields),
+                        data=self._encode_resource(
+                            target_model,
+                            rel_value,
+                            wanted_fields=wanted_fields,
+                            include_relationships=True,
+                            include_links=True,
+                            include_relationship_names=included_relationship_names,
+                        ),
                         included=included_single if include_paths else None,
                     )
                 )
@@ -2059,6 +2283,7 @@ class SafrsFastAPI:
                 fields_map = self._parse_sparse_fields_map(request)
                 wanted_fields = fields_map.get(str(target_model._s_type))
                 include_paths = self._parse_include_paths(target_model, request)
+                included_relationship_names = {str(path[0]) for path in include_paths if path}
                 rel_value = getattr(parent, rel_name, None)
                 for item in self._iter_related_items(rel_value):
                     if str(item.jsonapi_id) == str(target_id):
@@ -2068,7 +2293,14 @@ class SafrsFastAPI:
                             self._collect_included(target_model, item, include_paths, fields_map, seen, included)
                         return self._jsonapi_response(
                             self._jsonapi_doc(
-                                data=self._encode_resource(target_model, item, wanted_fields=wanted_fields),
+                                data=self._encode_resource(
+                                    target_model,
+                                    item,
+                                    wanted_fields=wanted_fields,
+                                    include_relationships=True,
+                                    include_links=True,
+                                    include_relationship_names=included_relationship_names,
+                                ),
                                 included=included if include_paths else None,
                             )
                         )
