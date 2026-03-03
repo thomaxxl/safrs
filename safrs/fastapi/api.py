@@ -1174,10 +1174,12 @@ class SafrsFastAPI:
         links: Any = None,
         meta: Optional[Dict[str, Any]] = None,
         count: Any = None,
+        request: Optional[Request] = None,
     ) -> JSONAPIResponse:
         token = None
         if maybe_jsonapi_context() is None:
-            token = set_jsonapi_context(JsonApiContext(query_params={}, prefix=self.prefix))
+            query_params = request.query_params if request is not None else {}
+            token = set_jsonapi_context(JsonApiContext(query_params=query_params, prefix=self.prefix))
         try:
             payload = cast(
                 Dict[str, Any],
@@ -1189,10 +1191,10 @@ class SafrsFastAPI:
                     count=count,
                 ),
             )
+            return self._jsonapi_response(payload, status_code=status_code, headers=headers)
         finally:
             if token is not None:
                 reset_jsonapi_context(token)
-        return self._jsonapi_response(payload, status_code=status_code, headers=headers)
 
     def _instance_links(self, request: Request, Model: Type[Any], obj: Any) -> Dict[str, str]:
         ctx = maybe_jsonapi_context()
@@ -2002,6 +2004,7 @@ class SafrsFastAPI:
                     links=links,
                     meta={"count": total_count, "total": total_count, "limit": page_limit},
                     count=total_count,
+                    request=request,
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -2020,6 +2023,7 @@ class SafrsFastAPI:
                     links=links,
                     meta={"instance_meta": obj._s_meta()},
                     count=1,
+                    request=request,
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -2084,6 +2088,7 @@ class SafrsFastAPI:
         wanted_fields: Optional[Set[str]],
         include_paths: List[List[str]],
         included: List[Dict[str, Any]],
+        request: Optional[Request] = None,
     ) -> JSONAPIResponse:
         _ = wanted_fields
         _ = include_paths
@@ -2108,6 +2113,7 @@ class SafrsFastAPI:
             status_code=201,
             headers=headers,
             count=len(created),
+            request=request,
         )
 
     def _post_collection(self, Model: Type[Any]):
@@ -2128,7 +2134,14 @@ class SafrsFastAPI:
                     self._append_auto_include_paths(include_paths, obj)
                 deduped_include_paths = self._dedupe_include_paths(include_paths)
                 included = self._collect_included_for_created(Model, created, deduped_include_paths, fields_map)
-                return self._build_post_response(Model, created, wanted_fields, deduped_include_paths, included)
+                return self._build_post_response(
+                    Model,
+                    created,
+                    wanted_fields,
+                    deduped_include_paths,
+                    included,
+                    request=request,
+                )
             except JSONAPIHTTPError:
                 raise
             except Exception as exc:
@@ -2167,6 +2180,7 @@ class SafrsFastAPI:
                     links=links,
                     meta={"instance_meta": obj._s_meta()},
                     count=1,
+                    request=request,
                 )
             except JSONAPIHTTPError:
                 raise
@@ -2210,6 +2224,7 @@ class SafrsFastAPI:
                         data=items,
                         meta={"count": len(items)},
                         count=len(items),
+                        request=request,
                     )
 
                 if rel_value is None:
@@ -2217,6 +2232,7 @@ class SafrsFastAPI:
                 return self._jsonapi_data_response(
                     data=rel_value,
                     count=1,
+                    request=request,
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -2238,6 +2254,7 @@ class SafrsFastAPI:
                         return self._jsonapi_data_response(
                             data=item,
                             count=1,
+                            request=request,
                         )
                 self._jsonapi_error(404, "NotFound", f"Relationship item '{target_id}' not found")
             except Exception as exc:
@@ -2246,7 +2263,7 @@ class SafrsFastAPI:
         return handler
 
     def _patch_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(object_id: str, request: Request, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
             try:
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
@@ -2273,6 +2290,7 @@ class SafrsFastAPI:
                         data=items,
                         meta={"count": len(items)},
                         count=len(items),
+                        request=request,
                     )
 
                 if data is None:
@@ -2287,7 +2305,7 @@ class SafrsFastAPI:
                 if tx.in_request():
                     safrs.DB.session.flush()
                 if rel_name == "thing":
-                    return self._jsonapi_data_response(data=target, count=1)
+                    return self._jsonapi_data_response(data=target, count=1, request=request)
                 return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)

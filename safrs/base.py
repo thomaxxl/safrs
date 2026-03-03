@@ -185,7 +185,7 @@ import json
 import operator
 from http import HTTPStatus
 from urllib.parse import urljoin
-from flask import request, url_for, has_request_context, current_app, g
+from flask import request, url_for, has_request_context, has_app_context, current_app, g
 from flask_sqlalchemy.model import Model
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy import inspect as sqla_inspect, or_
@@ -891,8 +891,8 @@ class SAFRSBase(Model):
                     col_name = self.colname_to_attrname(attr)
                     attr_val = getattr(self, col_name)
             try:
-                # use the current_app json_encoder
-                if current_app:
+                # Use Flask's app-level JSON encoder when an app context exists.
+                if has_app_context():
                     result[attr_name] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
                 else:
                     result[attr_name] = attr_val
@@ -1120,12 +1120,6 @@ class SAFRSBase(Model):
                 "type": "..."
                 }`
         """
-        # params = { self.object_id : self.id }
-        # obj_url = url_for(self.get_endpoint(), **params) # Doesn't work :(, todo : why?
-        obj_url = url_for(self.get_endpoint())
-        if obj_url.endswith("/"):
-            obj_url = obj_url[:-1]
-
         ctx = maybe_jsonapi_context()
         self_link = self._s_url
         if ctx is not None:
