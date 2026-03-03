@@ -468,6 +468,14 @@ class SafrsFastAPI:
             method_name = str(method).upper()
             method_operation_id = f"{operation_id}_{method_name.lower()}"
             for idx, variant in enumerate(self._with_slash_parity(path)):
+                if idx == 0:
+                    full_path = f"{self.prefix}{variant}" if self.prefix else variant
+                    safrs.log.info(
+                        "Exposing %s on %s, operation_id: %s",
+                        method_name,
+                        full_path,
+                        method_operation_id,
+                    )
                 router.add_api_route(
                     variant,
                     endpoint,

@@ -4,7 +4,8 @@ from copy import deepcopy
 import json
 from typing import Any
 
-from fastapi import FastAPI, Request
+import safrs
+from fastapi import APIRouter, FastAPI, Request
 
 from safrs.fastapi.api import SafrsFastAPI
 
@@ -108,3 +109,30 @@ def test_jsonapi_data_response_uses_shared_formatter() -> None:
     assert payload["data"] == []
     assert payload["included"] == []
     assert payload["meta"]["count"] == 0
+
+
+def test_add_route_with_slash_parity_logs_exposed_route(monkeypatch: Any) -> None:
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    router = APIRouter(prefix="/api")
+    messages: list[str] = []
+
+    def _capture_info(message: str, *args: Any, **_kwargs: Any) -> None:
+        rendered = message % args if args else message
+        messages.append(str(rendered))
+
+    monkeypatch.setattr(safrs.log, "info", _capture_info)
+
+    def _endpoint() -> dict[str, Any]:
+        return {"ok": True}
+
+    api._add_route_with_slash_parity(
+        router=router,
+        path="/Order",
+        endpoint=_endpoint,
+        methods=["GET"],
+        summary="List Order",
+        dependencies=[],
+        operation_id="get_Order_collection",
+    )
+
+    assert any("Exposing GET on /api/Order" in message for message in messages)
