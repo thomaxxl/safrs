@@ -206,6 +206,7 @@ from .jsonapi_attr import is_jsonapi_attr
 from .swagger_doc import get_doc
 from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
+from .jsonapi_context import maybe_jsonapi_context
 from . import tx
 
 
@@ -869,7 +870,12 @@ class SAFRSBase(Model):
         Therefore we extract the required fieldnames from the request args, eg. Users/?Users[name] => [name]
         """
         fields = self.__class__._s_jsonapi_attrs.keys()
-        if has_request_context():
+        ctx = maybe_jsonapi_context()
+        if ctx is not None:
+            context_fields = ctx.sparse_fields_for_model(self.__class__)
+            if context_fields:
+                fields = context_fields
+        elif has_request_context():
             fields = request.fields.get(self._s_class_name, fields)
 
         result = {}
@@ -1120,21 +1126,38 @@ class SAFRSBase(Model):
         if obj_url.endswith("/"):
             obj_url = obj_url[:-1]
 
+        ctx = maybe_jsonapi_context()
         self_link = self._s_url
+        if ctx is not None:
+            self_link = ctx.instance_path(self.__class__, self)
         attributes = self.to_dict()
         relationships = self._s_get_related()
-        g.ja_data.add(self)
+        if ctx is not None:
+            ctx.ja_data.add(self)
+        elif has_request_context():
+            g.ja_data.add(self)
         data = dict(attributes=attributes, id=self.jsonapi_id, links={"self": self_link}, type=self._s_type, relationships=relationships)
 
         return data
 
     def _s_get_include_settings(self: Any) -> tuple[list[str], set[str], list[str]]:
         included_list = getattr(self, "included_list", None)
+        ctx = maybe_jsonapi_context()
         if included_list is None:
-            included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+            if ctx is not None:
+                included_csv = ctx.get_include_csv(safrs.SAFRS.DEFAULT_INCLUDED)
+            elif has_request_context():
+                included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+            else:
+                included_csv = safrs.SAFRS.DEFAULT_INCLUDED
             included_list = [inc for inc in included_csv.split(",") if inc]
 
-        excluded_csv = request.args.get("exclude", "")
+        if ctx is not None:
+            excluded_csv = ctx.get_exclude_csv("")
+        elif has_request_context():
+            excluded_csv = request.args.get("exclude", "")
+        else:
+            excluded_csv = ""
         excluded_list = excluded_csv.split(",")
         included_rels = {item.split(".")[0] for item in included_list}
         return included_list, included_rels, excluded_list
@@ -1159,7 +1182,17 @@ class SAFRSBase(Model):
         data: list[Any] = []
         meta: dict[str, Any] = {}
         rel_query = getattr(self, rel_name)
-        limit = cast(Any, request).get_page_limit(rel_name)
+        ctx = maybe_jsonapi_context()
+        if ctx is not None:
+            limit = ctx.get_relationship_page_limit(rel_name)
+        elif has_request_context():
+            limit = cast(Any, request).get_page_limit(rel_name)
+        else:
+            raw_limit = get_config("DEFAULT_PAGE_LIMIT")
+            try:
+                limit = int(raw_limit) if raw_limit is not None else int(safrs.SAFRS.DEFAULT_PAGE_LIMIT)
+            except (TypeError, ValueError):
+                limit = int(safrs.SAFRS.DEFAULT_PAGE_LIMIT)
         if not get_config("ENABLE_RELATIONSHIPS"):
             meta["warning"] = "ENABLE_RELATIONSHIPS set to false in config.py"
             return data, meta
@@ -1257,7 +1290,11 @@ class SAFRSBase(Model):
                     # should never happen
                     safrs.log.error(f"Unknown relationship direction for relationship {rel_name}: {relationship.direction}")
 
-            rel_link = urljoin(self._s_url, rel_name)
+            ctx = maybe_jsonapi_context()
+            if ctx is not None:
+                rel_link = ctx.relationship_path(self.__class__, self, rel_name)
+            else:
+                rel_link = urljoin(self._s_url, rel_name)
             relationships[rel_name] = self._s_relationship_result(rel_link, data, meta)
 
         return relationships
@@ -1557,7 +1594,11 @@ class Included:
         """
         self.instance = instance
         instance.included_list = [".".join(inc_rel) for inc_rel in included_list] if included_list else []
-        g.ja_included.add(instance)
+        ctx = maybe_jsonapi_context()
+        if ctx is not None:
+            ctx.ja_included.add(instance)
+        elif has_request_context():
+            g.ja_included.add(instance)
 
     @hybrid_method
     def encode(self: Any) -> Any:
@@ -1571,14 +1612,23 @@ class Included:
         """
         encoding of all included instances (in the included[] part of the jsonapi response)
         """
+        ctx = maybe_jsonapi_context()
+        if ctx is not None:
+            ja_included = ctx.ja_included
+            ja_data = ctx.ja_data
+        elif has_request_context():
+            ja_included = getattr(g, "ja_included", set())
+            ja_data = getattr(g, "ja_data", set())
+        else:
+            ja_included = set()
+            ja_data = set()
         already_included = set()
         result = []
         while True:
-            instances = getattr(g, "ja_included", None)
-            if not instances:
+            if not ja_included:
                 break
-            instance = instances.pop()
-            if instance in already_included or instance in g.ja_data:
+            instance = ja_included.pop()
+            if instance in already_included or instance in ja_data:
                 continue
             included = instance._s_jsonapi_encode()
             result.append(included)
