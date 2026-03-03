@@ -1685,7 +1685,10 @@ class SafrsFastAPI:
         params.append(("page[offset]", str(page_offset)))
         params.append(("page[limit]", str(limit)))
         query = self._build_query_string(params)
-        return f"{request.url.path}?{query}" if query else str(request.url.path)
+        path = str(request.url.path)
+        if not path.endswith("/"):
+            path = path + "/"
+        return f"{path}?{query}" if query else path
 
     def _pagination_links(self, request: Request, *, count: int, page_offset: int, limit: int) -> Dict[str, str]:
         page_base = int(page_offset / limit) * limit
