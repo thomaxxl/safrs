@@ -14,6 +14,7 @@ from flask import request
 from .jsonapi_attr import is_jsonapi_attr
 from .errors import ValidationError, GenericError
 from .config import get_config, get_request_param
+from .jsonapi_context import maybe_jsonapi_context
 
 
 def jsonapi_filter_list(relation: Any) -> Any:
@@ -102,17 +103,27 @@ def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
 
 def _paginate_link(base_url: str, count: int, limit: int) -> str:
     ignore_args = "page[offset]", "page[limit]"
-    params = [f"{k}={v}" for k, v in request.args.items() if k not in ignore_args]
+    ctx = maybe_jsonapi_context()
+    if ctx is not None:
+        source_items = ctx.query_multi_items()
+    else:
+        source_items = [(str(key), str(value)) for key, value in request.args.items()]
+    params = [f"{k}={v}" for k, v in source_items if k not in ignore_args]
     params.append(f"page[offset]={count}&page[limit]={limit}")
     return base_url + "?" + "&".join(params)
 
 
 def _pagination_args() -> tuple[int, int]:
-    try:
-        page_offset = int(get_request_param("page_offset"))
-        limit = int(get_request_param("page_limit", get_config("DEFAULT_PAGE_LIMIT")))
-    except ValueError as exc:
-        raise ValidationError("Pagination Value Error") from exc
+    ctx = maybe_jsonapi_context()
+    if ctx is not None:
+        page_offset = int(ctx.get_page_offset())
+        limit = int(ctx.get_page_limit())
+    else:
+        try:
+            page_offset = int(get_request_param("page_offset"))
+            limit = int(get_request_param("page_limit", get_config("DEFAULT_PAGE_LIMIT")))
+        except ValueError as exc:
+            raise ValidationError("Pagination Value Error") from exc
 
     max_page_limit = cast(int, get_config("MAX_PAGE_LIMIT"))
     max_page_offset = cast(int, get_config("MAX_PAGE_OFFSET"))
@@ -214,7 +225,13 @@ def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:
 
     page_offset, limit = _pagination_args()
     count = _pagination_count(object_query, SAFRSObject)
-    base_url = SAFRSObject._s_url if SAFRSObject else ""
+    ctx = maybe_jsonapi_context()
+    if SAFRSObject is None:
+        base_url = ""
+    elif ctx is not None:
+        base_url = ctx.collection_path(SAFRSObject)
+    else:
+        base_url = SAFRSObject._s_url
     links = _pagination_links(page_offset, limit, count, base_url)
     instances = _paginate_instances(object_query, page_offset, limit, SAFRSObject)
     return links, instances, count
@@ -226,11 +243,15 @@ def jsonapi_format_response(data: Any=None, meta: Any=None, links: Any=None, err
     :param data : the objects that will be serialized
     :return: jsonapi formatted dictionary
     """
-    limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
-    try:
-        limit = int(limit)
-    except ValueError:
-        raise ValidationError("page[limit] error")
+    ctx = maybe_jsonapi_context()
+    if ctx is not None:
+        limit = int(ctx.get_page_limit())
+    else:
+        limit = get_request_param("page_limit", get_config("MAX_PAGE_LIMIT"))
+        try:
+            limit = int(limit)
+        except ValueError:
+            raise ValidationError("page[limit] error")
     if meta is None:
         meta = {}
 

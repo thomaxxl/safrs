@@ -2,11 +2,12 @@ import logging
 import os
 import sys
 from flask_swagger_ui import get_swaggerui_blueprint
-from flask import Flask, g
+from flask import Flask, g, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
 from .response import SAFRSResponse
 from .jsonapi_filters import FilteringStrategy
+from .jsonapi_context import JsonApiContext, set_jsonapi_context, reset_jsonapi_context
 from functools import wraps
 import safrs
 import flask.app
@@ -116,10 +117,35 @@ class SAFRS:
 
         @app.before_request
         def init_ja_data() -> Any:
-            # ja_data holds all data[] instances that will be encoded
-            # ja_included holds all included instances
-            g.ja_data = set()
-            g.ja_included = set()
+            def _collection_path(Model: Any) -> str:
+                return str(url_for(Model.get_endpoint()))
+
+            def _instance_path(Model: Any, obj: Any) -> str:
+                params = {Model._s_object_id: obj.jsonapi_id}
+                return str(url_for(Model.get_endpoint(type="instance"), **params))
+
+            def _relationship_path(Model: Any, obj: Any, rel_name: str) -> str:
+                instance_path = _instance_path(Model, obj).rstrip("/")
+                return f"{instance_path}/{rel_name}"
+
+            context = JsonApiContext(
+                query_params=request.args,
+                prefix=prefix,
+                collection_path_builder=_collection_path,
+                instance_path_builder=_instance_path,
+                relationship_path_builder=_relationship_path,
+            )
+            g._safrs_jsonapi_context_token = set_jsonapi_context(context)
+            # Keep backward-compatible aliases for existing code paths.
+            g.ja_data = context.ja_data
+            g.ja_included = context.ja_included
+
+        @app.teardown_request
+        def reset_ja_data(_exception: Any=None) -> Any:
+            token = getattr(g, "_safrs_jsonapi_context_token", None)
+            if token is not None:
+                reset_jsonapi_context(token)
+            return None
 
         # pylint: disable=unused-argument,unused-variable
         @app.teardown_appcontext
