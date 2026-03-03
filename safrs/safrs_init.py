@@ -20,19 +20,38 @@ def _is_truthy_env(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _parse_loglevel_value(value: Any) -> int | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    try:
+        return int(normalized)
+    except ValueError:
+        upper = normalized.upper()
+        if upper in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            return int(getattr(logging, upper))
+    return None
+
+
 def _resolve_loglevel() -> int:
+    loglevel_env = os.getenv("LOGLEVEL")
+    parsed_loglevel = _parse_loglevel_value(loglevel_env)
+    if parsed_loglevel is not None:
+        return parsed_loglevel
+    if loglevel_env is not None:
+        print(f'Invalid LOGLEVEL Environment Variable! "{loglevel_env}"')
+
     debug_env = os.getenv("DEBUG")
     if debug_env is not None:
-        try:
-            return int(debug_env)
-        except ValueError:
-            normalized = debug_env.strip().upper()
-            if normalized in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
-                return int(getattr(logging, normalized))
-            if _is_truthy_env(debug_env):
-                return logging.DEBUG
-            print(f'Invalid LogLevel in DEBUG Environment Variable! "{debug_env}"')
-            return logging.INFO
+        parsed_debug = _parse_loglevel_value(debug_env)
+        if parsed_debug is not None:
+            return parsed_debug
+        if _is_truthy_env(debug_env):
+            return logging.DEBUG
+        print(f'Invalid LogLevel in DEBUG Environment Variable! "{debug_env}"')
+        return logging.INFO
 
     if _is_truthy_env(os.getenv("FLASK_DEBUG")):
         return logging.DEBUG
