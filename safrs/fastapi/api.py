@@ -98,7 +98,7 @@ def _jsonapi_validation_errors(exc: RequestValidationError) -> List[Dict[str, An
             loc_items = ()
 
         error_item: Dict[str, Any] = {
-            "status": str(HTTPStatus.UNPROCESSABLE_ENTITY.value),
+            "status": str(HTTPStatus.BAD_REQUEST.value),
             "title": "Validation Error",
             "detail": str(raw_error.get("msg", "Validation error")),
         }
@@ -123,7 +123,7 @@ def _jsonapi_validation_errors(exc: RequestValidationError) -> List[Dict[str, An
         return result
     return [
         {
-            "status": str(HTTPStatus.UNPROCESSABLE_ENTITY.value),
+            "status": str(HTTPStatus.BAD_REQUEST.value),
             "title": "Validation Error",
             "detail": "Request validation failed",
         }
@@ -160,7 +160,7 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _jsonapi_validation_error_handler(_request: Request, exc: RequestValidationError):
         payload = _jsonapi_error_document(_jsonapi_validation_errors(exc))
-        return JSONAPIResponse(status_code=HTTPStatus.UNPROCESSABLE_ENTITY.value, content=payload)
+        return JSONAPIResponse(status_code=HTTPStatus.BAD_REQUEST.value, content=payload)
 
     @app.exception_handler(StarletteHTTPException)
     async def _jsonapi_starlette_http_error_handler(_request: Request, exc: StarletteHTTPException):
@@ -960,6 +960,8 @@ class SafrsFastAPI:
         if include_pagination:
             params.append(self._query_parameter("page[offset]", "integer", "Pagination offset"))
             params.append(self._query_parameter("page[limit]", "integer", "Pagination limit"))
+            params.append(self._query_parameter("page[number]", "integer", "Pagination page number"))
+            params.append(self._query_parameter("page[size]", "integer", "Pagination page size"))
         if include_sort:
             params.append(self._query_parameter("sort", description="Sort field (prefix with '-' for descending)"))
         if include_filter:
@@ -1092,8 +1094,8 @@ class SafrsFastAPI:
             403: {"description": HTTPStatus.FORBIDDEN.phrase, "model": error_model, "content": error_content},
             404: {"description": HTTPStatus.NOT_FOUND.phrase, "model": error_model, "content": error_content},
             405: {"description": HTTPStatus.METHOD_NOT_ALLOWED.phrase, "model": error_model, "content": error_content},
+            415: {"description": HTTPStatus.UNSUPPORTED_MEDIA_TYPE.phrase, "model": error_model, "content": error_content},
             409: {"description": HTTPStatus.CONFLICT.phrase, "model": error_model, "content": error_content},
-            422: {"description": HTTPStatus.UNPROCESSABLE_ENTITY.phrase, "model": error_model, "content": error_content},
             500: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.phrase, "model": error_model, "content": error_content},
         }
 
@@ -1206,15 +1208,10 @@ class SafrsFastAPI:
                 reset_jsonapi_context(token)
 
     def _instance_links(self, request: Request, Model: Type[Any], obj: Any) -> Dict[str, str]:
-        ctx = maybe_jsonapi_context()
-        if ctx is not None:
-            self_url = str(ctx.instance_path(Model, obj))
-        else:
-            self_url = str(request.url.path)
-
+        self_url = self._resource_self_path(Model, obj)
         links = {"self": self_url}
         request_path = str(request.url.path).rstrip("/")
-        if request_path and request_path != self_url.rstrip("/"):
+        if request_path and (request_path != self_url.rstrip("/") or bool(request.url.query)):
             query = str(request.url.query)
             related = str(request.url.path)
             if query:
@@ -1632,17 +1629,56 @@ class SafrsFastAPI:
             return list(rel_value)
         return [rel_value]
 
-    def _apply_sort(self, items: List[Any], request: Request) -> List[Any]:
-        sort_arg = request.query_params.get("sort")
-        if not sort_arg:
-            return items
-        attr_name = sort_arg.lstrip("-")
-        reverse = sort_arg.startswith("-")
-        try:
-            sort_key = cast(Any, lambda item: getattr(item, attr_name, None))
-            return sorted(items, key=sort_key, reverse=reverse)
-        except Exception:
-            return items
+    @staticmethod
+    def _parse_sort_terms(raw_sort: Optional[str]) -> List[Tuple[str, bool]]:
+        sort_csv = str(raw_sort or "").strip() or "id"
+        terms: List[Tuple[str, bool]] = []
+        for chunk in sort_csv.split(","):
+            token = chunk.strip()
+            if not token:
+                continue
+            reverse = token.startswith("-")
+            attr_name = token[1:] if reverse else token
+            if not attr_name:
+                continue
+            terms.append((attr_name, reverse))
+        if not terms:
+            terms.append(("id", False))
+        return terms
+
+    @staticmethod
+    def _resolve_sort_attr_name(Model: Type[Any], attr_name: str) -> Optional[str]:
+        if attr_name == "id":
+            if hasattr(Model, "id"):
+                return "id"
+            id_type = getattr(Model, "id_type", None)
+            primary_keys = getattr(id_type, "primary_keys", []) if id_type is not None else []
+            if primary_keys:
+                return str(primary_keys[0])
+            return None
+
+        model_attrs = getattr(Model, "_s_jsonapi_attrs", {})
+        if attr_name in model_attrs:
+            return attr_name
+        return None
+
+    @staticmethod
+    def _apply_sort_to_list(Model: Type[Any], items: List[Any], sort_terms: Sequence[Tuple[str, bool]]) -> List[Any]:
+        sorted_items = list(items)
+        # Python sort is stable; apply terms in reverse so the first term wins.
+        for raw_attr, reverse in reversed(sort_terms):
+            resolved_attr = SafrsFastAPI._resolve_sort_attr_name(Model, raw_attr)
+            if not resolved_attr:
+                continue
+            try:
+                sorted_items = sorted(
+                    sorted_items,
+                    key=lambda item: (getattr(item, resolved_attr, None) is None, getattr(item, resolved_attr, None)),
+                    reverse=reverse,
+                )
+            except Exception:
+                continue
+        return sorted_items
 
     @staticmethod
     def _is_query_like(value: Any) -> bool:
@@ -1681,28 +1717,28 @@ class SafrsFastAPI:
         return "&".join(encoded_parts)
 
     def _pagination_args(self, request: Request) -> Tuple[int, int]:
-        max_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", 100000))
-        offset = max(0, self._parse_page_param(request.query_params.get("page[offset]"), 0))
-        if offset > max_limit:
-            offset = max_limit
-        limit = self._parse_page_param(request.query_params.get("page[limit]"), max_limit)
-        if limit <= 0:
-            limit = 1
-        if limit > max_limit:
-            limit = max_limit
-        return offset, limit
+        context = self._build_jsonapi_context(request)
+        return int(context.get_page_offset()), int(context.get_page_limit())
 
-    def _page_link(self, request: Request, page_offset: int, limit: int) -> str:
+    def _page_link(self, request: Request, page_offset: int, limit: int, *, base_path: Optional[str] = None) -> str:
         params = [(str(key), str(value)) for key, value in request.query_params.multi_items() if key not in {"page[offset]", "page[limit]"}]
         params.append(("page[offset]", str(page_offset)))
         params.append(("page[limit]", str(limit)))
         query = self._build_query_string(params)
-        path = str(request.url.path)
+        path = str(base_path if base_path is not None else request.url.path)
         if not path.endswith("/"):
             path = path + "/"
         return f"{path}?{query}" if query else path
 
-    def _pagination_links(self, request: Request, *, count: int, page_offset: int, limit: int) -> Dict[str, str]:
+    def _pagination_links(
+        self,
+        request: Request,
+        *,
+        count: int,
+        page_offset: int,
+        limit: int,
+        base_path: Optional[str] = None,
+    ) -> Dict[str, str]:
         page_base = int(page_offset / limit) * limit
         first_args = (0, limit)
         last_args = (int(int(count / limit) * limit), limit)
@@ -1710,11 +1746,11 @@ class SafrsFastAPI:
         next_args = (page_offset + limit, limit) if page_offset + limit <= last_args[0] else last_args
         prev_args = (page_offset - limit, limit) if page_offset > limit else first_args
         links: Dict[str, str] = {
-            "first": self._page_link(request, *first_args),
-            "self": self._page_link(request, page_offset, limit),
-            "last": self._page_link(request, *last_args),
-            "prev": self._page_link(request, *prev_args),
-            "next": self._page_link(request, *next_args),
+            "first": self._page_link(request, *first_args, base_path=base_path),
+            "self": self._page_link(request, page_offset, limit, base_path=base_path),
+            "last": self._page_link(request, *last_args, base_path=base_path),
+            "prev": self._page_link(request, *prev_args, base_path=base_path),
+            "next": self._page_link(request, *next_args, base_path=base_path),
         }
         if last_args == self_args:
             links.pop("last", None)
@@ -1739,30 +1775,15 @@ class SafrsFastAPI:
             return len(value)
         return 1
 
-    @staticmethod
-    def _parse_page_param(raw: Optional[str], default: int) -> int:
-        if raw is None:
-            return default
-        try:
-            return int(raw)
-        except Exception:
-            return default
-
     def _apply_pagination(self, value: Any, request: Request) -> Any:
         has_offset = "page[offset]" in request.query_params
         has_limit = "page[limit]" in request.query_params
-        if not has_offset and not has_limit:
+        has_number = "page[number]" in request.query_params
+        has_size = "page[size]" in request.query_params
+        if not has_offset and not has_limit and not has_number and not has_size:
             return value
 
-        max_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", 100000))
-        offset = max(0, self._parse_page_param(request.query_params.get("page[offset]"), 0))
-        if offset > max_limit:
-            offset = max_limit
-        limit = self._parse_page_param(request.query_params.get("page[limit]"), max_limit)
-        if limit < 0:
-            limit = max_limit
-        if limit > max_limit:
-            limit = max_limit
+        offset, limit = self._pagination_args(request)
 
         if self._is_query_like(value):
             query = value.offset(offset)
@@ -1772,23 +1793,50 @@ class SafrsFastAPI:
         return items[offset : offset + limit]
 
     def _apply_sort_query_or_items(self, Model: Type[Any], value: Any, request: Request) -> Any:
-        sort_arg = request.query_params.get("sort")
-        if not sort_arg:
-            return value
-
-        attr_name = sort_arg.lstrip("-")
-        reverse = sort_arg.startswith("-")
+        sort_terms = self._parse_sort_terms(request.query_params.get("sort"))
 
         if self._is_query_like(value):
-            model_attr = getattr(Model, attr_name, None)
-            if model_attr is None:
-                return value
-            try:
-                return value.order_by(model_attr.desc() if reverse else model_attr.asc())
-            except Exception:
-                return value
+            sorted_query = value
+            for raw_attr, reverse in sort_terms:
+                resolved_attr = self._resolve_sort_attr_name(Model, raw_attr)
+                if not resolved_attr:
+                    continue
+                model_attr = getattr(Model, resolved_attr, None)
+                if model_attr is None:
+                    continue
+                try:
+                    sorted_query = sorted_query.order_by(model_attr.desc() if reverse else model_attr.asc())
+                except Exception:
+                    continue
+            return sorted_query
 
-        return self._apply_sort(self._coerce_items(value), request)
+        return self._apply_sort_to_list(Model, self._coerce_items(value), sort_terms)
+
+    @staticmethod
+    def _coerce_filter_values(model_attr: Any, raw_value: str) -> List[Any]:
+        values = [part.strip() for part in str(raw_value).split(",") if part.strip()]
+        if not values:
+            return []
+
+        model_type = getattr(getattr(model_attr, "type", None), "python_type", None)
+        coerced: List[Any] = []
+        for value in values:
+            if model_type is None:
+                coerced.append(value)
+                continue
+            try:
+                if model_type is bool:
+                    lowered = value.lower()
+                    if lowered in {"1", "true", "yes", "on"}:
+                        coerced.append(True)
+                        continue
+                    if lowered in {"0", "false", "no", "off"}:
+                        coerced.append(False)
+                        continue
+                coerced.append(model_type(value))
+            except Exception:
+                coerced.append(value)
+        return coerced
 
     def _apply_filter(self, Model: Type[Any], request: Request, base_query: Any) -> Any:
         raw_filter = request.query_params.get("filter")
@@ -1804,11 +1852,18 @@ class SafrsFastAPI:
                     model_attr = getattr(Model, attr_name, None)
                     if model_attr is None:
                         return []
+                    filter_values = self._coerce_filter_values(model_attr, attr_value)
+                    if not filter_values:
+                        return []
                     if self._is_query_like(filtered_query):
-                        filtered_query = filtered_query.filter(model_attr == attr_value)
+                        if hasattr(model_attr, "in_"):
+                            filtered_query = filtered_query.filter(model_attr.in_(filter_values))
+                        else:
+                            filtered_query = filtered_query.filter(model_attr == filter_values[0])
                     else:
                         items = self._coerce_items(filtered_query)
-                        filtered_query = [item for item in items if str(getattr(item, attr_name, None)) == str(attr_value)]
+                        accepted = {str(value) for value in filter_values}
+                        filtered_query = [item for item in items if str(getattr(item, attr_name, None)) in accepted]
                 return filtered_query
             return base_query
 
@@ -1823,7 +1878,22 @@ class SafrsFastAPI:
             self._handle_safrs_exception(exc)
         except Exception as exc:
             self._handle_safrs_exception(exc)
-        return filtered
+        if self._is_query_like(filtered) or isinstance(filtered, (list, tuple, set)):
+            return filtered
+        raise ValidationError("Invalid filter result")
+
+    def _normalize_jsonapi_id(self, Model: Type[Any], raw_id: Any) -> Any:
+        id_type = getattr(Model, "id_type", None)
+        validate = getattr(id_type, "validate_id", None) if id_type is not None else None
+        if not callable(validate):
+            return raw_id
+        try:
+            return validate(raw_id)
+        except ValidationError as exc:
+            self._jsonapi_error(400, "ValidationError", str(exc))
+        except Exception:
+            self._jsonapi_error(400, "ValidationError", f"Invalid id '{raw_id}'")
+        return raw_id
 
     def _lookup_related_instance(self, target_model: Type[Any], payload: Dict[str, Any], strict: bool = True) -> Any:
         if not isinstance(payload, dict):
@@ -1836,8 +1906,9 @@ class SafrsFastAPI:
             self._jsonapi_error(400, "ValidationError", "Invalid data payload")
         if rel_type != target_model._s_type:
             self._jsonapi_error(403, "ValidationError", "Invalid relationship type")
+        normalized_rel_id = self._normalize_jsonapi_id(target_model, rel_id)
         try:
-            target = target_model.get_instance(rel_id)
+            target = target_model.get_instance(normalized_rel_id)
         except Exception:
             self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
         if target is None:
@@ -2175,12 +2246,15 @@ class SafrsFastAPI:
                 data = payload.get("data") or {}
 
                 # Enforce JSON:API resource id parity with URL id
+                normalized_path_id = self._normalize_jsonapi_id(Model, object_id)
                 body_id = data.get("id")
                 enforce_body_id = hasattr(Model, "_s_collection_name")
                 if enforce_body_id and body_id is None:
                     self._jsonapi_error(400, "ValidationError", "Missing id in request body")
-                if body_id is not None and str(body_id) != str(object_id):
-                    self._jsonapi_error(400, "ValidationError", "Body id does not match path id")
+                if body_id is not None:
+                    normalized_body_id = self._normalize_jsonapi_id(Model, body_id)
+                    if normalized_body_id != normalized_path_id:
+                        self._jsonapi_error(400, "ValidationError", "Body id does not match path id")
 
                 attrs = data.get("attributes") or {}
                 attrs = self._parse_attributes_for_model(Model, attrs)
@@ -2230,14 +2304,23 @@ class SafrsFastAPI:
                 rel_value = getattr(parent, rel_name, None)
 
                 if self._is_to_many_relationship(rel):
-                    items = self._apply_filter(target_model, request, rel_value)
-                    items = self._coerce_items(items)
-                    items = self._apply_sort_query_or_items(target_model, items, request)
-                    items = self._apply_pagination(items, request)
-                    items = self._coerce_items(items)
+                    query_or_items = self._apply_filter(target_model, request, rel_value)
+                    query_or_items = self._apply_sort_query_or_items(target_model, query_or_items, request)
+                    total_count = self._query_or_items_count(query_or_items)
+                    page_offset, page_limit = self._pagination_args(request)
+                    paged = self._apply_pagination(query_or_items, request)
+                    items = self._coerce_items(paged)
+                    links = self._pagination_links(
+                        request,
+                        count=total_count,
+                        page_offset=page_offset,
+                        limit=page_limit,
+                        base_path=self._collection_path(target_model),
+                    )
                     return self._jsonapi_data_response(
                         data=items,
-                        meta={"count": len(items)},
+                        links=links,
+                        meta={"count": len(items), "total": total_count, "limit": page_limit},
                         count=len(items),
                         request=request,
                     )
@@ -2262,10 +2345,12 @@ class SafrsFastAPI:
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
+                normalized_target_id = self._normalize_jsonapi_id(target_model, target_id)
                 self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
                 for item in self._iter_related_items(rel_value):
-                    if str(item.jsonapi_id) == str(target_id):
+                    item_id = self._normalize_jsonapi_id(target_model, item.jsonapi_id)
+                    if item_id == normalized_target_id:
                         return self._jsonapi_data_response(
                             data=item,
                             count=1,
