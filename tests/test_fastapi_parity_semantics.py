@@ -79,7 +79,7 @@ class _PatchModel:
         return _PatchObject()
 
 
-def test_request_validation_errors_are_mapped_to_400_jsonapi() -> None:
+def test_request_validation_errors_are_mapped_to_422_jsonapi() -> None:
     app = FastAPI()
     install_jsonapi_exception_handlers(app)
     handler = app.exception_handlers[RequestValidationError]
@@ -88,9 +88,9 @@ def test_request_validation_errors_are_mapped_to_400_jsonapi() -> None:
 
     response = asyncio.run(handler(request, exc))
 
-    assert response.status_code == 400
+    assert response.status_code == 422
     payload = json.loads(response.body.decode("utf-8"))
-    assert payload["errors"][0]["status"] == "400"
+    assert payload["errors"][0]["status"] == "422"
 
 
 def test_pagination_args_support_page_number_and_size() -> None:
@@ -148,12 +148,12 @@ def test_bracket_filter_csv_in_behavior_on_collections() -> None:
     assert [item.CategoryId for item in filtered] == [1, 2]
 
 
-def test_error_response_docs_include_415_and_not_422() -> None:
+def test_error_response_docs_include_415_and_422() -> None:
     api = SafrsFastAPI(FastAPI(), prefix="/api")
     responses = api._jsonapi_error_responses()
 
     assert 415 in responses
-    assert 422 not in responses
+    assert 422 in responses
 
 
 def test_invalid_custom_filter_result_raises_validation_error() -> None:

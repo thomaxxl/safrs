@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable, List, Tuple
 
+from safrs import SAFRSBase
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 
 
@@ -38,6 +39,22 @@ class _Obj:
     jsonapi_id = "10248"
 
 
+class _EncodeProbe:
+    _s_collection_name = "Order"
+    _s_type = "Order"
+    jsonapi_id = "10248"
+
+    def to_dict(self) -> dict[str, str]:
+        return {"ShipName": "A"}
+
+    def _s_get_related(self) -> dict[str, Any]:
+        return {}
+
+    @property
+    def _s_url(self) -> str:
+        raise AssertionError("_s_url should not be used when JsonApiContext is set")
+
+
 def test_jsonapi_context_parses_jsonapi_params() -> None:
     params = _QueryParams(
         [
@@ -71,3 +88,21 @@ def test_jsonapi_context_builds_paths_and_tracks_contextvar() -> None:
     assert maybe_jsonapi_context() is ctx
     reset_jsonapi_context(token)
     assert maybe_jsonapi_context() is None
+
+
+def test_jsonapi_context_reset_is_safe_when_token_is_reused() -> None:
+    token = set_jsonapi_context(JsonApiContext(query_params=_QueryParams([])))
+    reset_jsonapi_context(token)
+    # Resetting with the same token twice should not raise in cross-context cleanup paths.
+    reset_jsonapi_context(token)
+    assert maybe_jsonapi_context() is None
+
+
+def test_jsonapi_encode_uses_context_instance_path_without_url_for() -> None:
+    token = set_jsonapi_context(JsonApiContext(query_params=_QueryParams([]), prefix="/api"))
+    try:
+        payload = SAFRSBase._s_jsonapi_encode.__func__(_EncodeProbe())
+    finally:
+        reset_jsonapi_context(token)
+
+    assert payload["links"]["self"] == "/api/Order/10248/"

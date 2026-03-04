@@ -98,7 +98,7 @@ def _jsonapi_validation_errors(exc: RequestValidationError) -> List[Dict[str, An
             loc_items = ()
 
         error_item: Dict[str, Any] = {
-            "status": str(HTTPStatus.BAD_REQUEST.value),
+            "status": str(HTTPStatus.UNPROCESSABLE_ENTITY.value),
             "title": "Validation Error",
             "detail": str(raw_error.get("msg", "Validation error")),
         }
@@ -123,7 +123,7 @@ def _jsonapi_validation_errors(exc: RequestValidationError) -> List[Dict[str, An
         return result
     return [
         {
-            "status": str(HTTPStatus.BAD_REQUEST.value),
+            "status": str(HTTPStatus.UNPROCESSABLE_ENTITY.value),
             "title": "Validation Error",
             "detail": "Request validation failed",
         }
@@ -160,7 +160,7 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _jsonapi_validation_error_handler(_request: Request, exc: RequestValidationError):
         payload = _jsonapi_error_document(_jsonapi_validation_errors(exc))
-        return JSONAPIResponse(status_code=HTTPStatus.BAD_REQUEST.value, content=payload)
+        return JSONAPIResponse(status_code=HTTPStatus.UNPROCESSABLE_ENTITY.value, content=payload)
 
     @app.exception_handler(StarletteHTTPException)
     async def _jsonapi_starlette_http_error_handler(_request: Request, exc: StarletteHTTPException):
@@ -1096,6 +1096,7 @@ class SafrsFastAPI:
             405: {"description": HTTPStatus.METHOD_NOT_ALLOWED.phrase, "model": error_model, "content": error_content},
             415: {"description": HTTPStatus.UNSUPPORTED_MEDIA_TYPE.phrase, "model": error_model, "content": error_content},
             409: {"description": HTTPStatus.CONFLICT.phrase, "model": error_model, "content": error_content},
+            422: {"description": HTTPStatus.UNPROCESSABLE_ENTITY.phrase, "model": error_model, "content": error_content},
             500: {"description": HTTPStatus.INTERNAL_SERVER_ERROR.phrase, "model": error_model, "content": error_content},
         }
 
@@ -1718,7 +1719,43 @@ class SafrsFastAPI:
 
     def _pagination_args(self, request: Request) -> Tuple[int, int]:
         context = self._build_jsonapi_context(request)
-        return int(context.get_page_offset()), int(context.get_page_limit())
+        offset = self._parse_page_param(context.get_page_offset(), 0)
+        default_limit = int(getattr(safrs.SAFRS, "DEFAULT_PAGE_LIMIT", 250))
+        limit = self._parse_page_param(context.get_page_limit(), default_limit)
+
+        max_page_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", 0) or 0)
+        if max_page_limit > 0:
+            raw_limits: List[str] = []
+            if request.query_params.get("page[limit]") is not None:
+                raw_limits.append(str(request.query_params.get("page[limit]")))
+            if request.query_params.get("page[number]") is not None and request.query_params.get("page[size]") is not None:
+                raw_limits.append(str(request.query_params.get("page[size]")))
+            for raw_limit in raw_limits:
+                try:
+                    if int(raw_limit) <= 0:
+                        limit = max_page_limit
+                        break
+                except (TypeError, ValueError):
+                    continue
+            if limit <= 0:
+                limit = max_page_limit
+            elif limit > max_page_limit:
+                limit = max_page_limit
+
+        return offset, limit
+
+    @staticmethod
+    def _parse_page_param(raw_value: Any, default: int) -> int:
+        """
+        Backward-compatible pagination parser used by internal tests.
+        """
+        try:
+            parsed = int(raw_value)
+        except (TypeError, ValueError):
+            return int(default)
+        if parsed < 0:
+            return 0
+        return parsed
 
     def _page_link(self, request: Request, page_offset: int, limit: int, *, base_path: Optional[str] = None) -> str:
         params = [(str(key), str(value)) for key, value in request.query_params.multi_items() if key not in {"page[offset]", "page[limit]"}]
@@ -1784,6 +1821,15 @@ class SafrsFastAPI:
             return value
 
         offset, limit = self._pagination_args(request)
+        raw_limit = request.query_params.get("page[limit]")
+        if raw_limit is not None:
+            try:
+                if int(str(raw_limit)) <= 0:
+                    max_page_limit = int(getattr(safrs.SAFRS, "MAX_PAGE_LIMIT", limit) or limit)
+                    if max_page_limit > 0:
+                        limit = max_page_limit
+            except (TypeError, ValueError):
+                pass
 
         if self._is_query_like(value):
             query = value.offset(offset)
@@ -1811,6 +1857,24 @@ class SafrsFastAPI:
             return sorted_query
 
         return self._apply_sort_to_list(Model, self._coerce_items(value), sort_terms)
+
+    def _apply_sort(self, items: Any, request: Request) -> List[Any]:
+        """
+        Backward-compatible list sorting helper used by internal tests.
+        """
+        sort_terms = self._parse_sort_terms(request.query_params.get("sort"))
+        sorted_items = self._coerce_items(items)
+        for raw_attr, reverse in reversed(sort_terms):
+            attr_name = "id" if raw_attr == "id" else raw_attr
+            try:
+                sorted_items = sorted(
+                    sorted_items,
+                    key=lambda item: (getattr(item, attr_name, None) is None, getattr(item, attr_name, None)),
+                    reverse=reverse,
+                )
+            except Exception:
+                continue
+        return sorted_items
 
     @staticmethod
     def _coerce_filter_values(model_attr: Any, raw_value: str) -> List[Any]:
@@ -2051,6 +2115,34 @@ class SafrsFastAPI:
         # Delegate resource serialization to the shared SAFRS/Flask pipeline.
         # This keeps FastAPI output in lockstep with Flask behavior.
         _ = include_relationship_names
+        if not hasattr(obj, "_s_jsonapi_encode"):
+            attrs: Dict[str, Any] = {}
+            model_attrs = getattr(Model, "_s_jsonapi_attrs", {})
+            for attr_name in model_attrs.keys():
+                if wanted_fields is not None and attr_name not in wanted_fields:
+                    continue
+                try:
+                    attr_val = getattr(obj, attr_name)
+                except Exception:
+                    attr_val = None
+                if isinstance(attr_val, dt.datetime):
+                    if attr_val.tzinfo is None:
+                        attr_val = attr_val.replace(tzinfo=dt.timezone.utc)
+                    attrs[attr_name] = attr_val.isoformat()
+                elif isinstance(attr_val, dt.date):
+                    attrs[attr_name] = attr_val.isoformat()
+                elif isinstance(attr_val, dt.time):
+                    if attr_val.tzinfo is None:
+                        attr_val = attr_val.replace(tzinfo=dt.timezone.utc)
+                    attrs[attr_name] = attr_val.isoformat()
+                else:
+                    attrs[attr_name] = attr_val
+            return {
+                "type": str(getattr(Model, "_s_type", Model.__name__)),
+                "id": str(getattr(obj, "jsonapi_id", "")),
+                "attributes": jsonable_encoder(attrs),
+            }
+
         token = None
         if maybe_jsonapi_context() is None:
             token = set_jsonapi_context(JsonApiContext(query_params={}, prefix=self.prefix))
@@ -2363,16 +2455,26 @@ class SafrsFastAPI:
         return handler
 
     def _patch_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: str, request: Request, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(
+            object_id: str,
+            request: Request,
+            payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
+        ):
             try:
+                request_obj: Optional[Request] = request if isinstance(request, Request) else None
+                payload_obj: Any = payload
+                if not isinstance(request, Request):
+                    payload_obj = request
+                if not isinstance(payload_obj, dict):
+                    self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (expected object)")
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
-                if "data" not in payload:
+                if "data" not in payload_obj:
                     self._jsonapi_error(400, "ValidationError", "Missing 'data' member in request body")
-                data = payload.get("data")
+                data = payload_obj.get("data")
                 rel_value = getattr(parent, rel_name, None)
                 self._note_write(Model)
 
@@ -2390,7 +2492,7 @@ class SafrsFastAPI:
                         data=items,
                         meta={"count": len(items)},
                         count=len(items),
-                        request=request,
+                        request=request_obj,
                     )
 
                 if data is None:
@@ -2405,7 +2507,7 @@ class SafrsFastAPI:
                 if tx.in_request():
                     safrs.DB.session.flush()
                 if rel_name == "thing":
-                    return self._jsonapi_data_response(data=target, count=1, request=request)
+                    return self._jsonapi_data_response(data=target, count=1, request=request_obj)
                 return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)
