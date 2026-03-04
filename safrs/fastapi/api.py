@@ -6,7 +6,7 @@ import inspect
 import re
 from enum import Enum
 from http import HTTPStatus
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
+from typing import Annotated, Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
 from urllib.parse import quote
 
 import safrs
@@ -26,14 +26,14 @@ from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.config import is_debug
 from safrs.swagger_doc import get_doc, get_http_methods
 
-from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy.exc import DataError, IntegrityError, InvalidRequestError, StatementError
+from sqlalchemy.exc import CircularDependencyError, DataError, IntegrityError, InvalidRequestError, StatementError
 from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 from sqlalchemy.orm.exc import FlushError
 
@@ -50,6 +50,9 @@ from .responses import JSONAPIResponse
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
 DEFAULT_HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE"}
 WRITE_HTTP_METHODS = {"POST", "PATCH", "DELETE", "PUT"}
+NonEmptyPathStr = Annotated[str, Path(min_length=1)]
+ObjectIdParam = NonEmptyPathStr
+TargetIdParam = NonEmptyPathStr
 
 
 class RelationshipItemMode(str, Enum):
@@ -1243,6 +1246,13 @@ class SafrsFastAPI:
                 HTTPStatus.BAD_REQUEST.phrase,
                 "Invalid attribute value",
             )
+        if isinstance(exc, CircularDependencyError):
+            self._rollback_session_quietly()
+            self._jsonapi_error(
+                HTTPStatus.CONFLICT.value,
+                HTTPStatus.CONFLICT.phrase,
+                "Relationship update creates a circular dependency",
+            )
         if isinstance(exc, (FlushError, InvalidRequestError)):
             self._rollback_session_quietly()
             self._jsonapi_error(
@@ -1545,7 +1555,7 @@ class SafrsFastAPI:
         self,
         Model: Type[Any],
         method_name: str,
-        object_id: str,
+        object_id: ObjectIdParam,
         request: Request,
         payload: Optional[Dict[str, Any]],
     ) -> JSONAPIResponse:
@@ -1579,7 +1589,7 @@ class SafrsFastAPI:
             return class_handler
 
         def instance_handler(
-            object_id: str,
+            object_id: ObjectIdParam,
             request: Request,
             payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
         ):
@@ -2190,7 +2200,7 @@ class SafrsFastAPI:
         return handler
 
     def _get_instance(self, Model: Type[Any]):
-        def handler(object_id: str, request: Request):
+        def handler(object_id: ObjectIdParam, request: Request):
             try:
                 obj = Model.get_instance(object_id)
                 # Validate include paths early so invalid relationships fail with 400.
@@ -2329,7 +2339,7 @@ class SafrsFastAPI:
 
     def _patch_instance(self, Model: Type[Any]):
         def handler(
-            object_id: str,
+            object_id: ObjectIdParam,
             request: Request,
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
         ):
@@ -2371,7 +2381,7 @@ class SafrsFastAPI:
         return handler
 
     def _delete_instance(self, Model: Type[Any]):
-        def handler(object_id: str):
+        def handler(object_id: ObjectIdParam):
             try:
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)
@@ -2385,7 +2395,7 @@ class SafrsFastAPI:
         return handler
 
     def _get_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: str, request: Request):
+        def handler(object_id: ObjectIdParam, request: Request):
             try:
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
@@ -2430,7 +2440,7 @@ class SafrsFastAPI:
         return handler
 
     def _get_relationship_item(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: str, target_id: str, request: Request):
+        def handler(object_id: ObjectIdParam, target_id: TargetIdParam, request: Request):
             try:
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
@@ -2456,7 +2466,7 @@ class SafrsFastAPI:
 
     def _patch_relationship(self, Model: Type[Any], rel_name: str):
         def handler(
-            object_id: str,
+            object_id: ObjectIdParam,
             request: Request,
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
         ):
@@ -2515,7 +2525,7 @@ class SafrsFastAPI:
         return handler
 
     def _post_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(object_id: ObjectIdParam, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
             try:
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
@@ -2549,7 +2559,7 @@ class SafrsFastAPI:
         return handler
 
     def _delete_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: str, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(object_id: ObjectIdParam, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
             try:
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
