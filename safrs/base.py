@@ -893,7 +893,11 @@ class SAFRSBase(Model):
             try:
                 # Use Flask's app-level JSON encoder when an app context exists.
                 if has_app_context():
-                    result[attr_name] = json.loads(json.dumps(attr_val, cls=current_app.json_encoder))
+                    json_encoder = getattr(cast(Any, current_app), "json_encoder", None)
+                    if json_encoder is not None:
+                        result[attr_name] = json.loads(json.dumps(attr_val, cls=json_encoder))
+                    else:
+                        result[attr_name] = attr_val
                 else:
                     result[attr_name] = attr_val
             except UnicodeDecodeError:  # pragma: no cover
@@ -1121,9 +1125,10 @@ class SAFRSBase(Model):
                 }`
         """
         ctx = maybe_jsonapi_context()
-        self_link = self._s_url
         if ctx is not None:
             self_link = ctx.instance_path(self.__class__, self)
+        else:
+            self_link = self._s_url
         attributes = self.to_dict()
         relationships = self._s_get_related()
         if ctx is not None:

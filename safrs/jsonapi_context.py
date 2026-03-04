@@ -179,7 +179,7 @@ def set_jsonapi_context(context: JsonApiContext) -> Token[Optional[JsonApiContex
 def reset_jsonapi_context(token: Token[Optional[JsonApiContext]]) -> None:
     try:
         _CURRENT_JSONAPI_CONTEXT.reset(token)
-    except ValueError:
+    except (ValueError, RuntimeError):
         _CURRENT_JSONAPI_CONTEXT.set(None)
 
 
