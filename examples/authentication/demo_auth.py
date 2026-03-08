@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
-from typing import Any
-#
-# This application demonstrates how access control can be implemented for
-# flask-restful API endpoints
-# see also https://flask-restful.readthedocs.io/en/latest/extending.html#resource-method-decorators
-#
+from __future__ import annotations
+
+from typing import Any, Sequence
 import sys
+
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
-from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
+from flask_sqlalchemy import SQLAlchemy
+from safrs import SAFRSAPI, SAFRSBase
+
+from _shared.cli import parse_host_port
 
 db = SQLAlchemy()
-
-# Authentication with flask-httpauth
-# https://flask-httpauth.readthedocs.io/en/latest/
 auth = HTTPBasicAuth()
 
 
 @auth.verify_password
 def verify_password(username_or_token: Any, password: Any) -> Any:
-    # Implement your authentication here
     if username_or_token == "user" and password == "pass":
         return True
-
     return False
 
 
@@ -38,34 +32,32 @@ class User(SAFRSBase, db.Model):
     username = db.Column(db.String(32))
 
 
-def start_app(app: Any) -> Any:
+def create_app(host: str = "0.0.0.0", port: int = 5000) -> Flask:
+    app = Flask("demo_app")
+    app.config.update(
+        SQLALCHEMY_DATABASE_URI="sqlite:////tmp/demo2.sqlite",
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        SECRET_KEY=b"sdqfjqsdfqizroqnxwc",
+        DEBUG=True,
+    )
+    db.init_app(app)
 
-    api = SAFRSAPI(app, host=HOST)
-    # The method_decorators will be applied to all API endpoints
-    api.expose_object(User, method_decorators=[auth.login_required])
-    user = User(username="admin2")
-    print(f"Starting API: http://{HOST}:{PORT}/api")
-    app.run(host=HOST, port=PORT)
+    with app.app_context():
+        db.create_all()
+        api = SAFRSAPI(app, host=host, port=port)
+        api.expose_object(User, method_decorators=[auth.login_required])
+        User(username="admin2")
 
-
-#
-# APP Initialization
-#
-
-app = Flask("demo_app")
-app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/demo2.sqlite",
-    SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    SECRET_KEY=b"sdqfjqsdfqizroqnxwc",
-    DEBUG=True,
-)
-
-HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
-PORT = 5000
-db.init_app(app)
+    return app
 
 
-# Start the application
-with app.app_context():
-    db.create_all()
-    start_app(app)
+def main(argv: Sequence[str] | None = None) -> None:
+    host, port = parse_host_port(argv or sys.argv[1:], default_host="0.0.0.0", default_port=5000)
+    app = create_app(host=host, port=port)
+    print(f"Starting API: http://{host}:{port}/api")
+    app.run(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()
+

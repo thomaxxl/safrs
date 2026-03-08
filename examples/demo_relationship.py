@@ -11,12 +11,15 @@
   - Swagger documentation is generated
 
 """
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Sequence
 import sys
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import sqlalchemy
 from safrs import SAFRSBase, SafrsApi
+from _shared.cli import parse_host
 
 db = SQLAlchemy()
 
@@ -46,16 +49,16 @@ class Book(SAFRSBase, db.Model):
 
 
 # Create the api endpoints
-def create_api(app: Any, host: Any='localhost', port: Any=5000, api_prefix: Any='') -> Any:
+def create_api(app: Flask, host: str = "localhost", port: int = 5000, api_prefix: str = "") -> None:
     api = SafrsApi(app, host=host, port=port, prefix=api_prefix)
     api.expose_object(User)
     api.expose_object(Book)
     print(f"Created API: http://{host}:{port}/{api_prefix}")
 
 
-def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
+def create_app(config_filename: str | None = None, host: str = "localhost") -> Flask:
     app = Flask("demo_app")
-    app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite://")
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://")
     db.init_app(app)
 
     with app.app_context():
@@ -70,9 +73,11 @@ def create_app(config_filename: Any=None, host: Any='localhost') -> Any:
     return app
 
 
-# Address where the api will be hosted, change this if you're not running the app on localhost!
-host = sys.argv[1] if sys.argv[1:] else "127.0.0.1"
-app = create_app(host=host)
+def main(argv: Sequence[str] | None = None) -> None:
+    host = parse_host(argv or sys.argv[1:], default_host="127.0.0.1")
+    app = create_app(host=host)
+    app.run(host=host)
+
 
 if __name__ == "__main__":
-    app.run(host=host)
+    main()

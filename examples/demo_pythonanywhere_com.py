@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Sequence
 # This script is deployed on thomaxxl.pythonanywhere.com
 #
 # This is a demo application to demonstrate the functionality of the safrs REST API
@@ -33,6 +35,7 @@ from safrs import jsonapi_rpc  # rpc decorator
 from safrs.api_methods import startswith, search  # rpc methods
 from functools import wraps
 from pathlib import Path
+from _shared.cli import parse_host_port
 
 # This html will be rendered in the swagger UI
 description = """
@@ -43,6 +46,7 @@ description = """
 """
 
 db = SQLAlchemy()
+_API_STARTED = False
 
 # SQLAlchemy Mixin Superclass with multiple inheritance
 class BaseModel(SAFRSBase, db.Model):
@@ -235,6 +239,9 @@ class Review(BaseModel):
 # API app initialization:
 # Create the instances and exposes the classes
 def start_api(swagger_host: Any='0.0.0.0', PORT: Any=None) -> Any:
+    global _API_STARTED
+    if _API_STARTED:
+        return
 
     with app.app_context():
         db.init_app(app)
@@ -278,6 +285,7 @@ def start_api(swagger_host: Any='0.0.0.0', PORT: Any=None) -> Any:
         for model in [Person, Book, Review, Publisher]:
             # Create an API endpoint
             api.expose_object(model)
+    _API_STARTED = True
 
 app = Flask("SAFRS Demo App")
 
@@ -298,18 +306,26 @@ def goto_api() -> Any:
     return redirect(API_PREFIX)
 
 app.secret_key = "not so secret"
-app.config.update(SQLALCHEMY_DATABASE_URI=f"sqlite:///", DEBUG=True)  # DEBUG will also show safrs log messages + exception messages
+app.config.update(
+    SQLALCHEMY_DATABASE_URI="sqlite:///",
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    DEBUG=True,
+)  # DEBUG will also show safrs log messages + exception messages
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 API_PREFIX = "/api"
 HOST = "thomaxxl.pythonanywhere.com"
 PORT = 5000
 
+def create_app(host: str = HOST, port: int = PORT) -> Flask:
+    start_api(host, port)
+    return app
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    host, port = parse_host_port(argv or sys.argv[1:], default_host=HOST, default_port=PORT)
+    create_app(host=host, port=port)
+    app.run(host=host, port=port, threaded=False)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        HOST = sys.argv[1]
-    if len(sys.argv) > 2:
-        PORT = int(sys.argv[2])
-    start_api(HOST, PORT)
-    app.run(host=HOST, port=PORT, threaded=False)
-else:
-    start_api(HOST, PORT)
+    main()
