@@ -1829,8 +1829,8 @@ class SafrsFastAPI:
         if hasattr(value, "count") and callable(value.count):
             try:
                 return int(value.count())
-            except Exception:
-                pass
+            except Exception as exc:
+                safrs.log.debug("Unable to evaluate count() for %s: %s", type(value).__name__, exc)
         if isinstance(value, (list, tuple, set)):
             return len(value)
         return 1
