@@ -218,6 +218,7 @@ class SafrsFastAPI:
             FastAPIDepends(self._jsonapi_context_dependency),
             FastAPIDepends(self._safrs_uow_dependency),
         ] + self._normalize_dependencies(dependencies)
+        self._install_swagger_ui_defaults()
         install_jsonapi_exception_handlers(app)
         self._install_openapi_schema_patch()
         self._install_swagger_alias()
@@ -241,6 +242,12 @@ class SafrsFastAPI:
         @self.app.get("/swagger.json", include_in_schema=False)
         def swagger_json() -> Dict[str, Any]:
             return self.app.openapi()
+
+    def _install_swagger_ui_defaults(self) -> None:
+        params = dict(getattr(self.app, "swagger_ui_parameters", None) or {})
+        params.setdefault("docExpansion", "none")
+        params.setdefault("defaultModelsExpandDepth", -1)
+        self.app.swagger_ui_parameters = params
 
     def _install_openapi_schema_patch(self) -> None:
         if bool(getattr(self.app, "_safrs_openapi_patch_installed", False)):
