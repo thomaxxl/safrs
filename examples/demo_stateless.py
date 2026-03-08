@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Sequence
 #
 # This example shows how you can implement a SAFRSBase object (the Test class)
 # without a SQLAlchemy model
@@ -17,6 +19,7 @@ from collections import namedtuple
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY  # , MANYTOONE
 import pdb
+from _shared.cli import parse_host_port
 
 db = SQLAlchemy()
 
@@ -174,38 +177,40 @@ class Test(SAFRSBase):
 
 TestBookRelationship.parent = Test
 
-HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
-PORT = 5000
-app = Flask("SAFRS Demo Application")
-app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True)
+def create_app(host: str = "0.0.0.0", port: int = 5000, api_prefix: str = "") -> Flask:
+    app = Flask("SAFRS Demo Application")
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite:///", DEBUG=True, SQLALCHEMY_TRACK_MODIFICATIONS=False)
 
-from flask import jsonify
+    from flask import jsonify
 
+    @app.route("/tt")
+    def test() -> Any:
+        data = [{k: v} for k, v in zip(["key1", "key2"], ["a", "b"])]
+        return jsonify({"data": data})
 
-@app.route("/tt")
-def test() -> Any:
-    data = [{k: v} for k, v in zip(["key1", "key2"], ["a", "b"])]
-    return jsonify({"data": data})
-
-
-if __name__ == "__main__":
     db.init_app(app)
     db.app = app
-    # Create the database
-    db.create_all()
-    API_PREFIX = ""
-
     with app.app_context():
+        db.create_all()
         # Create a user and a book and add the book to the user.books relationship
-
         user = User(name="thomas", email="em@il")
         book = Book(name="test_book")
         user.books.append(book)
-        api = SafrsApi(app, host=f"{HOST}", port=PORT, prefix=API_PREFIX)
+        api = SafrsApi(app, host=host, port=port, prefix=api_prefix)
         # Expose the database objects as REST API endpoints
         api.expose_object(User)
         api.expose_object(Book)
         api.expose_object(Test)
-        # Register the API at /api/docs
-        print(f"Starting API: http://{HOST}:{PORT}{API_PREFIX}")
-        app.run(host=HOST, port=PORT)
+        print(f"Starting API: http://{host}:{port}{api_prefix}")
+
+    return app
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    host, port = parse_host_port(argv or sys.argv[1:], default_host="0.0.0.0", default_port=5000)
+    app = create_app(host=host, port=port)
+    app.run(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

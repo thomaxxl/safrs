@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
-from typing import Any
+from __future__ import annotations
 
+from typing import Any, Sequence
 import sys
-import os
-import logging
-from functools import wraps
-from flask import Flask, redirect, jsonify, make_response
-from flask import abort, request
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String
-from safrs import SAFRSBase, SAFRSAPI, jsonapi_rpc
-from flask_sqlalchemy import SQLAlchemy
-from flask_httpauth import HTTPBasicAuth
-from flask import request
 
+from flask import Flask
+from flask_httpauth import HTTPBasicAuth
+from flask_sqlalchemy import SQLAlchemy
+from safrs import SAFRSAPI, SAFRSBase
+from sqlalchemy import Column, String
+
+from _shared.cli import parse_host_port
 
 db = SQLAlchemy()
 auth = HTTPBasicAuth()
 
-# Example sqla database object
+
 class Item(SAFRSBase, db.Model):
     """
     description: Item description
@@ -36,7 +33,6 @@ def post_login_required(func: Any) -> Any:
 
     if func.__name__ in ("post", "patch", "delete"):
         return post_decorator
-
     return func
 
 
@@ -51,48 +47,40 @@ class User(SAFRSBase, db.Model):
     custom_decorators = [post_login_required]
 
 
-def start_app(app: Any) -> Any:
-
-    OAS_PREFIX = "/api"  # swagger location
-    api = SAFRSAPI(app, host=HOST, schemes=["http"], prefix=OAS_PREFIX, api_spec_url=OAS_PREFIX + "/swagger")
-
-    api.expose_object(Item)
-    api.expose_object(User)
-
-    item = Item(name="test", email="em@il")
-    # user = User(username='admin')
-    # user.hash_password('password')
-
-    print(f"Starting API: http://{HOST}:{PORT}/api")
-    app.run(host=HOST, port=PORT)
-
-
-#
-# APP Initialization
-#
-
-app = Flask("demo_app")
-app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite:////tmp/test.sqlite", SQLALCHEMY_TRACK_MODIFICATIONS=False, SECRET_KEY=b"changeme", DEBUG=True
-)
-HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
-PORT = 5000
-db.init_app(app)
-
-
-#
-# Authentication and custom routes
-#
 @auth.verify_password
 def verify_password(username_or_token: Any, password: Any) -> Any:
-
     if username_or_token == "user" and password == "passwd":
         return True
-
     return False
 
 
-# Start the application
-with app.app_context():
-    db.create_all()
-    start_app(app)
+def create_app(host: str = "0.0.0.0", port: int = 5000) -> Flask:
+    app = Flask("demo_app")
+    app.config.update(
+        SQLALCHEMY_DATABASE_URI="sqlite:////tmp/test.sqlite",
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        SECRET_KEY=b"changeme",
+        DEBUG=True,
+    )
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        api_prefix = "/api"
+        api = SAFRSAPI(app, host=host, schemes=["http"], prefix=api_prefix, api_spec_url=api_prefix + "/swagger")
+        api.expose_object(Item)
+        api.expose_object(User)
+        Item(name="test")
+
+    return app
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    host, port = parse_host_port(argv or sys.argv[1:], default_host="0.0.0.0", default_port=5000)
+    app = create_app(host=host, port=port)
+    print(f"Starting API: http://{host}:{port}/api")
+    app.run(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,20 +1,21 @@
-#!/usr/bin/env python
-from typing import Any
-#
-# Demonstrate:
-#   - override http method
-#   - validate jsonapi
-#
-import sys, pprint
-from flask import Flask, redirect, g
-from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSBase, SafrsApi, jsonapi_rpc
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import json
+from pathlib import Path
+import sys
+from typing import Any, Sequence
+
+from flask import Flask, g
+from flask_sqlalchemy import SQLAlchemy
 from jsonschema import validate
+from safrs import SAFRSBase, SafrsApi, jsonapi_rpc
+
+from _shared.cli import parse_host_port
 
 db = SQLAlchemy()
 
-# Example sqla database object
+
 class User(SAFRSBase, db.Model):
     """
     description: User description
@@ -25,8 +26,6 @@ class User(SAFRSBase, db.Model):
     name = db.Column(db.String, default="")
     email = db.Column(db.String, default="")
 
-    # Following method is exposed through the REST API
-    # This means it can be invoked with the argument http_methods
     @jsonapi_rpc(http_methods=["POST", "GET"])
     def send_mail(self: Any, email: Any) -> Any:
         """
@@ -37,7 +36,7 @@ class User(SAFRSBase, db.Model):
                 example : test email
         """
         content = f"Mail to {self.name} : {email}\n"
-        with open("/tmp/mail.txt", "a+") as mailfile:
+        with open("/tmp/mail.txt", "a+", encoding="utf-8") as mailfile:
             mailfile.write(content)
         return {"result": f"sent {content}"}
 
@@ -52,48 +51,58 @@ class User(SAFRSBase, db.Model):
         return self.http_methods["get"](self, *args, **kwargs)
 
 
-# Server configuration variables:
-HOST = sys.argv[1] if len(sys.argv) > 1 else "0.0.0.0"
-PORT = 5000
-API_PREFIX = ""
-
-# App initialization
-app = Flask("SAFRS Demo Application")
-app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True)
-db.init_app(app)
-# Create the database
-
-with app.app_context():
-    db.create_all()
-    # Create a user
-    api = SafrsApi(app, host=HOST, port=PORT, prefix=API_PREFIX)
-    # Create a user, data from this user will be used to fill the swagger example
-    user = User(name="thomas", email="em@il")
-    # Expose the database objects as REST API endpoints
-    api.expose_object(User)
-
-with open("examples/jsonapi-schema.json") as sf:
-    schema = json.load(sf)
+def _load_jsonapi_schema() -> dict[str, Any]:
+    candidate_paths = (
+        Path(__file__).with_name("jsonapi-schema.json"),
+        Path(__file__).resolve().parents[1] / "tests" / "jsonapi-schema.json",
+    )
+    for schema_path in candidate_paths:
+        if schema_path.exists():
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+    return {}
 
 
-@app.after_request
-def per_request_callbacks(response: Any) -> Any:
-    if response.headers["Content-Type"] != "application/json":
+def create_app(host: str = "0.0.0.0", port: int = 5000, api_prefix: str = "") -> Flask:
+    app = Flask("SAFRS Demo Application")
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", DEBUG=True, SQLALCHEMY_TRACK_MODIFICATIONS=False)
+    db.init_app(app)
+    schema = _load_jsonapi_schema()
+
+    with app.app_context():
+        db.create_all()
+        api = SafrsApi(app, host=host, port=port, prefix=api_prefix)
+        User(name="thomas", email="em@il")
+        api.expose_object(User)
+
+    @app.after_request
+    def per_request_callbacks(response: Any) -> Any:
+        if response.headers.get("Content-Type") != "application/json":
+            return response
+        try:
+            data = json.loads(response.data.decode("utf8"))
+            if schema:
+                validate(data, schema)
+                data["meta"] = data.get("meta", {})
+                data["meta"]["validation"] = "ok"
+                response.data = json.dumps(data, indent=4).encode("utf-8")
+        except Exception as exc:
+            print(exc)
+            response.data = b'{"result" : "validation failed"}'
+
+        for func in getattr(g, "call_after_request", ()):
+            response = func(response)
         return response
-    try:
-        data = json.loads(response.data.decode("utf8"))
-        validate(data, schema)
-        data["meta"] = data.get("meta", {})
-        data["meta"]["validation"] = "ok"
-        response.data = json.dumps(data, indent=4)
-    except Exception as exc:
-        print(exc)
-        response.data = b'{"result" : "validation failed"}'
 
-    for func in getattr(g, "call_after_request", ()):
-        response = func(response)
-    return response
+    return app
 
 
-print(f"Starting API: http://{HOST}:{PORT}{API_PREFIX}")
-app.run(host=HOST, port=PORT)
+def main(argv: Sequence[str] | None = None) -> None:
+    host, port = parse_host_port(argv or sys.argv[1:], default_host="0.0.0.0", default_port=5000)
+    app = create_app(host=host, port=port)
+    print(f"Starting API: http://{host}:{port}")
+    app.run(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()
+

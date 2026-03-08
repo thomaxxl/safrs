@@ -1,60 +1,97 @@
-# Examples
+# SAFRS Examples
 
-This folder contains some example applications demonstrating different functionality of SAFRS.
+Examples are organized by support level so it is clear where to start.
 
-## Basic Use Case
-[mini_app.py](mini_app.py) : a small sample application
-The example can be started with
-```bash
-PYTHONPATH=. FLASK_APP=mini_app flask run
-```
+- Python target: `>=3.9`
+- Install base deps from this folder: `pip install -r examples/requirements.txt`
+- Some examples require extra dependencies (listed below)
 
-## Relationships
-[demo_relationship.py](demo_relationship.py) : an extension of the mini_app.py to demonstrate relationship functionality. Ex.:
-```bash
-python3 demo_relationship.py 172.16.9.12
-```
+## Start Here
 
-## Bigger Example
-The [demo_pythonanywhere_com.py](demo_pythonanywhere_com.py) example is deployed [here](http://thomaxxl.pythonanywhere.com/). It demonstrates different functionalities that can be used. Ex.:
-```bash
-python3 demo_pythonanywhere_com.py 172.16.9.12
-```
+These are the recommended entry points.
 
-note, you may have to install the [requirements.txt](requirements.txt) dependencies, or install safrs with
-`pip install safrs[admin]`
+1. `mini_app.py` (Flask minimal starter)
+   - Run: `python examples/mini_app.py`
+2. `demo_relationship.py` (Flask relationships starter)
+   - Run: `python examples/demo_relationship.py [HOST]`
+3. `mini_fastapi_app.py` (FastAPI minimal starter)
+   - Run: `python examples/mini_fastapi_app.py`
+4. `demo_fastapi.py` (FastAPI full showcase)
+   - Run: `python examples/demo_fastapi.py [HOST] [PORT]`
+5. `demo_pythonanywhere_com.py` (canonical full Flask showcase)
+   - Run: `python examples/demo_pythonanywhere_com.py [HOST] [PORT]`
 
-## Example without SQLAlchemy Model
-The [demo_stateless.py](demo_stateless.py) example demonstrates how to create an exposed object that is not based on an SQLAlchemy instance.
+## Categories
 
-## GeoAlchemy2 example
-[demo_geoalchemy.py](demo_geoalchemy.py)
+### Starter
 
-## Expose Existing Databases:
+- `mini_app.py`
+- `mini_fastapi_app.py`
+- `demo_relationship.py`
+- `demo_fastapi.py`
+- `demo_pythonanywhere_com.py`
 
-It is possible to expose existing databases, as an example I implemented the [employees](https://github.com/datacharmer/test_db) and [sakila](https://github.com/datacharmer/test_db/sakila) MuySQL test databases with safrs.
+### Cookbook
 
-For this to work, I used a modified [sqlacodegen](https://github.com/thomaxxl/safrs/tree/master/sqlacodegen) to generate the sqlalchemy models [sakila.py](sakila.py) and [employees.py](employees.py) .
+- `mini_examples/ex01_to_dict.py`
+- `mini_examples/ex02_column_type.py`
+- `mini_examples/ex03_jsonapi_attr.py`
+- `mini_examples/ex04_relationship.py`
+- `mini_examples/ex05_secret_relationship.py`
+- `mini_examples/ex06_filtering.py`
+- `mini_examples/ex07_logicbank.py`
+- `mini_examples/ex08_rpc.py`
+- `mini_examples/ex09_stateless.py`
+- `mini_examples/ex10_jabase.py`
+- `mini_examples/ex11_search.py`
+- `mini_examples/ex12_swagger.py`
+- `mini_examples/ex13_prefix.py`
+- `mini_examples/ex14_flask_dispatch.py`
+- `mini_examples/ex15_http_hook.py`
+- `mini_examples/ex16_perm.py`
 
-The Flask webservices are created with [expose_sakila.py](expose_sakila.py) and [expose_employees.py](expose_employees.py). They can be started as usual:
+### Integration / Specialized
 
-```bash
-$ python3 examples/expose_employees.py 172.1.1.2 5000
-```
+- `authentication/demo_auth.py` (HTTP Basic auth)
+- `authentication/demo_post_auth.py` (method-specific auth decorators)
+- `authentication/demo_jwt.py` (JWT)
+- `demo_geoalchemy.py` (GeoAlchemy / PostGIS)
+- `demo_flaskrestjsonapi.py` (comparison-oriented integration demo)
+- `docker_sqlite_demo/` (containerized sqlite demo)
 
-Exposed sakila database:
+### Legacy / Compatibility
 
-![Skype Swagger](../docs/images/sakila.png)
+- `demo_full.py` is now a compatibility wrapper around `demo_pythonanywhere_com.py`.
+- `demo_rel2.py` and `demo_devto.py` are older variants; keep for compatibility and reference.
+- `demo_http_get.py` and `demo_http_method.py` are focused protocol demos.
+- `demo_stateless.py` is an advanced non-SQLAlchemy model demo.
 
+## Optional Dependencies
 
-Unfortunatley, the code generated with sqlacodegen needed some manual changes before it was usable. For example, the declarative column types for INTEGER and SMALLINT didn't work so I had to create small wrappers to fix this:
-```python
-def SMALLINT(_):
-    return db.SMALLINT
+- FastAPI examples:
+  - `pip install fastapi uvicorn`
+- Auth examples:
+  - `pip install flask-httpauth flask-jwt-extended`
+- GeoAlchemy example:
+  - `pip install geoalchemy2`
+  - Requires a PostgreSQL/PostGIS database
+- LogicBank mini example:
+  - `pip install logicbank`
 
-def INTEGER(_):
-    return db.INTEGER
-```
+## Persistence Notes
 
-You may run into similar problems trying to expose other schemas. These problems may be hard to solve if you're unfamiliar with SQLAlchemy. 
-Feel free to open a github issue and I'll try to help you out.
+- Most Flask demos use sqlite in-memory or local sqlite files.
+- `demo_fastapi.py` uses `./demo_fastapi.db`.
+- `mini_fastapi_app.py` uses `./mini_fastapi.db`.
+- Auth demos use sqlite files in `/tmp` for convenience.
+
+## Missing Docs References
+
+Project docs still reference these paths which are not present in this tree:
+
+- `examples/models.py`
+- `examples/employees.py`
+- `examples/expose_existing/expose_models.py`
+
+Treat these as missing/restoration-needed items until docs or examples are reconciled.
+
