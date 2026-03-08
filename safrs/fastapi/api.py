@@ -1015,9 +1015,11 @@ class SafrsFastAPI:
 
     @staticmethod
     def _model_tag_description(Model: Type[Any], tag: str) -> str:
-        model_doc = inspect.getdoc(Model)
-        if model_doc:
-            return model_doc
+        raw_doc = getattr(Model, "__doc__", None)
+        if isinstance(raw_doc, str):
+            model_doc = inspect.cleandoc(raw_doc).strip()
+            if model_doc:
+                return model_doc
         return f"{tag} operations"
 
     def _ensure_tag_metadata(self, Model: Type[Any], tag: str) -> None:
