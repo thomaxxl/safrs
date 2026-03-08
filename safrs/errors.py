@@ -1,4 +1,5 @@
 from contextvars import ContextVar, Token
+import logging
 from typing import Any, Optional
 # Exception Handlers
 #
@@ -18,6 +19,7 @@ from werkzeug.exceptions import NotFound
 import safrs
 from sqlalchemy.exc import DontWrapMixin
 from http import HTTPStatus
+from urllib.parse import urlsplit
 from .config import is_debug
 
 HIDDEN_LOG = "(debug logging disabled)"
@@ -40,12 +42,66 @@ def reset_fastapi_request_url(token: Token[Optional[str]]) -> None:
 
 
 def _current_request_url() -> Optional[str]:
+    fastapi_url = _FASTAPI_REQUEST_URL.get()
+    if fastapi_url:
+        return fastapi_url
     if has_request_context():
         try:
             return str(request.url)
         except Exception:
             return None
-    return _FASTAPI_REQUEST_URL.get()
+    return fastapi_url
+
+
+def _infer_resource_and_object_id(request_url: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    if not request_url:
+        return None, None
+
+    try:
+        path = urlsplit(str(request_url)).path
+    except Exception:
+        return None, None
+
+    segments = [segment for segment in path.split("/") if segment]
+    if not segments:
+        return None, None
+
+    if "api" in segments:
+        api_index = max(index for index, segment in enumerate(segments) if segment == "api")
+        segments = segments[api_index + 1 :]
+        if not segments:
+            return None, None
+
+    resource = segments[0]
+    object_id = None
+    if len(segments) > 1 and segments[1] not in {"swagger", "swagger.json", "openapi", "openapi.json"}:
+        object_id = segments[1]
+    return resource, object_id
+
+
+def log_integrity_error_details(
+    exc: Any,
+    *,
+    request_url: Optional[str] = None,
+    resource: Optional[str] = None,
+    object_id: Optional[str] = None,
+) -> None:
+    if not safrs.log.isEnabledFor(logging.DEBUG):
+        return
+
+    url = request_url or _current_request_url()
+    inferred_resource, inferred_object_id = _infer_resource_and_object_id(url)
+    effective_resource = resource or inferred_resource
+    effective_object_id = object_id or inferred_object_id
+    safrs.log.debug(
+        "IntegrityError diagnostics: url=%s resource=%s object_id=%s orig=%r statement=%r params=%r",
+        url,
+        effective_resource,
+        effective_object_id,
+        getattr(exc, "orig", None),
+        getattr(exc, "statement", None),
+        getattr(exc, "params", None),
+    )
 
 
 class JsonapiError(Exception, DontWrapMixin):

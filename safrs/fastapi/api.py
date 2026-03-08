@@ -17,6 +17,7 @@ from safrs.errors import (
     JsonapiError,
     SystemValidationError,
     ValidationError,
+    log_integrity_error_details,
     reset_fastapi_request_url,
     set_fastapi_request_url,
 )
@@ -1233,6 +1234,7 @@ class SafrsFastAPI:
         if isinstance(exc, JSONAPIHTTPError):
             raise exc
         if isinstance(exc, IntegrityError):
+            log_integrity_error_details(exc)
             self._rollback_session_quietly()
             self._jsonapi_error(
                 HTTPStatus.CONFLICT.value,
