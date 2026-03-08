@@ -64,7 +64,6 @@ def test_apply_sort_to_list_falls_back_when_values_are_not_orderable() -> None:
     result = api._apply_sort_to_list(_SortModel, items, [("CustomerId", False)])
     assert [item.id for item in result] == [1, 2]
 
-
 def test_query_or_items_count_falls_back_when_count_raises() -> None:
     class _BrokenCounter:
         @staticmethod
