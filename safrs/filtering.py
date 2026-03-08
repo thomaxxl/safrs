@@ -158,21 +158,45 @@ def _compile_clause_expression(cls: Any, clause: dict[str, Any], *, strict_mode:
     attr = _resolve_filter_attr(cls, clause, attr_name)
 
     if op_name in {"like", "ilike", "match", "notilike"}:
-        op = getattr(attr, op_name, None)
-        if callable(op):
-            if strict_mode and not isinstance(value, str):
-                raise ValidationError(f'Invalid filter "{clause}", "{op_name}" requires a string value')
-            return op(value)
-        raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+        return _compile_string_clause_expression(attr, op_name, value, clause, strict_mode=strict_mode)
 
     if op_name in {"in", "notin"}:
-        if strict_mode and not _is_sequence_like(value):
-            raise ValidationError(f'Invalid filter "{clause}", "{op_name}" requires an array value')
-        op = getattr(attr, op_name + "_", None)
-        if callable(op):
-            return op(value)
-        raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+        return _compile_membership_clause_expression(attr, op_name, value, clause, strict_mode=strict_mode)
 
+    comparison_expression = _compile_simple_comparison_expression(attr, op_name, value)
+    if comparison_expression is not None:
+        return comparison_expression
+
+    identity_expression = _compile_identity_clause_expression(attr, op_name, value)
+    if identity_expression is not None:
+        return identity_expression
+
+    raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+
+
+def _compile_string_clause_expression(
+    attr: Any, op_name: str, value: Any, clause: dict[str, Any], *, strict_mode: bool
+) -> Any:
+    op = getattr(attr, op_name, None)
+    if not callable(op):
+        raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+    if strict_mode and not isinstance(value, str):
+        raise ValidationError(f'Invalid filter "{clause}", "{op_name}" requires a string value')
+    return op(value)
+
+
+def _compile_membership_clause_expression(
+    attr: Any, op_name: str, value: Any, clause: dict[str, Any], *, strict_mode: bool
+) -> Any:
+    if strict_mode and not _is_sequence_like(value):
+        raise ValidationError(f'Invalid filter "{clause}", "{op_name}" requires an array value')
+    op = getattr(attr, op_name + "_", None)
+    if not callable(op):
+        raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+    return op(value)
+
+
+def _compile_simple_comparison_expression(attr: Any, op_name: str, value: Any) -> Any:
     if op_name == "eq":
         return attr == value
     if op_name == "ne":
@@ -185,16 +209,21 @@ def _compile_clause_expression(cls: Any, clause: dict[str, Any], *, strict_mode:
         return attr > value
     if op_name == "ge":
         return attr >= value
-    if op_name in {"is", "is_"}:
-        op = getattr(attr, "is_", None)
-        if callable(op):
-            return op(value)
-    if op_name == "is_not":
-        op = getattr(attr, "is_not", None)
-        if callable(op):
-            return op(value)
+    return None
 
-    raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+
+def _compile_identity_clause_expression(attr: Any, op_name: str, value: Any) -> Any:
+    method_name = ""
+    if op_name in {"is", "is_"}:
+        method_name = "is_"
+    elif op_name == "is_not":
+        method_name = "is_not"
+    if not method_name:
+        return None
+    op = getattr(attr, method_name, None)
+    if not callable(op):
+        return None
+    return op(value)
 
 
 def _normalized_op_name(raw: Any) -> str:

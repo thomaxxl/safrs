@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Type
 
+import safrs
 from fastapi.encoders import jsonable_encoder
 
 
@@ -18,8 +19,8 @@ def attributes_example(Model: Type[Any]) -> Dict[str, Any]:
             sample = sample_factory()
             if isinstance(sample, dict):
                 return _json_safe(sample) or {}
-        except Exception:
-            pass
+        except Exception as exc:
+            safrs.log.debug("Failed to build attributes example for %s: %s", getattr(Model, "__name__", Model), exc)
     return {}
 
 
@@ -31,8 +32,8 @@ def resource_identifier_example(Model: Type[Any]) -> Dict[str, str]:
             generated = sample_id_factory()
             if generated is not None:
                 sample_id = generated
-        except Exception:
-            pass
+        except Exception as exc:
+            safrs.log.debug("Failed to build sample id for %s: %s", getattr(Model, "__name__", Model), exc)
     json_safe_id = _json_safe(sample_id)
     return {
         "type": str(getattr(Model, "_s_type", getattr(Model, "__name__", "Resource"))),

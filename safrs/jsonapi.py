@@ -602,6 +602,59 @@ class SAFRSRestRelationshipAPI(Resource):
             self.child_object_id += "2"
 
     @staticmethod
+    def _relationship_target_tables(relationship: Any) -> set[Any]:
+        relationship_mapper = getattr(relationship, "mapper", None)
+        return set(getattr(relationship_mapper, "tables", []) or [])
+
+    @staticmethod
+    def _column_belongs_to_target(column: Any, target_tables: set[Any]) -> bool:
+        return bool(target_tables and getattr(column, "table", None) in target_tables)
+
+    @staticmethod
+    def _candidate_fk_column(local_col: Any, remote_col: Any, target_tables: set[Any]) -> Any:
+        local_belongs = SAFRSRestRelationshipAPI._column_belongs_to_target(local_col, target_tables)
+        remote_belongs = SAFRSRestRelationshipAPI._column_belongs_to_target(remote_col, target_tables)
+        local_foreign_keys = getattr(local_col, "foreign_keys", None)
+        remote_foreign_keys = getattr(remote_col, "foreign_keys", None)
+
+        if local_belongs and local_foreign_keys:
+            return local_col
+        if remote_belongs and remote_foreign_keys:
+            return remote_col
+        if local_belongs and not remote_belongs:
+            return local_col
+        if remote_belongs and not local_belongs:
+            return remote_col
+        if local_foreign_keys:
+            return local_col
+        if remote_foreign_keys:
+            return remote_col
+        return None
+
+    @staticmethod
+    def _collect_fk_columns_from_pairs(relationship: Any, target_tables: set[Any]) -> list[Any]:
+        fk_columns: list[Any] = []
+        pair_sources = []
+        pair_sources.extend(list(getattr(relationship, "synchronize_pairs", []) or []))
+        pair_sources.extend(list(getattr(relationship, "local_remote_pairs", []) or []))
+        for pair in pair_sources:
+            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                continue
+            local_col, remote_col = pair
+            candidate = SAFRSRestRelationshipAPI._candidate_fk_column(local_col, remote_col, target_tables)
+            if candidate is not None:
+                fk_columns.append(candidate)
+        return fk_columns
+
+    @staticmethod
+    def _fk_column_allows_disassociation(column: Any) -> bool:
+        if getattr(column, "primary_key", False):
+            return False
+        if getattr(column, "nullable", True) is False:
+            return False
+        return True
+
+    @staticmethod
     def _disassociation_is_safe(relationship: Any) -> bool:
         if relationship.direction == MANYTOMANY:
             return True
@@ -611,40 +664,13 @@ class SAFRSRestRelationshipAPI(Resource):
             return True
 
         fk_columns = list(getattr(relationship, "_calculated_foreign_keys", []) or [])
-        relationship_mapper = getattr(relationship, "mapper", None)
-        target_tables = set(getattr(relationship_mapper, "tables", []) or [])
-
-        def _belongs_to_target(column: Any) -> bool:
-            return bool(target_tables and getattr(column, "table", None) in target_tables)
+        target_tables = SAFRSRestRelationshipAPI._relationship_target_tables(relationship)
 
         if not fk_columns:
-            pair_sources = []
-            pair_sources.extend(list(getattr(relationship, "synchronize_pairs", []) or []))
-            pair_sources.extend(list(getattr(relationship, "local_remote_pairs", []) or []))
-            for pair in pair_sources:
-                if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-                    continue
-                local_col, remote_col = pair
-                candidate = None
-                if _belongs_to_target(local_col) and getattr(local_col, "foreign_keys", None):
-                    candidate = local_col
-                elif _belongs_to_target(remote_col) and getattr(remote_col, "foreign_keys", None):
-                    candidate = remote_col
-                elif _belongs_to_target(local_col) and not _belongs_to_target(remote_col):
-                    candidate = local_col
-                elif _belongs_to_target(remote_col) and not _belongs_to_target(local_col):
-                    candidate = remote_col
-                elif getattr(local_col, "foreign_keys", None):
-                    candidate = local_col
-                elif getattr(remote_col, "foreign_keys", None):
-                    candidate = remote_col
-                if candidate is not None:
-                    fk_columns.append(candidate)
+            fk_columns.extend(SAFRSRestRelationshipAPI._collect_fk_columns_from_pairs(relationship, target_tables))
 
         for column in fk_columns:
-            if getattr(column, "primary_key", False):
-                return False
-            if getattr(column, "nullable", True) is False:
+            if not SAFRSRestRelationshipAPI._fk_column_allows_disassociation(column):
                 return False
         return True
 

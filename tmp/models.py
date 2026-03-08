@@ -317,24 +317,41 @@ def _relationship_linkage_matches_parent(parent: Any, rel_name: str, rel_doc: An
         )
 
 
-def _validate_seed_payload(payload: dict[str, Any]) -> None:
-    required_ids = {
-        "PersonId": Person,
-        "FriendId": Person,
-        "BookId": Book,
-        "PublisherId": Publisher,
-        "ReviewId": Review,
-    }
-    for key, model_cls in required_ids.items():
+_REQUIRED_SEED_ID_MODELS: dict[str, type[Any]] = {
+    "PersonId": Person,
+    "FriendId": Person,
+    "BookId": Book,
+    "PublisherId": Publisher,
+    "ReviewId": Review,
+}
+
+_REQUIRED_SEED_RELATIONSHIP_KEYS = {
+    "People.friends",
+    "People.books_read",
+    "People.books_written",
+    "People.reviews",
+    "Books.author",
+    "Books.reader",
+    "Books.publisher",
+    "Books.reviews",
+    "Publishers.books",
+}
+
+_RELATIONSHIP_PATH_PARAM_KEY_MAP = {"People": "PersonId", "Books": "BookId", "Publishers": "PublisherId"}
+
+
+def _validate_required_seed_ids(payload: dict[str, Any]) -> None:
+    for key, model_cls in _REQUIRED_SEED_ID_MODELS.items():
         value = payload.get(key)
         if not isinstance(value, str) or not value:
             raise RuntimeError(f"Seed payload is missing required non-empty '{key}'")
         if not _resource_exists(model_cls, value):
             raise RuntimeError(f"Seed payload '{key}' references missing {model_cls.__name__} row '{value}'")
-
     if payload["PersonId"] == payload["FriendId"]:
         raise RuntimeError("Seed payload must use distinct values for PersonId and FriendId")
 
+
+def _validate_seed_relationship_containers(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     relationships = payload.get("relationships")
     if not isinstance(relationships, dict) or not relationships:
         raise RuntimeError("Seed payload must include a non-empty 'relationships' object")
@@ -343,56 +360,81 @@ def _validate_seed_payload(payload: dict[str, Any]) -> None:
     if not isinstance(relationship_path_params, dict) or not relationship_path_params:
         raise RuntimeError("Seed payload must include a non-empty 'relationship_path_params' object")
 
-    required_relationship_keys = {
-        "People.friends",
-        "People.books_read",
-        "People.books_written",
-        "People.reviews",
-        "Books.author",
-        "Books.reader",
-        "Books.publisher",
-        "Books.reviews",
-        "Publishers.books",
-    }
-    missing_keys = sorted(required_relationship_keys - set(relationships.keys()))
+    missing_keys = sorted(_REQUIRED_SEED_RELATIONSHIP_KEYS - set(relationships.keys()))
     if missing_keys:
         raise RuntimeError(f"Seed payload missing required relationship entries: {missing_keys}")
-    missing_param_keys = sorted(required_relationship_keys - set(relationship_path_params.keys()))
+    missing_param_keys = sorted(_REQUIRED_SEED_RELATIONSHIP_KEYS - set(relationship_path_params.keys()))
     if missing_param_keys:
         raise RuntimeError(f"Seed payload missing required relationship path params: {missing_param_keys}")
+    return relationships, relationship_path_params
 
+
+def _validate_relationship_path_params(
+    *,
+    seed_key: str,
+    collection: str,
+    relationship_path_params: dict[str, Any],
+) -> str:
+    expected_path_key = _RELATIONSHIP_PATH_PARAM_KEY_MAP.get(collection)
+    if not expected_path_key:
+        raise RuntimeError(f"Seed relationship '{seed_key}' has unsupported source collection '{collection}'")
+
+    path_params = relationship_path_params.get(seed_key)
+    if not isinstance(path_params, dict) or set(path_params.keys()) != {expected_path_key}:
+        raise RuntimeError(
+            f"Seed relationship '{seed_key}' must define exactly '{expected_path_key}' in relationship_path_params"
+        )
+    parent_id = path_params.get(expected_path_key)
+    if not isinstance(parent_id, str) or not parent_id:
+        raise RuntimeError(f"Seed relationship '{seed_key}' must use a non-empty '{expected_path_key}' path value")
+    return parent_id
+
+
+def _validate_single_seed_relationship_entry(
+    seed_key: str,
+    rel_doc: Any,
+    *,
+    relationship_path_params: dict[str, Any],
+    collection_model_map: dict[str, type[Any]],
+) -> None:
+    if not isinstance(seed_key, str) or "." not in seed_key:
+        raise RuntimeError(f"Invalid seed relationship key '{seed_key}'")
+    collection, rel_name = seed_key.split(".", 1)
+    source_model = collection_model_map.get(collection)
+    if source_model is None:
+        raise RuntimeError(f"Seed relationship '{seed_key}' uses unknown source collection '{collection}'")
+
+    mapper = sa_inspect(source_model)
+    if rel_name not in mapper.relationships:
+        raise RuntimeError(f"Seed relationship '{seed_key}' uses unknown relationship '{rel_name}'")
+
+    rel_property = mapper.relationships[rel_name]
+    _validate_seed_relationship_doc(rel_doc, rel_property, seed_key)
+
+    parent_id = _validate_relationship_path_params(
+        seed_key=seed_key,
+        collection=collection,
+        relationship_path_params=relationship_path_params,
+    )
+    parent = source_model.get_instance(parent_id)
+    if parent is None:
+        raise RuntimeError(
+            f"Seed relationship '{seed_key}' relationship_path_params references missing {source_model.__name__} id '{parent_id}'"
+        )
+    _relationship_linkage_matches_parent(parent, rel_name, rel_doc, rel_property, seed_key)
+
+
+def _validate_seed_payload(payload: dict[str, Any]) -> None:
+    _validate_required_seed_ids(payload)
+    relationships, relationship_path_params = _validate_seed_relationship_containers(payload)
     collection_model_map = {str(getattr(model_cls, "__tablename__", "")): model_cls for model_cls in EXPOSED_MODELS}
-    path_param_key_map = {"People": "PersonId", "Books": "BookId", "Publishers": "PublisherId"}
     for seed_key, rel_doc in relationships.items():
-        if not isinstance(seed_key, str) or "." not in seed_key:
-            raise RuntimeError(f"Invalid seed relationship key '{seed_key}'")
-        collection, rel_name = seed_key.split(".", 1)
-        source_model = collection_model_map.get(collection)
-        if source_model is None:
-            raise RuntimeError(f"Seed relationship '{seed_key}' uses unknown source collection '{collection}'")
-        mapper = sa_inspect(source_model)
-        if rel_name not in mapper.relationships:
-            raise RuntimeError(f"Seed relationship '{seed_key}' uses unknown relationship '{rel_name}'")
-        rel_property = mapper.relationships[rel_name]
-        _validate_seed_relationship_doc(rel_doc, rel_property, seed_key)
-
-        expected_path_key = path_param_key_map.get(collection)
-        if not expected_path_key:
-            raise RuntimeError(f"Seed relationship '{seed_key}' has unsupported source collection '{collection}'")
-        path_params = relationship_path_params.get(seed_key)
-        if not isinstance(path_params, dict) or set(path_params.keys()) != {expected_path_key}:
-            raise RuntimeError(
-                f"Seed relationship '{seed_key}' must define exactly '{expected_path_key}' in relationship_path_params"
-            )
-        parent_id = path_params.get(expected_path_key)
-        if not isinstance(parent_id, str) or not parent_id:
-            raise RuntimeError(f"Seed relationship '{seed_key}' must use a non-empty '{expected_path_key}' path value")
-        parent = source_model.get_instance(parent_id)
-        if parent is None:
-            raise RuntimeError(
-                f"Seed relationship '{seed_key}' relationship_path_params references missing {source_model.__name__} id '{parent_id}'"
-            )
-        _relationship_linkage_matches_parent(parent, rel_name, rel_doc, rel_property, seed_key)
+        _validate_single_seed_relationship_entry(
+            seed_key,
+            rel_doc,
+            relationship_path_params=relationship_path_params,
+            collection_model_map=collection_model_map,
+        )
 
 
 def build_seed_payload(session: Any) -> dict[str, Any]:
