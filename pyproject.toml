@@ -36,11 +36,11 @@ classifiers = [  # Optional
   "Programming Language :: Python :: 3 :: Only",
 ]
 
-dependencies = [ "Flask-SQLAlchemy>=3.0.3", "flask_swagger_ui>=4.11.1", "flask-restful-swagger-2>=0.35", "PyYaml>=6.0" ]
+dependencies = [ "Flask-SQLAlchemy>=3.1.1", "flask_swagger_ui>=5.21.0", "flask-restful-swagger-2>=0.35", "PyYaml>=6.0.3" ]
 
 [project.optional-dependencies] # Optional
-dev = ["flask_cors"]
-test = ["flask_cors"]
+dev = ["flask_cors>=6.0.2"]
+test = ["flask_cors>=6.0.2"]
 
 [project.urls]  # Optional
 "Homepage" = "https://github.com/thomaxxl/safrs"

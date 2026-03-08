@@ -39,9 +39,9 @@ def safrs_setup() -> Any:
             "Programming Language :: Python :: 3.12",
         ],
         extras_require={
-            "admin": ["Flask-Admin>=1.5.8", "Flask-Cors>=3.0.9"],
-            "db2api": ["inflect==5.0.2", "Flask-Cors>=3.0.9"],
-            "fastapi": ['fastapi[standard]'],
+            "admin": ["Flask-Admin>=1.5.8", "Flask-Cors>=6.0.2"],
+            "db2api": ["inflect==5.0.2", "Flask-Cors>=6.0.2"],
+            "fastapi": ['fastapi[standard]>=0.135.1'],
 },
 
     )
