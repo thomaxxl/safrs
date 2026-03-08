@@ -1,0 +1,16 @@
+services:
+  northwind-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DEMO_EXTERNAL_PORT: "${DEMO_PORT:-8000}"
+      NORTHWIND_DB_PATH: /data/northwind.sqlite
+    ports:
+      - "${DEMO_PORT:-8000}:80"
+    restart: unless-stopped
+    volumes:
+      - northwind_demo_data:/data
+
+volumes:
+  northwind_demo_data:

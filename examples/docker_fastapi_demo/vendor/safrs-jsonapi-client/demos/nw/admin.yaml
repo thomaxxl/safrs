@@ -1,0 +1,475 @@
+about:
+  date: June 13, 2025 22:02:28
+  recent_changes: works with modified safrs-react-admin
+  version: 0.0.0
+api_root: '//127.0.0.1:5000/api'
+_authentication: '{system-default}'
+info:
+  number_relationships: 14
+  number_tables: 17
+info_toggle_checked: true
+resources:
+  Category:
+    attributes:
+    - label: ' Category Name_ Column Name*'
+      name: CategoryName_ColumnName
+      search: true
+      sort: true
+    - name: Description
+    - name: Id
+    - name: Client_id
+    tab_groups:
+    - direction: tomany
+      fks:
+      - CategoryId
+      name: ProductList
+      resource: Product
+    type: Category
+    user_key: CategoryName_ColumnName
+  Customer:
+    attributes:
+    - label: ' Company Name*'
+      name: CompanyName
+      search: true
+      sort: true
+    - name: ContactName
+    - name: ContactTitle
+    - name: Address
+    - name: City
+    - name: Region
+    - name: PostalCode
+    - name: Country
+    - name: Phone
+    - name: Fax
+    - name: Balance
+      type: DECIMAL
+    - name: CreditLimit
+      type: DECIMAL
+    - name: OrderCount
+    - name: UnpaidOrderCount
+    - name: Id
+      required: true
+    - name: Client_id
+    tab_groups:
+    - direction: tomany
+      fks:
+      - CustomerId
+      name: OrderList
+      resource: Order
+    type: Customer
+    user_key: CompanyName
+  CustomerDemographic:
+    attributes:
+    - label: ' Id*'
+      name: Id
+      required: true
+      search: true
+      sort: true
+    - name: CustomerDesc
+    type: CustomerDemographic
+    user_key: Id
+  Department:
+    attributes:
+    - label: ' Department Name*'
+      name: DepartmentName
+      search: true
+      sort: true
+    - name: DepartmentId
+    - name: SecurityLevel
+    - name: Id
+    tab_groups:
+    - direction: tomany
+      fks:
+      - DepartmentId
+      name: DepartmentList
+      resource: Department
+    - direction: tomany
+      fks:
+      - OnLoanDepartmentId
+      name: EmployeeList
+      resource: Employee
+    - direction: tomany
+      fks:
+      - WorksForDepartmentId
+      name: WorksForEmployeeList
+      resource: Employee
+    - direction: toone
+      fks:
+      - DepartmentId
+      name: Department
+      resource: Department
+    type: Department
+    user_key: DepartmentName
+  Employee:
+    attributes:
+    - label: ' Last Name*'
+      name: LastName
+      search: true
+      sort: true
+    - name: OnLoanDepartmentId
+    - name: UnionId
+    - name: WorksForDepartmentId
+    - name: FirstName
+    - name: Title
+    - name: TitleOfCourtesy
+    - name: BirthDate
+    - name: HireDate
+    - name: Address
+    - name: City
+    - name: Region
+    - name: PostalCode
+    - name: Country
+    - name: HomePhone
+    - name: Extension
+    - name: Notes
+    - name: ReportsTo
+    - name: PhotoPath
+    - name: EmployeeType
+    - name: Salary
+      type: DECIMAL
+    - name: Dues
+      type: DECIMAL
+    - name: Email
+    - name: Id
+    tab_groups:
+    - direction: tomany
+      fks:
+      - EmployeeId
+      name: EmployeeAuditList
+      resource: EmployeeAudit
+    - direction: tomany
+      fks:
+      - EmployeeId
+      name: EmployeeTerritoryList
+      resource: EmployeeTerritory
+    - direction: tomany
+      fks:
+      - EmployeeId
+      name: OrderList
+      resource: Order
+    - direction: toone
+      fks:
+      - OnLoanDepartmentId
+      name: OnLoanDepartment
+      resource: Department
+    - direction: toone
+      fks:
+      - UnionId
+      name: Union
+      resource: Union
+    - direction: toone
+      fks:
+      - WorksForDepartmentId
+      name: WorksForDepartment
+      resource: Department
+    type: Employee
+    user_key: LastName
+  EmployeeAudit:
+    attributes:
+    - label: ' Last Name*'
+      name: LastName
+      search: true
+      sort: true
+    - name: EmployeeId
+    - name: Title
+    - name: Salary
+      type: DECIMAL
+    - name: FirstName
+    - name: CreatedOn
+    - name: UpdatedOn
+    - name: CreatedBy
+    - name: UpdatedBy
+    - name: Id
+    tab_groups:
+    - direction: toone
+      fks:
+      - EmployeeId
+      name: Employee
+      resource: Employee
+    type: EmployeeAudit
+    user_key: LastName
+  EmployeeTerritory:
+    attributes:
+    - label: ' Id*'
+      name: Id
+      required: true
+      search: true
+      sort: true
+    - name: EmployeeId
+      required: true
+    - name: TerritoryId
+    tab_groups:
+    - direction: toone
+      fks:
+      - EmployeeId
+      name: Employee
+      resource: Employee
+    - direction: toone
+      fks:
+      - TerritoryId
+      name: Territory
+      resource: Territory
+    type: EmployeeTerritory
+    user_key: Id
+  Location:
+    attributes:
+    - label: ' country*'
+      name: country
+      required: true
+      search: true
+      sort: true
+    - name: city
+      required: true
+    - name: notes
+    tab_groups:
+    - direction: tomany
+      fks:
+      - City
+      - Country
+      name: OrderList
+      resource: Order
+    type: Location
+    user_key: country
+  Order:
+    attributes:
+    - label: ' Ship Name*'
+      name: ShipName
+      search: true
+      sort: true
+    - name: CloneFromOrder
+    - name: City
+    - name: CustomerId
+      required: true
+    - name: EmployeeId
+      required: true
+    - name: OrderDate
+    - name: RequiredDate
+      type: DATE
+    - name: ShippedDate
+    - name: ShipVia
+    - name: Freight
+      type: DECIMAL
+    - name: ShipAddress
+    - name: ShipCity
+    - name: ShipRegion
+    - name: ShipPostalCode
+    - name: ShipCountry
+    - name: AmountTotal
+    - name: Country
+    - name: Ready
+      type: Boolean
+    - name: OrderDetailCount
+    - name: Id
+    tab_groups:
+    - direction: tomany
+      fks:
+      - CloneFromOrder
+      name: OrderList
+      resource: Order
+    - direction: tomany
+      fks:
+      - OrderId
+      name: OrderDetailList
+      resource: OrderDetail
+    - direction: toone
+      fks:
+      - CloneFromOrder
+      name: Order
+      resource: Order
+    - direction: toone
+      fks:
+      - City
+      - Country
+      name: Location
+      resource: Location
+    - direction: toone
+      fks:
+      - CustomerId
+      name: Customer
+      resource: Customer
+    - direction: toone
+      fks:
+      - EmployeeId
+      name: Employee
+      resource: Employee
+    type: Order
+    user_key: ShipName
+  OrderDetail:
+    attributes:
+    - label: ' Id*'
+      name: Id
+      search: true
+      sort: true
+    - name: OrderId
+      required: true
+    - name: ProductId
+      required: true
+    - name: UnitPrice
+      type: DECIMAL
+    - name: Quantity
+      required: true
+    - name: Discount
+    - name: Amount
+      type: DECIMAL
+    - name: ShippedDate
+    tab_groups:
+    - direction: toone
+      fks:
+      - OrderId
+      name: Order
+      resource: Order
+    - direction: toone
+      fks:
+      - ProductId
+      name: Product
+      resource: Product
+    type: OrderDetail
+    user_key: Id
+  Product:
+    attributes:
+    - label: ' Product Name*'
+      name: ProductName
+      search: true
+      sort: true
+    - name: CategoryId
+      required: true
+    - name: QuantityPerUnit
+    - name: UnitPrice
+      required: true
+      type: DECIMAL
+    - name: UnitsInStock
+      required: true
+    - name: UnitsOnOrder
+      required: true
+    - name: ReorderLevel
+      required: true
+    - name: Id
+    - name: SupplierId
+      required: true
+    - name: Discontinued
+      required: true
+    - name: UnitsShipped
+    tab_groups:
+    - direction: tomany
+      fks:
+      - ProductId
+      name: OrderDetailList
+      resource: OrderDetail
+    - direction: toone
+      fks:
+      - CategoryId
+      name: Category
+      resource: Category
+    type: Product
+    user_key: ProductName
+  Region:
+    attributes:
+    - label: ' Region Description*'
+      name: RegionDescription
+      search: true
+      sort: true
+    - name: Id
+    type: Region
+    user_key: RegionDescription
+  SampleDBVersion:
+    attributes:
+    - label: ' Id*'
+      name: Id
+      search: true
+      sort: true
+    - name: Notes
+    type: SampleDBVersion
+    user_key: Id
+  Shipper:
+    attributes:
+    - label: ' Company Name*'
+      name: CompanyName
+      search: true
+      sort: true
+    - name: Phone
+    - name: Id
+    type: Shipper
+    user_key: CompanyName
+  Supplier:
+    attributes:
+    - label: ' Company Name*'
+      name: CompanyName
+      search: true
+      sort: true
+    - name: ContactName
+    - name: ContactTitle
+    - name: Address
+    - name: City
+    - name: Region
+    - name: PostalCode
+    - name: Country
+    - name: Phone
+    - name: Fax
+    - name: HomePage
+    - name: Id
+    type: Supplier
+    user_key: CompanyName
+  Territory:
+    attributes:
+    - label: ' Territory Description*'
+      name: TerritoryDescription
+      search: true
+      sort: true
+    - name: Id
+      required: true
+    - name: RegionId
+      required: true
+    tab_groups:
+    - direction: tomany
+      fks:
+      - TerritoryId
+      name: EmployeeTerritoryList
+      resource: EmployeeTerritory
+    type: Territory
+    user_key: TerritoryDescription
+  Union:
+    attributes:
+    - label: ' Name*'
+      name: Name
+      search: true
+      sort: true
+    - name: Id
+    tab_groups:
+    - direction: tomany
+      fks:
+      - UnionId
+      name: EmployeeList
+      resource: Employee
+    type: Union
+    user_key: Name
+settings:
+  HomeJS: /admin-app/home.js
+  max_list_columns: 8
+  style_guide:
+    applicationLocales:
+    - en
+    - es
+    currency_symbol: $
+    currency_symbol_position: left
+    date_format: LL
+    decimal_max: '1000000000'
+    decimal_min: '2'
+    decimal_separator: .
+    detail_mode: tab
+    edit_on_mode: dblclick
+    exclude_listpicker: false
+    include_translation: 'false'
+    keycloak_client_id: alsclient
+    keycloak_realm: kcals
+    keycloak_url: http://localhost:8080
+    locale: en
+    max_decimal_digits: '4'
+    min_decimal_digits: '2'
+    new_mode: dialog
+    pick_style: list
+    row_height: small,
+    serviceType: JSONAPI
+    startSessionPath: /auth/login
+    style: light
+    thousand_separator: ','
+    use_keycloak: 'false'

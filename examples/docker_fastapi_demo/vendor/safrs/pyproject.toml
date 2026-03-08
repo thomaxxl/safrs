@@ -1,0 +1,57 @@
+[project]
+name = "safrs"
+
+version = "3.1.7"
+
+description="SAFRS : SqlAlchemy Flask-Restful Swagger"
+
+readme = "README.md"
+
+requires-python = ">=3.10"
+
+license = {file = "LICENSE"}
+
+keywords=["SqlAlchemy", "Flask", "REST", "Swagger", "JsonAPI", "OpenAPI"]
+
+authors = [
+  {name = "Thomas Pollet", email = "thomas.pollet@gmail.com" }
+]
+
+classifiers = [  # Optional
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  "Development Status :: 3 - Alpha",
+
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries",
+  "Framework :: Flask",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+dependencies = [ "Flask-SQLAlchemy>=3.0.3", "flask_swagger_ui>=4.11.1", "flask-restful-swagger-2>=0.35", "PyYaml>=6.0" ]
+
+[project.optional-dependencies] # Optional
+dev = ["flask_cors"]
+test = ["flask_cors"]
+
+[project.urls]  # Optional
+"Homepage" = "https://github.com/thomaxxl/safrs"
+
+[tool.setuptools]
+package-data = {}
+
+[build-system]
+requires = ["setuptools>=43.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+ignore_missing_imports = true
+exclude = '(^|/)(docs|examples|tests)/'

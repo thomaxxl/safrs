@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Northwind SAFRS FastAPI Demo</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        justify-content: flex-start;
+        align-items: flex-start;
+        padding-top: 4rem;
+        padding-left: 3rem;
+        background: #f5f7fb;
+        color: #1f2937;
+      }
+
+      main {
+        width: 90vw;
+      }
+
+      .panel {
+        background: white;
+        border: 1px solid #d7deea;
+        border-radius: 16px;
+        padding: 2.25rem;
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+      }
+
+      .panel + .panel {
+        margin-top: 1.5rem;
+      }
+
+      h1 {
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+      }
+
+      h2 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.5rem;
+      }
+
+      a {
+        color: #1976d2;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .example-link {
+        display: inline-block;
+        margin-bottom: 0.5rem;
+        font-size: 1.15rem;
+      }
+
+      .example-links {
+        display: flex;
+        gap: 1rem;
+        align-items: baseline;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+      }
+
+      .code-link {
+        font-size: 1rem;
+      }
+
+      .example-copy {
+        margin: 0;
+        color: #4b5563;
+        line-height: 1.6;
+      }
+
+      .example {
+        margin-top: 1.25rem;
+      }
+
+      .example:first-of-type {
+        margin-top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <h2>About SAFRS</h2>
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="https://github.com/thomaxxl/safrs">SAFRS GitHub repo</a>
+          </div>
+          <p class="example-copy">
+            SAFRS exposes SQLAlchemy models as a JSON:API service and generates
+            OpenAPI documentation for the resulting API.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h1>Northwind SAFRS FastAPI Demo</h1>
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/docs">FastAPI docs</a>
+          </div>
+          <p class="example-copy">
+            Swagger UI for the main Northwind FastAPI backend and JSON:API routes.
+          </p>
+        </div>
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/admin-app/">Admin app</a>
+          </div>
+          <p class="example-copy">
+            React-admin frontend for browsing and editing the Northwind SAFRS API.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>More Examples</h2>
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/api_demo_relationship/docs">Basic Example API Docs</a>
+            <a class="code-link" href="/code/demo_relationship.py">code</a>
+          </div>
+          <p class="example-copy">
+            FastAPI SAFRS example showing the basic `User` / `Book` relationship
+            pattern with standard collection, instance, and relationship routes.
+          </p>
+        </div>
+
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/api_demo_jwt/docs">JWT Authentication Example API Docs</a>
+            <a class="code-link" href="/code/authentication/demo_jwt.py">code</a>
+          </div>
+          <p class="example-copy">
+            FastAPI SAFRS example with JWT bearer authentication. Use
+            <code>/api_demo_jwt/login</code> to obtain a token. The
+            <code>Items</code> resource is public, while
+            <code>/api_demo_jwt/api/Users</code> requires
+            <code>Authorization: Bearer &lt;token&gt;</code>.
+          </p>
+        </div>
+
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/api_ex06_filtering/docs">Custom Filtering Example API Docs</a>
+            <a class="code-link" href="/code/mini_examples/ex06_filtering.py">code</a>
+          </div>
+          <p class="example-copy">
+            FastAPI SAFRS example showing a custom model-level filtering override.
+            Use a JSON <code>filter=</code> payload with operators like
+            <code>like</code> and <code>in</code> against
+            <code>/api_ex06_filtering/api/People</code>.
+          </p>
+        </div>
+
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/api_ex08_rpc/docs">JSON:API RPC Example API Docs</a>
+            <a class="code-link" href="/code/mini_examples/ex08_rpc.py">code</a>
+          </div>
+          <p class="example-copy">
+            FastAPI SAFRS example exposing a class-level RPC method on
+            <code>Orders</code>. Call
+            <code>POST /api_ex08_rpc/api/Orders/add_order</code> with a JSON:API
+            <code>meta.args</code> payload.
+          </p>
+        </div>
+
+        <div class="example">
+          <div class="example-links">
+            <a class="example-link" href="/api_ex11_search/docs">Search Example API Docs</a>
+            <a class="code-link" href="/code/mini_examples/ex11_search.py">code</a>
+          </div>
+          <p class="example-copy">
+            FastAPI SAFRS example exposing the built-in <code>search</code> RPC
+            method. Call <code>POST /api_ex11_search/api/Users/search</code> with
+            a JSON:API search payload.
+          </p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

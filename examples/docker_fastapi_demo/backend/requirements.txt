@@ -1,0 +1,9 @@
+-e ../vendor/safrs
+Flask
+Flask-Cors
+fastapi
+gunicorn
+PyJWT
+PyYAML
+SQLAlchemy
+uvicorn
