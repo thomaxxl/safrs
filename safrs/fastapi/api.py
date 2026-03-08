@@ -354,8 +354,8 @@ class SafrsFastAPI:
     def _rollback_session_quietly() -> None:
         try:
             safrs.DB.session.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            safrs.log.debug("Session rollback failed: %s", exc)
 
     @staticmethod
     def _uow_session_state() -> Dict[str, Any]:
@@ -1874,9 +1874,11 @@ class SafrsFastAPI:
                 if model_attr is None:
                     continue
                 try:
-                    sorted_query = sorted_query.order_by(model_attr.desc() if reverse else model_attr.asc())
-                except Exception:
-                    continue
+                    ordered_query = sorted_query.order_by(model_attr.desc() if reverse else model_attr.asc())
+                except Exception as exc:
+                    safrs.log.debug("Unable to apply query sort for '%s': %s", resolved_attr, exc)
+                else:
+                    sorted_query = ordered_query
             return sorted_query
 
         return self._apply_sort_to_list(Model, self._coerce_items(value), sort_terms)
@@ -1890,13 +1892,15 @@ class SafrsFastAPI:
         for raw_attr, reverse in reversed(sort_terms):
             attr_name = "id" if raw_attr == "id" else raw_attr
             try:
-                sorted_items = sorted(
+                candidate_items = sorted(
                     sorted_items,
                     key=lambda item: (getattr(item, attr_name, None) is None, getattr(item, attr_name, None)),
                     reverse=reverse,
                 )
-            except Exception:
-                continue
+            except Exception as exc:
+                safrs.log.debug("Unable to apply list sort for '%s': %s", attr_name, exc)
+            else:
+                sorted_items = candidate_items
         return sorted_items
 
     @staticmethod
