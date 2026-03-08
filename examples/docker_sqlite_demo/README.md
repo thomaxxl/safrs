@@ -24,6 +24,15 @@ Optional frontends (only work if assets exist in the repo root):
 - jsonapi-admin: http://localhost:1237/ja/
 - swagger-editor: http://localhost:1237/swagger_editor/
 
+## Demo files in this directory
+
+- `demo_app.py`: Flask application factory + SAFRS API exposure + demo seeding.
+- `demo_wsgi.py`: gunicorn entrypoint (`run_app()`) used by the container runtime.
+- `entrypoint.sh`: starts gunicorn with SQLite-friendly defaults.
+- `docker-compose.yml`: local one-service compose setup with a persistent sqlite volume.
+- `Dockerfile`: image build for this demo app.
+- `run.sh`: convenience helper to build/run from this directory.
+
 ## How it works
 
 - `demo_app.py`: models + `create_app()` + `start_api()` + seeding
