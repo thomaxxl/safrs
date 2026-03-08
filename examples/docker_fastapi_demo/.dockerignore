@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+frontend/.vite/
+frontend/node_modules/
+vendor/safrs/.git/

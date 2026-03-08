@@ -11,7 +11,7 @@ def safrs_setup() -> Any:
     with open("requirements.txt", "rt") as fp:
         install_requires = fp.read().strip().split("\n")
 
-    version = "3.2.0"
+    version = "3.1.7"
 
     setup(
         name="safrs",
@@ -39,9 +39,9 @@ def safrs_setup() -> Any:
             "Programming Language :: Python :: 3.12",
         ],
         extras_require={
-            "admin": ["Flask-Admin>=1.5.8", "Flask-Cors>=6.0.2"],
-            "db2api": ["inflect==5.0.2", "Flask-Cors>=6.0.2"],
-            "fastapi": ['fastapi[standard]>=0.135.1'],
+            "admin": ["Flask-Admin>=1.5.8", "Flask-Cors>=3.0.9"],
+            "db2api": ["inflect==5.0.2", "Flask-Cors>=3.0.9"],
+            "fastapi": ['fastapi[standard]'],
 },
 
     )

@@ -1,0 +1,14 @@
+services:
+  northwind-demo:
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      DEMO_JWT_RELOAD: "1"
+      DEMO_MINI_EXAMPLES_RELOAD: "1"
+      NORTHWIND_FASTAPI_RELOAD: "1"
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./:/demo
+      - northwind_demo_dev_frontend_node_modules:/demo/frontend/node_modules
+
+volumes:
+  northwind_demo_dev_frontend_node_modules:

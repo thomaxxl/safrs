@@ -1,0 +1,7 @@
+# Stop approval prompts in this project
+approval_policy = "never"
+
+# Pick one:
+# - "workspace-write": can write inside the workspace
+# - "read-only": cannot write (useful if you want to prevent edits entirely)
+sandbox_mode = "workspace-write"

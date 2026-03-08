@@ -1,0 +1,30 @@
+{
+  "name": "safrs-jsonapi-client",
+  "version": "0.1.0",
+  "description": "JSON:API client for SAFrs/ApiLogicServer with React-admin adapter",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "safrs-jsonapi-smoke": "dist/cli/smoke.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {},
+  "dependencies": {
+    "cross-fetch": "^4.0.0",
+    "yaml": "^2.8.1"
+  }
+}
