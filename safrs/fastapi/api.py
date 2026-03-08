@@ -175,8 +175,8 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
     async def _jsonapi_unhandled_exception_handler(_request: Request, exc: Exception):
         try:
             safrs.DB.session.rollback()
-        except Exception:
-            pass
+        except Exception as rollback_error:
+            safrs.log.debug("Rollback during unhandled exception failed: %s", rollback_error)
         safrs.log.exception("Unhandled FastAPI exception: %s", exc)
         payload = _jsonapi_error_document(
             [
@@ -1693,13 +1693,15 @@ class SafrsFastAPI:
             if not resolved_attr:
                 continue
             try:
-                sorted_items = sorted(
+                candidate_items = sorted(
                     sorted_items,
                     key=lambda item: (getattr(item, resolved_attr, None) is None, getattr(item, resolved_attr, None)),
                     reverse=reverse,
                 )
-            except Exception:
-                continue
+            except Exception as exc:
+                safrs.log.debug("Unable to sort list by '%s' (%s): %s", resolved_attr, raw_attr, exc)
+            else:
+                sorted_items = candidate_items
         return sorted_items
 
     @staticmethod
@@ -2123,6 +2125,65 @@ class SafrsFastAPI:
             }
         return relationships
 
+    @staticmethod
+    def _normalize_attr_value_for_jsonapi(attr_val: Any) -> Any:
+        if isinstance(attr_val, dt.datetime):
+            if attr_val.tzinfo is None:
+                attr_val = attr_val.replace(tzinfo=dt.timezone.utc)
+            return attr_val.isoformat()
+        if isinstance(attr_val, dt.date):
+            return attr_val.isoformat()
+        if isinstance(attr_val, dt.time):
+            if attr_val.tzinfo is None:
+                attr_val = attr_val.replace(tzinfo=dt.timezone.utc)
+            return attr_val.isoformat()
+        return attr_val
+
+    @staticmethod
+    def _fallback_encoded_attributes(Model: Type[Any], obj: Any, wanted_fields: Optional[Set[str]]) -> Dict[str, Any]:
+        attrs: Dict[str, Any] = {}
+        model_attrs = getattr(Model, "_s_jsonapi_attrs", {})
+        for attr_name in model_attrs.keys():
+            if wanted_fields is not None and attr_name not in wanted_fields:
+                continue
+            try:
+                raw_value = getattr(obj, attr_name)
+            except Exception:
+                raw_value = None
+            attrs[attr_name] = SafrsFastAPI._normalize_attr_value_for_jsonapi(raw_value)
+        return attrs
+
+    def _fallback_encode_resource(self, Model: Type[Any], obj: Any, wanted_fields: Optional[Set[str]]) -> Dict[str, Any]:
+        attrs = self._fallback_encoded_attributes(Model, obj, wanted_fields)
+        return {
+            "type": str(getattr(Model, "_s_type", Model.__name__)),
+            "id": str(getattr(obj, "jsonapi_id", "")),
+            "attributes": jsonable_encoder(attrs),
+        }
+
+    def _model_encode_resource(self, obj: Any) -> Dict[str, Any]:
+        token = None
+        if maybe_jsonapi_context() is None:
+            token = set_jsonapi_context(JsonApiContext(query_params={}, prefix=self.prefix))
+        try:
+            return cast(Dict[str, Any], obj._s_jsonapi_encode())
+        finally:
+            if token is not None:
+                reset_jsonapi_context(token)
+
+    @staticmethod
+    def _prune_encoded_resource(
+        result: Dict[str, Any], wanted_fields: Optional[Set[str]], *, include_links: bool, include_relationships: bool
+    ) -> Dict[str, Any]:
+        if wanted_fields is not None:
+            attrs = cast(Dict[str, Any], result.get("attributes", {}))
+            result["attributes"] = {name: value for name, value in attrs.items() if name in wanted_fields}
+        if not include_links:
+            result.pop("links", None)
+        if not include_relationships:
+            result.pop("relationships", None)
+        return result
+
     def _encode_resource(
         self,
         Model: Type[Any],
@@ -2137,49 +2198,15 @@ class SafrsFastAPI:
         # This keeps FastAPI output in lockstep with Flask behavior.
         _ = include_relationship_names
         if not hasattr(obj, "_s_jsonapi_encode"):
-            attrs: Dict[str, Any] = {}
-            model_attrs = getattr(Model, "_s_jsonapi_attrs", {})
-            for attr_name in model_attrs.keys():
-                if wanted_fields is not None and attr_name not in wanted_fields:
-                    continue
-                try:
-                    attr_val = getattr(obj, attr_name)
-                except Exception:
-                    attr_val = None
-                if isinstance(attr_val, dt.datetime):
-                    if attr_val.tzinfo is None:
-                        attr_val = attr_val.replace(tzinfo=dt.timezone.utc)
-                    attrs[attr_name] = attr_val.isoformat()
-                elif isinstance(attr_val, dt.date):
-                    attrs[attr_name] = attr_val.isoformat()
-                elif isinstance(attr_val, dt.time):
-                    if attr_val.tzinfo is None:
-                        attr_val = attr_val.replace(tzinfo=dt.timezone.utc)
-                    attrs[attr_name] = attr_val.isoformat()
-                else:
-                    attrs[attr_name] = attr_val
-            return {
-                "type": str(getattr(Model, "_s_type", Model.__name__)),
-                "id": str(getattr(obj, "jsonapi_id", "")),
-                "attributes": jsonable_encoder(attrs),
-            }
+            return self._fallback_encode_resource(Model, obj, wanted_fields)
 
-        token = None
-        if maybe_jsonapi_context() is None:
-            token = set_jsonapi_context(JsonApiContext(query_params={}, prefix=self.prefix))
-        try:
-            result = cast(Dict[str, Any], obj._s_jsonapi_encode())
-        finally:
-            if token is not None:
-                reset_jsonapi_context(token)
-        if wanted_fields is not None:
-            attrs = cast(Dict[str, Any], result.get("attributes", {}))
-            result["attributes"] = {name: value for name, value in attrs.items() if name in wanted_fields}
-        if not include_links:
-            result.pop("links", None)
-        if not include_relationships:
-            result.pop("relationships", None)
-        return result
+        encoded = self._model_encode_resource(obj)
+        return self._prune_encoded_resource(
+            encoded,
+            wanted_fields,
+            include_links=include_links,
+            include_relationships=include_relationships,
+        )
 
     def _get_collection(self, Model: Type[Any]):
         def handler(request: Request):

@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, Iterator, Optional, Tuple, Type
 
+import safrs
+
 
 def resolve_relationships(Model: Type[Any]) -> Dict[str, Any]:
     rels = getattr(Model, "_s_relationships", None)
@@ -32,8 +34,8 @@ def relationship_is_exposed(Model: Type[Any], rel_name: str, rel_prop: Any) -> b
         mapped = mapper.relationships.get(rel_name) if mapper is not None else None
         if getattr(mapped, "expose", None) is False:
             return False
-    except Exception:
-        pass
+    except Exception as exc:
+        safrs.log.debug("Failed mapper relationship exposure check for %s.%s: %s", Model, rel_name, exc)
 
     try:
         inst = getattr(Model, rel_name, None)
@@ -42,8 +44,8 @@ def relationship_is_exposed(Model: Type[Any], rel_name: str, rel_prop: Any) -> b
         mapped_inst = getattr(inst, "property", None)
         if mapped_inst is not None and getattr(mapped_inst, "expose", None) is False:
             return False
-    except Exception:
-        pass
+    except Exception as exc:
+        safrs.log.debug("Failed instance relationship exposure check for %s.%s: %s", Model, rel_name, exc)
 
     return True
 
