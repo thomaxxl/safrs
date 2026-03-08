@@ -16,7 +16,7 @@ from functools import wraps
 import safrs
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
-from .errors import JsonapiError, SystemValidationError, GenericError
+from .errors import GenericError, JsonapiError, SystemValidationError, log_integrity_error_details
 from .config import get_config
 from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
@@ -726,6 +726,16 @@ def http_method_decorator(fun: Callable) -> Callable:
         safrs_exception: Any = None
         status_code: int = 500
         message: str = ""
+        resource_name: Optional[str] = None
+        object_id = kwargs.get("object_id", kwargs.get("id"))
+        if args:
+            safrs_object = getattr(args[0], "SAFRSObject", None)
+            if safrs_object is not None:
+                resource_name = getattr(safrs_object, "_s_collection_name", None)
+                if resource_name is None:
+                    parent = getattr(safrs_object, "parent", None)
+                    if parent is not None:
+                        resource_name = getattr(parent, "_s_collection_name", None)
         token = tx.begin_request()
         try:
             try:
@@ -766,7 +776,12 @@ def http_method_decorator(fun: Callable) -> Callable:
                 safrs.log.exception(exc)
                 safrs_exception = exc
 
-            except sqlalchemy.exc.IntegrityError:
+            except sqlalchemy.exc.IntegrityError as exc:
+                log_integrity_error_details(
+                    exc,
+                    resource=str(resource_name) if resource_name else None,
+                    object_id=str(object_id) if object_id is not None else None,
+                )
                 safrs.DB.session.rollback()
                 errors = dict(
                     title=HTTPStatus.CONFLICT.description,
