@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
         "framework",
         nargs="?",
         choices=("fastapi", "flask"),
-        help="Backend implementation to run. Defaults to NORTHWIND_BACKEND or fastapi.",
+        help="Backend implementation to run. Defaults to fastapi.",
     )
     parser.add_argument("--host", help="Bind host override.")
     parser.add_argument("--port", type=int, help="Bind port override.")
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     settings = get_settings()
-    framework = (args.framework or settings.default_framework).lower()
+    framework = (args.framework or "fastapi").lower()
     host = args.host or settings.host
     port = args.port or settings.port
 
@@ -43,9 +43,9 @@ def main() -> None:
     from fastapi import FastAPI
     from fastapi.middleware.wsgi import WSGIMiddleware
 
-    flask_runner = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    flask_runner.mount("/", WSGIMiddleware(create_flask_app()))
-    uvicorn.run(flask_runner, host=host, port=port, log_level="info")
+    wsgi_runner = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    wsgi_runner.mount("/", WSGIMiddleware(create_flask_app()))
+    uvicorn.run(wsgi_runner, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

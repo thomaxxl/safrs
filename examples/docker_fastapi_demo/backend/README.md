@@ -1,56 +1,44 @@
 # Northwind Backend
 
-This backend contains two SAFRS app variants over the same Northwind model layer:
+This backend is the FastAPI SAFRS backend used by the demo container.
 
-- a Flask app using `SafrsApi`
-- a FastAPI app using `SafrsFastAPI`
-
-They exist side by side so the same validation project can be used to compare consumer-facing behavior easily.
+It can also be run standalone from this directory with `run.py`.
 
 ## Current intent
 
-- both backends use the same SQLite database
-- both backends expose the same resource and relationship names as the Northwind `admin.yaml`
-- both backends use the same `admin.yaml`
-- both backends are intended to run on port `5656`
+- the demo container uses the FastAPI variant only
+- the backend uses the Northwind SQLite database
+- it exposes the same resource and relationship names as the shipped Northwind `admin.yaml`
+- it serves the same `admin.yaml` used by the frontend
+- the default standalone port is `5656`
 
-The main SAFRS development track is FastAPI, but Flask remains the reference behavior. This project supports switching between them quickly.
+## Run standalone
 
-## Quick start
-
-Create a virtual environment, install the requirements, and run one backend variant from this directory:
+From this directory:
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-python run.py fastapi
+python run.py
 ```
 
-Or:
+Because `requirements.txt` contains `-e ../vendor/safrs`, run `pip install -r requirements.txt` from the `backend/` directory so that relative path resolves correctly.
 
-```bash
-python run.py flask
-```
-
-Default URL targets for both variants:
-
-- API root: `http://127.0.0.1:5656/api`
-- Admin schema: `http://127.0.0.1:5656/ui/admin/admin.yaml`
-
-## Switching
-
-Use one process at a time on the same port:
-
-- `python run.py fastapi`
-- `python run.py flask`
+`python run.py` defaults to the FastAPI app.
 
 You can also override host and port:
 
 ```bash
 python run.py fastapi --host 127.0.0.1 --port 5656
-python run.py flask --host 127.0.0.1 --port 5656
 ```
+
+Default URL targets:
+
+- API root: `http://127.0.0.1:5656/api`
+- docs: `http://127.0.0.1:5656/docs`
+- OpenAPI: `http://127.0.0.1:5656/jsonapi.json`
+- Admin schema: `http://127.0.0.1:5656/ui/admin/admin.yaml`
 
 ## Current scope
 
@@ -74,4 +62,4 @@ The backend now exposes the full resource set currently described in `reference/
 - `Territory`
 - `Union`
 
-The active validation focus is no longer basic exposure. It is parity: the Flask and FastAPI apps should both honor the same documented contract and accept the same consumer-facing include paths.
+The active validation focus is consumer-facing parity and behavior validation against the frontend and example clients.
