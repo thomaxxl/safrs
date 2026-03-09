@@ -32,10 +32,11 @@ try:
 except ModuleNotFoundError as exc:
     if exc.name not in _MISSING_FLASK_ADAPTER_DEPS:
         raise
+    _missing_flask_adapter_exc = exc
 
     class SAFRSAPI:  # type: ignore[no-redef]
         def __init__(self, *_args: Any, **_kwargs: Any) -> None:
-            _raise_missing_flask_adapter_error(exc)
+            _raise_missing_flask_adapter_error(_missing_flask_adapter_exc)
 
 
 SafrsApi = SAFRSAPI
