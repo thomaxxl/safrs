@@ -19,10 +19,27 @@ SAFRS can be installed as a `pip package <https://pypi.python.org/pypi/safrs/>`_
 
 .. code-block:: bash
 
+   pip install "safrs[all]"
+
+FastAPI adapter only:
+
+.. code-block:: bash
+
+   pip install "safrs[fastapi]"
+
+Flask adapter only:
+
+.. code-block:: bash
+
+   pip install "safrs[flask]"
+
+From source:
+
+.. code-block:: bash
+
    git clone https://github.com/thomaxxl/safrs
    cd safrs
-   pip3 install -r requirements.txt --user
-   python3 setup.py install --user
+   pip install ".[all]"
 
 
 The examples can then be started with
@@ -30,5 +47,4 @@ The examples can then be started with
 .. code-block::
 
    python3 examples/demo_relationship.py "your-interface-ip"
-
 

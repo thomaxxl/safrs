@@ -8,8 +8,19 @@ from setuptools import setup, find_packages
 
 
 def safrs_setup() -> Any:
-    with open("requirements.txt", "rt") as fp:
-        install_requires = fp.read().strip().split("\n")
+    install_requires = [
+        "Flask>=3.1.3",
+        "Flask-SQLAlchemy>=3.1.1",
+        "PyYAML>=6.0.3",
+        "SQLAlchemy>=2.0.48",
+    ]
+    flask_extra = [
+        "Flask-RESTful>=0.3.10",
+        "flask-restful-swagger-2>=0.35",
+        "flask-swagger-ui>=5.21.0",
+        "Flask-Cors>=6.0.2",
+    ]
+    fastapi_extra = ["fastapi[standard]>=0.135.1"]
 
     version = "3.2.0"
 
@@ -41,9 +52,12 @@ def safrs_setup() -> Any:
         extras_require={
             "admin": ["Flask-Admin>=1.5.8", "Flask-Cors>=6.0.2"],
             "db2api": ["inflect==5.0.2", "Flask-Cors>=6.0.2"],
-            "fastapi": ['fastapi[standard]>=0.135.1'],
-},
-
+            "flask": flask_extra,
+            "fastapi": fastapi_extra,
+            "all": flask_extra + fastapi_extra,
+            "dev": flask_extra + fastapi_extra,
+            "test": flask_extra + fastapi_extra,
+        },
     )
 
 

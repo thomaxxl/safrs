@@ -25,7 +25,7 @@ from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.config import is_debug
-from safrs.swagger_doc import get_doc, get_http_methods
+from safrs.api_doc import get_doc, get_http_methods
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.encoders import jsonable_encoder
