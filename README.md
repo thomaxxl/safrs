@@ -52,10 +52,10 @@ __A [LIVE DEMO](https://thomaxxl.pythonanywhere.com) is available__, where much 
 SAFRS can be installed as a [pip package](https://pypi.python.org/pypi/safrs/) or by downloading the latest version from github, for example:
 
 ```bash
-pip install "safrs[all]"
+pip install safrs
 ```
 
-To install only the FastAPI adapter stack:
+FastAPI runtime dependencies are included by default. To explicitly request them:
 
 ```bash
 pip install "safrs[fastapi]"
@@ -72,7 +72,7 @@ From source:
 ```bash
 git clone https://github.com/thomaxxl/safrs
 cd safrs
-pip install ".[all]"
+pip install .
 ```
 
 Once the dependencies are installed, the [examples](examples) can be started, for example

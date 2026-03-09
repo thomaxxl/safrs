@@ -14,7 +14,7 @@ def test_pyproject_exposes_fastapi_and_flask_extras() -> None:
     assert "flask" in extras
     assert "fastapi[standard]>=0.135.1" in extras["fastapi"]
     assert "flask-restful-swagger-2>=0.35" in extras["flask"]
-    assert "fastapi[standard]>=0.135.1" not in base_deps
+    assert "fastapi[standard]>=0.135.1" in base_deps
     assert "flask-restful-swagger-2>=0.35" not in base_deps
 
 

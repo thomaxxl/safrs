@@ -36,7 +36,7 @@ classifiers = [  # Optional
   "Programming Language :: Python :: 3 :: Only",
 ]
 
-dependencies = [ "Flask>=3.1.3", "Flask-SQLAlchemy>=3.1.1", "PyYAML>=6.0.3", "SQLAlchemy>=2.0.48" ]
+dependencies = [ "Flask>=3.1.3", "Flask-SQLAlchemy>=3.1.1", "PyYAML>=6.0.3", "SQLAlchemy>=2.0.48", "fastapi[standard]>=0.135.1" ]
 
 [project.optional-dependencies] # Optional
 flask = ["Flask-RESTful>=0.3.10", "flask-restful-swagger-2>=0.35", "flask-swagger-ui>=5.21.0", "Flask-Cors>=6.0.2"]
