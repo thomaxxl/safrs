@@ -21,7 +21,7 @@ Base = declarative_base()
 EXAMPLE_PREFIX = "/api_demo_jwt"
 API_PREFIX = f"{EXAMPLE_PREFIX}/api"
 DOCS_PATH = f"{EXAMPLE_PREFIX}/docs"
-OPENAPI_PATH = f"{EXAMPLE_PREFIX}/jsonapi.json"
+OPENAPI_PATH = f"{EXAMPLE_PREFIX}/openapi.json"
 SWAGGER_ALIAS = f"{EXAMPLE_PREFIX}/swagger.json"
 LOGIN_PATH = f"{EXAMPLE_PREFIX}/login"
 
