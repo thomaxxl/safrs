@@ -38,7 +38,7 @@ def create_example_app(
 
     api_prefix = f"{example_prefix}/api"
     docs_path = f"{example_prefix}/docs"
-    openapi_path = f"{example_prefix}/jsonapi.json"
+    openapi_path = f"{example_prefix}/openapi.json"
     swagger_alias = f"{example_prefix}/swagger.json"
 
     app = FastAPI(

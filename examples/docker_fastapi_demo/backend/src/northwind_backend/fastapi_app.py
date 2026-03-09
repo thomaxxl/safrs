@@ -21,7 +21,7 @@ def create_fastapi_app() -> FastAPI:
         title="Northwind SAFRS FastAPI Validation App",
         docs_url=None,
         redoc_url=None,
-        openapi_url="/jsonapi.json",
+        openapi_url="/openapi.json",
     )
     app.add_middleware(
         CORSMiddleware,
@@ -56,7 +56,7 @@ def create_fastapi_app() -> FastAPI:
     @app.get("/docs", include_in_schema=False)
     def docs() -> object:
         docs_kwargs: dict[str, object] = {
-            "openapi_url": app.openapi_url or "/jsonapi.json",
+            "openapi_url": app.openapi_url or "/openapi.json",
             "title": f"{app.title} - Swagger UI",
             "swagger_ui_parameters": app.swagger_ui_parameters,
         }
@@ -83,8 +83,8 @@ def create_fastapi_app() -> FastAPI:
     def admin_yaml() -> FileResponse:
         return FileResponse(settings.admin_yaml_path, media_type="text/yaml")
 
-    @app.get(f"{settings.api_prefix}/jsonapi.json", include_in_schema=False)
-    def jsonapi_json_alias() -> dict[str, object]:
+    @app.get(f"{settings.api_prefix}/openapi.json", include_in_schema=False)
+    def openapi_json_alias() -> dict[str, object]:
         return app.openapi()
 
     @app.get(f"{settings.api_prefix}/swagger.json", include_in_schema=False)

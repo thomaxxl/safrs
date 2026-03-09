@@ -125,6 +125,11 @@ class Resource(FRSResource):
         :return: JSON:API "include" query string swagger spec
         """
         default_include = ",".join(cls.SAFRSObject._s_relationships.keys())
+        include_description = f"{cls.SAFRSObject._s_class_name} relationships to include (csv)"
+        if default_include:
+            include_description = (
+                f"{cls.SAFRSObject._s_class_name} relationships to include (csv, ex.: {default_include})"
+            )
 
         param = {
             "default": default_include,
@@ -133,7 +138,7 @@ class Resource(FRSResource):
             "in": "query",
             "format": "string",
             "required": False,
-            "description": f"{cls.SAFRSObject._s_class_name} relationships to include (csv)",
+            "description": include_description,
         }
         return param
 

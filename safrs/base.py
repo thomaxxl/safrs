@@ -195,19 +195,29 @@ from functools import lru_cache
 
 # safrs dependencies:
 import safrs
-import safrs.jsonapi
 from .errors import GenericError, IntegerOverflowError, NotFoundError, ValidationError, SystemValidationError
 from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
 from .jsonapi_filters import jsonapi_filter
 from .jsonapi_attr import is_jsonapi_attr
-from .swagger_doc import get_doc
+from .api_doc import get_doc
 from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
 from .jsonapi_context import maybe_jsonapi_context
 from .filtering import apply_filter_json
 from . import tx
+
+_MISSING_FLASK_ADAPTER_DEPS = {"flask_restful", "flask_restful_swagger_2"}
+_safrs_jsonapi: Any = None
+
+try:
+    from . import jsonapi as _loaded_safrs_jsonapi
+except ModuleNotFoundError as exc:
+    if exc.name not in _MISSING_FLASK_ADAPTER_DEPS:
+        raise
+else:
+    _safrs_jsonapi = _loaded_safrs_jsonapi
 
 
 # Mapping of legacy "_s_" class attributes to SAFRSModelConfig field names.
@@ -364,9 +374,9 @@ class SAFRSBase(Model):
 
     # Resource classes for the collections, relationships and methods
     # overriding these allows you to extend the Resource http methods: get(), post(), patch(), delete()
-    _rest_api = safrs.jsonapi.SAFRSRestAPI
-    _relationship_api = safrs.jsonapi.SAFRSRestRelationshipAPI
-    _rpc_api = safrs.jsonapi.SAFRSJSONRPCAPI
+    _rest_api = _safrs_jsonapi.SAFRSRestAPI if _safrs_jsonapi is not None else None
+    _relationship_api = _safrs_jsonapi.SAFRSRestRelationshipAPI if _safrs_jsonapi is not None else None
+    _rpc_api = _safrs_jsonapi.SAFRSJSONRPCAPI if _safrs_jsonapi is not None else None
 
     @classproperty
     def safrs_config(cls: Any) -> SAFRSModelConfig:

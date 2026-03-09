@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from flask import Flask
 
-from safrs.jsonapi import SAFRSRestAPI, SAFRSRestRelationshipAPI, _build_location_header
+from safrs.jsonapi import Resource, SAFRSRestAPI, SAFRSRestRelationshipAPI, _build_location_header
 
 
 class _FakeInstance:
@@ -40,3 +41,14 @@ def test_relationship_delete_docstring_documents_conflict_status() -> None:
     doc = SAFRSRestRelationshipAPI.delete.__doc__ or ""
     assert "409" in doc
     assert "description: Conflict" in doc
+
+
+def test_swagger_include_description_lists_relationship_examples() -> None:
+    class _SwaggerIncludeResource(Resource):
+        SAFRSObject = SimpleNamespace(
+            _s_relationships={"Customer": object(), "Employee": object()},
+            _s_class_name="Order",
+        )
+
+    include_param = _SwaggerIncludeResource.get_swagger_include()
+    assert include_param["description"] == "Order relationships to include (csv, ex.: Customer,Employee)"

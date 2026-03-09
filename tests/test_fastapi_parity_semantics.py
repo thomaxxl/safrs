@@ -42,6 +42,20 @@ class _SortModel:
             return int(value)
 
 
+class _IncludeRelationship:
+    expose = True
+    mapper = SimpleNamespace(class_=object)
+
+
+class _IncludeModel:
+    _s_type = "Category"
+    _s_class_name = "Category"
+    _s_relationships = {
+        "Products": _IncludeRelationship(),
+        "Suppliers": _IncludeRelationship(),
+    }
+
+
 class _PatchObject:
     def __init__(self) -> None:
         self.jsonapi_id = "1"
@@ -114,6 +128,14 @@ def test_openapi_query_params_include_page_number_and_size() -> None:
     assert "page[limit]" in names
     assert "page[number]" in names
     assert "page[size]" in names
+
+
+def test_openapi_include_query_param_description_lists_relationship_examples() -> None:
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    params = api._jsonapi_query_parameters(_IncludeModel, include_include=True)
+    include_param = next(param for param in params if str(param.get("name")) == "include")
+
+    assert include_param["description"] == "Category relationships to include (csv, ex.: Products,Suppliers)"
 
 
 def test_sort_supports_multi_sort_and_default_id() -> None:

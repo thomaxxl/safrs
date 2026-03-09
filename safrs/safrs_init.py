@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Flask, g, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
@@ -12,6 +11,11 @@ from functools import wraps
 import safrs
 import flask.app
 from typing import Any
+
+try:
+    from flask_swagger_ui import get_swaggerui_blueprint
+except ModuleNotFoundError:
+    get_swaggerui_blueprint = None
 
 
 def _is_truthy_env(value: Any) -> bool:
@@ -119,6 +123,11 @@ class SAFRS:
 
         # Register the API blueprint
         if swaggerui_blueprint is True:
+            if get_swaggerui_blueprint is None:
+                raise RuntimeError(
+                    "flask-swagger-ui is required for Flask Swagger UI. Install Flask adapter deps with "
+                    "`pip install \"safrs[flask]\"`."
+                )
             swagger_bp = get_swaggerui_blueprint(
                 prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )

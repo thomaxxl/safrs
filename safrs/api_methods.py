@@ -3,9 +3,9 @@ from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
 from . import tx
-from .jsonapi import paginate, jsonapi_sort
+from .jsonapi_formatting import paginate, jsonapi_sort
 from .json_encoder import SAFRSFormattedResponse
-from .swagger_doc import jsonapi_rpc
+from .api_doc import jsonapi_rpc
 from .errors import GenericError, SystemValidationError
 
 

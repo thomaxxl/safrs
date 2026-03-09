@@ -25,7 +25,7 @@ from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.config import is_debug
-from safrs.swagger_doc import get_doc, get_http_methods
+from safrs.api_doc import get_doc, get_http_methods
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.encoders import jsonable_encoder
@@ -961,10 +961,14 @@ class SafrsFastAPI:
         params: List[Dict[str, Any]] = []
         if include_include:
             class_name = str(getattr(Model, "_s_class_name", getattr(Model, "__name__", "Resource")))
+            include_examples = ",".join(sorted(str(name) for name in self._resolve_relationship_properties(Model).keys()))
+            include_description = f"{class_name} relationships to include (csv)"
+            if include_examples:
+                include_description = f"{class_name} relationships to include (csv, ex.: {include_examples})"
             params.append(
                 self._query_parameter(
                     "include",
-                    description=f"{class_name} relationships to include (csv)",
+                    description=include_description,
                 )
             )
         if include_fields:
