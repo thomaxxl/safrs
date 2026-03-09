@@ -176,16 +176,6 @@ class Review(BaseModel):
     http_methods = {"GET", "POST"}
 
 
-def _mount_optional_static(app: FastAPI) -> None:
-    repo_root = Path(__file__).resolve().parent.parent
-    ja_dir = repo_root / "jsonapi-admin" / "build"
-    swagger_editor_dir = repo_root / "swagger-editor"
-    if ja_dir.exists():
-        app.mount("/ja", StaticFiles(directory=str(ja_dir), html=True), name="jsonapi_admin")
-    if swagger_editor_dir.exists():
-        app.mount("/swagger_editor", StaticFiles(directory=str(swagger_editor_dir), html=True), name="swagger_editor")
-
-
 def _seed_data(session: Any, nr_instances: int = 100) -> None:
     if session.query(Person).count() > 0:
         return
@@ -243,8 +233,6 @@ def create_app(host: str = "127.0.0.1", port: int = 8000) -> FastAPI:
 
     for model in [Person, Book, Review, Publisher]:
         api.expose_object(model)
-
-    _mount_optional_static(app)
 
     @app.get("/", include_in_schema=False)
     def root() -> Any:
