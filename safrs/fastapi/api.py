@@ -961,10 +961,14 @@ class SafrsFastAPI:
         params: List[Dict[str, Any]] = []
         if include_include:
             class_name = str(getattr(Model, "_s_class_name", getattr(Model, "__name__", "Resource")))
+            include_examples = ",".join(sorted(str(name) for name in self._resolve_relationship_properties(Model).keys()))
+            include_description = f"{class_name} relationships to include (csv)"
+            if include_examples:
+                include_description = f"{class_name} relationships to include (csv, ex.: {include_examples})"
             params.append(
                 self._query_parameter(
                     "include",
-                    description=f"{class_name} relationships to include (csv)",
+                    description=include_description,
                 )
             )
         if include_fields:
