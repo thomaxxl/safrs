@@ -222,6 +222,12 @@ class SafrsFastAPI:
         install_jsonapi_exception_handlers(app)
         self._install_openapi_schema_patch()
         self._install_swagger_alias()
+        safrs.log.info(
+            "Initialized SafrsFastAPI (prefix=%s, relationship_item_mode=%s, cleanup_session=%s)",
+            self.prefix,
+            self.relationship_item_mode.value,
+            self.cleanup_session,
+        )
 
     @staticmethod
     def _coerce_relationship_item_mode(mode: Union[RelationshipItemMode, str]) -> RelationshipItemMode:

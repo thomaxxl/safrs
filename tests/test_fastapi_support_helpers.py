@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from typing import Any
 
@@ -72,3 +73,10 @@ def test_query_or_items_count_falls_back_when_count_raises() -> None:
 
     assert SafrsFastAPI._query_or_items_count(_BrokenCounter()) == 1
     assert SafrsFastAPI._query_or_items_count([1, 2, 3]) == 3
+
+
+def test_safrs_fastapi_initialization_logs_configuration(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger="safrs.safrs_init"):
+        SafrsFastAPI(FastAPI(), prefix="/api")
+
+    assert "Initialized SafrsFastAPI" in caplog.text
