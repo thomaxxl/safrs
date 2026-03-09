@@ -1,6 +1,9 @@
 [![Latest Version](https://img.shields.io/pypi/v/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/safrs.svg)](https://pypi.python.org/pypi/safrs/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![Python application](https://github.com/thomaxxl/safrs/workflows/Python%20application/badge.svg)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/de12c50717e8487db5dcc31907e627f7)](https://www.codacy.com/gh/thomaxxl/safrs/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=thomaxxl/safrs)
+[![Downloads](https://pepy.tech/badge/safrs)](https://pepy.tech/project/safrs)
 
 # SAFRS
 
