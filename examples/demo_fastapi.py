@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
-FastAPI port of examples/demo_pythonanywhere_com.py.
+FastAPI Example
 
 Run:
+  pip install safrs
   python examples/demo_fastapi.py [HOST] [PORT]
 
 Then open:
@@ -35,8 +35,7 @@ from sqlalchemy.orm import declarative_base, relationship, scoped_session, sessi
 
 description = """
 <a href=http://jsonapi.org>Json:API</a> compliant API built with https://github.com/thomaxxl/safrs <br/>
-- <a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_fastapi.py">Source code of this page</a><br/>
-- <a href="/ja/">reactjs+redux frontend</a>
+<a href="https://github.com/thomaxxl/safrs/blob/master/examples/demo_fastapi.py">Source code of this page</a><br/>
 """
 
 Base = declarative_base()
@@ -249,7 +248,7 @@ def create_app(host: str = "127.0.0.1", port: int = 8000) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def root() -> Any:
-        return RedirectResponse(url=API_PREFIX)
+        return RedirectResponse(url="/docs/")
 
     @app.get("/health", include_in_schema=False)
     def health() -> dict[str, Any]:
