@@ -21,7 +21,7 @@ SAFRS can be installed as a `pip package <https://pypi.python.org/pypi/safrs/>`_
 
    pip install safrs
 
-FastAPI runtime dependencies are included by default. To explicitly request them:
+Flask and FastAPI runtime dependencies are included by default. To explicitly request FastAPI extras:
 
 .. code-block:: bash
 

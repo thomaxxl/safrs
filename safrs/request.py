@@ -17,7 +17,8 @@ from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
 from .errors import ValidationError
-from .safrs_api import HTTP_METHODS
+
+HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE", "PUT"}
 
 
 # pylint: disable=too-many-ancestors, logging-format-interpolation

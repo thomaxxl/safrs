@@ -13,6 +13,10 @@ def safrs_setup() -> Any:
         "Flask-SQLAlchemy>=3.1.1",
         "PyYAML>=6.0.3",
         "SQLAlchemy>=2.0.48",
+        "Flask-RESTful>=0.3.10",
+        "flask-restful-swagger-2>=0.35",
+        "flask-swagger-ui>=5.21.0",
+        "Flask-Cors>=6.0.2",
         "fastapi[standard]>=0.135.1",
     ]
     flask_extra = [

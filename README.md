@@ -48,12 +48,6 @@ source venv/bin/activate
 pip install -e .
 ```
 
-For the FastAPI examples, also install:
-
-```bash
-pip install "fastapi[standard]" uvicorn
-```
-
 For the broader example set, including auth and admin examples:
 
 ```bash
@@ -137,5 +131,4 @@ Advanced topics:
 - The older expose-existing-database workflow is no longer the main recommended entry point and is kept as legacy documentation.
 
 SAFRS originally stood for **SqlAlchemy Flask-Restful Swagger**. The project has since grown beyond the original Flask-only framing, but the historical name remains.
-
 
