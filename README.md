@@ -18,7 +18,6 @@ Check out the **[Live Demo](https://safrs.pythonanywhere.com/docs)**!
 ## Start here
 
 - [Wiki home](https://github.com/thomaxxl/safrs/wiki)
-- [Installation](https://github.com/thomaxxl/safrs/wiki/Installation)
 - [Quickstart (Flask)](https://github.com/thomaxxl/safrs/wiki/API-Creation)
 - [Quickstart (FastAPI)](https://github.com/thomaxxl/safrs/wiki/Quickstart-FastAPI)
 - [Examples](https://github.com/thomaxxl/safrs/wiki/Examples)
