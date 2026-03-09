@@ -6,7 +6,7 @@
 
 Expose SQLAlchemy models as JSON:API resources and generate API documentation with minimal boilerplate.
 
-SAFRS is built around SQLAlchemy models and JSON:API-style resource handling. The classic SAFRS path uses Flask. The repository also includes an experimental FastAPI adapter for teams that want FastAPI-native OpenAPI and Swagger UI.
+SAFRS is built around SQLAlchemy models and JSON:API-style resource handling. The repository includes FastAPI and Flask adapters.
 
 ![SAFRS demo](docs/images/jsonapi.png)
 
