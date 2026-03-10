@@ -56,6 +56,21 @@ export VITE_DEV_PORT="5173"
 export VITE_HMR_CLIENT_PORT="${DEMO_EXTERNAL_PORT:-8000}"
 export VITE_HMR_PATH="/admin-app/__vite_hmr"
 
+SAFRS_JSONAPI_CLIENT_SPEC="https://codeload.github.com/thomaxxl/safrs-jsonapi-client/tar.gz/refs/heads/main"
+if is_true "${USE_LOCAL_SAFRS_JSONAPI_CLIENT:-0}"; then
+  LOCAL_CLIENT_DIR="$SOURCE_ROOT/vendor/safrs-jsonapi-client"
+  if [ ! -f "$LOCAL_CLIENT_DIR/package.json" ]; then
+    echo "USE_LOCAL_SAFRS_JSONAPI_CLIENT is set, but $LOCAL_CLIENT_DIR is missing" >&2
+    exit 1
+  fi
+  SAFRS_JSONAPI_CLIENT_SPEC="file:$LOCAL_CLIENT_DIR"
+fi
+
+(
+  cd "$SOURCE_ROOT/frontend"
+  npm pkg set "dependencies.safrs-jsonapi-client=$SAFRS_JSONAPI_CLIENT_SPEC"
+)
+
 if [ "$SOURCE_ROOT" = "/demo" ]; then
   (cd /demo/frontend && npm install --no-audit --no-fund --package-lock=false)
 elif [ ! -x /app/frontend/node_modules/.bin/vite ]; then
