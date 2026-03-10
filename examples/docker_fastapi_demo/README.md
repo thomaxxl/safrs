@@ -7,7 +7,7 @@ This directory packages the current Northwind validation app as a self-contained
 - `reference/` contains the shipped `admin.yaml`
 - `site/` contains the simple landing page served by nginx at `/`
 - `vendor/safrs/` is a vendored copy of the current SAFRS source used by the backend image
-- `vendor/safrs-jsonapi-client/` is a vendored client package used by the frontend
+- `vendor/safrs-jsonapi-client/` is an optional local fallback for the frontend client package
 
 The container runs multiple processes:
 
@@ -99,6 +99,18 @@ Container paths:
 
 - default baked-in frontend: `/app/frontend`
 - dev-mounted frontend: `/demo/frontend`
+
+## Client dependency source
+
+By default, the frontend installs `safrs-jsonapi-client` from:
+
+- `https://codeload.github.com/thomaxxl/safrs-jsonapi-client/tar.gz/refs/heads/main`
+
+To force local vendored fallback instead, set:
+
+```bash
+USE_LOCAL_SAFRS_JSONAPI_CLIENT=1 docker compose up --build
+```
 
 ## Notes
 
