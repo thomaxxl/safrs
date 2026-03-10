@@ -165,6 +165,22 @@ all_running() {
 
 trap cleanup INT TERM
 
+STARTUP_WAIT_SECONDS="${DEMO_STARTUP_WAIT_SECONDS:-5}"
+elapsed=0
+while [ "$elapsed" -lt "$STARTUP_WAIT_SECONDS" ]; do
+  if ! all_running; then
+    echo "[demo] Startup failed: one or more background processes exited early" >&2
+    cleanup
+    exit 1
+  fi
+  sleep 1
+  elapsed=$((elapsed + 1))
+done
+
+NGINX_CONTAINER_URL="http://127.0.0.1:80/"
+NGINX_HOST_URL="http://127.0.0.1:${DEMO_EXTERNAL_PORT:-8000}/"
+echo "[demo] Startup successful: nginx=${NGINX_CONTAINER_URL} host=${NGINX_HOST_URL} admin=${NGINX_HOST_URL}admin-app/ docs=${NGINX_HOST_URL}docs"
+
 while all_running; do
   sleep 1
 done
