@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx nodejs npm \
+    && apt-get install -y --no-install-recommends git nginx nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend /app/backend
