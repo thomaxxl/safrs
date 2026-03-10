@@ -56,7 +56,7 @@ export VITE_DEV_PORT="5173"
 export VITE_HMR_CLIENT_PORT="${DEMO_EXTERNAL_PORT:-8000}"
 export VITE_HMR_PATH="/admin-app/__vite_hmr"
 
-SAFRS_JSONAPI_CLIENT_SPEC="https://codeload.github.com/thomaxxl/safrs-jsonapi-client/tar.gz/refs/heads/main"
+SAFRS_JSONAPI_CLIENT_SPEC="git+https://github.com/thomaxxl/safrs-jsonapi-client.git#main"
 if is_true "${USE_LOCAL_SAFRS_JSONAPI_CLIENT:-0}"; then
   LOCAL_CLIENT_DIR="$SOURCE_ROOT/vendor/safrs-jsonapi-client"
   if [ ! -f "$LOCAL_CLIENT_DIR/package.json" ]; then

@@ -104,7 +104,7 @@ Container paths:
 
 By default, the frontend installs `safrs-jsonapi-client` from:
 
-- `https://codeload.github.com/thomaxxl/safrs-jsonapi-client/tar.gz/refs/heads/main`
+- `git+https://github.com/thomaxxl/safrs-jsonapi-client.git#main`
 
 To force local vendored fallback instead, set:
 
