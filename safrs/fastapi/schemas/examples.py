@@ -6,18 +6,31 @@ from typing import Any, Dict, Optional, Type
 
 import safrs
 from fastapi.encoders import jsonable_encoder
+from safrs.jsonapi_attr import is_jsonapi_attr
 
 
 def _json_safe(value: Any) -> Any:
     return jsonable_encoder(value)
 
 
-def attributes_example(Model: Type[Any]) -> Dict[str, Any]:
+def _writable_attribute_names(Model: Type[Any]) -> set[str]:
+    attrs = getattr(Model, "_s_jsonapi_attrs", {})
+    writable: set[str] = set()
+    for attr_name, column_or_attr in attrs.items():
+        if not is_jsonapi_attr(column_or_attr) or callable(getattr(column_or_attr, "fset", None)):
+            writable.add(attr_name)
+    return writable
+
+
+def attributes_example(Model: Type[Any], *, writable_only: bool = False) -> Dict[str, Any]:
     sample_factory = getattr(Model, "_s_sample_dict", None)
     if callable(sample_factory):
         try:
             sample = sample_factory()
             if isinstance(sample, dict):
+                if writable_only:
+                    writable = _writable_attribute_names(Model)
+                    sample = {key: value for key, value in sample.items() if key in writable}
                 return _json_safe(sample) or {}
         except Exception as exc:
             safrs.log.debug("Failed to build attributes example for %s: %s", getattr(Model, "__name__", Model), exc)
@@ -45,7 +58,7 @@ def create_document_example(Model: Type[Any]) -> Dict[str, Any]:
     rid = resource_identifier_example(Model)
     data: Dict[str, Any] = {
         "type": rid["type"],
-        "attributes": attributes_example(Model),
+        "attributes": attributes_example(Model, writable_only=True),
     }
     if bool(getattr(Model, "allow_client_generated_ids", False)):
         data["id"] = rid["id"]
@@ -58,7 +71,7 @@ def patch_document_example(Model: Type[Any]) -> Dict[str, Any]:
         "data": {
             "type": rid["type"],
             "id": rid["id"],
-            "attributes": attributes_example(Model),
+            "attributes": attributes_example(Model, writable_only=True),
         }
     }
 

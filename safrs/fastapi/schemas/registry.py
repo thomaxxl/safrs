@@ -38,6 +38,14 @@ class SchemaRegistry:
         schema = create_attributes_model(Model, model_name)
         return self._store("attributes", Model, schema)
 
+    def request_attributes(self, Model: Type[Any]) -> Type[PermissiveModel]:
+        cached = self._cached("request_attributes", Model)
+        if cached is not None:
+            return cached
+        model_name = f"{Model._s_type}RequestAttributes"
+        schema = create_attributes_model(Model, model_name, writable_only=True)
+        return self._store("request_attributes", Model, schema)
+
     def resource_identifier(self, Model: Type[Any]) -> Type[PermissiveModel]:
         cached = self._cached("identifier", Model)
         if cached is not None:
@@ -179,7 +187,7 @@ class SchemaRegistry:
         fields: Dict[str, Tuple[Any, Any]] = {
             "type": (Literal[model_type], Field(default=model_type)),
             "id": id_field,
-            "attributes": (Optional[self.attributes(Model)], None),
+            "attributes": (Optional[self.request_attributes(Model)], None),
         }
         relationships = self.relationships_container(Model)
         if relationships is not None:
