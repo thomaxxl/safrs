@@ -21,11 +21,25 @@ class JsonApiMeta(PermissiveModel):
     pass
 
 
+class JsonApiErrorLinks(PermissiveModel):
+    about: Optional[str] = None
+
+
+class JsonApiErrorSource(PermissiveModel):
+    pointer: Optional[str] = None
+    parameter: Optional[str] = None
+    header: Optional[str] = None
+
+
 class JsonApiErrorObject(PermissiveModel):
+    id: Optional[str] = None
+    links: Optional[JsonApiErrorLinks] = None
     status: Optional[str] = None
+    source: Optional[JsonApiErrorSource] = None
     title: Optional[str] = None
     detail: Optional[str] = None
     code: Optional[str] = None
+    meta: Optional[JsonApiMeta] = None
 
 
 class JsonApiErrorDocument(PermissiveModel):
