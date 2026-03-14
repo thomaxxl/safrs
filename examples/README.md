@@ -65,6 +65,13 @@ Examples are grouped by purpose so it is clear where to start.
 - `mini_examples/ex16_perm.py`: permission checks with `_s_check_perm`.
 - `mini_examples/custom_swagger.json`: sample custom swagger payload used by mini examples.
 
+## `jsonapi_attr` Notes
+
+- Getter-only `@jsonapi_attr` fields are read-only; request writes are rejected with a validation error.
+- Getter+setter `@jsonapi_attr` fields receive raw request values; setter `ValueError` and `TypeError` are surfaced as client validation errors.
+- `@jsonapi_attr` defined on mixins or base classes is inherited by SAFRS subclasses.
+- Docstring YAML placed before `---` can provide request-schema metadata such as `description`, `default`, `swagger_type`, and `swagger_format`.
+
 ## Docker Example
 
 - `docker_sqlite_demo/`: SQLite-only containerized demo.

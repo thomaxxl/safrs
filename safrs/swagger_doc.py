@@ -14,6 +14,7 @@ from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
 import safrs
+from safrs.jsonapi_attr import is_jsonapi_attr
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 
@@ -371,16 +372,36 @@ def _is_required_create_column(column: Column) -> bool:
     return True
 
 
+def _jsonapi_attr_schema(attr: Any) -> dict[str, Any]:
+    swagger_type = getattr(attr, "swagger_type", None)
+    default = getattr(attr, "default", None)
+    description = getattr(attr, "description", None)
+    schema: dict[str, Any] = {"type": swagger_type or "string"}
+
+    swagger_format = getattr(attr, "swagger_format", None)
+    if swagger_format is not None:
+        schema["format"] = swagger_format
+    if default is not None:
+        schema["default"] = default
+    if description:
+        schema["description"] = description
+
+    return schema
+
+
 def _attributes_schema_for_model(cls: Any, for_patch: bool) -> dict[str, Any]:
     properties: dict[str, Any] = {}
     required: list[str] = []
 
     for attr_name, attr in cls._s_jsonapi_attrs.items():
-        if not isinstance(attr, Column):
+        if isinstance(attr, Column):
+            properties[attr_name] = _column_schema(attr)
+            if not for_patch and _is_required_create_column(attr):
+                required.append(attr_name)
             continue
-        properties[attr_name] = _column_schema(attr)
-        if not for_patch and _is_required_create_column(attr):
-            required.append(attr_name)
+        if not is_jsonapi_attr(attr) or getattr(attr, "fset", None) is None:
+            continue
+        properties[attr_name] = _jsonapi_attr_schema(attr)
 
     result: dict[str, Any] = {
         "type": "object",
