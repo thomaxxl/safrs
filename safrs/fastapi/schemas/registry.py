@@ -9,8 +9,11 @@ from ..relationships import iter_exposed_relationship_properties
 from .from_sqlalchemy import create_attributes_model
 from .jsonapi_primitives import (
     JsonApiErrorDocument,
+    JsonApiLinks,
+    JsonApiMeta,
     JsonApiVersion,
     PermissiveModel,
+    RelationshipLinks,
     RelationshipToMany,
     RelationshipToOne,
     ResourceIdentifierBase,
@@ -130,6 +133,7 @@ class SchemaRegistry:
             "type": (Literal[model_type], Field(default=model_type)),
             "id": (str, ...),
             "attributes": (self.attributes(Model), ...),
+            "links": (Optional[JsonApiLinks], None),
         }
         relationships = self.relationships_container(Model)
         if relationships is not None:
@@ -161,8 +165,8 @@ class SchemaRegistry:
                 jsonapi=(Optional[JsonApiVersion], None),
                 data=(data_type, ...),
                 included=(Optional[List[Dict[str, Any]]], None),
-                meta=(Optional[Dict[str, Any]], None),
-                links=(Optional[Dict[str, Any]], None),
+                meta=(Optional[JsonApiMeta], None),
+                links=(Optional[JsonApiLinks], None),
             ),
         )
         return self._store(kind, Model, cast(Type[PermissiveModel], schema))
@@ -209,7 +213,7 @@ class SchemaRegistry:
                 __base__=PermissiveModel,
                 jsonapi=(Optional[JsonApiVersion], None),
                 data=(resource_schema_type, ...),
-                meta=(Optional[Dict[str, Any]], None),
+                meta=(Optional[JsonApiMeta], None),
             ),
         )
         return self._store(kind, Model, cast(Type[PermissiveModel], document_schema))
@@ -235,8 +239,8 @@ class SchemaRegistry:
             __base__=PermissiveModel,
             jsonapi=(Optional[JsonApiVersion], None),
             data=(Optional[identifier_type], None),
-            links=(Optional[Dict[str, Any]], None),
-            meta=(Optional[Dict[str, Any]], None),
+            links=(Optional[RelationshipLinks], None),
+            meta=(Optional[JsonApiMeta], None),
         )
         return self._store("rel_doc_to_one", TargetModel, cast(Type[PermissiveModel], schema))
 
@@ -252,7 +256,7 @@ class SchemaRegistry:
             __base__=PermissiveModel,
             jsonapi=(Optional[JsonApiVersion], None),
             data=(list[identifier_type], Field(default_factory=list)),
-            links=(Optional[Dict[str, Any]], None),
-            meta=(Optional[Dict[str, Any]], None),
+            links=(Optional[RelationshipLinks], None),
+            meta=(Optional[JsonApiMeta], None),
         )
         return self._store("rel_doc_to_many", TargetModel, cast(Type[PermissiveModel], schema))

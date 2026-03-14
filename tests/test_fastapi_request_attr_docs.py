@@ -127,3 +127,51 @@ def test_swagger_type_metadata_falls_back_for_unannotated_jsonapi_attrs() -> Non
 
     assert response_types == {"integer", "null"}
     assert request_types == {"integer", "null"}
+
+
+class _Rel:
+    def __init__(self, target: Any, direction: Any) -> None:
+        self.mapper = SimpleNamespace(class_=target)
+        self.direction = direction
+        self.expose = True
+
+
+class _PersonModel:
+    _s_type = "Person"
+    _s_collection_name = "People"
+    _s_jsonapi_attrs = {"name": _Column(str)}
+
+
+class _BookModel:
+    _s_type = "Book"
+    _s_collection_name = "Books"
+    _s_jsonapi_attrs = {"title": _Column(str)}
+
+
+def test_resource_and_relationship_documents_use_typed_links_and_meta() -> None:
+    from sqlalchemy.orm.interfaces import MANYTOONE, ONETOMANY
+
+    _PersonModel._s_relationships = {
+        "favorite_book": _Rel(_BookModel, MANYTOONE),
+        "books": _Rel(_BookModel, ONETOMANY),
+    }
+    _BookModel._s_relationships = {}
+
+    registry = SchemaRegistry(document_relationships=True)
+
+    resource_schema = registry.resource(_PersonModel).model_json_schema()
+    document_schema = registry.document_single(_PersonModel).model_json_schema()
+    rel_one_schema = registry.relationship_document_to_one(_BookModel).model_json_schema()
+    rel_many_schema = registry.relationship_document_to_many(_BookModel).model_json_schema()
+
+    resource_links = resource_schema["properties"]["links"]["anyOf"][0]["$ref"]
+    document_meta = document_schema["properties"]["meta"]["anyOf"][0]["$ref"]
+    document_links = document_schema["properties"]["links"]["anyOf"][0]["$ref"]
+    rel_one_links = rel_one_schema["properties"]["links"]["anyOf"][0]["$ref"]
+    rel_many_meta = rel_many_schema["properties"]["meta"]["anyOf"][0]["$ref"]
+
+    assert resource_links.endswith("/JsonApiLinks")
+    assert document_meta.endswith("/JsonApiMeta")
+    assert document_links.endswith("/JsonApiLinks")
+    assert rel_one_links.endswith("/RelationshipLinks")
+    assert rel_many_meta.endswith("/JsonApiMeta")

@@ -47,11 +47,11 @@ class RelationshipLinks(PermissiveModel):
 
 class RelationshipToOne(PermissiveModel):
     data: Optional[Any] = None
-    links: Optional[JsonApiLinks] = None
+    links: Optional[RelationshipLinks] = None
     meta: Optional[JsonApiMeta] = None
 
 
 class RelationshipToMany(PermissiveModel):
     data: List[Any] = Field(default_factory=list)
-    links: Optional[JsonApiLinks] = None
+    links: Optional[RelationshipLinks] = None
     meta: Optional[JsonApiMeta] = None
