@@ -228,3 +228,26 @@ def test_included_falls_back_to_generic_objects_when_limit_is_exceeded() -> None
 
     assert included_items["type"] == "object"
     assert included_items["additionalProperties"] is True
+
+
+def test_request_relationship_schemas_only_document_linkage() -> None:
+    from sqlalchemy.orm.interfaces import MANYTOONE, ONETOMANY
+
+    _PersonModel._s_relationships = {
+        "favorite_book": _Rel(_BookModel, MANYTOONE),
+        "reviews": _Rel(_ReviewModel, ONETOMANY),
+    }
+    _BookModel._s_relationships = {}
+    _ReviewModel._s_relationships = {}
+
+    registry = SchemaRegistry(document_relationships=True)
+    create_schema = registry.document_create(_PersonModel).model_json_schema()
+    request_relationships_ref = create_schema["$defs"]["PersonCreateResource"]["properties"]["relationships"]["anyOf"][0]["$ref"]
+    request_relationships = create_schema["$defs"]["PersonRequestRelationships"]["properties"]
+    request_to_one = create_schema["$defs"]["Person_favorite_bookRequestRelationshipToOne"]["properties"]
+    request_to_many = create_schema["$defs"]["Person_reviewsRequestRelationshipToMany"]["properties"]
+
+    assert request_relationships_ref.endswith("/PersonRequestRelationships")
+    assert set(request_relationships) == {"favorite_book", "reviews"}
+    assert set(request_to_one) == {"data"}
+    assert set(request_to_many) == {"data"}

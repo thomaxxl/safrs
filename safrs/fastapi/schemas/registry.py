@@ -92,10 +92,10 @@ class SchemaRegistry:
         )
         return self._store("identifier", Model, cast(Type[PermissiveModel], schema))
 
-    def relationships_container(self, Model: Type[Any]) -> Optional[Type[PermissiveModel]]:
+    def _relationships_container(self, kind: str, Model: Type[Any], *, request_only: bool) -> Optional[Type[PermissiveModel]]:
         if not self.document_relationships:
             return None
-        cached = self._cached("relationships", Model)
+        cached = self._cached(kind, Model)
         if cached is not None:
             return cached
 
@@ -113,29 +113,35 @@ class SchemaRegistry:
             identifier_type: Any = identifier
             rel_schema: Type[PermissiveModel]
             if rel.direction == MANYTOONE:
+                rel_base = PermissiveModel if request_only else RelationshipToOne
+                rel_name_suffix = "RequestRelationshipToOne" if request_only else "RelationshipToOne"
                 rel_schema = cast(
                     Type[PermissiveModel],
                     create_model(
-                        f"{model_type}_{rel_name}RelationshipToOne",
-                        __base__=RelationshipToOne,
+                        f"{model_type}_{rel_name}{rel_name_suffix}",
+                        __base__=rel_base,
                         data=(Optional[identifier_type], None),
                     ),
                 )
             elif rel.direction in (ONETOMANY, MANYTOMANY):
+                rel_base = PermissiveModel if request_only else RelationshipToMany
+                rel_name_suffix = "RequestRelationshipToMany" if request_only else "RelationshipToMany"
                 rel_schema = cast(
                     Type[PermissiveModel],
                     create_model(
-                        f"{model_type}_{rel_name}RelationshipToMany",
-                        __base__=RelationshipToMany,
+                        f"{model_type}_{rel_name}{rel_name_suffix}",
+                        __base__=rel_base,
                         data=(list[identifier_type], Field(default_factory=list)),
                     ),
                 )
             else:
+                rel_base = PermissiveModel if request_only else RelationshipToMany
+                rel_name_suffix = "RequestRelationship" if request_only else "Relationship"
                 rel_schema = cast(
                     Type[PermissiveModel],
                     create_model(
-                        f"{model_type}_{rel_name}Relationship",
-                        __base__=RelationshipToMany,
+                        f"{model_type}_{rel_name}{rel_name_suffix}",
+                        __base__=rel_base,
                     ),
                 )
             fields[rel_name] = (Optional[rel_schema], None)
@@ -146,12 +152,18 @@ class SchemaRegistry:
         schema = cast(
             Type[PermissiveModel],
             create_model(
-                f"{model_type}Relationships",
+                f"{model_type}{'RequestRelationships' if request_only else 'Relationships'}",
                 __base__=PermissiveModel,
                 **cast(Any, fields),
             ),
         )
-        return self._store("relationships", Model, cast(Type[PermissiveModel], schema))
+        return self._store(kind, Model, cast(Type[PermissiveModel], schema))
+
+    def relationships_container(self, Model: Type[Any]) -> Optional[Type[PermissiveModel]]:
+        return self._relationships_container("relationships", Model, request_only=False)
+
+    def request_relationships_container(self, Model: Type[Any]) -> Optional[Type[PermissiveModel]]:
+        return self._relationships_container("request_relationships", Model, request_only=True)
 
     def resource(self, Model: Type[Any]) -> Type[PermissiveModel]:
         cached = self._cached("resource", Model)
@@ -222,7 +234,7 @@ class SchemaRegistry:
             "id": id_field,
             "attributes": (Optional[self.request_attributes(Model)], None),
         }
-        relationships = self.relationships_container(Model)
+        relationships = self.request_relationships_container(Model)
         if relationships is not None:
             relationships_type: Any = relationships
             fields["relationships"] = (Optional[relationships_type], None)
