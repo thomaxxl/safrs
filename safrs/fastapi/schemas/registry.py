@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, Dict, List, Literal, Optional, Tuple, Type, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple, Type, Union, cast
 
 from pydantic import Field, create_model
 from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY, ONETOMANY
@@ -32,6 +32,35 @@ class SchemaRegistry:
     def _store(self, kind: str, Model: Type[Any], schema: Type[PermissiveModel]) -> Type[PermissiveModel]:
         self._cache[(kind, Model)] = schema
         return schema
+
+    @staticmethod
+    def _generic_included_field() -> Tuple[Any, Any]:
+        return (Optional[List[Dict[str, Any]]], None)
+
+    def _included_models(self, Model: Type[Any]) -> List[Type[Any]]:
+        included_models: List[Type[Any]] = []
+        seen: set[Type[Any]] = set()
+        for _rel_name, rel in iter_exposed_relationship_properties(Model):
+            target_model = rel.mapper.class_
+            if not hasattr(target_model, "_s_type") or target_model in seen:
+                continue
+            seen.add(target_model)
+            included_models.append(target_model)
+        return included_models
+
+    def _included_field(self, Model: Type[Any]) -> Tuple[Any, Any]:
+        if self.max_union_included_types <= 0:
+            return self._generic_included_field()
+
+        included_models = self._included_models(Model)
+        if not included_models or len(included_models) > self.max_union_included_types:
+            return self._generic_included_field()
+
+        included_types = [self.resource(target_model) for target_model in included_models]
+        item_type: Any = included_types[0]
+        if len(included_types) > 1:
+            item_type = Union[tuple(included_types)]
+        return (Optional[list[item_type]], None)
 
     def attributes(self, Model: Type[Any]) -> Type[PermissiveModel]:
         cached = self._cached("attributes", Model)
@@ -164,7 +193,7 @@ class SchemaRegistry:
                 __base__=PermissiveModel,
                 jsonapi=(Optional[JsonApiVersion], None),
                 data=(data_type, ...),
-                included=(Optional[List[Dict[str, Any]]], None),
+                included=self._included_field(Model),
                 meta=(Optional[JsonApiMeta], None),
                 links=(Optional[JsonApiLinks], None),
             ),

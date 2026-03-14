@@ -148,6 +148,18 @@ class _BookModel:
     _s_jsonapi_attrs = {"title": _Column(str)}
 
 
+class _ReviewModel:
+    _s_type = "Review"
+    _s_collection_name = "Reviews"
+    _s_jsonapi_attrs = {"text": _Column(str)}
+
+
+class _PublisherModel:
+    _s_type = "Publisher"
+    _s_collection_name = "Publishers"
+    _s_jsonapi_attrs = {"name": _Column(str)}
+
+
 def test_resource_and_relationship_documents_use_typed_links_and_meta() -> None:
     from sqlalchemy.orm.interfaces import MANYTOONE, ONETOMANY
 
@@ -175,3 +187,44 @@ def test_resource_and_relationship_documents_use_typed_links_and_meta() -> None:
     assert document_links.endswith("/JsonApiLinks")
     assert rel_one_links.endswith("/RelationshipLinks")
     assert rel_many_meta.endswith("/JsonApiMeta")
+
+
+def test_included_uses_typed_resource_union_when_limit_allows() -> None:
+    from sqlalchemy.orm.interfaces import MANYTOONE, ONETOMANY
+
+    _PersonModel._s_relationships = {
+        "favorite_book": _Rel(_BookModel, MANYTOONE),
+        "reviews": _Rel(_ReviewModel, ONETOMANY),
+    }
+    _BookModel._s_relationships = {}
+    _ReviewModel._s_relationships = {}
+
+    registry = SchemaRegistry(document_relationships=True, max_union_included_types=2)
+    document_schema = registry.document_single(_PersonModel).model_json_schema()
+    included_items = document_schema["properties"]["included"]["anyOf"][0]["items"]["anyOf"]
+    included_refs = {entry["$ref"] for entry in included_items}
+
+    assert included_refs == {
+        "#/$defs/BookResource",
+        "#/$defs/ReviewResource",
+    }
+
+
+def test_included_falls_back_to_generic_objects_when_limit_is_exceeded() -> None:
+    from sqlalchemy.orm.interfaces import MANYTOONE, ONETOMANY
+
+    _PersonModel._s_relationships = {
+        "favorite_book": _Rel(_BookModel, MANYTOONE),
+        "reviews": _Rel(_ReviewModel, ONETOMANY),
+        "publisher": _Rel(_PublisherModel, MANYTOONE),
+    }
+    _BookModel._s_relationships = {}
+    _ReviewModel._s_relationships = {}
+    _PublisherModel._s_relationships = {}
+
+    registry = SchemaRegistry(document_relationships=True, max_union_included_types=2)
+    document_schema = registry.document_single(_PersonModel).model_json_schema()
+    included_items = document_schema["properties"]["included"]["anyOf"][0]["items"]
+
+    assert included_items["type"] == "object"
+    assert included_items["additionalProperties"] is True
