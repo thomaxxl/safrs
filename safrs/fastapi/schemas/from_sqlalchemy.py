@@ -9,6 +9,13 @@ from pydantic import ConfigDict, Field, create_model
 from safrs.jsonapi_attr import is_jsonapi_attr
 from .jsonapi_primitives import PermissiveModel
 
+_SWAGGER_TYPE_MAP = {
+    "string": str,
+    "integer": int,
+    "number": float,
+    "boolean": bool,
+}
+
 
 def _normalize_python_type(py_type: Any) -> Any:
     if py_type is decimal.Decimal:
@@ -37,9 +44,16 @@ def _jsonapi_attr_return_type(Model: Type[Any], attr_name: str) -> Any:
         return Any
     if hasattr(model_attr, "fget") and callable(getattr(model_attr, "fget", None)):
         annotations = getattr(model_attr.fget, "__annotations__", {})
-        return _normalize_python_type(annotations.get("return", Any))
-    annotations = getattr(model_attr, "__annotations__", {})
-    return _normalize_python_type(annotations.get("return", Any))
+        annotated = annotations.get("return", Any)
+        if annotated is not Any:
+            return _normalize_python_type(annotated)
+    elif hasattr(model_attr, "__annotations__"):
+        annotations = getattr(model_attr, "__annotations__", {})
+        annotated = annotations.get("return", Any)
+        if annotated is not Any:
+            return _normalize_python_type(annotated)
+    swagger_type = str(getattr(model_attr, "swagger_type", "")).strip().lower()
+    return _SWAGGER_TYPE_MAP.get(swagger_type, Any)
 
 
 def _attribute_type(Model: Type[Any], attr_name: str, column_or_attr: Any) -> Any:

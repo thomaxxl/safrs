@@ -59,6 +59,30 @@ _JsonapiAttrDocModel._s_jsonapi_attrs = {
 }
 
 
+class _SwaggerTypedJsonapiAttrModel:
+    _s_type = "SwaggerTypedThing"
+    _s_collection_name = "SwaggerTypedThings"
+    _s_jsonapi_attrs: dict[str, Any]
+
+    @jsonapi_attr
+    def count(self):
+        """
+        description: Count without a Python return annotation
+        default: 3
+        swagger_type: integer
+        """
+        return 3
+
+    @count.setter
+    def count(self, value: int) -> None:
+        self._count = value
+
+
+_SwaggerTypedJsonapiAttrModel._s_jsonapi_attrs = {
+    "count": _SwaggerTypedJsonapiAttrModel.count,
+}
+
+
 def test_request_attributes_skip_readonly_jsonapi_attrs_and_keep_metadata() -> None:
     registry = SchemaRegistry(document_relationships=False)
 
@@ -88,3 +112,18 @@ def test_request_document_examples_skip_readonly_jsonapi_attrs() -> None:
 
     assert create_example["data"]["attributes"] == {"name": "alpha", "password": "example-secret"}
     assert patch_example["data"]["attributes"] == {"name": "alpha", "password": "example-secret"}
+
+
+def test_swagger_type_metadata_falls_back_for_unannotated_jsonapi_attrs() -> None:
+    registry = SchemaRegistry(document_relationships=False)
+
+    response_schema = registry.attributes(_SwaggerTypedJsonapiAttrModel).model_json_schema()
+    request_schema = registry.request_attributes(_SwaggerTypedJsonapiAttrModel).model_json_schema()
+
+    response_any_of = response_schema["properties"]["count"]["anyOf"]
+    request_any_of = request_schema["properties"]["count"]["anyOf"]
+    response_types = {entry["type"] for entry in response_any_of if "type" in entry}
+    request_types = {entry["type"] for entry in request_any_of if "type" in entry}
+
+    assert response_types == {"integer", "null"}
+    assert request_types == {"integer", "null"}
