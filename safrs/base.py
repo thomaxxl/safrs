@@ -1498,13 +1498,20 @@ class SAFRSBase(Model):
         """
         result: list[Any] = []
         try:
-            cls_members = inspect.getmembers(cls)
+            cls_member_names = dir(cls)
         except sqlalchemy.exc.InvalidRequestError as exc:
             # This may happen if there's no sqlalchemy superclass
             safrs.log.warning(f"Member inspection failed for {cls}: {exc}")
             return result
 
-        for _, method in cls_members:  # [(name, method),..]
+        for member_name in cls_member_names:
+            try:
+                method = inspect.getattr_static(cls, member_name)
+            except Exception as exc:
+                safrs.log.debug(f"Skipping rpc inspection for {cls}.{member_name}: {exc}")
+                continue
+            if isinstance(method, (classmethod, staticmethod)):
+                method = method.__func__
             rest_doc = get_doc(method)
             if rest_doc is not None:
                 result.append(method)

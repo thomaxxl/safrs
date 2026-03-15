@@ -475,9 +475,13 @@ def _rpc_request_body_schema(fields: dict[str, Any]) -> dict[str, Any]:
 
 
 def _find_method_on_class(cls: Any, method_name: Any) -> Any:
-    for name, method in inspect.getmembers(cls):
-        if name == method_name:
-            return method
+    for name in dir(cls):
+        if name != method_name:
+            continue
+        method = inspect.getattr_static(cls, name)
+        if isinstance(method, (classmethod, staticmethod)):
+            return method.__func__
+        return method
     raise SystemValidationError(f"method {method_name} not found")
 
 
