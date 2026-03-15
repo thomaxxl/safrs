@@ -2,8 +2,9 @@
 # Flask adapter-specific dependencies.
 from __future__ import annotations
 
+import datetime
 import inspect
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml  # type: ignore[import-untyped]
 
@@ -84,3 +85,58 @@ def get_http_methods(method: Any) -> Any:
     """
     return getattr(method, HTTP_METHODS, ["POST"])
 
+
+def resolve_rpc_method(cls: Any, method_name: str) -> Any:
+    """
+    Resolve a method without triggering descriptor evaluation on unrelated attrs.
+    """
+    for name in dir(cls):
+        if name != method_name:
+            continue
+        method = inspect.getattr_static(cls, name)
+        if isinstance(method, (classmethod, staticmethod)):
+            return method.__func__
+        return method
+    raise SystemValidationError(f"method {method_name} not found")
+
+
+def schema_for_example_value(value: Any) -> Dict[str, Any]:
+    """
+    Generate a lightweight OpenAPI schema fragment from an example value.
+    """
+    if isinstance(value, bool):
+        return {"type": "boolean", "example": value}
+    if isinstance(value, int):
+        return {"type": "integer", "example": value}
+    if isinstance(value, float):
+        return {"type": "number", "example": value}
+    if isinstance(value, datetime.datetime):
+        return {"type": "string", "format": "date-time", "example": value.isoformat(" ")}
+    if isinstance(value, datetime.date):
+        return {"type": "string", "format": "date", "example": value.isoformat()}
+    if isinstance(value, datetime.time):
+        return {"type": "string", "example": value.isoformat()}
+    if isinstance(value, dict):
+        return {"type": "object", "additionalProperties": True, "example": value}
+    if isinstance(value, list):
+        return {"type": "array", "items": {}, "example": value}
+    return {"type": "string", "example": str(value) if value is not None else ""}
+
+
+def jsonapi_rpc_meta_schema(method_args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build the JSON:API RPC request schema for ``meta.args``.
+    """
+    args_properties = {
+        arg_name: schema_for_example_value(arg_value)
+        for arg_name, arg_value in method_args.items()
+    }
+    args_schema: Dict[str, Any] = {"type": "object", "additionalProperties": True}
+    if args_properties:
+        args_schema["properties"] = args_properties
+    return {
+        "type": "object",
+        "required": ["args"],
+        "properties": {"args": args_schema},
+        "additionalProperties": False,
+    }

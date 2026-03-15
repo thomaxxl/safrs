@@ -7,24 +7,26 @@ import datetime
 import json
 import flask
 from http import HTTPStatus
-import yaml  # type: ignore[import-untyped]
 from sqlalchemy.orm.interfaces import ONETOMANY, MANYTOMANY, MANYTOONE
 from sqlalchemy.sql.schema import Column
 from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
-from safrs.config import get_config, is_debug
+from safrs.config import is_debug
 import safrs
+from safrs.api_doc import (
+    FILTERABLE,
+    PAGEABLE,
+    get_doc,
+    get_http_methods,
+    is_public,
+    jsonapi_rpc,
+    jsonapi_rpc_meta_schema,
+    parse_object_doc,
+    resolve_rpc_method,
+    schema_for_example_value,
+)
 from safrs.jsonapi_attr import is_jsonapi_attr, jsonapi_attr_is_read_only, jsonapi_attr_is_write_only
 from typing import Any, Callable, Dict, List, Optional, Union, cast
-
-
-REST_DOC = "__rest_doc"  # swagger doc attribute name. If this attribute is set
-# this means that the function is reachable through HTTP POST
-HTTP_METHODS = "__http_method"
-DOC_DELIMITER = "---"  # used as delimiter between the rest_doc swagger yaml spec
-# and regular documentation
-PAGEABLE = "pageable"  # denotes whether an api method is pageable
-FILTERABLE = "filterable"
 
 # additional responses added when in debug mode to make swagger-check succeed
 debug_responses = {
@@ -37,90 +39,6 @@ debug_responses = {
 # The _references will be added to the swagger in safrs
 Schema._reference_count = []
 Schema._references = {}
-
-
-# pylint: disable=redefined-builtin,line-too-long,protected-access,logging-format-interpolation
-def parse_object_doc(object: Callable) -> dict[str, Any]:
-    """
-    Parse the yaml description from the documented methods
-    """
-    api_doc = {}
-    obj_doc = str(inspect.getdoc(object))
-    raw_doc = obj_doc.split(DOC_DELIMITER)[0]
-    yaml_doc = None
-
-    try:
-        yaml_doc = yaml.safe_load(raw_doc)
-    except (SyntaxError, yaml.scanner.ScannerError) as exc:
-        safrs.log.error(f"Failed to parse documentation {raw_doc} ({exc})")
-        yaml_doc = {"description": raw_doc}
-    except Exception:
-        raise SystemValidationError("Failed to parse api doc")
-
-    if isinstance(yaml_doc, dict):
-        api_doc.update(yaml_doc)
-
-    return api_doc
-
-
-def jsonapi_rpc(http_methods: Optional[List[str]] = None, valid_jsonapi: bool = True) -> Callable:
-    """
-    Decorator to expose functions in the REST API:
-    When a method is decorated with jsonapi_rpc, this means
-    it becomes available for use through HTTP POST (i.e. public)
-
-    :param http_methods:
-    :return: function
-    """
-    if http_methods is None:
-        http_methods = ["POST"]
-
-    def _documented_api_method(method: Any) -> Any:
-        """
-        :param method:
-        add metadata to the method:
-            REST_DOC: swagger documentation
-            HTTP_METHODS: the http methods (GET/POST/..) used to call this method
-        """
-        USE_API_METHODS = get_config("USE_API_METHODS")
-        if USE_API_METHODS:
-            try:
-                api_doc = parse_object_doc(method)
-            except yaml.scanner.ScannerError:
-                safrs.log.error("Failed to parse documentation for %s", method)
-            setattr(method, REST_DOC, api_doc)
-            setattr(method, HTTP_METHODS, http_methods)
-            setattr(method, "valid_jsonapi", valid_jsonapi)
-        return method
-
-    return _documented_api_method
-
-
-def is_public(method: Any) -> Any:
-    """
-    :param method: SAFRSBase method
-    :return: True or False, whether the method is to be exposed
-    """
-
-    return hasattr(method, REST_DOC)
-
-
-def get_doc(method: Any) -> Any:
-    """
-    :param  method: SAFRSBase method
-    :return: OAS documentation
-    """
-
-    return getattr(method, REST_DOC, None)
-
-
-def get_http_methods(method: Any) -> Any:
-    """
-    :param method: SAFRSBase jsonapi_rpc method
-    :return: a list of http methods used to call the method (e.g. POST)
-    """
-
-    return getattr(method, HTTP_METHODS, ["POST"])
 
 
 def SchemaClassFactory(name: Any, properties: Any) -> Any:
@@ -263,33 +181,6 @@ def update_response_schema(responses: Any) -> None:
             jsonapi_error = {"errors": [{"title": http_codes.get(code, ""), "detail": "", "code": code}]}
             err_schema = schema_from_object(f"jsonapi_error_{code}", jsonapi_error)
             responses[code]["schema"] = err_schema
-
-
-def _schema_for_example_value(value: Any) -> dict[str, Any]:
-    if isinstance(value, bool):
-        return {"type": "boolean", "example": value}
-    if isinstance(value, int):
-        return {"type": "integer", "example": value}
-    if isinstance(value, float):
-        return {"type": "number", "example": value}
-    if isinstance(value, dict):
-        return {"type": "object", "additionalProperties": True, "example": encode_schema(value)}
-    if isinstance(value, list):
-        return {"type": "array", "items": {}, "example": encode_schema(value)}
-    return {"type": "string", "example": str(value) if value is not None else ""}
-
-
-def _jsonapi_rpc_meta_schema(method_args: dict[str, Any]) -> dict[str, Any]:
-    args_properties = {arg_name: _schema_for_example_value(arg_value) for arg_name, arg_value in method_args.items()}
-    args_schema: dict[str, Any] = {"type": "object", "additionalProperties": True}
-    if args_properties:
-        args_schema["properties"] = args_properties
-    return {
-        "type": "object",
-        "required": ["args"],
-        "properties": {"args": args_schema},
-        "additionalProperties": False,
-    }
 
 
 def _resource_identifier_schema(resource_type: Optional[str] = None) -> dict[str, Any]:
@@ -475,14 +366,7 @@ def _rpc_request_body_schema(fields: dict[str, Any]) -> dict[str, Any]:
 
 
 def _find_method_on_class(cls: Any, method_name: Any) -> Any:
-    for name in dir(cls):
-        if name != method_name:
-            continue
-        method = inspect.getattr_static(cls, name)
-        if isinstance(method, (classmethod, staticmethod)):
-            return method.__func__
-        return method
-    raise SystemValidationError(f"method {method_name} not found")
+    return resolve_rpc_method(cls, str(method_name))
 
 
 def _populate_post_method_fields(cls: Any, method: Any, method_name: Any, http_method: Any, fields: dict[str, Any], rest_doc: dict[str, Any]) -> list[Any]:
@@ -490,7 +374,7 @@ def _populate_post_method_fields(cls: Any, method: Any, method_name: Any, http_m
     method_args = rest_doc.get("args", [])
     if method_args and isinstance(method_args, dict) and http_method == "post":
         if getattr(method, "valid_jsonapi", True):
-            fields["meta"] = _jsonapi_rpc_meta_schema(method_args)
+            fields["meta"] = jsonapi_rpc_meta_schema(method_args)
         else:
             for k, v in method_args.items():
                 fields[k] = {"example": v}
@@ -510,7 +394,7 @@ def _append_filterable_parameters(cls: Any, parameters: list[Any], description: 
                 "required": False,
                 "description": desc,
             }
-            parameters += param  # type: ignore[arg-type]
+            parameters.append(param)
 
 
 def _populate_undocumented_method_fields(method: Any, cls: Any, method_name: Any, http_method: Any, f_args: list[str], fields: dict[str, Any]) -> None:
@@ -522,7 +406,7 @@ def _populate_undocumented_method_fields(method: Any, cls: Any, method_name: Any
         f_args = f_args[1:]
     args = dict(zip(f_args, f_defaults))
     if getattr(method, "valid_jsonapi", True):
-        fields["meta"] = _jsonapi_rpc_meta_schema(args)
+        fields["meta"] = jsonapi_rpc_meta_schema(args)
 
 
 def _normalize_parameters(parameters: list[Any]) -> None:
@@ -531,6 +415,20 @@ def _normalize_parameters(parameters: list[Any]) -> None:
             param["in"] = "query"
         if param.get("type") is None:
             param["type"] = "string"
+
+
+def _ensure_rpc_success_response_schema(responses: dict[Any, Any], method: Any) -> None:
+    success_code = str(HTTPStatus.OK.value)
+    response = responses.get(success_code) or responses.get(HTTPStatus.OK.value)
+    if not isinstance(response, dict) or response.get("schema") is not None:
+        return
+    if getattr(method, "valid_jsonapi", True):
+        response["schema"] = schema_from_object(
+            f"rpc_success_{getattr(method, '__name__', 'method')}",
+            {"jsonapi": {"version": "1.0"}, "meta": {"result": ""}},
+        )
+        return
+    response["schema"] = {"type": "object", "additionalProperties": True}
 
 
 def get_swagger_doc_arguments(cls: Any, method_name: Any, http_method: Any) -> Any:
@@ -880,12 +778,7 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
 
         parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
 
-        if func.__name__ == "get":
-            if not parameters:
-                parameters = [
-                    {"name": "varargs", "in": "query", "description": f"{method_name} arguments", "required": False, "type": "string"}
-                ]
-        else:
+        if func.__name__ != "get":
             # Retrieve the swagger schemas for the jsonapi_rpc methods from the docstring
             parameters, fields, description, method = get_swagger_doc_arguments(cls, method_name, http_method=func.__name__)
             model_name = f"{func.__name__}_{cls.__name__}_{method_name}"
@@ -914,6 +807,7 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
             _ensure_not_found_response(doc["responses"])
         _ensure_bad_request_response(doc["responses"])
         update_response_schema(doc["responses"])
+        _ensure_rpc_success_response_schema(doc["responses"], method)
         return swagger.doc(doc)(func)
 
     return swagger_doc_gen

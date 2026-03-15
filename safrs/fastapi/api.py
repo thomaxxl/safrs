@@ -6,11 +6,20 @@ import inspect
 import re
 from enum import Enum
 from http import HTTPStatus
-from typing import Annotated, Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast
+from typing import Annotated, Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast, get_args, get_origin
 from urllib.parse import quote
 
 import safrs
 from safrs import tx
+from safrs.api_doc import (
+    FILTERABLE,
+    PAGEABLE,
+    get_doc,
+    get_http_methods,
+    jsonapi_rpc_meta_schema,
+    resolve_rpc_method,
+    schema_for_example_value,
+)
 from safrs.attr_parse import parse_attr
 from safrs.errors import (
     GenericError,
@@ -21,11 +30,14 @@ from safrs.errors import (
     reset_fastapi_request_url,
     set_fastapi_request_url,
 )
-from safrs.json_encoder import SAFRSFormattedResponse
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
+from safrs.rpc import (
+    is_invalid_rpc_args_error as shared_invalid_rpc_args_error,
+    normalize_rpc_result as shared_normalize_rpc_result,
+    parse_rpc_args as shared_parse_rpc_args,
+)
 from safrs.config import is_debug
-from safrs.api_doc import get_doc, get_http_methods
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.encoders import jsonable_encoder
@@ -640,6 +652,7 @@ class SafrsFastAPI:
         instance_path: str,
         rpc_methods: List[Tuple[str, bool, List[str]]],
         route_dependencies: List[DependsParam],
+        write_route_dependencies: List[DependsParam],
     ) -> None:
         error_responses = self._jsonapi_error_responses()
         # Register class-level RPC before instance routes so /collection/method
@@ -647,36 +660,50 @@ class SafrsFastAPI:
         for method_name, class_level, http_methods in rpc_methods:
             if not class_level:
                 continue
-            rpc_params = self._rpc_query_parameters(Model, class_level=class_level, http_methods=http_methods)
-            rpc_openapi = self._openapi_query_parameters(rpc_params) if rpc_params else None
-            self._add_route_with_slash_parity(
-                router,
-                f"{collection_path}/{method_name}",
-                self._rpc_handler(Model, method_name, class_level=True),
-                http_methods,
-                f"RPC {tag}.{method_name}",
-                route_dependencies,
-                f"class_{tag}_{method_name}_rpc",
-                responses=error_responses,
-                openapi_extra=rpc_openapi,
-            )
+            for http_method in http_methods:
+                rpc_params, rpc_body = self._rpc_doc_spec(Model, method_name, http_method=http_method)
+                rpc_openapi = self._merge_openapi_extra(
+                    self._openapi_query_parameters(rpc_params) if rpc_params else None,
+                    rpc_body,
+                )
+                rpc_dependencies = (
+                    write_route_dependencies if str(http_method).upper() in WRITE_HTTP_METHODS else route_dependencies
+                )
+                self._add_route_with_slash_parity(
+                    router,
+                    f"{collection_path}/{method_name}",
+                    self._rpc_handler(Model, method_name, class_level=True, http_method=str(http_method).upper()),
+                    [str(http_method).upper()],
+                    f"RPC {tag}.{method_name}",
+                    rpc_dependencies,
+                    f"class_{tag}_{method_name}_rpc",
+                    responses=error_responses,
+                    openapi_extra=rpc_openapi,
+                )
 
         for method_name, class_level, http_methods in rpc_methods:
             if class_level:
                 continue
-            rpc_params = self._rpc_query_parameters(Model, class_level=class_level, http_methods=http_methods)
-            rpc_openapi = self._openapi_query_parameters(rpc_params) if rpc_params else None
-            self._add_route_with_slash_parity(
-                router,
-                f"{instance_path}/{method_name}",
-                self._rpc_handler(Model, method_name, class_level=False),
-                http_methods,
-                f"RPC {tag}.{method_name}",
-                route_dependencies,
-                f"instance_{tag}_{method_name}_rpc",
-                responses=error_responses,
-                openapi_extra=rpc_openapi,
-            )
+            for http_method in http_methods:
+                rpc_params, rpc_body = self._rpc_doc_spec(Model, method_name, http_method=http_method)
+                rpc_openapi = self._merge_openapi_extra(
+                    self._openapi_query_parameters(rpc_params) if rpc_params else None,
+                    rpc_body,
+                )
+                rpc_dependencies = (
+                    write_route_dependencies if str(http_method).upper() in WRITE_HTTP_METHODS else route_dependencies
+                )
+                self._add_route_with_slash_parity(
+                    router,
+                    f"{instance_path}/{method_name}",
+                    self._rpc_handler(Model, method_name, class_level=False, http_method=str(http_method).upper()),
+                    [str(http_method).upper()],
+                    f"RPC {tag}.{method_name}",
+                    rpc_dependencies,
+                    f"instance_{tag}_{method_name}_rpc",
+                    responses=error_responses,
+                    openapi_extra=rpc_openapi,
+                )
 
     def _register_relationship_routes(
         self,
@@ -1011,24 +1038,157 @@ class SafrsFastAPI:
             return normalized
         return set(DEFAULT_HTTP_METHODS)
 
-    def _rpc_query_parameters(
+    @staticmethod
+    def _rpc_annotation_schema(annotation: Any, default: Any = inspect._empty) -> Dict[str, Any]:
+        target = annotation
+        origin = get_origin(target)
+        if origin is Union:
+            non_none = [arg for arg in get_args(target) if arg is not type(None)]
+            if len(non_none) == 1:
+                target = non_none[0]
+                origin = get_origin(target)
+        if default is not inspect._empty and default is not None:
+            return schema_for_example_value(default)
+        if target in (int,):
+            return {"type": "integer"}
+        if target in (float,):
+            return {"type": "number"}
+        if target in (bool,):
+            return {"type": "boolean"}
+        if target in (dict,) or origin is dict:
+            return {"type": "object", "additionalProperties": True}
+        if target in (list, tuple, set) or origin in (list, tuple, set):
+            return {"type": "array", "items": {}}
+        if target is dt.date:
+            return {"type": "string", "format": "date"}
+        if target is dt.datetime:
+            return {"type": "string", "format": "date-time"}
+        if target is dt.time:
+            return {"type": "string"}
+        return {"type": "string"}
+
+    @staticmethod
+    def _rpc_signature_fields(method: Any) -> Tuple[Dict[str, Dict[str, Any]], List[str], List[Dict[str, Any]]]:
+        fields: Dict[str, Dict[str, Any]] = {}
+        required: List[str] = []
+        parameters: List[Dict[str, Any]] = []
+        for param in inspect.signature(method).parameters.values():
+            if param.name in {"self", "cls"}:
+                continue
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                continue
+            schema = SafrsFastAPI._rpc_annotation_schema(param.annotation, param.default)
+            if param.default is not inspect._empty:
+                schema["default"] = jsonable_encoder(param.default)
+            else:
+                required.append(param.name)
+            fields[param.name] = schema
+            parameters.append(
+                {
+                    "name": param.name,
+                    "in": "query",
+                    "required": param.default is inspect._empty,
+                    "schema": schema,
+                    "description": "",
+                }
+            )
+        return fields, required, parameters
+
+    @staticmethod
+    def _rpc_parameter_spec(parameter: Dict[str, Any]) -> Dict[str, Any]:
+        schema_type = str(parameter.get("type", "string"))
+        schema: Dict[str, Any] = {"type": schema_type}
+        for key in ("format", "default", "enum", "minimum", "maximum"):
+            if key in parameter:
+                schema[key] = parameter[key]
+        return {
+            "name": str(parameter.get("name", "")),
+            "in": str(parameter.get("in", "query")),
+            "required": bool(parameter.get("required", False)),
+            "schema": schema,
+            "description": str(parameter.get("description", "")),
+        }
+
+    def _rpc_doc_spec(
         self,
         Model: Type[Any],
+        method_name: str,
         *,
-        class_level: bool,
-        http_methods: List[str],
-    ) -> List[Dict[str, Any]]:
-        if not class_level:
-            return []
-        params = self._jsonapi_query_parameters(
-            Model,
-            include_include=True,
-            include_fields=True,
-            include_pagination=True,
-        )
-        if any(str(method).upper() == "GET" for method in http_methods):
-            params.append(self._query_parameter("varargs", description="Additional positional RPC arguments"))
-        return params
+        http_method: str,
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        method = resolve_rpc_method(Model, method_name)
+        rest_doc = cast(Optional[Dict[str, Any]], get_doc(method)) or {}
+        documented_parameters = rest_doc.get("parameters", [])
+        signature_fields, signature_required, signature_parameters = self._rpc_signature_fields(method)
+
+        parameters: List[Dict[str, Any]] = []
+        if isinstance(documented_parameters, list) and documented_parameters:
+            parameters.extend(self._rpc_parameter_spec(parameter) for parameter in documented_parameters)
+        if rest_doc.get(PAGEABLE):
+            parameters.append(self._query_parameter("page[offset]", "integer", "Pagination offset"))
+            parameters.append(self._query_parameter("page[limit]", "integer", "Pagination limit"))
+        if rest_doc.get(FILTERABLE):
+            parameters.extend(self._model_filter_query_parameters(Model))
+
+        if str(http_method).upper() == "GET":
+            if not parameters:
+                parameters = signature_parameters
+            return parameters, None
+
+        documented_args = rest_doc.get("args", {})
+        required_fields: List[str] = []
+        if isinstance(documented_args, dict) and documented_args:
+            fields = {
+                str(arg_name): schema_for_example_value(arg_value)
+                for arg_name, arg_value in documented_args.items()
+            }
+        else:
+            fields = signature_fields
+            required_fields = signature_required
+
+        valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
+        if valid_jsonapi:
+            meta_schema = jsonapi_rpc_meta_schema(
+                {
+                    str(arg_name): field.get("example", "")
+                    for arg_name, field in fields.items()
+                }
+            )
+            for arg_name, field_schema in fields.items():
+                args_properties = cast(Dict[str, Any], meta_schema["properties"]["args"].setdefault("properties", {}))
+                args_properties[arg_name] = field_schema
+            if required_fields:
+                meta_schema["properties"]["args"]["required"] = required_fields
+            request_schema = {
+                "type": "object",
+                "required": ["meta"],
+                "properties": {"meta": meta_schema},
+                "additionalProperties": False,
+            }
+            return parameters, {
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        JSONAPI_MEDIA_TYPE: {"schema": request_schema},
+                    },
+                }
+            }
+
+        request_schema = {
+            "type": "object",
+            "properties": fields,
+            "additionalProperties": True,
+        }
+        if required_fields:
+            request_schema["required"] = required_fields
+        return parameters, {
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {"schema": request_schema},
+                },
+            }
+        }
 
     @staticmethod
     def _model_tag_description(Model: Type[Any], tag: str) -> str:
@@ -1157,6 +1317,7 @@ class SafrsFastAPI:
             instance_path,
             rpc_methods,
             route_dependencies,
+            write_route_dependencies,
         )
         self._register_base_routes(
             router,
@@ -1428,38 +1589,22 @@ class SafrsFastAPI:
         return resolved
 
     @staticmethod
-    def _parse_rpc_args(request: Request, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        args: Dict[str, Any] = {}
-        if payload is not None:
-            if not isinstance(payload, dict):
-                raise ValidationError("Invalid JSON:API payload (expected object)")
-
-            meta = payload.get("meta", None)
-            if meta is None:
-                pass
-            elif not isinstance(meta, dict):
-                raise ValidationError("Invalid JSON:API RPC payload: 'meta' must be an object")
-            else:
-                meta_args = meta.get("args", {})
-                if meta_args is None:
-                    meta_args = {}
-                if not isinstance(meta_args, dict):
-                    raise ValidationError("Invalid JSON:API RPC payload: 'meta.args' must be an object")
-                args.update(meta_args)
-        for key, value in request.query_params.items():
-            args.setdefault(key, value)
-        return args
+    def _parse_rpc_args(
+        request: Request,
+        payload: Optional[Dict[str, Any]],
+        *,
+        valid_jsonapi: bool = True,
+    ) -> Dict[str, Any]:
+        return shared_parse_rpc_args(
+            http_method=str(request.method).upper(),
+            valid_jsonapi=valid_jsonapi,
+            query_items=request.query_params.multi_items(),
+            payload=payload,
+        )
 
     @staticmethod
     def _is_invalid_rpc_args_error(exc: TypeError) -> bool:
-        message = str(exc)
-        markers = (
-            "unexpected keyword argument",
-            "required positional argument",
-            "positional argument",
-            "multiple values for argument",
-        )
-        return any(marker in message for marker in markers)
+        return shared_invalid_rpc_args_error(exc)
 
     @staticmethod
     def _rpc_request_context(request: Request):
@@ -1502,49 +1647,25 @@ class SafrsFastAPI:
             )
         return jsonable_encoder(value)
 
-    def _normalize_rpc_result(self, Model: Type[Any], result: Any) -> Dict[str, Any]:
-        payload = result.response if isinstance(result, SAFRSFormattedResponse) else result
-        if isinstance(payload, dict):
-            has_jsonapi_shape = any(key in payload for key in ("data", "errors", "meta", "included", "links", "jsonapi"))
-            if has_jsonapi_shape:
-                content = self._jsonapi_doc(
-                    data=self._encode_rpc_value(payload.get("data")) if "data" in payload else None,
-                    errors=payload.get("errors"),
-                    included=self._encode_rpc_value(payload.get("included")) if "included" in payload else None,
-                    meta=payload.get("meta"),
-                )
-                if payload.get("links") is not None:
-                    content["links"] = payload["links"]
-                return content
-            return self._jsonapi_doc(meta={"result": self._encode_rpc_value(payload)})
-        if hasattr(payload, "_s_type") and hasattr(payload, "jsonapi_id"):
-            return self._jsonapi_doc(data=self._encode_resource(payload.__class__, payload))
-        if isinstance(payload, (list, tuple, set)):
-            return self._jsonapi_doc(data=self._encode_rpc_value(payload))
-        if payload is None:
-            return self._jsonapi_doc(meta={})
-        return self._jsonapi_doc(meta={"result": self._encode_rpc_value(payload)})
-
-    def _rpc_special_fallback(self, Model: Type[Any], method_name: str, args: Dict[str, Any]) -> Optional[JSONAPIResponse]:
-        if method_name == "my_rpc":
-            rows = [self._encode_resource(Model, item) for item in self._coerce_items(Model.query)]
-            return JSONAPIResponse(
-                status_code=200,
-                content=self._jsonapi_doc(data=rows, meta={"args": (), "kwargs": args}),
-            )
-        if method_name == "get_by_name":
-            name = args.get("name")
-            if name is not None:
-                item = Model.query.filter_by(name=name).one_or_none()
-                if item is not None:
-                    return JSONAPIResponse(
-                        status_code=200,
-                        content=self._jsonapi_doc(
-                            data=self._encode_resource(Model, item),
-                            meta={"count": 1},
-                        ),
-                    )
-        return None
+    def _normalize_rpc_result(
+        self,
+        Model: Type[Any],
+        result: Any,
+        *,
+        valid_jsonapi: bool = True,
+    ) -> Any:
+        return shared_normalize_rpc_result(
+            result,
+            valid_jsonapi=valid_jsonapi,
+            encode_value=self._encode_rpc_value,
+            encode_resource=lambda value: self._encode_resource(
+                value.__class__,
+                value,
+                include_relationships=False,
+                include_links=False,
+            ),
+            jsonapi_doc=self._jsonapi_doc,
+        )
 
     def _call_class_rpc(
         self,
@@ -1553,24 +1674,20 @@ class SafrsFastAPI:
         request: Request,
         payload: Optional[Dict[str, Any]],
     ) -> JSONAPIResponse:
-        args = self._parse_rpc_args(request, payload)
         method = getattr(Model, method_name)
+        valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
+        args = self._parse_rpc_args(request, payload, valid_jsonapi=valid_jsonapi)
         try:
             with self._rpc_request_context(request):
                 result = method(**args)
         except TypeError as exc:
             if self._is_invalid_rpc_args_error(exc):
                 raise ValidationError("Invalid RPC args") from exc
-            fallback = self._rpc_special_fallback(Model, method_name, args)
-            if fallback is not None:
-                return fallback
             raise
-        except Exception:
-            fallback = self._rpc_special_fallback(Model, method_name, args)
-            if fallback is not None:
-                return fallback
-            raise
-        return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+        return JSONAPIResponse(
+            status_code=200,
+            content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
+        )
 
     def _call_instance_rpc(
         self,
@@ -1580,9 +1697,10 @@ class SafrsFastAPI:
         request: Request,
         payload: Optional[Dict[str, Any]],
     ) -> JSONAPIResponse:
-        args = self._parse_rpc_args(request, payload)
         instance = Model.get_instance(object_id)
         method = getattr(instance, method_name)
+        valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
+        args = self._parse_rpc_args(request, payload, valid_jsonapi=valid_jsonapi)
         try:
             with self._rpc_request_context(request):
                 result = method(**args)
@@ -1590,16 +1708,32 @@ class SafrsFastAPI:
             if self._is_invalid_rpc_args_error(exc):
                 raise ValidationError("Invalid RPC args") from exc
             raise
-        return JSONAPIResponse(status_code=200, content=self._normalize_rpc_result(Model, result))
+        return JSONAPIResponse(
+            status_code=200,
+            content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
+        )
 
-    def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool):
+    def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool, http_method: str):
+        request_method = str(http_method).upper()
+
+        if class_level and request_method == "GET":
+            def class_get_handler(request: Request):
+                try:
+                    return self._call_class_rpc(Model, method_name, request, None)
+                except JSONAPIHTTPError:
+                    raise
+                except Exception as exc:
+                    self._handle_safrs_exception(exc)
+
+            return class_get_handler
+
         if class_level:
-            def class_handler(
+            def class_body_handler(
                 request: Request,
-                payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
+                payload: Optional[Dict[str, Any]] = Body(default=None),
             ):
                 try:
-                    if str(request.method).upper() in WRITE_HTTP_METHODS:
+                    if request_method in WRITE_HTTP_METHODS:
                         self._note_write(Model)
                     return self._call_class_rpc(Model, method_name, request, payload)
                 except JSONAPIHTTPError:
@@ -1607,15 +1741,29 @@ class SafrsFastAPI:
                 except Exception as exc:
                     self._handle_safrs_exception(exc)
 
-            return class_handler
+            return class_body_handler
 
-        def instance_handler(
+        if request_method == "GET":
+            def instance_get_handler(
+                object_id: ObjectIdParam,
+                request: Request,
+            ):
+                try:
+                    return self._call_instance_rpc(Model, method_name, object_id, request, None)
+                except JSONAPIHTTPError:
+                    raise
+                except Exception as exc:
+                    self._handle_safrs_exception(exc)
+
+            return instance_get_handler
+
+        def instance_body_handler(
             object_id: ObjectIdParam,
             request: Request,
-            payload: Optional[Dict[str, Any]] = Body(default=None, media_type=JSONAPI_MEDIA_TYPE),
+            payload: Optional[Dict[str, Any]] = Body(default=None),
         ):
             try:
-                if str(request.method).upper() in WRITE_HTTP_METHODS:
+                if request_method in WRITE_HTTP_METHODS:
                     self._note_write(Model)
                 return self._call_instance_rpc(Model, method_name, object_id, request, payload)
             except JSONAPIHTTPError:
@@ -1623,7 +1771,7 @@ class SafrsFastAPI:
             except Exception as exc:
                 self._handle_safrs_exception(exc)
 
-        return instance_handler
+        return instance_body_handler
 
     def _parse_include_paths(self, Model: Type[Any], request: Request) -> List[List[str]]:
         include_csv = request.query_params.get("include")
