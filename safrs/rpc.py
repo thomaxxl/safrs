@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any, Callable, Dict, Iterable, Mapping, Tuple
 
 from .errors import ValidationError
@@ -68,15 +69,23 @@ def parse_rpc_args(
     return {str(key): value for key, value in payload.items()}
 
 
-def is_invalid_rpc_args_error(exc: TypeError) -> bool:
-    message = str(exc)
-    markers = (
-        "unexpected keyword argument",
-        "required positional argument",
-        "positional argument",
-        "multiple values for argument",
-    )
-    return any(marker in message for marker in markers)
+def bind_rpc_kwargs(callable_obj: Callable[..., Any], kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        signature = inspect.signature(callable_obj)
+        bound = signature.bind(**kwargs)
+    except TypeError as exc:
+        raise ValidationError(f"Invalid RPC args: {exc}") from exc
+    bound_kwargs: Dict[str, Any] = {}
+    for name, parameter in signature.parameters.items():
+        if name not in bound.arguments:
+            continue
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            extra_kwargs = bound.arguments[name]
+            if isinstance(extra_kwargs, dict):
+                bound_kwargs.update(extra_kwargs)
+            continue
+        bound_kwargs[name] = bound.arguments[name]
+    return bound_kwargs
 
 
 def is_jsonapi_document(payload: Any) -> bool:

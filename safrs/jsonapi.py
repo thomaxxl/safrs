@@ -29,7 +29,7 @@ from .errors import ValidationError, NotFoundError
 from .jsonapi_attr import jsonapi_attr_is_write_only
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
-from .rpc import is_invalid_rpc_args_error, normalize_rpc_result, parse_rpc_args
+from .rpc import bind_rpc_kwargs, normalize_rpc_result, parse_rpc_args
 
 
 def make_response(*args: Any, **kwargs: Any) -> Any:
@@ -1176,12 +1176,8 @@ class SAFRSJSONRPCAPI(Resource):
         safrs.log.debug(f"method {self.method_name} args {args}")
         if not isinstance(args, dict):
             raise ValidationError("Invalid RPC args (expected object)")
-        try:
-            result = method(**args)
-        except TypeError as exc:
-            if is_invalid_rpc_args_error(exc):
-                raise ValidationError("Invalid RPC args") from exc
-            raise
+        bound_args = bind_rpc_kwargs(method, args)
+        result = method(**bound_args)
 
         response = normalize_rpc_result(
             result,

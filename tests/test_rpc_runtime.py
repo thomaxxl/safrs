@@ -7,7 +7,7 @@ import pytest
 from safrs import SAFRSFormattedResponse
 from safrs.api_doc import get_doc, get_http_methods, jsonapi_rpc as api_jsonapi_rpc, resolve_rpc_method
 from safrs.errors import ValidationError
-from safrs.rpc import normalize_rpc_result, parse_rpc_args, unwrap_formatted_response
+from safrs.rpc import bind_rpc_kwargs, normalize_rpc_result, parse_rpc_args, unwrap_formatted_response
 from safrs.swagger_doc import jsonapi_rpc as swagger_jsonapi_rpc
 from safrs import api_doc, swagger_doc
 
@@ -131,6 +131,44 @@ def test_parse_rpc_args_rejects_invalid_payload_shapes() -> None:
             payload=["not", "an", "object"],
         )
     assert "Invalid RPC payload (expected object)" in invalid_plain_payload.value.message
+
+
+def test_bind_rpc_kwargs_validates_signature_contract() -> None:
+    def required_kw(*, email: str) -> str:
+        return email
+
+    def optional_kw(name: str = "demo") -> str:
+        return name
+
+    def accepts_kwargs(**kwargs: Any) -> dict[str, Any]:
+        return kwargs
+
+    def accepts_args_and_kwargs(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return kwargs
+
+    class Example:
+        @classmethod
+        def class_rpc(cls, name: str) -> str:
+            return name
+
+        def instance_rpc(self, *, flag: bool = False) -> bool:
+            return flag
+
+    assert bind_rpc_kwargs(required_kw, {"email": "a@example.com"}) == {"email": "a@example.com"}
+    assert bind_rpc_kwargs(optional_kw, {}) == {}
+    assert bind_rpc_kwargs(accepts_kwargs, {"extra": 1}) == {"extra": 1}
+    assert bind_rpc_kwargs(accepts_args_and_kwargs, {"extra": 2}) == {"extra": 2}
+    assert bind_rpc_kwargs(Example.class_rpc, {"name": "demo"}) == {"name": "demo"}
+    assert bind_rpc_kwargs(Example().instance_rpc, {"flag": True}) == {"flag": True}
+
+    with pytest.raises(ValidationError) as missing_arg:
+        bind_rpc_kwargs(required_kw, {})
+    assert "missing a required" in missing_arg.value.message
+    assert "'email'" in missing_arg.value.message
+
+    with pytest.raises(ValidationError) as unexpected_arg:
+        bind_rpc_kwargs(required_kw, {"email": "a@example.com", "extra": "x"})
+    assert "got an unexpected keyword argument 'extra'" in unexpected_arg.value.message
 
 
 def test_normalize_rpc_result_handles_plain_and_resource_payloads() -> None:

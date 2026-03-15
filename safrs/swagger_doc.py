@@ -365,6 +365,12 @@ def _rpc_request_body_schema(fields: dict[str, Any]) -> dict[str, Any]:
     return {"type": "object", "properties": fields, "additionalProperties": True}
 
 
+def _rpc_media_types(method: Any) -> list[str]:
+    if getattr(method, "valid_jsonapi", True):
+        return ["application/vnd.api+json"]
+    return ["application/json"]
+
+
 def _find_method_on_class(cls: Any, method_name: Any) -> Any:
     return resolve_rpc_method(cls, str(method_name))
 
@@ -798,9 +804,10 @@ def swagger_method_doc(cls: Any, method_name: Any, tags: Any=None) -> Any:
             {"name": cls._s_object_id, "in": "path", "type": "string", "default": default_id, "required": True}
         )  # parameter id, e.g. UserId
         doc["parameters"] = parameters
-        doc["produces"] = ["application/vnd.api+json"]
+        media_types = _rpc_media_types(method)
+        doc["produces"] = media_types
         if any(param.get("in") == "body" for param in parameters):
-            doc["consumes"] = ["application/vnd.api+json"]
+            doc["consumes"] = media_types
 
         apply_fstring(doc, locals())
         if not _is_class_level_rpc_method(cls, method_name):

@@ -33,7 +33,7 @@ from safrs.errors import (
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.rpc import (
-    is_invalid_rpc_args_error as shared_invalid_rpc_args_error,
+    bind_rpc_kwargs as shared_bind_rpc_kwargs,
     normalize_rpc_result as shared_normalize_rpc_result,
     parse_rpc_args as shared_parse_rpc_args,
 )
@@ -1603,10 +1603,6 @@ class SafrsFastAPI:
         )
 
     @staticmethod
-    def _is_invalid_rpc_args_error(exc: TypeError) -> bool:
-        return shared_invalid_rpc_args_error(exc)
-
-    @staticmethod
     def _rpc_request_context(request: Request):
         from flask import Flask, current_app, has_app_context
 
@@ -1677,13 +1673,9 @@ class SafrsFastAPI:
         method = getattr(Model, method_name)
         valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
         args = self._parse_rpc_args(request, payload, valid_jsonapi=valid_jsonapi)
-        try:
-            with self._rpc_request_context(request):
-                result = method(**args)
-        except TypeError as exc:
-            if self._is_invalid_rpc_args_error(exc):
-                raise ValidationError("Invalid RPC args") from exc
-            raise
+        bound_args = shared_bind_rpc_kwargs(method, args)
+        with self._rpc_request_context(request):
+            result = method(**bound_args)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -1701,13 +1693,9 @@ class SafrsFastAPI:
         method = getattr(instance, method_name)
         valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
         args = self._parse_rpc_args(request, payload, valid_jsonapi=valid_jsonapi)
-        try:
-            with self._rpc_request_context(request):
-                result = method(**args)
-        except TypeError as exc:
-            if self._is_invalid_rpc_args_error(exc):
-                raise ValidationError("Invalid RPC args") from exc
-            raise
+        bound_args = shared_bind_rpc_kwargs(method, args)
+        with self._rpc_request_context(request):
+            result = method(**bound_args)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
