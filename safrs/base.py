@@ -200,7 +200,13 @@ from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
 from .jsonapi_filters import jsonapi_filter
-from .jsonapi_attr import get_jsonapi_attrs, is_jsonapi_attr, lookup_jsonapi_attr
+from .jsonapi_attr import (
+    get_jsonapi_attrs,
+    is_jsonapi_attr,
+    jsonapi_attr_is_read_only,
+    jsonapi_attr_is_write_only,
+    lookup_jsonapi_attr,
+)
 from .api_doc import get_doc
 from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
@@ -518,13 +524,12 @@ class SAFRSBase(Model):
         """
         setattr behaves differently for `jsonapi_attr` decorated attributes
         """
-        attr = lookup_jsonapi_attr(self.__class__, attr_name)
-        if is_jsonapi_attr(attr) and attr.fset is None:
-            # jsonapi_attr.setter not implemented for attr
-            return attr_val
         if attr_name == "Type" and hasattr(self, "type"):
             # check "Type" property for details
             attr_name = "type"
+        attr = lookup_jsonapi_attr(self.__class__, attr_name)
+        if jsonapi_attr_is_read_only(attr):
+            raise AttributeError(f"Attribute '{attr_name}' is read-only")
         return super().__setattr__(attr_name, attr_val)
 
     def _s_set_jsonapi_attr(self: Any, attr_name: str, attr_val: Any) -> None:
@@ -543,12 +548,39 @@ class SAFRSBase(Model):
         Allow PATCH round-trips that echo existing read-only computed values unchanged.
         """
         attr = self.__class__._s_jsonapi_attrs.get(attr_name)
-        if not is_jsonapi_attr(attr) or attr.fset is not None:
+        if not jsonapi_attr_is_read_only(attr):
             return False
         try:
             return getattr(self, attr_name) == attr_val
         except Exception:
             return False
+
+    @staticmethod
+    def _s_run_jsonapi_attr_parser(attr_name: str, attr: Any, attr_val: Any) -> Any:
+        parser = getattr(attr, "parser", None)
+        if not callable(parser):
+            return attr_val
+        try:
+            return parser(attr_val)
+        except ValidationError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(str(exc)) from exc
+
+    @staticmethod
+    def _s_run_jsonapi_attr_validator(attr_name: str, attr: Any, attr_val: Any) -> Any:
+        validator = getattr(attr, "validator", None)
+        if not callable(validator):
+            return attr_val
+        try:
+            is_valid = validator(attr_val)
+        except ValidationError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(str(exc)) from exc
+        if is_valid is False:
+            raise ValidationError(f"Invalid value for attribute '{attr_name}'")
+        return attr_val
 
     def _s_parse_attr_value(self: Any, attr_name: str, attr_val: Any) -> Any:
         """
@@ -568,8 +600,10 @@ class SAFRSBase(Model):
         attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
 
         if is_jsonapi_attr(attr):
-            if attr.fset is None:
+            if jsonapi_attr_is_read_only(attr):
                 raise ValidationError(f"Attribute '{attr_name}' is read-only")
+            attr_val = self._s_run_jsonapi_attr_parser(attr_name, attr, attr_val)
+            attr_val = self._s_run_jsonapi_attr_validator(attr_name, attr, attr_val)
             return attr_val
 
         # attr is a sqlalchemy.sql.schema.Column now
@@ -919,17 +953,22 @@ class SAFRSBase(Model):
             fields = request.fields.get(self._s_class_name, fields)
 
         result = {}
-        ja_attr_names = [name for name in self.__class__._s_jsonapi_attrs.keys() if self._s_check_perm(name)]
+        ja_attr_names = [
+            name
+            for name, attr in self.__class__._s_jsonapi_attrs.items()
+            if self._s_check_perm(name) and not jsonapi_attr_is_write_only(attr)
+        ]
 
         for attr in fields:
+            if attr not in ja_attr_names:
+                continue
             attr_val = ""
             attr_name = attr
-            if attr in ja_attr_names:
-                if hasattr(self, attr):
-                    attr_val = getattr(self, attr)
-                else:
-                    col_name = self.colname_to_attrname(attr)
-                    attr_val = getattr(self, col_name)
+            if hasattr(self, attr):
+                attr_val = getattr(self, attr)
+            else:
+                col_name = self.colname_to_attrname(attr)
+                attr_val = getattr(self, col_name)
             try:
                 # Use Flask's app-level JSON encoder when an app context exists.
                 if has_app_context():

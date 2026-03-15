@@ -26,6 +26,7 @@ from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY
 from urllib.parse import urljoin
 from .swagger_doc import is_public
 from .errors import ValidationError, NotFoundError
+from .jsonapi_attr import jsonapi_attr_is_write_only
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
 
@@ -147,7 +148,11 @@ class Resource(FRSResource):
         """
         :return: JSON:API fields[] swagger spec (the model instance fields to be included)
         """
-        attr_list = list(cls.SAFRSObject._s_jsonapi_attrs.keys())
+        attr_list = [
+            attr_name
+            for attr_name, attr in cls.SAFRSObject._s_jsonapi_attrs.items()
+            if not jsonapi_attr_is_write_only(attr)
+        ]
         # Add the fields query string swagger
         # todo: get the columns of the target
         param = {

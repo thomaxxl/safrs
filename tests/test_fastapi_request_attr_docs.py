@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from safrs import jsonapi_attr
-from safrs.fastapi.schemas.examples import create_document_example, patch_document_example
+from safrs.fastapi.schemas.examples import attributes_example, create_document_example, patch_document_example
 from safrs.fastapi.schemas.registry import SchemaRegistry
 
 
@@ -27,24 +27,33 @@ class _JsonapiAttrDocModel:
         """
         return "summary:alpha"
 
-    @jsonapi_attr
+    @jsonapi_attr(
+        description="Writable secret facade",
+        default="example-secret",
+        swagger_format="password",
+        write_only=True,
+    )
     def password(self) -> str:
-        """
-        description: Writable secret facade
-        default: example-secret
-        swagger_format: password
-        """
         return "********"
 
     @password.setter
     def password(self, value: str) -> None:
         self._password = value
 
+    @jsonapi_attr(read_only=True, description="Explicit read-only facade", default="locked:alpha")
+    def explicit_readonly(self) -> str:
+        return "locked:alpha"
+
+    @explicit_readonly.setter
+    def explicit_readonly(self, value: str) -> None:
+        self._explicit_readonly = value
+
     @staticmethod
     def _s_sample_dict() -> dict[str, str]:
         return {
             "name": "alpha",
             "readonly_value": "summary:alpha",
+            "explicit_readonly": "locked:alpha",
             "password": "example-secret",
         }
 
@@ -55,6 +64,7 @@ class _JsonapiAttrDocModel:
 _JsonapiAttrDocModel._s_jsonapi_attrs = {
     "name": _Column(str),
     "readonly_value": _JsonapiAttrDocModel.readonly_value,
+    "explicit_readonly": _JsonapiAttrDocModel.explicit_readonly,
     "password": _JsonapiAttrDocModel.password,
 }
 
@@ -95,11 +105,21 @@ def test_request_attributes_skip_readonly_jsonapi_attrs_and_keep_metadata() -> N
 
     assert "readonly_value" in response_props
     assert response_props["readonly_value"]["description"] == "Read-only computed value"
+    assert response_props["readonly_value"]["readOnly"] is True
+    assert response_props["explicit_readonly"]["readOnly"] is True
+    assert "password" not in response_props
 
     assert "readonly_value" not in request_props
+    assert "explicit_readonly" not in request_props
     assert request_props["password"]["default"] == "example-secret"
     assert request_props["password"]["description"] == "Writable secret facade"
     assert request_props["password"]["format"] == "password"
+    assert request_props["password"]["writeOnly"] is True
+    assert response_schema["examples"][0] == {
+        "name": "alpha",
+        "readonly_value": "summary:alpha",
+        "explicit_readonly": "locked:alpha",
+    }
     assert request_schema["examples"][0] == {"name": "alpha", "password": "example-secret"}
 
     create_request = create_schema["$defs"]["FastJsonapiAttrThingCreateResource"]["properties"]["attributes"]["anyOf"][0]
@@ -109,9 +129,15 @@ def test_request_attributes_skip_readonly_jsonapi_attrs_and_keep_metadata() -> N
 def test_request_document_examples_skip_readonly_jsonapi_attrs() -> None:
     create_example = create_document_example(_JsonapiAttrDocModel)
     patch_example = patch_document_example(_JsonapiAttrDocModel)
+    response_example = attributes_example(_JsonapiAttrDocModel)
 
     assert create_example["data"]["attributes"] == {"name": "alpha", "password": "example-secret"}
     assert patch_example["data"]["attributes"] == {"name": "alpha", "password": "example-secret"}
+    assert response_example == {
+        "name": "alpha",
+        "readonly_value": "summary:alpha",
+        "explicit_readonly": "locked:alpha",
+    }
 
 
 def test_swagger_type_metadata_falls_back_for_unannotated_jsonapi_attrs() -> None:

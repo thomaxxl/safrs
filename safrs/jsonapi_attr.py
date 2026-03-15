@@ -7,10 +7,11 @@ from .api_doc import parse_object_doc
 from typing import Any
 
 JSONAPI_ATTR_TAG = "_s_is_jsonapi_attr"
+JSONAPI_ATTR_METADATA_TAG = "_s_jsonapi_attr_metadata_keys"
 _HYBRID_PROPERTY_KWARGS = {"fget", "fset", "fdel", "expr", "custom_comparator", "update_expr"}
 
 
-class jsonapi_attr(hybrid_property):
+class _JSONAPIAttrProperty(hybrid_property):
     """
     hybrid_property type: sqlalchemy.orm.attributes.create_proxied_attribute.<locals>.Proxy
     """
@@ -32,13 +33,23 @@ class jsonapi_attr(hybrid_property):
             if isinstance(obj_doc, dict):
                 for k, v in obj_doc.items():
                     doc_metadata[k] = v
-        else:
-            for key in list(kwargs):
-                if key not in _HYBRID_PROPERTY_KWARGS:
-                    doc_metadata[key] = kwargs.pop(key)
+        for key in list(kwargs):
+            if key not in _HYBRID_PROPERTY_KWARGS:
+                doc_metadata[key] = kwargs.pop(key)
         super().__init__(*args, **kwargs)
+        setattr(self, JSONAPI_ATTR_METADATA_TAG, set(doc_metadata))
         for key, value in doc_metadata.items():
             setattr(self, key, value)
+
+    def _copy(self: Any, **kwargs: Any) -> Any:
+        clone = super()._copy(**kwargs)
+        setattr(clone, JSONAPI_ATTR_TAG, True)
+        metadata_keys = set(getattr(self, JSONAPI_ATTR_METADATA_TAG, set()))
+        setattr(clone, JSONAPI_ATTR_METADATA_TAG, metadata_keys)
+        for key in metadata_keys:
+            if hasattr(self, key):
+                setattr(clone, key, getattr(self, key))
+        return clone
 
     def getter(self: Any, fget: Any) -> Any:
         """
@@ -55,12 +66,34 @@ class jsonapi_attr(hybrid_property):
         return self._copy(fset=fset)
 
 
+def jsonapi_attr(*args: Any, **kwargs: Any) -> Any:
+    if args and callable(args[0]):
+        return _JSONAPIAttrProperty(*args, **kwargs)
+
+    def _decorator(fget: Any) -> Any:
+        return _JSONAPIAttrProperty(fget, **kwargs)
+
+    return _decorator
+
+
 def is_jsonapi_attr(attr: Any) -> bool:
     """
     :param attr: `SAFRSBase` `jsonapi_attr` decorated attribute
     :return: boolean
     """
     return getattr(attr, JSONAPI_ATTR_TAG, False) is True
+
+
+def jsonapi_attr_is_write_only(attr: Any) -> bool:
+    return is_jsonapi_attr(attr) and bool(getattr(attr, "write_only", False))
+
+
+def jsonapi_attr_is_read_only(attr: Any) -> bool:
+    if not is_jsonapi_attr(attr):
+        return False
+    if bool(getattr(attr, "read_only", False)):
+        return True
+    return getattr(attr, "fset", None) is None
 
 
 def lookup_jsonapi_attr(owner: Any, attr_name: str) -> Any:

@@ -133,10 +133,14 @@ Advanced topics:
 Use `@jsonapi_attr` when you want a targeted computed field instead of a broad `to_dict` override.
 
 - Getter-only `@jsonapi_attr` fields are serialized as read-only attributes. Request writes are rejected with a client validation error.
+- Direct Python assignment to a getter-only or `read_only=True` computed attr raises `AttributeError`.
 - Getter+setter `@jsonapi_attr` fields accept raw request values. Raise `ValueError` or `TypeError` in the setter to surface a client validation error.
+- Optional `parser=` and `validator=` hooks can normalize or reject request values before the setter runs.
 - `@jsonapi_attr` declared on mixins or base classes is inherited by SAFRS subclasses.
 - Metadata from the decorator docstring YAML before `---` can drive docs generation: `description`, `default`, `swagger_type`, and `swagger_format`.
-- FastAPI request schemas and examples include writable computed attrs but omit read-only ones.
+- The decorator also accepts metadata kwargs directly, for example `@jsonapi_attr(description=\"Count\", swagger_type=\"integer\")`.
+- `write_only=True` keeps a computed attr in request schemas/examples while omitting it from serialized responses.
+- FastAPI request schemas and examples include writable computed attrs but omit read-only ones; response schemas mark read-only attrs and omit write-only ones.
 
 Examples:
 
