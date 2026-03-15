@@ -6,20 +6,27 @@ from typing import Any, Dict, Optional, Type
 
 import safrs
 from fastapi.encoders import jsonable_encoder
-from safrs.jsonapi_attr import is_jsonapi_attr
+from safrs.jsonapi_attr import is_jsonapi_attr, jsonapi_attr_is_read_only, jsonapi_attr_is_write_only
 
 
 def _json_safe(value: Any) -> Any:
     return jsonable_encoder(value)
 
 
-def _writable_attribute_names(Model: Type[Any]) -> set[str]:
+def _included_attribute_names(Model: Type[Any], *, writable_only: bool = False) -> set[str]:
     attrs = getattr(Model, "_s_jsonapi_attrs", {})
-    writable: set[str] = set()
+    included: set[str] = set()
     for attr_name, column_or_attr in attrs.items():
-        if not is_jsonapi_attr(column_or_attr) or callable(getattr(column_or_attr, "fset", None)):
-            writable.add(attr_name)
-    return writable
+        if not is_jsonapi_attr(column_or_attr):
+            included.add(attr_name)
+            continue
+        if writable_only:
+            if not jsonapi_attr_is_read_only(column_or_attr):
+                included.add(attr_name)
+            continue
+        if not jsonapi_attr_is_write_only(column_or_attr):
+            included.add(attr_name)
+    return included
 
 
 def attributes_example(Model: Type[Any], *, writable_only: bool = False) -> Dict[str, Any]:
@@ -28,9 +35,8 @@ def attributes_example(Model: Type[Any], *, writable_only: bool = False) -> Dict
         try:
             sample = sample_factory()
             if isinstance(sample, dict):
-                if writable_only:
-                    writable = _writable_attribute_names(Model)
-                    sample = {key: value for key, value in sample.items() if key in writable}
+                allowed = _included_attribute_names(Model, writable_only=writable_only)
+                sample = {key: value for key, value in sample.items() if key in allowed}
                 return _json_safe(sample) or {}
         except Exception as exc:
             safrs.log.debug("Failed to build attributes example for %s: %s", getattr(Model, "__name__", Model), exc)

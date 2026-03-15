@@ -14,7 +14,7 @@ from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import get_config, is_debug
 import safrs
-from safrs.jsonapi_attr import is_jsonapi_attr
+from safrs.jsonapi_attr import is_jsonapi_attr, jsonapi_attr_is_read_only, jsonapi_attr_is_write_only
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 
@@ -372,7 +372,7 @@ def _is_required_create_column(column: Column) -> bool:
     return True
 
 
-def _jsonapi_attr_schema(attr: Any) -> dict[str, Any]:
+def _jsonapi_attr_schema(attr: Any, *, for_request: bool) -> dict[str, Any]:
     swagger_type = getattr(attr, "swagger_type", None)
     default = getattr(attr, "default", None)
     description = getattr(attr, "description", None)
@@ -385,6 +385,10 @@ def _jsonapi_attr_schema(attr: Any) -> dict[str, Any]:
         schema["default"] = default
     if description:
         schema["description"] = description
+    if for_request and jsonapi_attr_is_write_only(attr):
+        schema["writeOnly"] = True
+    if not for_request and jsonapi_attr_is_read_only(attr):
+        schema["readOnly"] = True
 
     return schema
 
@@ -399,9 +403,9 @@ def _attributes_schema_for_model(cls: Any, for_patch: bool) -> dict[str, Any]:
             if not for_patch and _is_required_create_column(attr):
                 required.append(attr_name)
             continue
-        if not is_jsonapi_attr(attr) or getattr(attr, "fset", None) is None:
+        if not is_jsonapi_attr(attr) or jsonapi_attr_is_read_only(attr):
             continue
-        properties[attr_name] = _jsonapi_attr_schema(attr)
+        properties[attr_name] = _jsonapi_attr_schema(attr, for_request=True)
 
     result: dict[str, Any] = {
         "type": "object",
@@ -620,6 +624,11 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
         inst_model_name = f"{class_name}_inst"  # instance model name
 
         sample_dict = cls._s_sample_dict()
+        sample_dict = {
+            attr_name: attr_val
+            for attr_name, attr_val in sample_dict.items()
+            if not jsonapi_attr_is_write_only(cls._s_jsonapi_attrs.get(attr_name))
+        }
 
         # Samples with "id" are used for GET and PATCH
         sample_instance = {"attributes": sample_dict, "type": cls._s_type, "id": cls._s_sample_id()}
