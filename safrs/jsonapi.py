@@ -24,11 +24,12 @@ from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
 from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY
 from urllib.parse import urljoin
-from .swagger_doc import is_public
+from .api_doc import is_public
 from .errors import ValidationError, NotFoundError
 from .jsonapi_attr import jsonapi_attr_is_write_only
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
+from .rpc import is_invalid_rpc_args_error, normalize_rpc_result, parse_rpc_args
 
 
 def make_response(*args: Any, **kwargs: Any) -> Any:
@@ -40,6 +41,29 @@ def make_response(*args: Any, **kwargs: Any) -> Any:
         # Only use "application/vnd.api+json" if the client sent this with the request
         response.headers["Content-Type"] = "application/vnd.api+json"
     return response
+
+
+def _rpc_jsonapi_doc(data: Any = None, errors: Any = None, included: Any = None, meta: Any = None) -> Any:
+    """
+    Build a minimal JSON:API document for RPC result normalization.
+    """
+    doc: dict[str, Any] = {"jsonapi": {"version": "1.0"}}
+    if data is not None:
+        doc["data"] = data
+    if errors is not None:
+        doc["errors"] = errors
+    if included is not None:
+        doc["included"] = included
+    if meta is not None:
+        doc["meta"] = meta
+    return doc
+
+
+def _rpc_query_items() -> list[tuple[str, Any]]:
+    try:
+        return list(cast(Any, request).args.items(multi=True))
+    except TypeError:
+        return list(cast(Any, request).args.items())
 
 
 def _build_location_header(endpoint: str, instance: Any) -> str:
@@ -1095,38 +1119,17 @@ class SAFRSJSONRPCAPI(Resource):
         if not is_public(method):
             raise ValidationError("Method is not public")
 
-        args = dict(request.args)
-        if getattr(method, "valid_jsonapi", False):
+        payload: Any
+        if getattr(method, "valid_jsonapi", True):
             payload = cast(Any, request).get_jsonapi_payload()
-            if not isinstance(payload, dict):
-                raise ValidationError("Invalid JSON:API payload (expected object)")
-
-            meta = payload.get("meta", None)
-            if meta is None:
-                args = {}
-            elif not isinstance(meta, dict):
-                raise ValidationError(
-                    "Invalid JSON:API RPC payload: 'meta' must be an object",
-                    HTTPStatus.BAD_REQUEST.value,
-                )
-            else:
-                rpc_args = meta.get("args", {})
-                if rpc_args is None:
-                    rpc_args = {}
-                if not isinstance(rpc_args, dict):
-                    raise ValidationError(
-                        "Invalid JSON:API RPC payload: 'meta.args' must be an object",
-                        HTTPStatus.BAD_REQUEST.value,
-                    )
-                args = rpc_args
         else:
-            body = request.get_json()
-            if body is None:
-                args = {}
-            elif not isinstance(body, dict):
-                raise ValidationError("Invalid RPC payload (expected object)")
-            else:
-                args = body
+            payload = request.get_json()
+        args = parse_rpc_args(
+            http_method=request.method,
+            valid_jsonapi=bool(getattr(method, "valid_jsonapi", True)),
+            query_items=_rpc_query_items(),
+            payload=payload,
+        )
 
         return self._create_rpc_response(method, args)
 
@@ -1161,7 +1164,12 @@ class SAFRSJSONRPCAPI(Resource):
         if not is_public(method):
             raise ValidationError("Method is not public")
 
-        args = dict(request.args)
+        args = parse_rpc_args(
+            http_method=request.method,
+            valid_jsonapi=bool(getattr(method, "valid_jsonapi", True)),
+            query_items=_rpc_query_items(),
+            payload=None,
+        )
         return self._create_rpc_response(method, args)
 
     def _create_rpc_response(self: Any, method: Any, args: Any) -> Any:
@@ -1171,27 +1179,16 @@ class SAFRSJSONRPCAPI(Resource):
         try:
             result = method(**args)
         except TypeError as exc:
-            if self._is_invalid_rpc_args_error(exc):
+            if is_invalid_rpc_args_error(exc):
                 raise ValidationError("Invalid RPC args") from exc
             raise
 
-        response: Any
-        if isinstance(result, safrs.SAFRSFormattedResponse):
-            response = result
-        elif getattr(method, "valid_jsonapi", None) is False:
-            response = result
-        else:
-            response = {"meta": {"result": result}}
+        response = normalize_rpc_result(
+            result,
+            valid_jsonapi=bool(getattr(method, "valid_jsonapi", True)),
+            encode_value=lambda value: value,
+            encode_resource=lambda value: value,
+            jsonapi_doc=_rpc_jsonapi_doc,
+        )
 
         return make_response(jsonify(response), HTTPStatus.OK)
-
-    @staticmethod
-    def _is_invalid_rpc_args_error(exc: TypeError) -> bool:
-        message = str(exc)
-        markers = (
-            "unexpected keyword argument",
-            "required positional argument",
-            "positional argument",
-            "multiple values for argument",
-        )
-        return any(marker in message for marker in markers)
