@@ -2,9 +2,29 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
+from safrs import SAFRSFormattedResponse
 from safrs.api_doc import get_doc, get_http_methods, jsonapi_rpc as api_jsonapi_rpc, resolve_rpc_method
-from safrs.rpc import normalize_rpc_result, parse_rpc_args
+from safrs.errors import ValidationError
+from safrs.rpc import normalize_rpc_result, parse_rpc_args, unwrap_formatted_response
 from safrs.swagger_doc import jsonapi_rpc as swagger_jsonapi_rpc
+from safrs import api_doc, swagger_doc
+
+
+def test_rpc_doc_helpers_use_api_doc_as_single_source_of_truth() -> None:
+    assert swagger_doc.jsonapi_rpc is api_doc.jsonapi_rpc
+    assert swagger_doc.get_doc is api_doc.get_doc
+    assert swagger_doc.get_http_methods is api_doc.get_http_methods
+    assert swagger_doc.parse_object_doc is api_doc.parse_object_doc
+    assert swagger_doc.resolve_rpc_method is api_doc.resolve_rpc_method
+
+
+def test_parse_object_doc_plain_text_maps_to_description() -> None:
+    def documented() -> None:
+        """Plain text RPC description."""
+
+    assert api_doc.parse_object_doc(documented) == {"description": "Plain text RPC description."}
 
 
 def test_jsonapi_rpc_import_paths_attach_identical_metadata() -> None:
@@ -34,6 +54,22 @@ def test_resolve_rpc_method_uses_static_lookup_for_decorated_members() -> None:
     method = resolve_rpc_method(Example, "ping")
     assert method.__name__ == "ping"
     assert get_http_methods(method) == ["POST"]
+
+
+def test_resolve_rpc_method_finds_inherited_rpc_method() -> None:
+    class RPCMixin:
+        @classmethod
+        @api_jsonapi_rpc(http_methods=["GET"])
+        def inherited(cls) -> None:
+            """description: inherited rpc"""
+
+    class Child(RPCMixin):
+        pass
+
+    method = resolve_rpc_method(Child, "inherited")
+    assert method.__name__ == "inherited"
+    assert get_http_methods(method) == ["GET"]
+    assert get_doc(method)["description"] == "inherited rpc"
 
 
 def test_parse_rpc_args_uses_shared_contract() -> None:
@@ -66,6 +102,35 @@ def test_parse_rpc_args_uses_shared_contract() -> None:
         payload={"message": "body"},
     )
     assert plain_args == {"message": "body"}
+
+
+def test_parse_rpc_args_rejects_invalid_payload_shapes() -> None:
+    with pytest.raises(ValidationError) as invalid_jsonapi_payload:
+        parse_rpc_args(
+            http_method="POST",
+            valid_jsonapi=True,
+            query_items=[],
+            payload=["not", "an", "object"],
+        )
+    assert "Invalid JSON:API payload (expected object)" in invalid_jsonapi_payload.value.message
+
+    with pytest.raises(ValidationError) as invalid_meta:
+        parse_rpc_args(
+            http_method="POST",
+            valid_jsonapi=True,
+            query_items=[],
+            payload={"meta": "not-an-object"},
+        )
+    assert "Invalid JSON:API RPC payload: 'meta' must be an object" in invalid_meta.value.message
+
+    with pytest.raises(ValidationError) as invalid_plain_payload:
+        parse_rpc_args(
+            http_method="POST",
+            valid_jsonapi=False,
+            query_items=[],
+            payload=["not", "an", "object"],
+        )
+    assert "Invalid RPC payload (expected object)" in invalid_plain_payload.value.message
 
 
 def test_normalize_rpc_result_handles_plain_and_resource_payloads() -> None:
@@ -111,3 +176,57 @@ def test_normalize_rpc_result_handles_plain_and_resource_payloads() -> None:
         jsonapi_doc=jsonapi_doc,
     )
     assert resource_payload["data"] == [{"type": "Resource", "id": "1"}]
+
+    single_resource_payload = normalize_rpc_result(
+        Resource(),
+        valid_jsonapi=True,
+        encode_value=encode_value,
+        encode_resource=encode_resource,
+        jsonapi_doc=jsonapi_doc,
+    )
+    assert single_resource_payload["data"] == {"type": "Resource", "id": "1"}
+
+    passthrough_payload = normalize_rpc_result(
+        {"data": {"type": "Resource", "id": "1"}, "meta": {"ok": True}, "links": {"self": "/rpc"}},
+        valid_jsonapi=True,
+        encode_value=encode_value,
+        encode_resource=encode_resource,
+        jsonapi_doc=jsonapi_doc,
+    )
+    assert passthrough_payload["data"] == {"type": "Resource", "id": "1"}
+    assert passthrough_payload["meta"] == {"ok": True}
+    assert passthrough_payload["links"] == {"self": "/rpc"}
+
+    scalar_payload = normalize_rpc_result(
+        7,
+        valid_jsonapi=True,
+        encode_value=encode_value,
+        encode_resource=encode_resource,
+        jsonapi_doc=jsonapi_doc,
+    )
+    assert scalar_payload == {"meta": {"result": 7}}
+
+    list_payload = normalize_rpc_result(
+        ["a", "b"],
+        valid_jsonapi=True,
+        encode_value=encode_value,
+        encode_resource=encode_resource,
+        jsonapi_doc=jsonapi_doc,
+    )
+    assert list_payload == {"meta": {"result": ["a", "b"]}}
+
+    none_payload = normalize_rpc_result(
+        None,
+        valid_jsonapi=True,
+        encode_value=encode_value,
+        encode_resource=encode_resource,
+        jsonapi_doc=jsonapi_doc,
+    )
+    assert none_payload == {"meta": {}}
+
+
+def test_unwrap_formatted_response_uses_real_type_check() -> None:
+    response = object.__new__(SAFRSFormattedResponse)
+    response.response = {"meta": {"result": "wrapped"}}
+    assert unwrap_formatted_response(response) == {"meta": {"result": "wrapped"}}
+    assert unwrap_formatted_response({"meta": {"result": "raw"}}) == {"meta": {"result": "raw"}}

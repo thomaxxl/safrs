@@ -54,7 +54,7 @@ Examples are grouped by purpose so it is clear where to start.
 - `mini_examples/ex05_secret_relationship.py`: hide/limit relationship exposure.
 - `mini_examples/ex06_filtering.py`: custom filtering strategy override.
 - `mini_examples/ex07_logicbank.py`: integrate LogicBank rules with SAFRS models.
-- `mini_examples/ex08_rpc.py`: JSON:API RPC methods (`@jsonapi_rpc`) on resources.
+- `mini_examples/ex08_rpc.py`: JSON:API RPC methods (`@jsonapi_rpc`) on resources, including GET/query args, JSON:API `meta.args`, raw JSON mode, and response-shape examples.
 - `mini_examples/ex09_stateless.py`: stateless resource behavior in a mini setup.
 - `mini_examples/ex10_jabase.py`: `JABase` behavior and method exposure.
 - `mini_examples/ex11_search.py`: search helper method exposure.

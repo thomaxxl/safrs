@@ -13,19 +13,20 @@ from flask_restful_swagger_2 import Schema, swagger
 from safrs.errors import SystemValidationError
 from safrs.config import is_debug
 import safrs
-from safrs.api_doc import (
-    FILTERABLE,
-    PAGEABLE,
-    get_doc,
-    is_public,
-    jsonapi_rpc,
-    jsonapi_rpc_meta_schema,
-    parse_object_doc,
-    resolve_rpc_method,
-    schema_for_example_value,
-)
+from . import api_doc as _api_doc
 from safrs.jsonapi_attr import is_jsonapi_attr, jsonapi_attr_is_read_only, jsonapi_attr_is_write_only
 from typing import Any, Callable, Dict, List, Optional, Union, cast
+
+FILTERABLE = _api_doc.FILTERABLE
+PAGEABLE = _api_doc.PAGEABLE
+get_doc = _api_doc.get_doc
+get_http_methods = _api_doc.get_http_methods
+is_public = _api_doc.is_public
+jsonapi_rpc = _api_doc.jsonapi_rpc
+jsonapi_rpc_meta_schema = _api_doc.jsonapi_rpc_meta_schema
+parse_object_doc = _api_doc.parse_object_doc
+resolve_rpc_method = _api_doc.resolve_rpc_method
+schema_for_example_value = _api_doc.schema_for_example_value
 
 # additional responses added when in debug mode to make swagger-check succeed
 debug_responses = {
