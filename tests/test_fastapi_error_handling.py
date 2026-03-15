@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request
 import safrs
 from safrs.errors import GenericError, reset_fastapi_request_url, set_fastapi_request_url
 from safrs.fastapi.api import JSONAPIHTTPError, JSONAPI_MEDIA_TYPE, SafrsFastAPI, install_jsonapi_exception_handlers
+from safrs.fastapi.schemas.registry import SchemaRegistry
 
 
 def _request(query: str = "") -> Request:
@@ -55,6 +56,22 @@ def test_fastapi_exception_handler_returns_jsonapi_error_document() -> None:
     payload = json.loads(response.body.decode("utf-8"))
     assert payload["errors"][0]["status"] == "500"
     assert payload["errors"][0]["detail"] == "Internal Server Error"
+
+
+def test_fastapi_error_document_schema_includes_error_source_links_and_meta() -> None:
+    schema = SchemaRegistry().error_document().model_json_schema()
+    error_items = schema["properties"]["errors"]["items"]
+    error_ref = error_items["$ref"]
+    error_schema = schema["$defs"]["JsonApiErrorObject"]
+    error_props = error_schema["properties"]
+    source_ref = error_props["source"]["anyOf"][0]["$ref"]
+    links_ref = error_props["links"]["anyOf"][0]["$ref"]
+    meta_ref = error_props["meta"]["anyOf"][0]["$ref"]
+
+    assert error_ref.endswith("/JsonApiErrorObject")
+    assert source_ref.endswith("/JsonApiErrorSource")
+    assert links_ref.endswith("/JsonApiErrorLinks")
+    assert meta_ref.endswith("/JsonApiMeta")
 
 
 def test_handle_safrs_exception_maps_runtime_errors_to_jsonapi_and_rolls_back(monkeypatch: pytest.MonkeyPatch) -> None:

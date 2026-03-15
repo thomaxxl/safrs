@@ -128,6 +128,24 @@ Advanced topics:
 - [Docker / deployment](https://github.com/thomaxxl/safrs/wiki/Docker)
 - [Existing databases (legacy)](https://github.com/thomaxxl/safrs/wiki/Exposing-Existing-Databases)
 
+## Computed attributes with `jsonapi_attr`
+
+Use `@jsonapi_attr` when you want a targeted computed field instead of a broad `to_dict` override.
+
+- Getter-only `@jsonapi_attr` fields are serialized as read-only attributes. Request writes are rejected with a client validation error.
+- Getter+setter `@jsonapi_attr` fields accept raw request values. Raise `ValueError` or `TypeError` in the setter to surface a client validation error.
+- `@jsonapi_attr` declared on mixins or base classes is inherited by SAFRS subclasses.
+- Metadata from the decorator docstring YAML before `---` can drive docs generation: `description`, `default`, `swagger_type`, and `swagger_format`.
+- FastAPI request schemas and examples include writable computed attrs but omit read-only ones.
+
+Examples:
+
+- [`examples/mini_examples/ex03_jsonapi_attr.py`](examples/mini_examples/ex03_jsonapi_attr.py)
+- [`examples/demo_fastapi.py`](examples/demo_fastapi.py)
+- [`examples/demo_pythonanywhere_com.py`](examples/demo_pythonanywhere_com.py)
+
+See the detailed behavior contract in the wiki: [Serialization and `jsonapi_attr`](https://github.com/thomaxxl/safrs/wiki/JSON-encoding-and-decoding)
+
 ## Notes
 
 - Flask is still the main documented SAFRS path.
@@ -135,4 +153,3 @@ Advanced topics:
 - The older expose-existing-database workflow is no longer the main recommended entry point and is kept as legacy documentation.
 
 SAFRS originally stood for **SqlAlchemy Flask-Restful Swagger**. The project has since grown beyond the original Flask-only framing, but the historical name remains.
-

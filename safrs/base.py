@@ -200,7 +200,7 @@ from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
 from .jsonapi_filters import jsonapi_filter
-from .jsonapi_attr import is_jsonapi_attr
+from .jsonapi_attr import get_jsonapi_attrs, is_jsonapi_attr, lookup_jsonapi_attr
 from .api_doc import get_doc
 from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
@@ -491,10 +491,10 @@ class SAFRSBase(Model):
             if name in self._s_relationships:
                 # Add the related instances
                 db_args[name] = val
-            elif is_jsonapi_attr(getattr(self.__class__, name, None)):
+            elif is_jsonapi_attr(lookup_jsonapi_attr(self.__class__, name)):
                 # Set jsonapi attributes
                 attr_val = self._s_parse_attr_value(name, val)
-                setattr(self, name, attr_val)
+                self._s_set_jsonapi_attr(name, attr_val)
             elif name in column_names:
                 # Set columns
                 attr_val = self._s_parse_attr_value(name, val)
@@ -518,7 +518,7 @@ class SAFRSBase(Model):
         """
         setattr behaves differently for `jsonapi_attr` decorated attributes
         """
-        attr = self.__class__.__dict__.get(attr_name, None)
+        attr = lookup_jsonapi_attr(self.__class__, attr_name)
         if is_jsonapi_attr(attr) and attr.fset is None:
             # jsonapi_attr.setter not implemented for attr
             return attr_val
@@ -526,6 +526,29 @@ class SAFRSBase(Model):
             # check "Type" property for details
             attr_name = "type"
         return super().__setattr__(attr_name, attr_val)
+
+    def _s_set_jsonapi_attr(self: Any, attr_name: str, attr_val: Any) -> None:
+        """
+        Assign a jsonapi_attr and normalize common client-input failures.
+        """
+        try:
+            setattr(self, attr_name, attr_val)
+        except ValidationError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(str(exc)) from exc
+
+    def _s_ignore_unchanged_readonly_jsonapi_attr(self: Any, attr_name: str, attr_val: Any) -> bool:
+        """
+        Allow PATCH round-trips that echo existing read-only computed values unchanged.
+        """
+        attr = self.__class__._s_jsonapi_attrs.get(attr_name)
+        if not is_jsonapi_attr(attr) or attr.fset is not None:
+            return False
+        try:
+            return getattr(self, attr_name) == attr_val
+        except Exception:
+            return False
 
     def _s_parse_attr_value(self: Any, attr_name: str, attr_val: Any) -> Any:
         """
@@ -545,6 +568,8 @@ class SAFRSBase(Model):
         attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
 
         if is_jsonapi_attr(attr):
+            if attr.fset is None:
+                raise ValidationError(f"Attribute '{attr_name}' is read-only")
             return attr_val
 
         # attr is a sqlalchemy.sql.schema.Column now
@@ -648,8 +673,13 @@ class SAFRSBase(Model):
             # check if we have permission to write
             if not self._s_check_perm(attr_name, "w"):
                 continue
+            if self._s_ignore_unchanged_readonly_jsonapi_attr(attr_name, attr_val):
+                continue
             attr_val = self._s_parse_attr_value(attr_name, attr_val)
-            setattr(self, attr_name, attr_val)
+            if is_jsonapi_attr(self.__class__._s_jsonapi_attrs.get(attr_name)):
+                self._s_set_jsonapi_attr(attr_name, attr_val)
+            else:
+                setattr(self, attr_name, attr_val)
 
         tx.note_write(self.__class__)
         if _request_uow_active():
@@ -832,7 +862,7 @@ class SAFRSBase(Model):
         if property_name in cls.exclude_attrs:
             return False
 
-        if is_jsonapi_attr(cls.__dict__.get(property_name, None)):  # avoid getattr here
+        if is_jsonapi_attr(lookup_jsonapi_attr(cls, property_name)):
             return True
 
         if not hasattr(cls, "__mapper__"):
@@ -945,9 +975,8 @@ class SAFRSBase(Model):
             elif not attr_name == "id" and attr_name not in cls._s_relationships:
                 result[attr_name] = column
 
-        for attr_name, attr_val in cls.__dict__.items():
-            if is_jsonapi_attr(attr_val):
-                result[attr_name] = attr_val
+        for attr_name, attr_val in get_jsonapi_attrs(cls).items():
+            result[attr_name] = attr_val
 
         cls._cached_jsonapi_attrs = result
         return result

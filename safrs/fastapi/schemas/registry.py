@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, Dict, List, Literal, Optional, Tuple, Type, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple, Type, Union, cast
 
 from pydantic import Field, create_model
 from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY, ONETOMANY
@@ -9,8 +9,11 @@ from ..relationships import iter_exposed_relationship_properties
 from .from_sqlalchemy import create_attributes_model
 from .jsonapi_primitives import (
     JsonApiErrorDocument,
+    JsonApiLinks,
+    JsonApiMeta,
     JsonApiVersion,
     PermissiveModel,
+    RelationshipLinks,
     RelationshipToMany,
     RelationshipToOne,
     ResourceIdentifierBase,
@@ -30,6 +33,35 @@ class SchemaRegistry:
         self._cache[(kind, Model)] = schema
         return schema
 
+    @staticmethod
+    def _generic_included_field() -> Tuple[Any, Any]:
+        return (Optional[List[Dict[str, Any]]], None)
+
+    def _included_models(self, Model: Type[Any]) -> List[Type[Any]]:
+        included_models: List[Type[Any]] = []
+        seen: set[Type[Any]] = set()
+        for _rel_name, rel in iter_exposed_relationship_properties(Model):
+            target_model = rel.mapper.class_
+            if not hasattr(target_model, "_s_type") or target_model in seen:
+                continue
+            seen.add(target_model)
+            included_models.append(target_model)
+        return included_models
+
+    def _included_field(self, Model: Type[Any]) -> Tuple[Any, Any]:
+        if self.max_union_included_types <= 0:
+            return self._generic_included_field()
+
+        included_models = self._included_models(Model)
+        if not included_models or len(included_models) > self.max_union_included_types:
+            return self._generic_included_field()
+
+        included_types = [self.resource(target_model) for target_model in included_models]
+        item_type: Any = included_types[0]
+        if len(included_types) > 1:
+            item_type = Union[tuple(included_types)]
+        return (Optional[list[item_type]], None)
+
     def attributes(self, Model: Type[Any]) -> Type[PermissiveModel]:
         cached = self._cached("attributes", Model)
         if cached is not None:
@@ -37,6 +69,14 @@ class SchemaRegistry:
         model_name = f"{Model._s_type}Attributes"
         schema = create_attributes_model(Model, model_name)
         return self._store("attributes", Model, schema)
+
+    def request_attributes(self, Model: Type[Any]) -> Type[PermissiveModel]:
+        cached = self._cached("request_attributes", Model)
+        if cached is not None:
+            return cached
+        model_name = f"{Model._s_type}RequestAttributes"
+        schema = create_attributes_model(Model, model_name, writable_only=True)
+        return self._store("request_attributes", Model, schema)
 
     def resource_identifier(self, Model: Type[Any]) -> Type[PermissiveModel]:
         cached = self._cached("identifier", Model)
@@ -52,10 +92,10 @@ class SchemaRegistry:
         )
         return self._store("identifier", Model, cast(Type[PermissiveModel], schema))
 
-    def relationships_container(self, Model: Type[Any]) -> Optional[Type[PermissiveModel]]:
+    def _relationships_container(self, kind: str, Model: Type[Any], *, request_only: bool) -> Optional[Type[PermissiveModel]]:
         if not self.document_relationships:
             return None
-        cached = self._cached("relationships", Model)
+        cached = self._cached(kind, Model)
         if cached is not None:
             return cached
 
@@ -73,29 +113,35 @@ class SchemaRegistry:
             identifier_type: Any = identifier
             rel_schema: Type[PermissiveModel]
             if rel.direction == MANYTOONE:
+                rel_base = PermissiveModel if request_only else RelationshipToOne
+                rel_name_suffix = "RequestRelationshipToOne" if request_only else "RelationshipToOne"
                 rel_schema = cast(
                     Type[PermissiveModel],
                     create_model(
-                        f"{model_type}_{rel_name}RelationshipToOne",
-                        __base__=RelationshipToOne,
+                        f"{model_type}_{rel_name}{rel_name_suffix}",
+                        __base__=rel_base,
                         data=(Optional[identifier_type], None),
                     ),
                 )
             elif rel.direction in (ONETOMANY, MANYTOMANY):
+                rel_base = PermissiveModel if request_only else RelationshipToMany
+                rel_name_suffix = "RequestRelationshipToMany" if request_only else "RelationshipToMany"
                 rel_schema = cast(
                     Type[PermissiveModel],
                     create_model(
-                        f"{model_type}_{rel_name}RelationshipToMany",
-                        __base__=RelationshipToMany,
+                        f"{model_type}_{rel_name}{rel_name_suffix}",
+                        __base__=rel_base,
                         data=(list[identifier_type], Field(default_factory=list)),
                     ),
                 )
             else:
+                rel_base = PermissiveModel if request_only else RelationshipToMany
+                rel_name_suffix = "RequestRelationship" if request_only else "Relationship"
                 rel_schema = cast(
                     Type[PermissiveModel],
                     create_model(
-                        f"{model_type}_{rel_name}Relationship",
-                        __base__=RelationshipToMany,
+                        f"{model_type}_{rel_name}{rel_name_suffix}",
+                        __base__=rel_base,
                     ),
                 )
             fields[rel_name] = (Optional[rel_schema], None)
@@ -106,12 +152,18 @@ class SchemaRegistry:
         schema = cast(
             Type[PermissiveModel],
             create_model(
-                f"{model_type}Relationships",
+                f"{model_type}{'RequestRelationships' if request_only else 'Relationships'}",
                 __base__=PermissiveModel,
                 **cast(Any, fields),
             ),
         )
-        return self._store("relationships", Model, cast(Type[PermissiveModel], schema))
+        return self._store(kind, Model, cast(Type[PermissiveModel], schema))
+
+    def relationships_container(self, Model: Type[Any]) -> Optional[Type[PermissiveModel]]:
+        return self._relationships_container("relationships", Model, request_only=False)
+
+    def request_relationships_container(self, Model: Type[Any]) -> Optional[Type[PermissiveModel]]:
+        return self._relationships_container("request_relationships", Model, request_only=True)
 
     def resource(self, Model: Type[Any]) -> Type[PermissiveModel]:
         cached = self._cached("resource", Model)
@@ -122,6 +174,7 @@ class SchemaRegistry:
             "type": (Literal[model_type], Field(default=model_type)),
             "id": (str, ...),
             "attributes": (self.attributes(Model), ...),
+            "links": (Optional[JsonApiLinks], None),
         }
         relationships = self.relationships_container(Model)
         if relationships is not None:
@@ -152,9 +205,9 @@ class SchemaRegistry:
                 __base__=PermissiveModel,
                 jsonapi=(Optional[JsonApiVersion], None),
                 data=(data_type, ...),
-                included=(Optional[List[Dict[str, Any]]], None),
-                meta=(Optional[Dict[str, Any]], None),
-                links=(Optional[Dict[str, Any]], None),
+                included=self._included_field(Model),
+                meta=(Optional[JsonApiMeta], None),
+                links=(Optional[JsonApiLinks], None),
             ),
         )
         return self._store(kind, Model, cast(Type[PermissiveModel], schema))
@@ -179,9 +232,9 @@ class SchemaRegistry:
         fields: Dict[str, Tuple[Any, Any]] = {
             "type": (Literal[model_type], Field(default=model_type)),
             "id": id_field,
-            "attributes": (Optional[self.attributes(Model)], None),
+            "attributes": (Optional[self.request_attributes(Model)], None),
         }
-        relationships = self.relationships_container(Model)
+        relationships = self.request_relationships_container(Model)
         if relationships is not None:
             relationships_type: Any = relationships
             fields["relationships"] = (Optional[relationships_type], None)
@@ -201,7 +254,7 @@ class SchemaRegistry:
                 __base__=PermissiveModel,
                 jsonapi=(Optional[JsonApiVersion], None),
                 data=(resource_schema_type, ...),
-                meta=(Optional[Dict[str, Any]], None),
+                meta=(Optional[JsonApiMeta], None),
             ),
         )
         return self._store(kind, Model, cast(Type[PermissiveModel], document_schema))
@@ -227,8 +280,8 @@ class SchemaRegistry:
             __base__=PermissiveModel,
             jsonapi=(Optional[JsonApiVersion], None),
             data=(Optional[identifier_type], None),
-            links=(Optional[Dict[str, Any]], None),
-            meta=(Optional[Dict[str, Any]], None),
+            links=(Optional[RelationshipLinks], None),
+            meta=(Optional[JsonApiMeta], None),
         )
         return self._store("rel_doc_to_one", TargetModel, cast(Type[PermissiveModel], schema))
 
@@ -244,7 +297,7 @@ class SchemaRegistry:
             __base__=PermissiveModel,
             jsonapi=(Optional[JsonApiVersion], None),
             data=(list[identifier_type], Field(default_factory=list)),
-            links=(Optional[Dict[str, Any]], None),
-            meta=(Optional[Dict[str, Any]], None),
+            links=(Optional[RelationshipLinks], None),
+            meta=(Optional[JsonApiMeta], None),
         )
         return self._store("rel_doc_to_many", TargetModel, cast(Type[PermissiveModel], schema))
