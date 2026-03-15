@@ -24,9 +24,12 @@ def parse_object_doc(obj: Callable[..., Any]) -> dict[str, Any]:
     Parse the yaml description from documented methods.
     """
     api_doc: dict[str, Any] = {}
-    obj_doc = str(inspect.getdoc(obj))
+    obj_doc = inspect.getdoc(obj) or ""
     raw_doc = obj_doc.split(DOC_DELIMITER)[0]
     yaml_doc: Any = None
+
+    if not raw_doc.strip():
+        return api_doc
 
     try:
         yaml_doc = yaml.safe_load(raw_doc)
@@ -38,6 +41,8 @@ def parse_object_doc(obj: Callable[..., Any]) -> dict[str, Any]:
 
     if isinstance(yaml_doc, dict):
         api_doc.update(yaml_doc)
+    elif raw_doc.strip():
+        api_doc["description"] = raw_doc.strip()
 
     return api_doc
 

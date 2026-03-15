@@ -87,6 +87,14 @@ def is_resource_instance(value: Any) -> bool:
     return hasattr(value, "_s_type") and hasattr(value, "jsonapi_id")
 
 
+def unwrap_formatted_response(result: Any) -> Any:
+    from .json_encoder import SAFRSFormattedResponse
+
+    if isinstance(result, SAFRSFormattedResponse):
+        return result.response
+    return result
+
+
 def normalize_rpc_result(
     result: Any,
     *,
@@ -97,8 +105,16 @@ def normalize_rpc_result(
 ) -> Any:
     """
     Normalize RPC results for both Flask and FastAPI adapters.
+
+    Contract:
+    - existing JSON:API document -> passthrough (after value encoding)
+    - single resource instance -> ``data``
+    - list/tuple/set of resource instances -> ``data`` array
+    - ``None`` -> ``meta: {}``
+    - scalar or list of scalars -> ``meta.result``
+    - ``valid_jsonapi=False`` -> raw JSON payload
     """
-    payload = result.response if result.__class__.__name__ == "SAFRSFormattedResponse" and hasattr(result, "response") else result
+    payload = unwrap_formatted_response(result)
 
     if is_jsonapi_document(payload):
         document = jsonapi_doc(
