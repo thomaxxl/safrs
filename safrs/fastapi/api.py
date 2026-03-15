@@ -6,7 +6,7 @@ import inspect
 import re
 from enum import Enum
 from http import HTTPStatus
-from typing import Annotated, Any, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast, get_args, get_origin
+from typing import Annotated, Any, Callable, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast, get_args, get_origin
 from urllib.parse import quote
 
 import safrs
@@ -1713,65 +1713,112 @@ class SafrsFastAPI:
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
         )
 
-    def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool, http_method: str):
-        request_method = str(http_method).upper()
+    def _dispatch_rpc_call(
+        self,
+        Model: Type[Any],
+        method_name: str,
+        request: Request,
+        *,
+        class_level: bool,
+        payload: Optional[Dict[str, Any]] = None,
+        object_id: Optional[ObjectIdParam] = None,
+    ) -> JSONAPIResponse:
+        try:
+            if str(request.method).upper() in WRITE_HTTP_METHODS:
+                self._note_write(Model)
+            if class_level:
+                return self._call_class_rpc(Model, method_name, request, payload)
+            if object_id is None:
+                raise RuntimeError("Missing object_id for instance RPC handler")
+            return self._call_instance_rpc(Model, method_name, object_id, request, payload)
+        except JSONAPIHTTPError:
+            raise
+        except Exception as exc:
+            self._handle_safrs_exception(exc)
+            raise AssertionError("unreachable")
 
-        if class_level and request_method == "GET":
-            def class_get_handler(request: Request):
-                try:
-                    return self._call_class_rpc(Model, method_name, request, None)
-                except JSONAPIHTTPError:
-                    raise
-                except Exception as exc:
-                    self._handle_safrs_exception(exc)
+    def _class_rpc_get_handler(self, Model: Type[Any], method_name: str) -> Callable[[Request], JSONAPIResponse]:
+        def class_get_handler(request: Request) -> JSONAPIResponse:
+            return self._dispatch_rpc_call(
+                Model,
+                method_name,
+                request,
+                class_level=True,
+            )
 
-            return class_get_handler
+        return class_get_handler
 
-        if class_level:
-            def class_body_handler(
-                request: Request,
-                payload: Optional[Dict[str, Any]] = Body(default=None),
-            ):
-                try:
-                    if request_method in WRITE_HTTP_METHODS:
-                        self._note_write(Model)
-                    return self._call_class_rpc(Model, method_name, request, payload)
-                except JSONAPIHTTPError:
-                    raise
-                except Exception as exc:
-                    self._handle_safrs_exception(exc)
+    def _class_rpc_body_handler(
+        self,
+        Model: Type[Any],
+        method_name: str,
+    ) -> Callable[[Request, Optional[Dict[str, Any]]], JSONAPIResponse]:
+        def class_body_handler(
+            request: Request,
+            payload: Optional[Dict[str, Any]] = Body(default=None),
+        ) -> JSONAPIResponse:
+            return self._dispatch_rpc_call(
+                Model,
+                method_name,
+                request,
+                class_level=True,
+                payload=payload,
+            )
 
-            return class_body_handler
+        return class_body_handler
 
-        if request_method == "GET":
-            def instance_get_handler(
-                object_id: ObjectIdParam,
-                request: Request,
-            ):
-                try:
-                    return self._call_instance_rpc(Model, method_name, object_id, request, None)
-                except JSONAPIHTTPError:
-                    raise
-                except Exception as exc:
-                    self._handle_safrs_exception(exc)
+    def _instance_rpc_get_handler(
+        self,
+        Model: Type[Any],
+        method_name: str,
+    ) -> Callable[[ObjectIdParam, Request], JSONAPIResponse]:
+        def instance_get_handler(
+            object_id: ObjectIdParam,
+            request: Request,
+        ) -> JSONAPIResponse:
+            return self._dispatch_rpc_call(
+                Model,
+                method_name,
+                request,
+                class_level=False,
+                object_id=object_id,
+            )
 
-            return instance_get_handler
+        return instance_get_handler
 
+    def _instance_rpc_body_handler(
+        self,
+        Model: Type[Any],
+        method_name: str,
+    ) -> Callable[[ObjectIdParam, Request, Optional[Dict[str, Any]]], JSONAPIResponse]:
         def instance_body_handler(
             object_id: ObjectIdParam,
             request: Request,
             payload: Optional[Dict[str, Any]] = Body(default=None),
-        ):
-            try:
-                if request_method in WRITE_HTTP_METHODS:
-                    self._note_write(Model)
-                return self._call_instance_rpc(Model, method_name, object_id, request, payload)
-            except JSONAPIHTTPError:
-                raise
-            except Exception as exc:
-                self._handle_safrs_exception(exc)
+        ) -> JSONAPIResponse:
+            return self._dispatch_rpc_call(
+                Model,
+                method_name,
+                request,
+                class_level=False,
+                payload=payload,
+                object_id=object_id,
+            )
 
         return instance_body_handler
+
+    def _rpc_handler(self, Model: Type[Any], method_name: str, class_level: bool, http_method: str):
+        request_method = str(http_method).upper()
+
+        if class_level:
+            if request_method == "GET":
+                return self._class_rpc_get_handler(Model, method_name)
+            return self._class_rpc_body_handler(Model, method_name)
+
+        if request_method == "GET":
+            return self._instance_rpc_get_handler(Model, method_name)
+
+        return self._instance_rpc_body_handler(Model, method_name)
 
     def _parse_include_paths(self, Model: Type[Any], request: Request) -> List[List[str]]:
         include_csv = request.query_params.get("include")

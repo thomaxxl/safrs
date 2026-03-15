@@ -15,7 +15,8 @@ from flask import request
 from functools import wraps
 import safrs
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
-from .swagger_doc import parse_object_doc, swagger_relationship_doc, get_http_methods
+from .swagger_doc import parse_object_doc, swagger_relationship_doc
+from .api_doc import get_http_methods
 from .errors import GenericError, JsonapiError, SystemValidationError, log_integrity_error_details
 from .config import get_config
 from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder

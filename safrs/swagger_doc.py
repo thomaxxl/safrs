@@ -17,7 +17,6 @@ from safrs.api_doc import (
     FILTERABLE,
     PAGEABLE,
     get_doc,
-    get_http_methods,
     is_public,
     jsonapi_rpc,
     jsonapi_rpc_meta_schema,
