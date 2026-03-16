@@ -2407,10 +2407,13 @@ class SafrsFastAPI:
 
     def _get_collection(self, Model: Type[Any]):
         def handler(request: Request):
+            context_token = None
             try:
                 # Validate include paths early so invalid relationships fail with 400.
                 self._parse_include_paths(Model, request)
-                query_or_items = self._apply_filter(Model, request, Model._s_query)
+                if maybe_jsonapi_context() is None:
+                    context_token = set_jsonapi_context(self._build_jsonapi_context(request))
+                query_or_items = Model._s_get()
                 query_or_items = self._apply_sort_query_or_items(Model, query_or_items, request)
                 total_count = self._query_or_items_count(query_or_items)
                 page_offset, page_limit = self._pagination_args(request)
@@ -2431,6 +2434,9 @@ class SafrsFastAPI:
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
+            finally:
+                if context_token is not None:
+                    reset_jsonapi_context(context_token)
 
         return handler
 
