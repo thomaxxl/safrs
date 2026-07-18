@@ -1,5 +1,6 @@
 import datetime
 from http import HTTPStatus
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -70,6 +71,33 @@ def test_parse_attr_preserves_null_temporal_values(column_type: type[Any]) -> No
     column = sqlalchemy.Column("temporal_value", column_type)
 
     assert parse_attr(column, None) is None
+
+
+@pytest.mark.parametrize("exception_type", [TypeError, ValueError, OverflowError])
+def test_parse_attr_rejects_custom_deserializer_errors(
+    exception_type: type[Exception],
+) -> None:
+    def reject_value(_value: Any) -> Any:
+        raise exception_type("custom conversion failed")
+
+    column = SimpleNamespace(default=None, key="custom_value", python_type=reject_value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        parse_attr(column, "invalid")
+
+    assert 'Invalid value "invalid" for attribute "custom_value"' in exc_info.value.message
+    assert isinstance(exc_info.value.__cause__, exception_type)
+
+
+@pytest.mark.parametrize("invalid_value", ["not-an-integer", []])
+def test_parse_attr_rejects_sqlalchemy_coercion_errors(invalid_value: Any) -> None:
+    column = sqlalchemy.Column("count", sqlalchemy.Integer)
+
+    with pytest.raises(ValidationError) as exc_info:
+        parse_attr(column, invalid_value)
+
+    assert f'Invalid value "{invalid_value}" for attribute "count"' in exc_info.value.message
+    assert isinstance(exc_info.value.__cause__, (TypeError, ValueError))
 
 
 def test_invalid_date_requests_return_400_without_persisting_the_value() -> None:
