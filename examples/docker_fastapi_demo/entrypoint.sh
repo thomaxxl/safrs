@@ -56,25 +56,32 @@ export VITE_DEV_PORT="5173"
 export VITE_HMR_CLIENT_PORT="${DEMO_EXTERNAL_PORT:-8000}"
 export VITE_HMR_PATH="/admin-app/__vite_hmr"
 
-SAFRS_JSONAPI_CLIENT_SPEC="git+https://github.com/thomaxxl/safrs-jsonapi-client.git#main"
-if is_true "${USE_LOCAL_SAFRS_JSONAPI_CLIENT:-0}"; then
+USE_LOCAL_SAFRS_JSONAPI_CLIENT_DEFAULT=0
+if [ "$SOURCE_ROOT" = "/demo" ] && [ -f "$SOURCE_ROOT/vendor/safrs-jsonapi-client/package.json" ]; then
+  USE_LOCAL_SAFRS_JSONAPI_CLIENT_DEFAULT=1
+fi
+
+LOCAL_CLIENT_DIR=""
+if is_true "${USE_LOCAL_SAFRS_JSONAPI_CLIENT:-$USE_LOCAL_SAFRS_JSONAPI_CLIENT_DEFAULT}"; then
   LOCAL_CLIENT_DIR="$SOURCE_ROOT/vendor/safrs-jsonapi-client"
   if [ ! -f "$LOCAL_CLIENT_DIR/package.json" ]; then
     echo "USE_LOCAL_SAFRS_JSONAPI_CLIENT is set, but $LOCAL_CLIENT_DIR is missing" >&2
     exit 1
   fi
-  SAFRS_JSONAPI_CLIENT_SPEC="file:$LOCAL_CLIENT_DIR"
 fi
 
-(
-  cd "$SOURCE_ROOT/frontend"
-  npm pkg set "dependencies.safrs-jsonapi-client=$SAFRS_JSONAPI_CLIENT_SPEC"
-)
-
 if [ "$SOURCE_ROOT" = "/demo" ]; then
-  (cd /demo/frontend && npm install --no-audit --no-fund --package-lock=false)
+  mkdir -p /demo/frontend/node_modules
+  if [ ! -x /demo/frontend/node_modules/.bin/vite ]; then
+    cp -a /app/frontend/node_modules/. /demo/frontend/node_modules/
+  fi
 elif [ ! -x /app/frontend/node_modules/.bin/vite ]; then
   (cd /app/frontend && npm install --no-audit --no-fund --package-lock=false)
+fi
+
+if [ -n "$LOCAL_CLIENT_DIR" ]; then
+  rm -rf "$SOURCE_ROOT/frontend/node_modules/safrs-jsonapi-client"
+  ln -s "$LOCAL_CLIENT_DIR" "$SOURCE_ROOT/frontend/node_modules/safrs-jsonapi-client"
 fi
 
 if is_true "${NORTHWIND_FASTAPI_RELOAD:-0}"; then
