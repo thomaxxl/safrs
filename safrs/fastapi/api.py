@@ -79,6 +79,32 @@ class JSONAPIHTTPError(Exception):
         self.payload = payload
 
 
+def _normalize_expected_validation_exception_types(
+    exc_types: Optional[Sequence[Type[Exception]]],
+) -> Tuple[Type[Exception], ...]:
+    if not exc_types:
+        return ()
+
+    normalized: List[Type[Exception]] = []
+    for exc_type in exc_types:
+        if not inspect.isclass(exc_type) or not issubclass(exc_type, Exception):
+            raise TypeError("expected_validation_exceptions must contain exception classes")
+        if exc_type not in normalized:
+            normalized.append(exc_type)
+    return tuple(normalized)
+
+
+def _coerce_expected_validation_exception(
+    exc: Exception,
+    expected_validation_exceptions: Sequence[Type[Exception]],
+) -> Optional[ValidationError]:
+    if not expected_validation_exceptions:
+        return None
+    if isinstance(exc, tuple(expected_validation_exceptions)):
+        return ValidationError(str(exc))
+    return None
+
+
 def _escape_json_pointer_segment(segment: str) -> str:
     return segment.replace("~", "~0").replace("/", "~1")
 
@@ -167,7 +193,15 @@ def _jsonapi_http_exception_payload(exc: StarletteHTTPException) -> Dict[str, An
     )
 
 
-def install_jsonapi_exception_handlers(app: FastAPI) -> None:
+def install_jsonapi_exception_handlers(
+    app: FastAPI,
+    *,
+    expected_validation_exceptions: Optional[Sequence[Type[Exception]]] = None,
+) -> None:
+    normalized_expected_validation_exceptions = _normalize_expected_validation_exception_types(
+        expected_validation_exceptions
+    )
+
     @app.exception_handler(JSONAPIHTTPError)
     async def _jsonapi_http_error_handler(_request: Request, exc: JSONAPIHTTPError):
         return JSONAPIResponse(status_code=exc.status_code, content=exc.payload)
@@ -181,6 +215,20 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
     async def _jsonapi_starlette_http_error_handler(_request: Request, exc: StarletteHTTPException):
         payload = _jsonapi_http_exception_payload(exc)
         return JSONAPIResponse(status_code=int(exc.status_code), content=payload)
+
+    for expected_exception in normalized_expected_validation_exceptions:
+        @app.exception_handler(expected_exception)
+        async def _jsonapi_expected_validation_error_handler(_request: Request, exc: Exception):
+            payload = _jsonapi_error_document(
+                [
+                    {
+                        "status": str(HTTPStatus.BAD_REQUEST.value),
+                        "title": "ValidationError",
+                        "detail": str(exc),
+                    }
+                ]
+            )
+            return JSONAPIResponse(status_code=HTTPStatus.BAD_REQUEST.value, content=payload)
 
     @app.exception_handler(Exception)
     async def _jsonapi_unhandled_exception_handler(_request: Request, exc: Exception):
@@ -210,10 +258,14 @@ class SafrsFastAPI:
         relationship_item_mode: Union[RelationshipItemMode, str] = RelationshipItemMode.HIDDEN,
         include_examples_in_openapi: bool = True,
         cleanup_session: bool = True,
+        expected_validation_exceptions: Optional[Sequence[Type[Exception]]] = None,
     ) -> None:
         self.app = app
         self.prefix = prefix
         self.cleanup_session = bool(cleanup_session)
+        self.expected_validation_exceptions = _normalize_expected_validation_exception_types(
+            expected_validation_exceptions
+        )
         self.max_union_included_types = int(getattr(safrs.SAFRS, "MAX_UNION_INCLUDED_TYPES", 0))
         self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
         self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
@@ -230,14 +282,18 @@ class SafrsFastAPI:
             FastAPIDepends(self._safrs_uow_dependency),
         ] + self._normalize_dependencies(dependencies)
         self._install_swagger_ui_defaults()
-        install_jsonapi_exception_handlers(app)
+        install_jsonapi_exception_handlers(
+            app,
+            expected_validation_exceptions=self.expected_validation_exceptions,
+        )
         self._install_openapi_schema_patch()
         self._install_swagger_alias()
         safrs.log.info(
-            "Initialized SafrsFastAPI (prefix=%s, relationship_item_mode=%s, cleanup_session=%s)",
+            "Initialized SafrsFastAPI (prefix=%s, relationship_item_mode=%s, cleanup_session=%s, expected_validation_exceptions=%s)",
             self.prefix,
             self.relationship_item_mode.value,
             self.cleanup_session,
+            len(self.expected_validation_exceptions),
         )
 
     @staticmethod
@@ -1412,6 +1468,17 @@ class SafrsFastAPI:
     def _handle_safrs_exception(self, exc: Exception) -> None:
         if isinstance(exc, JSONAPIHTTPError):
             raise exc
+        expected_validation_exception = _coerce_expected_validation_exception(
+            exc,
+            self.expected_validation_exceptions,
+        )
+        if expected_validation_exception is not None:
+            self._rollback_session_quietly()
+            self._jsonapi_error(
+                HTTPStatus.BAD_REQUEST.value,
+                "ValidationError",
+                str(getattr(expected_validation_exception, "message", str(expected_validation_exception))),
+            )
         if isinstance(exc, IntegrityError):
             log_integrity_error_details(exc)
             self._rollback_session_quietly()
