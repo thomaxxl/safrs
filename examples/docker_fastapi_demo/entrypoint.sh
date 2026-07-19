@@ -76,7 +76,7 @@ if [ "$SOURCE_ROOT" = "/demo" ]; then
     cp -a /app/frontend/node_modules/. /demo/frontend/node_modules/
   fi
 elif [ ! -x /app/frontend/node_modules/.bin/vite ]; then
-  (cd /app/frontend && npm install --no-audit --no-fund --package-lock=false)
+  (cd /app/frontend && npm ci --no-audit --no-fund)
 fi
 
 if [ -n "$LOCAL_CLIENT_DIR" ]; then

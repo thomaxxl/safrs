@@ -9,6 +9,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+node_modules/
+examples/docker_fastapi_demo/frontend/dist/
 develop-eggs/
 ./dist/
 downloads/
