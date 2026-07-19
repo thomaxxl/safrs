@@ -20,7 +20,6 @@ from safrs.api_doc import (
     resolve_rpc_method,
     schema_for_example_value,
 )
-from safrs.attr_parse import parse_attr
 from safrs.errors import (
     GenericError,
     JsonapiError,
@@ -1479,52 +1478,6 @@ class SafrsFastAPI:
         if typ != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
 
-    @staticmethod
-    def _try_parse_temporal_value(py_type: Any, value: str) -> Tuple[bool, Any]:
-        try:
-            if py_type is dt.date:
-                return True, dt.datetime.strptime(value, "%Y-%m-%d").date()
-            if py_type is dt.datetime:
-                fmt = "%Y-%m-%d %H:%M:%S.%f" if "." in value else "%Y-%m-%d %H:%M:%S"
-                return True, dt.datetime.strptime(value.replace("T", " "), fmt)
-            if py_type is dt.time:
-                fmt = "%H:%M:%S.%f" if "." in value else "%H:%M:%S"
-                return True, dt.datetime.strptime(value, fmt).time()
-        except Exception:
-            return False, value
-        return False, value
-
-    def _parse_attributes_for_model(self, Model: Type[Any], attrs: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        SAFRS' internal parsing is guarded by Flask's has_request_context().
-        In FastAPI, that is false, so we parse explicitly using parse_attr()
-        for Column-backed attrs.
-
-        This keeps date/time/datetime parsing consistent with SAFRS behavior.
-        """
-        parsed: Dict[str, Any] = {}
-        model_attr_map = getattr(Model, "_s_jsonapi_attrs", {})  # class-level mapping name -> Column/jsonapi_attr
-        for name, value in attrs.items():
-            col_or_attr = model_attr_map.get(name)
-            if col_or_attr is None:
-                # Ignore undeclared attrs (SAFRS does this too)
-                continue
-            col_type = getattr(col_or_attr, "type", None)
-            py_type = getattr(col_type, "python_type", None)
-            if isinstance(value, str):
-                matched, parsed_value = self._try_parse_temporal_value(py_type, value)
-                if matched:
-                    parsed[name] = parsed_value
-                    continue
-            # Column-backed attrs have .type etc, and SAFRS parse_attr expects a Column
-            # jsonapi_attr values we just pass through
-            try:
-                parsed[name] = parse_attr(col_or_attr, value) if hasattr(col_or_attr, "type") else value
-            except Exception:
-                # If parsing fails, keep original; SAFRS tends to be permissive in some cases
-                parsed[name] = value
-        return parsed
-
     def _parse_sparse_fields(self, Model: Type[Any], request: Request) -> Optional[Set[str]]:
         fields_key = f"fields[{Model._s_type}]"
         fields_csv = request.query_params.get(fields_key)
@@ -2471,7 +2424,7 @@ class SafrsFastAPI:
             self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
         if data.get("type") != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
-        attrs = self._parse_attributes_for_model(Model, data.get("attributes") or {})
+        attrs = cast(Dict[str, Any], data.get("attributes") or {})
         rels = data.get("relationships") or {}
         return Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
 
@@ -2599,8 +2552,7 @@ class SafrsFastAPI:
                     if normalized_body_id != normalized_path_id:
                         self._jsonapi_error(400, "ValidationError", "Body id does not match path id")
 
-                attrs = data.get("attributes") or {}
-                attrs = self._parse_attributes_for_model(Model, attrs)
+                attrs = cast(Dict[str, Any], data.get("attributes") or {})
 
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)

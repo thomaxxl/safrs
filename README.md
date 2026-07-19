@@ -141,6 +141,7 @@ Use `@jsonapi_attr` when you want a targeted computed field instead of a broad `
 - The decorator also accepts metadata kwargs directly, for example `@jsonapi_attr(description=\"Count\", swagger_type=\"integer\")`.
 - `write_only=True` keeps a computed attr in request schemas/examples while omitting it from serialized responses.
 - FastAPI request schemas and examples include writable computed attrs but omit read-only ones; response schemas mark read-only attrs and omit write-only ones.
+- [FastAPI attribute-parsing parity and known adapter drift](docs/fastapi-parity.md)
 
 Examples:
 

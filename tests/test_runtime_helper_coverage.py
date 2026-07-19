@@ -15,17 +15,17 @@ def test_error_request_url_and_resource_inference_edge_cases(monkeypatch):
     try:
         monkeypatch.setattr(errors, "has_request_context", lambda: False)
         assert errors._current_request_url() is None
+
+        class BrokenRequest:
+            @property
+            def url(self):
+                raise RuntimeError("unavailable")
+
+        monkeypatch.setattr(errors, "has_request_context", lambda: True)
+        monkeypatch.setattr(errors, "request", BrokenRequest())
+        assert errors._current_request_url() is None
     finally:
         errors.reset_fastapi_request_url(token)
-
-    class BrokenRequest:
-        @property
-        def url(self):
-            raise RuntimeError("unavailable")
-
-    monkeypatch.setattr(errors, "has_request_context", lambda: True)
-    monkeypatch.setattr(errors, "request", BrokenRequest())
-    assert errors._current_request_url() is None
 
     class BrokenUrl:
         def __str__(self):
