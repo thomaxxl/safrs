@@ -20,24 +20,21 @@ def _parse_time_value(attr_val: Any) -> datetime.time:
 
 
 def _parse_temporal_attr(column: Any, attr_val: Any) -> tuple[bool, Any]:
-    if attr_val and column.type.python_type == datetime.datetime:
+    if column.type.python_type == datetime.datetime:
         try:
             return True, _parse_datetime_value(attr_val)
-        except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning(f'Invalid datetime.datetime {exc} for value "{attr_val}"')
-            return True, datetime.datetime.now()
-    if attr_val and column.type.python_type == datetime.date:
+        except (NotImplementedError, TypeError, ValueError) as exc:
+            raise ValidationError(f'Invalid datetime.datetime value "{attr_val}": {exc}') from exc
+    if column.type.python_type == datetime.date:
         try:
             return True, datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
-        except (NotImplementedError, ValueError) as exc:
-            safrs.log.warning(f'Invalid datetime.date {exc} for value "{attr_val}"')
-            return True, datetime.datetime.now()
-    if attr_val and column.type.python_type == datetime.time:  # pragma: no cover (todo)
+        except (NotImplementedError, TypeError, ValueError) as exc:
+            raise ValidationError(f'Invalid datetime.date value "{attr_val}": {exc}') from exc
+    if column.type.python_type == datetime.time:
         try:
             return True, _parse_time_value(attr_val)
-        except (NotImplementedError, ValueError, TypeError) as exc:
-            safrs.log.warning(f'Invalid datetime.time {exc} for value "{attr_val}"')
-            return True, column.type.python_type()
+        except (NotImplementedError, TypeError, ValueError) as exc:
+            raise ValidationError(f'Invalid datetime.time value "{attr_val}": {exc}') from exc
     return False, attr_val
 
 

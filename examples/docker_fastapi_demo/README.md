@@ -77,6 +77,11 @@ That affects:
 The dev override also keeps `/demo/frontend/node_modules` in a separate Docker
 volume so the bind mount does not hide installed dependencies.
 
+In dev mode, frontend dependencies are seeded from the baked image instead of
+running `npm install` at container startup. The mounted
+`vendor/safrs-jsonapi-client/` checkout is then linked into
+`/demo/frontend/node_modules/safrs-jsonapi-client` by default.
+
 In that mode, you can edit files under `demo/` on the host without rebuilding
 the image. Frontend edits should be picked up by Vite. Backend, example-app,
 nginx config, and vendored client/library changes usually require a container
@@ -106,7 +111,8 @@ By default, the frontend installs `safrs-jsonapi-client` from:
 
 - `git+https://github.com/thomaxxl/safrs-jsonapi-client.git#main`
 
-To force local vendored fallback instead, set:
+In dev mode, local vendored fallback is enabled by default. To force local
+vendored fallback in normal mode, set:
 
 ```bash
 USE_LOCAL_SAFRS_JSONAPI_CLIENT=1 docker compose up --build

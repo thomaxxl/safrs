@@ -6,6 +6,7 @@ services:
     environment:
       DEMO_EXTERNAL_PORT: "${DEMO_PORT:-8000}"
       NORTHWIND_DB_PATH: /data/northwind.sqlite
+      USE_LOCAL_SAFRS_JSONAPI_CLIENT: "${USE_LOCAL_SAFRS_JSONAPI_CLIENT:-0}"
     ports:
       - "${DEMO_PORT:-8000}:80"
     restart: unless-stopped

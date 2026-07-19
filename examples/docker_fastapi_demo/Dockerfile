@@ -1,12 +1,19 @@
-FROM python:3.12-slim
+FROM node:24-bookworm-slim AS node-runtime
+
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git nginx nodejs npm \
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends git nginx \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend /app/backend
@@ -26,7 +33,7 @@ RUN python -m pip install --no-cache-dir -U pip \
 
 WORKDIR /app/frontend
 
-RUN npm install --no-audit --no-fund --package-lock=false
+RUN npm ci --no-audit --no-fund
 
 WORKDIR /app
 

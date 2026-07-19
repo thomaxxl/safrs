@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 
 from safrs.errors import ValidationError
 from safrs.fastapi.api import JSONAPIHTTPError, SafrsFastAPI, install_jsonapi_exception_handlers
+from safrs.jsonapi_context import maybe_jsonapi_context
 
 
 def _request(path: str = "/", query: str = "", method: str = "GET") -> Request:
@@ -190,6 +191,36 @@ def test_invalid_custom_filter_result_raises_validation_error() -> None:
 
     with pytest.raises(ValidationError):
         api._apply_filter(_BadFilterModel, _request("/api/Order/", "filter=bad"), [])
+
+
+def test_get_collection_uses_model_s_get(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    calls: dict[str, Any] = {}
+
+    class _CollectionModel:
+        _s_type = "Thing"
+        _s_collection_name = "Thing"
+
+        @classmethod
+        def _s_get(cls) -> list[str]:
+            context = maybe_jsonapi_context()
+            calls["filter[name]"] = None if context is None else context.query_params.get("filter[name]")
+            return ["shared-query"]
+
+    monkeypatch.setattr(api, "_parse_include_paths", lambda Model, request: [])
+    monkeypatch.setattr(api, "_apply_sort_query_or_items", lambda Model, value, request: value)
+    monkeypatch.setattr(api, "_query_or_items_count", lambda value: len(value))
+    monkeypatch.setattr(api, "_pagination_args", lambda request: (0, 250))
+    monkeypatch.setattr(api, "_apply_pagination", lambda value, request: value)
+    monkeypatch.setattr(api, "_coerce_items", lambda value: value)
+    monkeypatch.setattr(api, "_pagination_links", lambda request, **kwargs: {})
+    monkeypatch.setattr(api, "_jsonapi_data_response", lambda **kwargs: kwargs)
+
+    handler = api._get_collection(_CollectionModel)
+    response = handler(_request("/api/Thing/", "filter[name]=alpha"))
+
+    assert calls["filter[name]"] == "alpha"
+    assert response["data"] == ["shared-query"]
 
 
 def test_patch_id_comparison_uses_validate_id_normalization() -> None:

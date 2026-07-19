@@ -582,6 +582,33 @@ class SAFRSBase(Model):
             raise ValidationError(f"Invalid value for attribute '{attr_name}'")
         return attr_val
 
+    @classmethod
+    def _s_parse_attr_value_for_request(cls: Any, attr_name: str, attr_val: Any) -> Any:
+        """
+        Apply the canonical SAFRS request parsing rules to one attribute.
+
+        Framework adapters should establish a JSON:API request context and let
+        ``_s_post``/``_s_patch`` call this path instead of implementing their
+        own coercion rules.
+        """
+        if attr_name == "id":
+            return attr_val
+
+        attr = cls._s_jsonapi_attrs.get(attr_name, None)
+
+        if is_jsonapi_attr(attr):
+            if jsonapi_attr_is_read_only(attr):
+                raise ValidationError(f"Attribute '{attr_name}' is read-only")
+            attr_val = cls._s_run_jsonapi_attr_parser(attr_name, attr, attr_val)
+            attr_val = cls._s_run_jsonapi_attr_validator(attr_name, attr, attr_val)
+            return attr_val
+
+        # attr is a sqlalchemy.sql.schema.Column now
+        if not isinstance(attr, Column):  # pragma: no cover
+            raise SystemValidationError(f"Not a column: {attr}")
+
+        return parse_attr(attr, attr_val)
+
     def _s_parse_attr_value(self: Any, attr_name: str, attr_val: Any) -> Any:
         """
         Parse the given jsonapi attribute value so it can be stored in the db
@@ -590,27 +617,12 @@ class SAFRSBase(Model):
         :return: parsed value
         """
         # Don't allow attributes from web requests that are not specified in _s_jsonapi_attrs
-        if not has_request_context():
-            # we only care about parsing when working in the request context
+        if not has_request_context() and maybe_jsonapi_context() is None:
+            # Programmatic model construction remains unchanged; Flask and
+            # FastAPI requests both activate the canonical request parser.
             return attr_val
 
-        if attr_name == "id":
-            return attr_val
-
-        attr = self.__class__._s_jsonapi_attrs.get(attr_name, None)
-
-        if is_jsonapi_attr(attr):
-            if jsonapi_attr_is_read_only(attr):
-                raise ValidationError(f"Attribute '{attr_name}' is read-only")
-            attr_val = self._s_run_jsonapi_attr_parser(attr_name, attr, attr_val)
-            attr_val = self._s_run_jsonapi_attr_validator(attr_name, attr, attr_val)
-            return attr_val
-
-        # attr is a sqlalchemy.sql.schema.Column now
-        if not isinstance(attr, Column):  # pragma: no cover
-            raise SystemValidationError(f"Not a column: {attr}")
-
-        return parse_attr(attr, attr_val)
+        return self.__class__._s_parse_attr_value_for_request(attr_name, attr_val)
 
     @classmethod
     def _s_get(cls: Any, **kwargs: Any) -> Any:

@@ -13,8 +13,18 @@ from fastapi import FastAPI, Request
 
 import safrs
 from safrs.errors import GenericError, reset_fastapi_request_url, set_fastapi_request_url
-from safrs.fastapi.api import JSONAPIHTTPError, JSONAPI_MEDIA_TYPE, SafrsFastAPI, install_jsonapi_exception_handlers
+from safrs.fastapi.api import (
+    JSONAPIHTTPError,
+    JSONAPI_MEDIA_TYPE,
+    SafrsFastAPI,
+    _normalize_expected_validation_exception_types,
+    install_jsonapi_exception_handlers,
+)
 from safrs.fastapi.schemas.registry import SchemaRegistry
+
+
+class _ExpectedBusinessError(Exception):
+    pass
 
 
 def _request(query: str = "") -> Request:
@@ -58,6 +68,33 @@ def test_fastapi_exception_handler_returns_jsonapi_error_document() -> None:
     assert payload["errors"][0]["detail"] == "Internal Server Error"
 
 
+def test_fastapi_exception_handler_can_map_expected_external_validation_exceptions() -> None:
+    app = FastAPI()
+    install_jsonapi_exception_handlers(app, expected_validation_exceptions=[_ExpectedBusinessError])
+    handler = app.exception_handlers[_ExpectedBusinessError]
+    request = _request()
+    response = asyncio.run(handler(request, _ExpectedBusinessError("boom")))
+
+    assert response.status_code == 400
+    assert JSONAPI_MEDIA_TYPE in response.headers.get("content-type", "")
+    payload = json.loads(response.body.decode("utf-8"))
+    assert payload["errors"][0]["status"] == "400"
+    assert payload["errors"][0]["title"] == "ValidationError"
+    assert payload["errors"][0]["detail"] == "boom"
+
+
+def test_expected_validation_exception_types_are_deduplicated() -> None:
+    assert _normalize_expected_validation_exception_types(
+        [_ExpectedBusinessError, _ExpectedBusinessError]
+    ) == (_ExpectedBusinessError,)
+
+
+@pytest.mark.parametrize("invalid_type", [str, KeyboardInterrupt])
+def test_expected_validation_exception_types_reject_non_exception_classes(invalid_type: Any) -> None:
+    with pytest.raises(TypeError, match="must contain exception classes"):
+        _normalize_expected_validation_exception_types([invalid_type])
+
+
 def test_fastapi_error_document_schema_includes_error_source_links_and_meta() -> None:
     schema = SchemaRegistry().error_document().model_json_schema()
     error_items = schema["properties"]["errors"]["items"]
@@ -92,6 +129,28 @@ def test_handle_safrs_exception_maps_runtime_errors_to_jsonapi_and_rolls_back(mo
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.payload["errors"][0]["detail"] == "Internal Server Error"
+    assert rollback_calls["count"] == 1
+
+
+def test_handle_safrs_exception_maps_registered_expected_validation_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = FastAPI()
+    api = SafrsFastAPI(app, expected_validation_exceptions=[_ExpectedBusinessError])
+    rollback_calls = {"count": 0}
+
+    class Session:
+        info: dict[str, Any] = {}
+
+        def rollback(self) -> None:
+            rollback_calls["count"] += 1
+
+    monkeypatch.setattr(safrs, "DB", SimpleNamespace(session=Session()))
+
+    with pytest.raises(JSONAPIHTTPError) as exc_info:
+        api._handle_safrs_exception(_ExpectedBusinessError("rule failed"))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.payload["errors"][0]["title"] == "ValidationError"
+    assert exc_info.value.payload["errors"][0]["detail"] == "Validation Error: rule failed"
     assert rollback_calls["count"] == 1
 
 

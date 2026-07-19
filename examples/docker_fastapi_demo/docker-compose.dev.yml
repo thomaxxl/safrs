@@ -5,6 +5,7 @@ services:
       DEMO_JWT_RELOAD: "1"
       DEMO_MINI_EXAMPLES_RELOAD: "1"
       NORTHWIND_FASTAPI_RELOAD: "1"
+      USE_LOCAL_SAFRS_JSONAPI_CLIENT: "1"
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       - ./:/demo

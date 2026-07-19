@@ -1,14 +1,90 @@
 """
 JSON:API filtering strategies
 """
+import re
 from typing import Any, cast
 
-from .config import get_request_param
 import sqlalchemy
 import safrs
 from .jsonapi_attr import is_jsonapi_attr
-from flask import request
 from sqlalchemy.orm import joinedload
+
+from .jsonapi_context import maybe_jsonapi_context
+
+flask_request: Any = None
+
+try:
+    from flask import has_request_context, request as _flask_request
+except ImportError:  # pragma: no cover
+    def has_request_context() -> bool:
+        return False
+else:
+    flask_request = _flask_request
+
+
+def _get_include_csv(default: str) -> str:
+    if has_request_context():
+        args = getattr(flask_request, "args", None)
+        if args is not None and "include" in args:
+            return str(args.get("include", default))
+    context = maybe_jsonapi_context()
+    if context is None:
+        return default
+    return context.get_include_csv(default)
+
+
+def _get_filter_arg() -> str:
+    if has_request_context():
+        filter_arg = getattr(flask_request, "filter", "")
+        if filter_arg:
+            return str(filter_arg)
+        args = getattr(flask_request, "args", None)
+        if args is not None and "filter" in args:
+            return str(args.get("filter", ""))
+    context = maybe_jsonapi_context()
+    if context is None:
+        return ""
+    return str(getattr(context.query_params, "get", lambda *_args, **_kwargs: "")("filter", "") or "")
+
+
+def _get_bracket_filters() -> dict[str, str]:
+    if has_request_context():
+        filters = getattr(flask_request, "filters", None)
+        if isinstance(filters, dict) and filters:
+            return {str(key): str(value) for key, value in filters.items()}
+        query_items = flask_request.args.items()
+        flask_filters: dict[str, str] = {}
+        for key, value in query_items:
+            match = re.search(r"filter\[(\w+)\]", str(key))
+            if match:
+                flask_filters[match.group(1)] = str(value)
+        if flask_filters:
+            return flask_filters
+
+    context = maybe_jsonapi_context()
+    if context is None:
+        return {}
+    query_items = context.query_multi_items()
+
+    result: dict[str, str] = {}
+    for key, value in query_items:
+        match = re.search(r"filter\[(\w+)\]", str(key))
+        if match:
+            result[match.group(1)] = str(value)
+    return result
+
+
+def _included_paths(cls: Any, included_csv: str) -> list[str]:
+    included_list: list[str] = []
+    for include_name in included_csv.split(","):
+        include_name = include_name.strip()
+        if not include_name:
+            continue
+        if include_name == safrs.SAFRS.INCLUDE_ALL:
+            included_list.extend(str(rel_name) for rel_name in cls._s_relationships.keys())
+            continue
+        included_list.append(include_name)
+    return included_list
 
 
 def create_query(cls: Any) -> Any:
@@ -23,10 +99,8 @@ def create_query(cls: Any) -> Any:
 
     if not safrs.SAFRS.OPTIMIZED_LOADING:
         return query
-    included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
-    if included_csv == safrs.SAFRS.INCLUDE_ALL:
-        included_list = cls._s_relationships.keys()
-    included_list = [inc for inc in included_csv.split(",") if inc]
+    included_csv = _get_include_csv(safrs.SAFRS.DEFAULT_INCLUDED)
+    included_list = _included_paths(cls, included_csv)
 
     for inc in included_list:
         current_cls = cls
@@ -62,7 +136,7 @@ def jsonapi_filter(cls: Any) -> Any:
     # First check if a filter= URL query parameter has been used
     # the SAFRSObject should've implemented a filter method or
     # overwritten the _s_filter method to implement custom filtering
-    filter_args = get_request_param("filter")
+    filter_args = _get_filter_arg()
     if filter_args:
         safrs_object_filter = getattr(cls, "filter", None)
         if isinstance(cls, (list, sqlalchemy.orm.collections.InstrumentedList)):
@@ -76,7 +150,7 @@ def jsonapi_filter(cls: Any) -> Any:
         return result
 
     expressions: list[tuple[Any, Any]] = []
-    filters = get_request_param("filters", {})
+    filters = _get_bracket_filters()
     if isinstance(cls, (list, sqlalchemy.orm.collections.InstrumentedList)):
         safrs.log.debug(f"Filtering not implemented for {cls}")
         return cls

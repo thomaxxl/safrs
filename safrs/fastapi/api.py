@@ -20,7 +20,6 @@ from safrs.api_doc import (
     resolve_rpc_method,
     schema_for_example_value,
 )
-from safrs.attr_parse import parse_attr
 from safrs.errors import (
     GenericError,
     JsonapiError,
@@ -33,7 +32,7 @@ from safrs.errors import (
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.rpc import (
-    is_invalid_rpc_args_error as shared_invalid_rpc_args_error,
+    bind_rpc_kwargs as shared_bind_rpc_kwargs,
     normalize_rpc_result as shared_normalize_rpc_result,
     parse_rpc_args as shared_parse_rpc_args,
 )
@@ -78,6 +77,32 @@ class JSONAPIHTTPError(Exception):
     def __init__(self, status_code: int, payload: Dict[str, Any]) -> None:
         self.status_code = status_code
         self.payload = payload
+
+
+def _normalize_expected_validation_exception_types(
+    exc_types: Optional[Sequence[Type[Exception]]],
+) -> Tuple[Type[Exception], ...]:
+    if not exc_types:
+        return ()
+
+    normalized: List[Type[Exception]] = []
+    for exc_type in exc_types:
+        if not inspect.isclass(exc_type) or not issubclass(exc_type, Exception):
+            raise TypeError("expected_validation_exceptions must contain exception classes")
+        if exc_type not in normalized:
+            normalized.append(exc_type)
+    return tuple(normalized)
+
+
+def _coerce_expected_validation_exception(
+    exc: Exception,
+    expected_validation_exceptions: Sequence[Type[Exception]],
+) -> Optional[ValidationError]:
+    if not expected_validation_exceptions:
+        return None
+    if isinstance(exc, tuple(expected_validation_exceptions)):
+        return ValidationError(str(exc))
+    return None
 
 
 def _escape_json_pointer_segment(segment: str) -> str:
@@ -168,7 +193,15 @@ def _jsonapi_http_exception_payload(exc: StarletteHTTPException) -> Dict[str, An
     )
 
 
-def install_jsonapi_exception_handlers(app: FastAPI) -> None:
+def install_jsonapi_exception_handlers(
+    app: FastAPI,
+    *,
+    expected_validation_exceptions: Optional[Sequence[Type[Exception]]] = None,
+) -> None:
+    normalized_expected_validation_exceptions = _normalize_expected_validation_exception_types(
+        expected_validation_exceptions
+    )
+
     @app.exception_handler(JSONAPIHTTPError)
     async def _jsonapi_http_error_handler(_request: Request, exc: JSONAPIHTTPError):
         return JSONAPIResponse(status_code=exc.status_code, content=exc.payload)
@@ -182,6 +215,20 @@ def install_jsonapi_exception_handlers(app: FastAPI) -> None:
     async def _jsonapi_starlette_http_error_handler(_request: Request, exc: StarletteHTTPException):
         payload = _jsonapi_http_exception_payload(exc)
         return JSONAPIResponse(status_code=int(exc.status_code), content=payload)
+
+    for expected_exception in normalized_expected_validation_exceptions:
+        @app.exception_handler(expected_exception)
+        async def _jsonapi_expected_validation_error_handler(_request: Request, exc: Exception):
+            payload = _jsonapi_error_document(
+                [
+                    {
+                        "status": str(HTTPStatus.BAD_REQUEST.value),
+                        "title": "ValidationError",
+                        "detail": str(exc),
+                    }
+                ]
+            )
+            return JSONAPIResponse(status_code=HTTPStatus.BAD_REQUEST.value, content=payload)
 
     @app.exception_handler(Exception)
     async def _jsonapi_unhandled_exception_handler(_request: Request, exc: Exception):
@@ -211,10 +258,14 @@ class SafrsFastAPI:
         relationship_item_mode: Union[RelationshipItemMode, str] = RelationshipItemMode.HIDDEN,
         include_examples_in_openapi: bool = True,
         cleanup_session: bool = True,
+        expected_validation_exceptions: Optional[Sequence[Type[Exception]]] = None,
     ) -> None:
         self.app = app
         self.prefix = prefix
         self.cleanup_session = bool(cleanup_session)
+        self.expected_validation_exceptions = _normalize_expected_validation_exception_types(
+            expected_validation_exceptions
+        )
         self.max_union_included_types = int(getattr(safrs.SAFRS, "MAX_UNION_INCLUDED_TYPES", 0))
         self.document_relationships = bool(getattr(safrs.SAFRS, "DOCUMENT_RELATIONSHIPS", True))
         self.validate_requests = bool(getattr(safrs.SAFRS, "VALIDATE_REQUESTS", False))
@@ -231,14 +282,18 @@ class SafrsFastAPI:
             FastAPIDepends(self._safrs_uow_dependency),
         ] + self._normalize_dependencies(dependencies)
         self._install_swagger_ui_defaults()
-        install_jsonapi_exception_handlers(app)
+        install_jsonapi_exception_handlers(
+            app,
+            expected_validation_exceptions=self.expected_validation_exceptions,
+        )
         self._install_openapi_schema_patch()
         self._install_swagger_alias()
         safrs.log.info(
-            "Initialized SafrsFastAPI (prefix=%s, relationship_item_mode=%s, cleanup_session=%s)",
+            "Initialized SafrsFastAPI (prefix=%s, relationship_item_mode=%s, cleanup_session=%s, expected_validation_exceptions=%s)",
             self.prefix,
             self.relationship_item_mode.value,
             self.cleanup_session,
+            len(self.expected_validation_exceptions),
         )
 
     @staticmethod
@@ -1413,6 +1468,17 @@ class SafrsFastAPI:
     def _handle_safrs_exception(self, exc: Exception) -> None:
         if isinstance(exc, JSONAPIHTTPError):
             raise exc
+        expected_validation_exception = _coerce_expected_validation_exception(
+            exc,
+            self.expected_validation_exceptions,
+        )
+        if expected_validation_exception is not None:
+            self._rollback_session_quietly()
+            self._jsonapi_error(
+                HTTPStatus.BAD_REQUEST.value,
+                "ValidationError",
+                str(getattr(expected_validation_exception, "message", str(expected_validation_exception))),
+            )
         if isinstance(exc, IntegrityError):
             log_integrity_error_details(exc)
             self._rollback_session_quietly()
@@ -1478,52 +1544,6 @@ class SafrsFastAPI:
         typ = data.get("type")
         if typ != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
-
-    @staticmethod
-    def _try_parse_temporal_value(py_type: Any, value: str) -> Tuple[bool, Any]:
-        try:
-            if py_type is dt.date:
-                return True, dt.datetime.strptime(value, "%Y-%m-%d").date()
-            if py_type is dt.datetime:
-                fmt = "%Y-%m-%d %H:%M:%S.%f" if "." in value else "%Y-%m-%d %H:%M:%S"
-                return True, dt.datetime.strptime(value.replace("T", " "), fmt)
-            if py_type is dt.time:
-                fmt = "%H:%M:%S.%f" if "." in value else "%H:%M:%S"
-                return True, dt.datetime.strptime(value, fmt).time()
-        except Exception:
-            return False, value
-        return False, value
-
-    def _parse_attributes_for_model(self, Model: Type[Any], attrs: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        SAFRS' internal parsing is guarded by Flask's has_request_context().
-        In FastAPI, that is false, so we parse explicitly using parse_attr()
-        for Column-backed attrs.
-
-        This keeps date/time/datetime parsing consistent with SAFRS behavior.
-        """
-        parsed: Dict[str, Any] = {}
-        model_attr_map = getattr(Model, "_s_jsonapi_attrs", {})  # class-level mapping name -> Column/jsonapi_attr
-        for name, value in attrs.items():
-            col_or_attr = model_attr_map.get(name)
-            if col_or_attr is None:
-                # Ignore undeclared attrs (SAFRS does this too)
-                continue
-            col_type = getattr(col_or_attr, "type", None)
-            py_type = getattr(col_type, "python_type", None)
-            if isinstance(value, str):
-                matched, parsed_value = self._try_parse_temporal_value(py_type, value)
-                if matched:
-                    parsed[name] = parsed_value
-                    continue
-            # Column-backed attrs have .type etc, and SAFRS parse_attr expects a Column
-            # jsonapi_attr values we just pass through
-            try:
-                parsed[name] = parse_attr(col_or_attr, value) if hasattr(col_or_attr, "type") else value
-            except Exception:
-                # If parsing fails, keep original; SAFRS tends to be permissive in some cases
-                parsed[name] = value
-        return parsed
 
     def _parse_sparse_fields(self, Model: Type[Any], request: Request) -> Optional[Set[str]]:
         fields_key = f"fields[{Model._s_type}]"
@@ -1603,10 +1623,6 @@ class SafrsFastAPI:
         )
 
     @staticmethod
-    def _is_invalid_rpc_args_error(exc: TypeError) -> bool:
-        return shared_invalid_rpc_args_error(exc)
-
-    @staticmethod
     def _rpc_request_context(request: Request):
         from flask import Flask, current_app, has_app_context
 
@@ -1677,13 +1693,9 @@ class SafrsFastAPI:
         method = getattr(Model, method_name)
         valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
         args = self._parse_rpc_args(request, payload, valid_jsonapi=valid_jsonapi)
-        try:
-            with self._rpc_request_context(request):
-                result = method(**args)
-        except TypeError as exc:
-            if self._is_invalid_rpc_args_error(exc):
-                raise ValidationError("Invalid RPC args") from exc
-            raise
+        bound_args = shared_bind_rpc_kwargs(method, args)
+        with self._rpc_request_context(request):
+            result = method(**bound_args)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -1701,13 +1713,9 @@ class SafrsFastAPI:
         method = getattr(instance, method_name)
         valid_jsonapi = bool(getattr(method, "valid_jsonapi", True))
         args = self._parse_rpc_args(request, payload, valid_jsonapi=valid_jsonapi)
-        try:
-            with self._rpc_request_context(request):
-                result = method(**args)
-        except TypeError as exc:
-            if self._is_invalid_rpc_args_error(exc):
-                raise ValidationError("Invalid RPC args") from exc
-            raise
+        bound_args = shared_bind_rpc_kwargs(method, args)
+        with self._rpc_request_context(request):
+            result = method(**bound_args)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -2419,10 +2427,13 @@ class SafrsFastAPI:
 
     def _get_collection(self, Model: Type[Any]):
         def handler(request: Request):
+            context_token = None
             try:
                 # Validate include paths early so invalid relationships fail with 400.
                 self._parse_include_paths(Model, request)
-                query_or_items = self._apply_filter(Model, request, Model._s_query)
+                if maybe_jsonapi_context() is None:
+                    context_token = set_jsonapi_context(self._build_jsonapi_context(request))
+                query_or_items = Model._s_get()
                 query_or_items = self._apply_sort_query_or_items(Model, query_or_items, request)
                 total_count = self._query_or_items_count(query_or_items)
                 page_offset, page_limit = self._pagination_args(request)
@@ -2443,6 +2454,9 @@ class SafrsFastAPI:
                 )
             except Exception as exc:
                 self._handle_safrs_exception(exc)
+            finally:
+                if context_token is not None:
+                    reset_jsonapi_context(context_token)
 
         return handler
 
@@ -2477,7 +2491,7 @@ class SafrsFastAPI:
             self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
         if data.get("type") != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
-        attrs = self._parse_attributes_for_model(Model, data.get("attributes") or {})
+        attrs = cast(Dict[str, Any], data.get("attributes") or {})
         rels = data.get("relationships") or {}
         return Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
 
@@ -2605,8 +2619,7 @@ class SafrsFastAPI:
                     if normalized_body_id != normalized_path_id:
                         self._jsonapi_error(400, "ValidationError", "Body id does not match path id")
 
-                attrs = data.get("attributes") or {}
-                attrs = self._parse_attributes_for_model(Model, attrs)
+                attrs = cast(Dict[str, Any], data.get("attributes") or {})
 
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)
