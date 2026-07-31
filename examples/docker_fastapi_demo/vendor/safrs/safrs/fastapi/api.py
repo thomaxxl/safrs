@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import base64
 import datetime as dt
 import inspect
 import re
@@ -27,7 +26,7 @@ from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.config import is_debug
 from safrs.swagger_doc import get_doc, get_http_methods
 
-from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
+from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Path, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
@@ -404,24 +403,6 @@ class SafrsFastAPI:
                 reset_fastapi_request_url(request_url_token)
 
     @staticmethod
-    def _write_auth_dependency(request: Request) -> None:
-        header = request.headers.get("authorization", "")
-        if not header.lower().startswith("basic "):
-            raise HTTPException(status_code=401, detail="Unauthorized")
-        token = header.split(" ", 1)[1].strip()
-        try:
-            decoded = base64.b64decode(token).decode("utf-8")
-        except Exception:
-            raise HTTPException(status_code=401, detail="Unauthorized")
-        if decoded != "user:password":
-            raise HTTPException(status_code=401, detail="Unauthorized")
-
-    def _write_dependencies_for_model(self, Model: Type[Any]) -> List[DependsParam]:
-        if getattr(Model, "decorators", None):
-            return [FastAPIDepends(self._write_auth_dependency)]
-        return []
-
-    @staticmethod
     def _is_class_level_rpc_method(Model: Type[Any], method_name: str, api_method: Any) -> bool:
         raw_method = inspect.getattr_static(Model, method_name, None)
         if isinstance(raw_method, (classmethod, staticmethod)):
@@ -510,7 +491,6 @@ class SafrsFastAPI:
         collection_path: str,
         instance_path: str,
         route_dependencies: List[DependsParam],
-        write_route_dependencies: List[DependsParam],
     ) -> None:
         error_responses = self._jsonapi_error_responses()
         collection_response_model = self.schemas.document_collection(Model)
@@ -569,7 +549,7 @@ class SafrsFastAPI:
                 self._post_collection(Model),
                 ["POST"],
                 f"Create {tag}",
-                write_route_dependencies,
+                route_dependencies,
                 f"post_{tag}_collection",
                 status_code=201,
                 response_model=instance_response_model,
@@ -603,7 +583,7 @@ class SafrsFastAPI:
                 self._patch_instance(Model),
                 ["PATCH"],
                 f"Update {tag}",
-                write_route_dependencies,
+                route_dependencies,
                 f"patch_{tag}_instance",
                 response_model=instance_response_model,
                 responses=instance_patch_responses,
@@ -619,7 +599,7 @@ class SafrsFastAPI:
                 self._delete_instance(Model),
                 ["DELETE"],
                 f"Delete {tag}",
-                write_route_dependencies,
+                route_dependencies,
                 f"delete_{tag}_instance",
                 status_code=204,
                 responses=instance_delete_responses,
@@ -1124,13 +1104,17 @@ class SafrsFastAPI:
         """
         if not getattr(Model, "_s_expose", True):
             raise SystemValidationError(f"Refusing to expose {Model}: _s_expose is set to False")
+        if getattr(Model, "decorators", None):
+            raise NotImplementedError(
+                "FastAPI does not support Model.decorators. "
+                "Use dependencies=[Depends(...)] instead."
+            )
         if method_decorators:
             raise NotImplementedError(
                 "FastAPI adapter does not support Flask method_decorators; use dependencies=[...]"
             )
 
         route_dependencies = self.default_dependencies + self._normalize_dependencies(dependencies)
-        write_route_dependencies = route_dependencies + self._write_dependencies_for_model(Model)
         tag = str(Model._s_collection_name)
         self._ensure_tag_metadata(Model, tag)
 
@@ -1155,7 +1139,6 @@ class SafrsFastAPI:
             collection_path,
             instance_path,
             route_dependencies,
-            write_route_dependencies,
         )
         self._register_relationship_routes(router, Model, tag, instance_path, route_dependencies)
 

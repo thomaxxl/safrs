@@ -117,6 +117,7 @@ Customization and extension:
 - [RPC / custom methods](https://github.com/thomaxxl/safrs/wiki/RPC)
 - [HTTP methods and hooks](https://github.com/thomaxxl/safrs/wiki/HTTP-Methods)
 - [Endpoint decorators](https://github.com/thomaxxl/safrs/wiki/HTTP-Method-Decorators)
+- [FastAPI security dependencies](docs/fastapi-security.md)
 - [Serialization and `jsonapi_attr`](https://github.com/thomaxxl/safrs/wiki/JSON-encoding-and-decoding)
 - [Security and access control](https://github.com/thomaxxl/safrs/wiki/Access-Control)
 - [Configuration reference](https://github.com/thomaxxl/safrs/wiki/Configuration-Reference)
