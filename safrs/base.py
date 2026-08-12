@@ -647,6 +647,15 @@ class SAFRSBase(Model):
         `_s_post` performs attribute sanitization and calls `cls.__init__`
         The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
         """
+        readonly_jsonapi_attrs = {
+            attr_name
+            for attr_name, attr in get_jsonapi_attrs(cls).items()
+            if jsonapi_attr_is_read_only(attr)
+        }
+        for attr_name in params:
+            if attr_name in readonly_jsonapi_attrs:
+                raise ValidationError(f"Attribute '{attr_name}' is read-only")
+
         # Only accept attributes that are explicitly writable.  ``_s_jsonapi_attrs``
         # is the response/read set and may contain read-only columns.
         attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_writable_attrs}
@@ -771,9 +780,11 @@ class SAFRSBase(Model):
                 raise ValidationError(f"Invalid relationship payload: {data}")
             if data["type"] != target_class._s_type:
                 raise ValidationError(f"Invalid relationship type: {data['type']} != {target_class._s_type}")
-            if "attributes" in data or "relationships" in data:
-                raise ValidationError("Relationship data must contain resource identifiers only")
-            return target_class.get_instance(data)
+            attributes = data.get("attributes", {})
+            relationships = data.get("relationships", {})
+            if not isinstance(attributes, dict) or not isinstance(relationships, dict):
+                raise ValidationError(f"Invalid relationship payload: {data}")
+            return target_class._s_post(data["id"], **attributes, **relationships)
 
         for rel_name, rel_val in params.items():
             rel = self._s_relationships.get(rel_name)
@@ -1059,9 +1070,12 @@ class SAFRSBase(Model):
             return cast(dict[str, Any], cached_attrs)
 
         result: dict[str, Any] = {}
-        for column in cls._s_columns:
+        for column in cls.__mapper__.columns:
             attr_name = cls.colname_to_attrname(column.name)
-            if not cls._s_check_perm(attr_name, "w"):
+            # Column permissions historically describe the exposed JSON:API
+            # surface.  A write-only column is hidden completely; write-only
+            # request fields should be implemented with ``jsonapi_attr``.
+            if not cls._s_check_perm(attr_name, "r") or not cls._s_check_perm(attr_name, "w"):
                 continue
             if attr_name == "type":
                 result["Type"] = column

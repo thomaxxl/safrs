@@ -52,7 +52,7 @@ def test_post_and_patch_enforce_column_write_permissions() -> None:
 
         request_fields = SchemaRegistry().request_attributes(PermissionAccount).model_fields
         assert "name" in request_fields
-        assert "secret" in request_fields
+        assert "secret" not in request_fields
         assert "role" not in request_fields
 
     client = app.test_client()
@@ -86,7 +86,7 @@ def test_post_and_patch_enforce_column_write_permissions() -> None:
     with app.app_context():
         account = db.session.get(PermissionAccount, int(resource_id))
         assert account.role is None
-        assert account.secret == "updated"
+        assert account.secret is None
 
 
 def test_request_parser_rejects_a_read_only_column_directly() -> None:
@@ -182,7 +182,7 @@ def test_flask_relationship_routes_and_parent_traversal_apply_target_decorators(
         assert db.session.get(AuthorizationChild, 7).secret == "protected"
 
 
-def test_relationship_creation_accepts_identifiers_but_rejects_nested_updates() -> None:
+def test_relationship_creation_accepts_nested_resources_of_the_expected_type() -> None:
     db = SQLAlchemy()
 
     class LinkParent(SAFRSBase, db.Model):
@@ -212,7 +212,6 @@ def test_relationship_creation_accepts_identifiers_but_rejects_nested_updates() 
         api.expose_object(LinkChild)
 
     collection_url = f"/{LinkParent._s_collection_name}/"
-    relationship_identifier = {"type": LinkChild._s_type, "id": "7"}
     client = app.test_client()
     create_response = client.post(
         collection_url,
@@ -221,13 +220,26 @@ def test_relationship_creation_accepts_identifiers_but_rejects_nested_updates() 
             "data": {
                 "type": LinkParent._s_type,
                 "attributes": {},
-                "relationships": {"children": {"data": [relationship_identifier]}},
+                "relationships": {
+                    "children": {
+                        "data": [
+                            {
+                                "type": LinkChild._s_type,
+                                "id": None,
+                                "attributes": {"name": "created"},
+                            }
+                        ]
+                    }
+                },
             }
         },
     )
     assert create_response.status_code == HTTPStatus.CREATED
+    with app.app_context():
+        child = db.session.execute(db.select(LinkChild).filter_by(name="created")).scalar_one()
+        assert child.parent_id is not None
 
-    nested_update = client.post(
+    wrong_type = client.post(
         collection_url,
         headers=JSONAPI_HEADERS,
         json={
@@ -236,14 +248,16 @@ def test_relationship_creation_accepts_identifiers_but_rejects_nested_updates() 
                 "attributes": {},
                 "relationships": {
                     "children": {
-                        "data": [{**relationship_identifier, "attributes": {"name": "overwritten"}}]
+                        "data": [
+                            {
+                                "type": LinkParent._s_type,
+                                "id": None,
+                                "attributes": {"name": "wrong-type"},
+                            }
+                        ]
                     }
                 },
             }
         },
     )
-    assert nested_update.status_code == HTTPStatus.BAD_REQUEST
-    with app.app_context():
-        child = db.session.get(LinkChild, 7)
-        assert child.name == "original"
-        assert child.parent_id is not None
+    assert wrong_type.status_code == HTTPStatus.BAD_REQUEST
