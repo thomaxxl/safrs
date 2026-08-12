@@ -594,7 +594,12 @@ class SAFRSBase(Model):
         if attr_name == "id":
             return attr_val
 
-        attr = cls._s_jsonapi_attrs.get(attr_name, None)
+        attr = cls._s_jsonapi_writable_attrs.get(attr_name)
+
+        if attr is None:
+            if attr_name in cls._s_jsonapi_attrs:
+                raise ValidationError(f"Attribute '{attr_name}' is read-only")
+            raise SystemValidationError(f"Unknown attribute: {attr_name}")
 
         if is_jsonapi_attr(attr):
             if jsonapi_attr_is_read_only(attr):
@@ -642,8 +647,9 @@ class SAFRSBase(Model):
         `_s_post` performs attribute sanitization and calls `cls.__init__`
         The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
         """
-        # remove attributes that are not declared in _s_jsonapi_attrs
-        attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_attrs}
+        # Only accept attributes that are explicitly writable.  ``_s_jsonapi_attrs``
+        # is the response/read set and may contain read-only columns.
+        attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_writable_attrs}
 
         def _has_id_value(value: Any) -> bool:
             if value is None:
@@ -714,7 +720,10 @@ class SAFRSBase(Model):
         :param **attributes:
         """
         for attr_name, attr_val in attributes.items():
-            if attr_name not in self.__class__._s_jsonapi_attrs:
+            if (
+                attr_name not in self.__class__._s_jsonapi_attrs
+                and attr_name not in self.__class__._s_jsonapi_writable_attrs
+            ):
                 continue
             # check if we have permission to write
             if not self._s_check_perm(attr_name, "w"):
@@ -757,12 +766,14 @@ class SAFRSBase(Model):
         only works if self._s_allow_add_rels was set.
         """
 
-        def data2inst(data: Any) -> Any:
-            subclasses = self._safrs_subclasses()
-            if not (isinstance(data, dict) and "id" in data and "type" in data and data["type"] in subclasses):
+        def data2inst(data: Any, target_class: Any) -> Any:
+            if not isinstance(data, dict) or "id" not in data or "type" not in data:
                 raise ValidationError(f"Invalid relationship payload: {data}")
-            target_class = subclasses[data["type"]]
-            return target_class._s_post(data["id"], **data.get("attributes", {}), **data.get("relationships", {}))
+            if data["type"] != target_class._s_type:
+                raise ValidationError(f"Invalid relationship type: {data['type']} != {target_class._s_type}")
+            if "attributes" in data or "relationships" in data:
+                raise ValidationError("Relationship data must contain resource identifiers only")
+            return target_class.get_instance(data)
 
         for rel_name, rel_val in params.items():
             rel = self._s_relationships.get(rel_name)
@@ -772,15 +783,16 @@ class SAFRSBase(Model):
                 raise ValidationError("Cannot add relationships (_s_allow_add_rels not set)")
             if not isinstance(rel_val, dict) or not "data" in rel_val:
                 raise ValidationError(f"Invalid relationship payload: {rel_val}")
+            target_class = rel.mapper.class_
             if not self.included_list:
                 self.included_list = []
             self.included_list += [rel_name]
             rel_data = rel_val["data"]
             if isinstance(rel_data, list) and rel.direction in (ONETOMANY, MANYTOMANY):
-                rel_inst = [data2inst(rd) for rd in rel_data]
+                rel_inst = [data2inst(rd, target_class) for rd in rel_data]
                 setattr(self, rel_name, rel_inst)
             elif isinstance(rel_data, dict) and rel.direction == MANYTOONE:
-                inst = data2inst(rel_data)
+                inst = data2inst(rel_data, target_class)
                 setattr(self, rel_name, inst)
             else:
                 raise ValidationError("Invalid relationship payload")
@@ -1030,6 +1042,37 @@ class SAFRSBase(Model):
             result[attr_name] = attr_val
 
         cls._cached_jsonapi_attrs = result
+        return result
+
+    @classproperty
+    def _s_jsonapi_writable_attrs(cls: Any) -> dict[str, Any]:
+        """Return JSON:API attributes accepted from POST/PATCH requests."""
+        if "__mapper__" not in cls.__dict__:
+            return {
+                attr_name: attr_val
+                for attr_name, attr_val in cls._s_jsonapi_attrs.items()
+                if not is_jsonapi_attr(attr_val) or not jsonapi_attr_is_read_only(attr_val)
+            }
+
+        cached_attrs = cls.__dict__.get("_cached_jsonapi_writable_attrs")
+        if cached_attrs is not None:
+            return cast(dict[str, Any], cached_attrs)
+
+        result: dict[str, Any] = {}
+        for column in cls._s_columns:
+            attr_name = cls.colname_to_attrname(column.name)
+            if not cls._s_check_perm(attr_name, "w"):
+                continue
+            if attr_name == "type":
+                result["Type"] = column
+            elif attr_name != "id" and attr_name not in cls._s_relationships:
+                result[attr_name] = column
+
+        for attr_name, attr_val in get_jsonapi_attrs(cls).items():
+            if not jsonapi_attr_is_read_only(attr_val):
+                result[attr_name] = attr_val
+
+        cls._cached_jsonapi_writable_attrs = result
         return result
 
     def _s_expunge(self: Any) -> Any:

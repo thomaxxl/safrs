@@ -38,9 +38,11 @@ from safrs.rpc import (
 from safrs.config import is_debug
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Path, Request, Response
+from fastapi.dependencies.utils import get_parameterless_sub_dependant
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -276,6 +278,8 @@ class SafrsFastAPI:
             max_union_included_types=self.max_union_included_types,
         )
         self._openapi_payload_models: Set[Type[BaseModel]] = set()
+        self._model_dependencies: Dict[Type[Any], List[DependsParam]] = {}
+        self._authorization_routes: List[Tuple[APIRoute, Set[Type[Any]]]] = []
         self.default_dependencies = [
             FastAPIDepends(self._jsonapi_context_dependency),
             FastAPIDepends(self._safrs_uow_dependency),
@@ -392,6 +396,52 @@ class SafrsFastAPI:
                 continue
             raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
         return normalized
+
+    @staticmethod
+    def _dependency_key(dependency: DependsParam) -> Tuple[Any, Tuple[str, ...], Any]:
+        return (
+            getattr(dependency, "dependency", None),
+            tuple(getattr(dependency, "scopes", None) or ()),
+            getattr(dependency, "use_cache", True),
+        )
+
+    def _relationship_authorization_models(self, Model: Type[Any]) -> Set[Type[Any]]:
+        """Return models whose policies must also protect routes for ``Model``."""
+        result: Set[Type[Any]] = set()
+        visited: Set[Type[Any]] = {Model}
+
+        def visit(current_model: Type[Any]) -> None:
+            for rel in self._resolve_relationship_properties(current_model).values():
+                target_model = rel.mapper.class_
+                if target_model in visited:
+                    continue
+                visited.add(target_model)
+                result.add(target_model)
+                visit(target_model)
+
+        visit(Model)
+        return result
+
+    def _apply_dependency_to_route(self, route: APIRoute, dependency: DependsParam) -> bool:
+        dependency_key = self._dependency_key(dependency)
+        if dependency_key in {self._dependency_key(item) for item in route.dependencies}:
+            return False
+        route.dependencies.append(dependency)
+        route.dependant.dependencies.append(
+            get_parameterless_sub_dependant(depends=dependency, path=route.path_format)
+        )
+        return True
+
+    def _sync_relationship_authorization_dependencies(self) -> None:
+        changed = False
+        for route, authorization_models in self._authorization_routes:
+            for authorization_model in authorization_models:
+                for dependency in self._model_dependencies.get(authorization_model, []):
+                    if self._apply_dependency_to_route(route, dependency):
+                        changed = True
+
+        if changed:
+            self.app.openapi_schema = None
 
     def _build_jsonapi_context(self, request: Request) -> JsonApiContext:
         return JsonApiContext(
@@ -1332,7 +1382,9 @@ class SafrsFastAPI:
                 "FastAPI adapter does not support Flask method_decorators; use dependencies=[...]"
             )
 
-        route_dependencies = self.default_dependencies + self._normalize_dependencies(dependencies)
+        model_dependencies = self._normalize_dependencies(dependencies)
+        self._model_dependencies[Model] = model_dependencies
+        route_dependencies = self.default_dependencies + model_dependencies
         tag = str(Model._s_collection_name)
         self._ensure_tag_metadata(Model, tag)
 
@@ -1360,7 +1412,14 @@ class SafrsFastAPI:
         )
         self._register_relationship_routes(router, Model, tag, instance_path, route_dependencies)
 
+        existing_route_ids = {id(route) for route in self.app.routes}
         self.app.include_router(router)
+        authorization_models = self._relationship_authorization_models(Model)
+        for route in self.app.routes:
+            if id(route) in existing_route_ids or not isinstance(route, APIRoute):
+                continue
+            self._authorization_routes.append((route, set(authorization_models)))
+        self._sync_relationship_authorization_dependencies()
 
         # If /docs was opened before exposing models, FastAPI may have cached OpenAPI already.
         self.app.openapi_schema = None

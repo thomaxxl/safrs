@@ -66,6 +66,10 @@ def _require_user() -> None:
     raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+def _require_child_user() -> None:
+    raise HTTPException(status_code=403, detail="Child unauthorized")
+
+
 def _model_routes(app: FastAPI) -> list[APIRoute]:
     return [
         route
@@ -130,6 +134,39 @@ def test_security_dependencies_are_preserved() -> None:
             item for item in route.dependant.dependencies if item.call is _require_user
         )
         assert route_dependency.own_oauth_scopes == ["read"]
+
+
+@pytest.mark.parametrize("target_first", [False, True])
+def test_target_dependencies_protect_related_model_routes_regardless_of_exposure_order(target_first: bool) -> None:
+    app = FastAPI()
+    api = SafrsFastAPI(app, prefix="/api")
+
+    if target_first:
+        api.expose_object(_DependencyChild, dependencies=[Depends(_require_child_user)])
+        api.expose_object(_DependencyParent)
+    else:
+        api.expose_object(_DependencyParent)
+        api.expose_object(_DependencyChild, dependencies=[Depends(_require_child_user)])
+
+    parent_routes = _model_routes(app)
+    assert parent_routes
+    assert all(
+        _require_child_user in {dependency.call for dependency in route.dependant.dependencies}
+        for route in parent_routes
+    )
+
+
+def test_shared_related_dependency_is_not_duplicated() -> None:
+    app = FastAPI()
+    api = SafrsFastAPI(app, prefix="/api")
+    dependency = Depends(_require_user)
+
+    api.expose_object(_DependencyParent, dependencies=[dependency])
+    api.expose_object(_DependencyChild, dependencies=[dependency])
+
+    for route in _model_routes(app):
+        calls = [item.call for item in route.dependant.dependencies]
+        assert calls.count(_require_user) == 1
 
 
 def test_model_decorators_are_rejected() -> None:
