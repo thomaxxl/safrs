@@ -93,7 +93,9 @@ def _attribute_field_info(column_or_attr: Any, *, writable_only: bool = False) -
 
 def _field_definitions(Model: Type[Any], *, writable_only: bool = False) -> Dict[str, Tuple[Any, Any]]:
     fields: Dict[str, Tuple[Any, Any]] = {}
-    attrs = getattr(Model, "_s_jsonapi_attrs", {})
+    attrs = getattr(Model, "_s_jsonapi_writable_attrs", None) if writable_only else None
+    if attrs is None:
+        attrs = getattr(Model, "_s_jsonapi_attrs", {})
     for attr_name, column_or_attr in attrs.items():
         if writable_only and not _is_writable_attribute(column_or_attr):
             continue

@@ -288,7 +288,8 @@ def _attributes_schema_for_model(cls: Any, for_patch: bool) -> dict[str, Any]:
     properties: dict[str, Any] = {}
     required: list[str] = []
 
-    for attr_name, attr in cls._s_jsonapi_attrs.items():
+    attrs = getattr(cls, "_s_jsonapi_writable_attrs", cls._s_jsonapi_attrs)
+    for attr_name, attr in attrs.items():
         if isinstance(attr, Column):
             properties[attr_name] = _column_schema(attr)
             if not for_patch and _is_required_create_column(attr):

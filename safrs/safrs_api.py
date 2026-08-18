@@ -41,6 +41,28 @@ def _is_relationship_pk_disassociation_assertion(exc: AssertionError) -> bool:
     return "blank-out primary key" in message or ("dependency rule" in message and "primary key" in message)
 
 
+def _model_decorators(model: Any) -> list[Any]:
+    return list(getattr(model, "custom_decorators", [])) + list(getattr(model, "decorators", []))
+
+
+def _relationship_target_decorators(model: Any) -> list[Any]:
+    """Collect decorators for every model reachable through exposed relationships."""
+    result: list[Any] = []
+    visited: set[Any] = {model}
+
+    def visit(current_model: Any) -> None:
+        for relationship in getattr(current_model, "_s_relationships", {}).values():
+            target_model = relationship.mapper.class_
+            if target_model in visited:
+                continue
+            visited.add(target_model)
+            result.extend(_model_decorators(target_model))
+            visit(target_model)
+
+    visit(model)
+    return result
+
+
 class SAFRSAPI(FRSApiBase):
     """
     Subclass of the flask_restful_swagger API class where we add the expose_object method
@@ -127,6 +149,7 @@ class SAFRSAPI(FRSApiBase):
 
         properties["SAFRSObject"] = safrs_object
         properties["http_methods"] = safrs_object.http_methods
+        properties["_s_relationship_target_decorators"] = _relationship_target_decorators(safrs_object)
         safrs_object.url_prefix = url_prefix
         endpoint = safrs_object.get_endpoint()
 
@@ -271,6 +294,8 @@ class SAFRSAPI(FRSApiBase):
             getattr(parent_class, "custom_decorators", [])
             + getattr(parent_class, "decorators", [])
             + getattr(relationship, "decorators", [])
+            + _model_decorators(target_object)
+            + _relationship_target_decorators(target_object)
         )
         rel_object = type(
             f"{parent_name}.{rel_name}",  # Name of the class we're creating here
@@ -697,7 +722,12 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
 
             # The user can add custom decorators
             # Apply the custom decorators, specified as class variable list
-            for custom_decorator in set(getattr(cls.SAFRSObject, "custom_decorators", []) + getattr(cls.SAFRSObject, "decorators", [])):
+            custom_decorators = list(getattr(cls.SAFRSObject, "custom_decorators", [])) + list(
+                getattr(cls.SAFRSObject, "decorators", [])
+            )
+            if method_name in {"get", "post"}:
+                custom_decorators += list(getattr(cls, "_s_relationship_target_decorators", []))
+            for custom_decorator in set(custom_decorators):
                 # update_wrapper(custom_decorator, decorated_method)
                 swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
                 decorated_method = custom_decorator(decorated_method)
