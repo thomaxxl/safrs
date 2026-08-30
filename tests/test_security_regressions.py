@@ -182,6 +182,54 @@ def test_flask_relationship_routes_and_parent_traversal_apply_target_decorators(
         assert db.session.get(AuthorizationChild, 7).secret == "protected"
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="Flask target method_decorators are not propagated to relationship or compound include routes",
+)
+def test_flask_parent_traversal_applies_target_method_decorators() -> None:
+    db = SQLAlchemy()
+
+    class MethodDecoratorParent(SAFRSBase, db.Model):
+        __tablename__ = "security_method_decorator_parents"
+
+        id = db.Column(db.Integer, primary_key=True)
+        children = db.relationship("MethodDecoratorChild", back_populates="parent")
+
+    class MethodDecoratorChild(SAFRSBase, db.Model):
+        __tablename__ = "security_method_decorator_children"
+
+        id = db.Column(db.Integer, primary_key=True)
+        secret = db.Column(db.String)
+        parent_id = db.Column(db.Integer, db.ForeignKey("security_method_decorator_parents.id"))
+        parent = db.relationship(MethodDecoratorParent, back_populates="children")
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False)
+        parent = MethodDecoratorParent(id=1)
+        parent.children.append(MethodDecoratorChild(id=7, secret="protected"))
+        db.session.add(parent)
+        db.session.commit()
+        api.expose_object(MethodDecoratorChild, method_decorators=[_deny_access])
+        api.expose_object(MethodDecoratorParent)
+
+    client = app.test_client()
+    child_url = f"/{MethodDecoratorChild._s_collection_name}/7/"
+    relationship_url = f"/{MethodDecoratorParent._s_collection_name}/1/children"
+    include_url = f"/{MethodDecoratorParent._s_collection_name}/1/?include=children"
+
+    assert client.get(child_url).status_code == HTTPStatus.UNAUTHORIZED
+    traversal_responses = [client.get(relationship_url), client.get(include_url)]
+    assert [response.status_code for response in traversal_responses] == [
+        HTTPStatus.UNAUTHORIZED,
+        HTTPStatus.UNAUTHORIZED,
+    ]
+
+
 def test_relationship_creation_accepts_nested_resources_of_the_expected_type() -> None:
     db = SQLAlchemy()
 
