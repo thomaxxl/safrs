@@ -179,6 +179,43 @@ def test_error_response_docs_include_415_and_422() -> None:
     assert 422 in responses
 
 
+def test_fastapi_post_upsert_uses_existing_update_path() -> None:
+    updates: list[dict[str, Any]] = []
+
+    class Existing:
+        def _s_update_from_post(self, **params: Any) -> Existing:
+            updates.append(params)
+            return self
+
+    existing = Existing()
+
+    class UpsertModel:
+        _s_type = "UpsertModel"
+
+        @classmethod
+        def _s_get_upsert_target(cls, jsonapi_id: Any, **_attrs: Any) -> Existing | None:
+            return existing if jsonapi_id == "1" else None
+
+        @classmethod
+        def _s_post(cls, **_params: Any) -> Any:
+            raise AssertionError("existing upserts must not call the create hook")
+
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    result, created = api._create_post_object(
+        UpsertModel,
+        {
+            "type": "UpsertModel",
+            "id": "1",
+            "attributes": {"name": "updated"},
+            "relationships": {"owner": {"data": None}},
+        },
+    )
+
+    assert result is existing
+    assert created is False
+    assert updates == [{"name": "updated", "owner": {"data": None}}]
+
+
 def test_invalid_custom_filter_result_raises_validation_error() -> None:
     api = SafrsFastAPI(FastAPI(), prefix="/api")
 

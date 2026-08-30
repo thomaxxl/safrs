@@ -350,6 +350,169 @@ def test_flask_parent_delete_applies_target_authorization(policy_kind: str) -> N
         assert db.session.get(CascadeChild, 7) is not None
 
 
+def test_flask_upsert_uses_explicit_authorization_and_patch_update_path() -> None:
+    db = SQLAlchemy()
+    authorization_calls: list[int] = []
+    patch_calls: list[int] = []
+
+    def authorize_upsert(function: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(function)
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            authorization_calls.append(1)
+            return function(*args, **kwargs)
+
+        return wrapped
+
+    class UpsertAccount(SAFRSBase, db.Model):
+        __tablename__ = "security_upsert_accounts"
+        allow_client_generated_ids = True
+        http_methods = ["GET", "POST"]
+
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String)
+
+        def _s_patch(self: Any, **attributes: Any) -> Any:
+            patch_calls.append(self.id)
+            return super()._s_patch(**attributes)
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        db.session.add(UpsertAccount(id=1, name="original"))
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False)
+        api.expose_object(
+            UpsertAccount,
+            method_decorators={"patch": [_deny_access], "upsert": [authorize_upsert]},
+        )
+
+    client = app.test_client()
+    collection_url = f"/{UpsertAccount._s_collection_name}/"
+
+    update_response = client.post(
+        collection_url,
+        headers=JSONAPI_HEADERS,
+        json=_jsonapi_document(UpsertAccount, resource_id="1", attributes={"name": "updated"}),
+    )
+    assert update_response.status_code == HTTPStatus.OK
+    assert authorization_calls == [1]
+    assert patch_calls == [1]
+
+    create_response = client.post(
+        collection_url,
+        headers=JSONAPI_HEADERS,
+        json=_jsonapi_document(UpsertAccount, resource_id="2", attributes={"name": "created"}),
+    )
+    assert create_response.status_code == HTTPStatus.CREATED
+    assert authorization_calls == [1]
+    assert patch_calls == [1]
+
+    with app.app_context():
+        assert db.session.get(UpsertAccount, 1).name == "updated"
+        assert db.session.get(UpsertAccount, 2).name == "created"
+
+
+def test_flask_upsert_falls_back_to_patch_authorization() -> None:
+    db = SQLAlchemy()
+
+    class ProtectedUpsertAccount(SAFRSBase, db.Model):
+        __tablename__ = "security_protected_upsert_accounts"
+        allow_client_generated_ids = True
+        http_methods = ["GET", "POST"]
+
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String)
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        db.session.add(ProtectedUpsertAccount(id=1, name="protected"))
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False)
+        api.expose_object(ProtectedUpsertAccount, method_decorators={"patch": [_deny_access]})
+
+    client = app.test_client()
+    collection_url = f"/{ProtectedUpsertAccount._s_collection_name}/"
+    update_response = client.post(
+        collection_url,
+        headers=JSONAPI_HEADERS,
+        json=_jsonapi_document(
+            ProtectedUpsertAccount,
+            resource_id="1",
+            attributes={"name": "unauthorized"},
+        ),
+    )
+
+    assert update_response.status_code == HTTPStatus.UNAUTHORIZED
+    with app.app_context():
+        assert db.session.get(ProtectedUpsertAccount, 1).name == "protected"
+
+
+def test_flask_nested_upsert_applies_target_patch_authorization() -> None:
+    db = SQLAlchemy()
+
+    class NestedUpsertParent(SAFRSBase, db.Model):
+        __tablename__ = "security_nested_upsert_parents"
+
+        id = db.Column(db.Integer, primary_key=True)
+        children = db.relationship("NestedUpsertChild", back_populates="parent")
+
+    class NestedUpsertChild(SAFRSBase, db.Model):
+        __tablename__ = "security_nested_upsert_children"
+        allow_client_generated_ids = True
+
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String)
+        parent_id = db.Column(db.Integer, db.ForeignKey("security_nested_upsert_parents.id"))
+        parent = db.relationship(NestedUpsertParent, back_populates="children")
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        db.session.add(NestedUpsertChild(id=7, name="protected"))
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False)
+        api.expose_object(NestedUpsertParent)
+        api.expose_object(NestedUpsertChild, method_decorators={"patch": [_deny_access]})
+
+    client = app.test_client()
+    response = client.post(
+        f"/{NestedUpsertParent._s_collection_name}/",
+        headers=JSONAPI_HEADERS,
+        json={
+            "data": {
+                "type": NestedUpsertParent._s_type,
+                "attributes": {},
+                "relationships": {
+                    "children": {
+                        "data": [
+                            {
+                                "type": NestedUpsertChild._s_type,
+                                "id": "7",
+                                "attributes": {"name": "unauthorized"},
+                            }
+                        ]
+                    }
+                },
+            }
+        },
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    with app.app_context():
+        assert db.session.get(NestedUpsertChild, 7).name == "protected"
+        assert db.session.execute(db.select(NestedUpsertParent)).scalars().all() == []
+
+
 def test_relationship_creation_accepts_nested_resources_of_the_expected_type() -> None:
     db = SQLAlchemy()
 

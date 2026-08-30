@@ -1,4 +1,5 @@
-from typing import Any, Optional, cast
+from collections.abc import Mapping
+from typing import Any, Callable, Optional, cast
 #  This file contains jsonapi-related flask-restful "Resource" objects:
 #  - SAFRSRestAPI for exposed database instances and collections
 #  - SAFRSRestRelationshipAPI for exposed database relationships
@@ -413,6 +414,8 @@ class SAFRSRestAPI(Resource):
         """
         summary : Create {class_name}
         responses :
+            200:
+                description: Existing resource updated by upsert
             403:
                 description : Forbidden
             201:
@@ -462,10 +465,11 @@ class SAFRSRestAPI(Resource):
             # to do: modify Allow header
             raise ValidationError(f"POSTing to instance is not allowed {self}", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
-        # Create a new instance of the SAFRSObject
+        # Create a new instance or explicitly authorize and update an upsert target.
         data = payload.get("data")
         resp_data: Any = {}  # response jsonapi "data"
         location: Optional[str] = ""  # response jsonapi "location"
+        created_flags: list[bool] = []
         if data is None:
             raise ValidationError("Request contains no data")
         if isinstance(data, list):
@@ -476,34 +480,69 @@ class SAFRSRestAPI(Resource):
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
             instances = []
             for item in data:
+                self._s_last_post_created = True
                 instance = self._create_instance(item)
+                created = bool(self._s_last_post_created)
                 instances.append(instance)
+                created_flags.append(created)
             resp_data = jsonify({"data": instances})
             location = None
         else:
+            self._s_last_post_created = True
             instance = self._create_instance(data)
+            created = bool(self._s_last_post_created)
+            created_flags.append(created)
             object_id = getattr(instance, "_s_object_id", None)
             if object_id is not None:
                 # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
                 obj_args = {instance._s_object_id: instance.jsonapi_id}
                 # Retrieve the object json and return it to the client
                 resp_data = self.get(**obj_args)
-                location = _build_location_header(self.endpoint, instance)
+                if created:
+                    location = _build_location_header(self.endpoint, instance)
             else:
                 safrs.log.warning(f"Created instance '{instance}' cannot be serialized")
 
-        response = make_response(resp_data, HTTPStatus.CREATED)
+        status_code = HTTPStatus.CREATED if all(created_flags) else HTTPStatus.OK
+        response = make_response(resp_data, status_code)
         # Set the Location header to the newly created object(s)
         if location:
             response.headers["Location"] = location
 
         return response
 
+    def _run_upsert_authorized(self: Any, callback: Callable[[], Any]) -> Any:
+        """Run an existing-row upsert through its operation-specific decorators.
+
+        Flask-RESTful already applies a plain decorator list and the mapping's
+        ``post`` decorators around this request. For a mapping, SAFRS applies
+        ``upsert`` decorators to the update branch, falling back to ``patch``
+        when no explicit upsert policy is configured.
+        """
+        method_decorators = getattr(self, "method_decorators", [])
+        if not isinstance(method_decorators, Mapping):
+            return callback()
+
+        setattr(callback, "SAFRSObject", self.SAFRSObject)
+        operation_name = "upsert" if "upsert" in method_decorators else "patch"
+        upsert_decorators = list(method_decorators.get(operation_name, []) or [])
+        post_decorator_ids = {id(decorator) for decorator in method_decorators.get("post", []) or []}
+        decorated_callback = callback
+        for decorator in upsert_decorators:
+            if id(decorator) not in post_decorator_ids:
+                decorated_callback = decorator(decorated_callback)
+        return decorated_callback()
+
     def _create_instance(self: Any, data: Any) -> Any:
         """
-        Create an instance with the
+        Create an instance or update an authorized upsert target.
+
         :param data: dictionary with {"type": ... , "attributes": ...}
-        :return: created instance
+        :return: created or updated instance
+
+        ``post`` initializes ``_s_last_post_created`` before each call. Keeping
+        the result as an instance preserves the protected helper's historical
+        contract for subclasses while still allowing dynamic 200/201 status.
         """
         if not isinstance(data, dict):
             raise ValidationError("Data is not a dict object")
@@ -512,17 +551,27 @@ class SAFRSRestAPI(Resource):
         if not obj_type or not obj_type == self.SAFRSObject._s_type:
             raise ValidationError(f"Invalid type member: {obj_type} != {self.SAFRSObject._s_type}")
 
-        attributes = data.get("attributes", {})
+        attributes = dict(data.get("attributes") or {})
+        client_generated_id = data.get("id", None)
         if self.SAFRSObject.allow_client_generated_ids:
-            client_generated_id = data.get("id", None)
             attributes["id"] = client_generated_id
         elif "id" in data:
             safrs.log.warning(f"Client-generated ids are not allowed for {self.SAFRSObject}")
 
         relationships = data.get("relationships", {})
 
-        instance = self.SAFRSObject._s_post(**attributes, **relationships)
+        get_upsert_target = getattr(self.SAFRSObject, "_s_get_upsert_target", None)
+        upsert_target = None
+        if callable(get_upsert_target):
+            upsert_target = get_upsert_target(client_generated_id, **attributes)
+        if upsert_target is not None:
+            callback = lambda: upsert_target._s_update_from_post(**attributes, **relationships)
+            instance = self._run_upsert_authorized(callback)
+            self._s_last_post_created = False
+            return instance
 
+        instance = self.SAFRSObject._s_post(**attributes, **relationships)
+        self._s_last_post_created = True
         return instance
 
     def delete(self: Any, **kwargs: Any) -> Any:

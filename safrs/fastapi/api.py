@@ -618,9 +618,10 @@ class SafrsFastAPI:
         error_responses = self._jsonapi_error_responses()
         collection_response_model = self.schemas.document_collection(Model)
         instance_response_model = self.schemas.document_single(Model)
+        post_status_codes = [200, 202] if Model._s_upsert and Model.allow_client_generated_ids else [202]
         collection_post_responses = self._merge_response_docs(
             error_responses,
-            self._jsonapi_status_responses([202]),
+            self._jsonapi_status_responses(post_status_codes),
         )
         instance_patch_responses = self._merge_response_docs(
             error_responses,
@@ -2520,14 +2521,19 @@ class SafrsFastAPI:
         self._require_type(Model, payload)
         return [payload.get("data") or {}]
 
-    def _create_post_object(self, Model: Type[Any], data: Dict[str, Any]) -> Any:
+    def _create_post_object(self, Model: Type[Any], data: Dict[str, Any]) -> Tuple[Any, bool]:
         if not isinstance(data, dict):
             self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
         if data.get("type") != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
         attrs = cast(Dict[str, Any], data.get("attributes") or {})
         rels = data.get("relationships") or {}
-        return Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
+        jsonapi_id = data.get("id")
+        get_upsert_target = getattr(Model, "_s_get_upsert_target", None)
+        upsert_target = get_upsert_target(jsonapi_id, **attrs) if callable(get_upsert_target) else None
+        if upsert_target is not None:
+            return upsert_target._s_update_from_post(**attrs, **rels), False
+        return Model._s_post(jsonapi_id=jsonapi_id, **attrs, **rels), True
 
     @staticmethod
     def _append_auto_include_paths(include_paths: List[List[str]], obj: Any) -> None:
@@ -2572,6 +2578,7 @@ class SafrsFastAPI:
         include_paths: List[List[str]],
         included: List[Dict[str, Any]],
         request: Optional[Request] = None,
+        all_created: bool = True,
     ) -> JSONAPIResponse:
         _ = wanted_fields
         _ = include_paths
@@ -2581,7 +2588,7 @@ class SafrsFastAPI:
         if len(created) == 1:
             data_doc = created[0]
             collection_name = getattr(Model, "_s_collection_name", None)
-            if collection_name:
+            if collection_name and all_created:
                 prefix = (self.prefix or "").rstrip("/")
                 if prefix and not prefix.startswith("/"):
                     prefix = "/" + prefix
@@ -2593,7 +2600,7 @@ class SafrsFastAPI:
             data_doc = created
         return self._jsonapi_data_response(
             data=data_doc,
-            status_code=201,
+            status_code=201 if all_created else 200,
             headers=headers,
             count=len(created),
             request=request,
@@ -2610,10 +2617,12 @@ class SafrsFastAPI:
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
                 created: List[Any] = []
+                created_flags: List[bool] = []
                 for data in items:
                     self._note_write(Model)
-                    obj = self._create_post_object(Model, data)
+                    obj, was_created = self._create_post_object(Model, data)
                     created.append(obj)
+                    created_flags.append(was_created)
                     self._append_auto_include_paths(include_paths, obj)
                 deduped_include_paths = self._dedupe_include_paths(include_paths)
                 included = self._collect_included_for_created(Model, created, deduped_include_paths, fields_map)
@@ -2624,6 +2633,7 @@ class SafrsFastAPI:
                     deduped_include_paths,
                     included,
                     request=request,
+                    all_created=all(created_flags),
                 )
             except JSONAPIHTTPError:
                 raise

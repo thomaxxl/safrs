@@ -589,6 +589,11 @@ def swagger_doc(cls: Any, tags: Any=None) -> Any:
                 }
             )
             responses[HTTPStatus.CREATED.value] = {"schema": inst_sample_data, "description": HTTPStatus.CREATED.description}
+            if cls._s_upsert and cls.allow_client_generated_ids:
+                responses[HTTPStatus.OK.value] = {
+                    "schema": inst_sample_data,
+                    "description": "Existing resource updated by upsert",
+                }
 
         elif http_method == "delete":
             _, responses = cls._s_get_swagger_doc(http_method)

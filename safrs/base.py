@@ -247,6 +247,10 @@ def _request_uow_active() -> bool:
     return isinstance(session_info, dict) and bool(session_info.get("_safrs_uow_active", False))
 
 
+def _has_id_value(value: Any) -> bool:
+    return value is not None and (not isinstance(value, str) or value != "")
+
+
 @lru_cache(maxsize=1024)
 def _resolve_safrs_model_config(model_cls: type) -> SAFRSModelConfig:
     """Resolve a model's SAFRS configuration.
@@ -637,6 +641,43 @@ class SAFRSBase(Model):
         return cls.jsonapi_filter()
 
     @classmethod
+    def _s_get_upsert_target(cls: Any, jsonapi_id: Any=None, **params: Any) -> Optional[SAFRSBase]:
+        """Return the existing row selected by an explicitly supplied POST id.
+
+        This lookup does not authorize or mutate the row. HTTP adapters must
+        authorize the upsert operation before calling ``_s_update_from_post``.
+        ``_s_post`` also uses it for trusted programmatic calls.
+        """
+        if not cls._s_upsert or not cls.allow_client_generated_ids:
+            return None
+
+        has_concrete_pks = all(_has_id_value(params.get(pk)) for pk in cls.id_type.column_names)
+        if not _has_id_value(jsonapi_id) and not _has_id_value(params.get("id")) and not has_concrete_pks:
+            return None
+
+        lookup_params = dict(params)
+        if _has_id_value(jsonapi_id):
+            lookup_params["id"] = jsonapi_id
+        try:
+            primary_keys = cls.id_type.extract_pks(lookup_params)
+        except KeyError:
+            return None
+        return cls._s_query.filter_by(**primary_keys).one_or_none()
+
+    def _s_update_from_post(self: Any, **params: Any) -> SAFRSBase:
+        """Apply the update branch of an authorized POST upsert.
+
+        Reusing ``_s_patch`` preserves PATCH parsing, field permissions, hooks,
+        and validation instead of re-running the SQLAlchemy constructor on a
+        persistent instance. Authorization is performed by the HTTP adapter.
+        """
+        relationships = {name: value for name, value in params.items() if name in self._s_relationships}
+        attributes = {name: value for name, value in params.items() if name not in self._s_relationships}
+        self._s_patch(**attributes)
+        self._add_rels(**relationships)
+        return self
+
+    @classmethod
     def _s_post(cls: Any, jsonapi_id: Any=None, **params: Any) -> SAFRSBase:
         """
         This method is called when a new item is created with a POST to the json api
@@ -646,7 +687,15 @@ class SAFRSBase(Model):
 
         `_s_post` performs attribute sanitization and calls `cls.__init__`
         The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
+
+        When upsert is enabled and the explicit id already exists, trusted
+        programmatic calls update it through ``_s_patch``. HTTP adapters detect
+        and authorize this branch before invoking it.
         """
+        upsert_target = cls._s_get_upsert_target(jsonapi_id, **params)
+        if upsert_target is not None:
+            return upsert_target._s_update_from_post(**params)
+
         readonly_jsonapi_attrs = {
             attr_name
             for attr_name, attr in get_jsonapi_attrs(cls).items()
@@ -659,13 +708,6 @@ class SAFRSBase(Model):
         # Only accept attributes that are explicitly writable.  ``_s_jsonapi_attrs``
         # is the response/read set and may contain read-only columns.
         attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_writable_attrs}
-
-        def _has_id_value(value: Any) -> bool:
-            if value is None:
-                return False
-            if isinstance(value, str) and value == "":
-                return False
-            return True
 
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
         # SAFRSObject allow_client_generated_ids attribute

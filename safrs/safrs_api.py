@@ -93,6 +93,14 @@ def _method_decorators_for_method(method_decorators: Any, method_name: str) -> l
     return list(configured_decorators or [])
 
 
+def _upsert_method_decorators(method_decorators: Any) -> list[Any]:
+    """Return an explicit upsert policy or fall back to the PATCH policy."""
+    if not isinstance(method_decorators, Mapping):
+        return []
+    operation_name = "upsert" if "upsert" in method_decorators else "patch"
+    return list(method_decorators.get(operation_name, []) or [])
+
+
 class SAFRSAPI(FRSApiBase):
     """
     Subclass of the flask_restful_swagger API class where we add the expose_object method
@@ -318,7 +326,13 @@ class SAFRSAPI(FRSApiBase):
                 applied_decorators = applied_by_method.setdefault(method_name, set())
                 for target_model in target_models:
                     configured = self._model_method_decorators.get(target_model, [])
-                    for decorator in _method_decorators_for_method(configured, method_name):
+                    configured_decorators = _method_decorators_for_method(configured, method_name)
+                    # Parent POST routes may upsert an existing related model.
+                    # Apply that target's update policy up front; direct model
+                    # upserts are authorized after their id resolves.
+                    if method_name == "post":
+                        configured_decorators += _upsert_method_decorators(configured)
+                    for decorator in configured_decorators:
                         decorator_id = id(decorator)
                         if decorator_id in applied_decorators:
                             continue
