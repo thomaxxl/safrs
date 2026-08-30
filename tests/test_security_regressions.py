@@ -182,11 +182,16 @@ def test_flask_relationship_routes_and_parent_traversal_apply_target_decorators(
         assert db.session.get(AuthorizationChild, 7).secret == "protected"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Flask target method_decorators are not propagated to relationship or compound include routes",
+@pytest.mark.parametrize("target_first", [True, False], ids=["target-first", "parent-first"])
+@pytest.mark.parametrize(
+    "method_decorators",
+    [[_deny_access], {"get": [_deny_access]}],
+    ids=["list", "method-mapping"],
 )
-def test_flask_parent_traversal_applies_target_method_decorators() -> None:
+def test_flask_parent_traversal_applies_target_method_decorators(
+    target_first: bool,
+    method_decorators: Any,
+) -> None:
     db = SQLAlchemy()
 
     class MethodDecoratorParent(SAFRSBase, db.Model):
@@ -214,8 +219,12 @@ def test_flask_parent_traversal_applies_target_method_decorators() -> None:
         parent.children.append(MethodDecoratorChild(id=7, secret="protected"))
         db.session.add(parent)
         db.session.commit()
-        api.expose_object(MethodDecoratorChild, method_decorators=[_deny_access])
-        api.expose_object(MethodDecoratorParent)
+        if target_first:
+            api.expose_object(MethodDecoratorChild, method_decorators=method_decorators)
+            api.expose_object(MethodDecoratorParent)
+        else:
+            api.expose_object(MethodDecoratorParent)
+            api.expose_object(MethodDecoratorChild, method_decorators=method_decorators)
 
     client = app.test_client()
     child_url = f"/{MethodDecoratorChild._s_collection_name}/7/"
@@ -228,6 +237,117 @@ def test_flask_parent_traversal_applies_target_method_decorators() -> None:
         HTTPStatus.UNAUTHORIZED,
         HTTPStatus.UNAUTHORIZED,
     ]
+
+
+def test_flask_parent_traversal_applies_relationship_decorators() -> None:
+    db = SQLAlchemy()
+
+    class RelationshipPolicyParent(SAFRSBase, db.Model):
+        __tablename__ = "security_relationship_policy_parents"
+
+        id = db.Column(db.Integer, primary_key=True)
+        children = db.relationship("RelationshipPolicyChild", back_populates="parent")
+
+    class RelationshipPolicyChild(SAFRSBase, db.Model):
+        __tablename__ = "security_relationship_policy_children"
+
+        id = db.Column(db.Integer, primary_key=True)
+        parent_id = db.Column(db.Integer, db.ForeignKey("security_relationship_policy_parents.id"))
+        parent = db.relationship(RelationshipPolicyParent, back_populates="children")
+
+    RelationshipPolicyParent.children.property.decorators = [_deny_access]
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        parent = RelationshipPolicyParent(id=1)
+        parent.children.append(RelationshipPolicyChild(id=7))
+        db.session.add(parent)
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False)
+        api.expose_object(RelationshipPolicyParent)
+        api.expose_object(RelationshipPolicyChild)
+
+    client = app.test_client()
+    parent_url = f"/{RelationshipPolicyParent._s_collection_name}/1/"
+    relationship_url = f"/{RelationshipPolicyParent._s_collection_name}/1/children"
+
+    assert client.get(relationship_url).status_code == HTTPStatus.UNAUTHORIZED
+    assert client.get(f"{parent_url}?include=children").status_code == HTTPStatus.UNAUTHORIZED
+    nested_write = client.post(
+        f"/{RelationshipPolicyParent._s_collection_name}/",
+        headers=JSONAPI_HEADERS,
+        json={
+            "data": {
+                "type": RelationshipPolicyParent._s_type,
+                "attributes": {},
+                "relationships": {
+                    "children": {
+                        "data": [{"type": RelationshipPolicyChild._s_type, "id": "7"}],
+                    }
+                },
+            }
+        },
+    )
+    assert nested_write.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.parametrize("policy_kind", ["model", "method"], ids=["model-decorator", "method-decorator"])
+def test_flask_parent_delete_applies_target_authorization(policy_kind: str) -> None:
+    db = SQLAlchemy()
+
+    class CascadeParent(SAFRSBase, db.Model):
+        __tablename__ = f"security_cascade_parents_{policy_kind}"
+
+        id = db.Column(db.Integer, primary_key=True)
+        children = db.relationship(
+            "CascadeChild",
+            back_populates="parent",
+            cascade="all, delete-orphan",
+        )
+
+    class CascadeChild(SAFRSBase, db.Model):
+        __tablename__ = f"security_cascade_children_{policy_kind}"
+
+        id = db.Column(db.Integer, primary_key=True)
+        parent_id = db.Column(
+            db.Integer,
+            db.ForeignKey(f"security_cascade_parents_{policy_kind}.id"),
+        )
+        parent = db.relationship(CascadeParent, back_populates="children")
+
+    method_decorators: Any = []
+    if policy_kind == "model":
+        CascadeChild.decorators = [_deny_access]
+    else:
+        method_decorators = {"delete": [_deny_access]}
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        parent = CascadeParent(id=1)
+        parent.children.append(CascadeChild(id=7))
+        db.session.add(parent)
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False)
+        api.expose_object(CascadeParent)
+        api.expose_object(CascadeChild, method_decorators=method_decorators)
+
+    client = app.test_client()
+    parent_url = f"/{CascadeParent._s_collection_name}/1/"
+    child_url = f"/{CascadeChild._s_collection_name}/7/"
+
+    assert client.delete(child_url).status_code == HTTPStatus.UNAUTHORIZED
+    assert client.delete(parent_url).status_code == HTTPStatus.UNAUTHORIZED
+    with app.app_context():
+        assert db.session.get(CascadeParent, 1) is not None
+        assert db.session.get(CascadeChild, 7) is not None
 
 
 def test_relationship_creation_accepts_nested_resources_of_the_expected_type() -> None:
