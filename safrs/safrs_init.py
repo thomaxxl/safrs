@@ -18,6 +18,30 @@ except ModuleNotFoundError:
     get_swaggerui_blueprint = None
 
 
+def _protect_blueprint_registration(deferred_functions: list[Any], decorators: list[Any]) -> Any:
+    """Return a single blueprint registration function that runs all
+    ``deferred_functions`` and then protects the view functions they register
+    with ``decorators`` (SEC-06 documentation protection).
+
+    Wrapping happens after all registrations so Flask's same-endpoint
+    re-registration guard (view-function identity) keeps working.
+    """
+    originals = list(deferred_functions)
+
+    def protected_register(state: Any) -> None:
+        app = getattr(state, "app", state)  # blueprints pass a BlueprintSetupState
+        registered_before = set(app.view_functions)
+        for original in originals:
+            original(state)
+        for endpoint in set(app.view_functions) - registered_before:
+            view = app.view_functions[endpoint]
+            for decorator in reversed(decorators):
+                view = decorator(view)
+            app.view_functions[endpoint] = view
+
+    return protected_register
+
+
 def _is_truthy_env(value: Any) -> bool:
     if value is None:
         return False
@@ -106,7 +130,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: Any=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
+    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: Any=None, swaggerui_blueprint: bool=True, docs_decorators: Any=None, **kwargs: Any) -> None:
         """
         API and application initialization
         """
@@ -117,6 +141,17 @@ class SAFRS:
             app_db = app.extensions["sqlalchemy"]
 
         safrs.DB = self.db = app_db
+
+        # SEC-06: documentation routes (swagger.json / swagger UI / ALS schema)
+        # can be protected with the same decorators as data routes. In DEBUG
+        # mode the docs stay publicly accessible so development is unaffected.
+        from .config import is_debug
+
+        requested_docs_decorators = list(docs_decorators or [])
+        effective_docs_decorators: list[Any] = [] if is_debug() else requested_docs_decorators
+        if requested_docs_decorators and not effective_docs_decorators:
+            safrs.log.info("docs_decorators are ignored in DEBUG mode; API documentation stays public")
+        app.extensions["safrs_docs_decorators"] = effective_docs_decorators
 
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
@@ -135,6 +170,12 @@ class SAFRS:
             swagger_bp = get_swaggerui_blueprint(
                 prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
+            if effective_docs_decorators:
+                swagger_bp.deferred_functions = [
+                    _protect_blueprint_registration(
+                        swagger_bp.deferred_functions, effective_docs_decorators
+                    )
+                ]
             app.register_blueprint(swagger_bp, url_prefix=prefix)
 
         # Snapshot SAFRS defaults per Flask application. ``get_config`` reads

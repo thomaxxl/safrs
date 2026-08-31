@@ -47,6 +47,30 @@ def _model_decorators(model: Any) -> list[Any]:
     return list(getattr(model, "custom_decorators", [])) + list(getattr(model, "decorators", []))
 
 
+def _method_decorators_configured(configured: Any) -> bool:
+    """Whether a ``method_decorators`` value configures at least one decorator."""
+    if isinstance(configured, Mapping):
+        return any(value for value in configured.values())
+    return bool(configured)
+
+
+def _model_has_authorization_policy(model: Any) -> bool:
+    """Whether a model uses SAFRS authorization hooks: route or class
+    decorators, or an instance-level ``_s_check_perm`` override.
+
+    Authentication applied outside the SAFRS contract (middleware,
+    ``before_request``, query-level checks) is not visible and not reported.
+    """
+    if _model_decorators(model):
+        return True
+    for klass in model.__mro__:
+        if klass is not object and "_s_check_perm" in getattr(klass, "__dict__", {}):
+            # SAFRSBase defines the default; only overrides count as policy.
+            if not (getattr(klass, "__module__", "").startswith("safrs.")):
+                return True
+    return False
+
+
 def _dedupe_decorators(decorators: Any) -> list[Any]:
     """Deduplicate decorators by identity while preserving configured order."""
     result: list[Any] = []
@@ -131,7 +155,7 @@ class SAFRSAPI(FRSApiBase):
     _als_resources: list[Any] = []
     client_uri = ""
 
-    def __init__(self: Any, app: Flask, host: str='localhost', port: int=5000, prefix: str='', description: str='SAFRSAPI', json_encoder: Optional[Type[SAFRSJSONProvider]]=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
+    def __init__(self: Any, app: Flask, host: str='localhost', port: int=5000, prefix: str='', description: str='SAFRSAPI', json_encoder: Optional[Type[SAFRSJSONProvider]]=None, swaggerui_blueprint: bool=True, docs_decorators: Any=None, **kwargs: Any) -> None:
         """
         http://jsonapi.org/format/#content-negotiation-servers
         Servers MUST send all JSON:API data in response documents with
@@ -153,7 +177,7 @@ class SAFRSAPI(FRSApiBase):
         self.swaggerui_blueprint = swaggerui_blueprint
         kwargs["default_mediatype"] = "application/vnd.api+json"
         app_db = kwargs.pop("app_db", None)
-        safrs.SAFRS(app, app_db=app_db, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, **kwargs)
+        safrs.SAFRS(app, app_db=app_db, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, docs_decorators=docs_decorators, **kwargs)
         # the host shown in the swagger ui
         # this host may be different from the hostname of the server and
         # sometimes we don't want to show the port (eg when proxied)
@@ -173,9 +197,61 @@ class SAFRSAPI(FRSApiBase):
         app.json = SAFRSJSONProvider(app)
         app.json_encoder = SAFRSJSONEncoder  # type: ignore[attr-defined]  # deprecated, but used by the swaggerui blueprint
         self.init_app(app)
+        self._protect_docs_views(app)
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()
+        self._register_public_docs_warning(app)
         SAFRSAPI.client_uri = host
+
+    def _protect_docs_views(self: Any, app: Any) -> None:
+        """SEC-06: apply the configured documentation protection to the spec
+        views registered by flask-restful-swagger (``swagger`` serves
+        swagger.json and swagger.html). The ALS schema resource applies the
+        same decorators in ``expose_als_schema``.
+        """
+        docs_decorators = list(app.extensions.get("safrs_docs_decorators", []))
+        if not docs_decorators:
+            return
+        for endpoint in ("swagger",):
+            view = app.view_functions.get(endpoint)
+            if view is None:
+                continue
+            for decorator in reversed(docs_decorators):
+                view = decorator(view)
+            app.view_functions[endpoint] = view
+
+    def _register_public_docs_warning(self: Any, app: Any) -> None:
+        """SEC-06: warn once (on first request) when models carry SAFRS
+        authorization policies but the documentation routes are public.
+        """
+        if app.extensions.get("safrs_docs_decorators"):
+            return
+        state: dict[str, bool] = {"warned": False}
+
+        def maybe_warn() -> None:
+            if state["warned"]:
+                return
+            state["warned"] = True
+            protected = sorted(
+                {
+                    getattr(model, "_s_collection_name", getattr(model, "__name__", str(model)))
+                    for model in self._model_method_decorators
+                    if _model_has_authorization_policy(model)
+                    or _method_decorators_configured(self._model_method_decorators.get(model))
+                }
+            )
+            if not protected:
+                return
+            safrs.log.warning(
+                "SAFRS API documentation routes are publicly accessible although models %s "
+                "carry SAFRS authorization policies. Protect them with docs_decorators=... "
+                "(applied automatically outside DEBUG mode). Authentication configured outside "
+                "SAFRS hooks (middleware, before_request, app-level dependencies) is not detected, "
+                "so verify the docs routes match your authentication boundary.",
+                protected,
+            )
+
+        app.before_request(maybe_warn)
 
     def update_spec(self: Any) -> None:
         """
@@ -823,6 +899,13 @@ class SAFRSAPI(FRSApiBase):
                     return Response(yaml.dump(result), content_type="text/yaml")
                 return result
 
+        # SEC-06: apply the configured documentation protection (empty in
+        # DEBUG mode, see SAFRS.init_app). flask-restful dispatches
+        # ``Resource.method_decorators`` for every request.
+        app = getattr(self, "app", None)
+        ApiSchema.method_decorators = list(
+            (getattr(app, "extensions", {}) or {}).get("safrs_docs_decorators", [])
+        )
         self.add_resource(ApiSchema, schema_loc)
         return json.dumps(result, indent=4)
 

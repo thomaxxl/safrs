@@ -48,11 +48,13 @@ from safrs.rpc import (
 )
 from safrs.config import is_debug
 
-from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Path, Request, Response
+from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import get_parameterless_sub_dependant, solve_dependencies
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from fastapi.params import Depends as DependsParam
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
@@ -272,6 +274,7 @@ class SafrsFastAPI:
         include_examples_in_openapi: bool = True,
         cleanup_session: bool = True,
         expected_validation_exceptions: Optional[Sequence[Type[Exception]]] = None,
+        docs_dependencies: Optional[List[Any]] = None,
     ) -> None:
         self.app = app
         self.prefix = prefix
@@ -298,6 +301,7 @@ class SafrsFastAPI:
             FastAPIDepends(self._safrs_uow_dependency),
         ] + self._normalize_dependencies(dependencies)
         self._install_swagger_ui_defaults()
+        self._install_docs_protection(docs_dependencies)
         install_jsonapi_exception_handlers(
             app,
             expected_validation_exceptions=self.expected_validation_exceptions,
@@ -337,6 +341,64 @@ class SafrsFastAPI:
         params.setdefault("docExpansion", "none")
         params.setdefault("defaultModelsExpandDepth", -1)
         self.app.swagger_ui_parameters = params
+
+    def _install_docs_protection(self, docs_dependencies: Optional[List[Any]]) -> None:
+        """SEC-06: protect the documentation routes (openapi.json, docs,
+        redoc, swagger.json alias) with the same dependency style as data
+        routes. In DEBUG mode the docs stay publicly accessible.
+        """
+        if not docs_dependencies:
+            return
+        if is_debug():
+            safrs.log.info("docs_dependencies are ignored in DEBUG mode; API documentation stays public")
+            return
+        callables: List[Callable[..., Any]] = [
+            cast(Callable[..., Any], dep.dependency)
+            for dep in self._normalize_dependencies(list(docs_dependencies))
+            if dep.dependency is not None
+        ]
+        # Dependencies may declare a request parameter or none at all.
+        takes_request = [
+            any(
+                param.kind in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+                for param in inspect.signature(dependency).parameters.values()
+            )
+            for dependency in callables
+        ]
+        protected_paths = {
+            str(path).rstrip("/")
+            for path in (
+                getattr(self.app, "openapi_url", None),
+                getattr(self.app, "docs_url", None),
+                getattr(self.app, "redoc_url", None),
+                "/swagger.json",
+            )
+            if path
+        }
+
+        class DocsProtectionMiddleware(BaseHTTPMiddleware):
+            def __init__(self, app: Any) -> None:
+                super().__init__(app)
+
+            async def dispatch(self, request: Any, call_next: Any) -> Any:
+                if str(request.url.path).rstrip("/") in protected_paths:
+                    try:
+                        for dependency, expects_request in zip(callables, takes_request):
+                            result = dependency(request) if expects_request else dependency()
+                            if inspect.isawaitable(result):
+                                await result
+                    except HTTPException as exc:
+                        return JSONResponse(
+                            status_code=exc.status_code,
+                            content={"detail": exc.detail},
+                            headers=exc.headers,
+                        )
+                return await call_next(request)
+
+        self.app.add_middleware(DocsProtectionMiddleware)
 
     def _install_openapi_schema_patch(self) -> None:
         if bool(getattr(self.app, "_safrs_openapi_patch_installed", False)):

@@ -1650,22 +1650,16 @@ class SAFRSBase(Model):
     def _s_sample_id(cls: Any) -> Any:
         """
         :return: a sample id for the API documentation
+
+        Derived from static column metadata only. Live database rows are
+        never read so public API documentation cannot leak application
+        data (SEC-06).
         """
-        sample = None
-        if cls.query is None:
-            return sample
         try:
-            sample = cls.query.first()
+            sample_id = cls.id_type.sample_id(cls)
         except Exception as exc:
             safrs.log.debug(exc)
-        if sample:
-            try:
-                sample_id = sample.jsonapi_id
-                return sample_id
-            except Exception:
-                safrs.log.warning(f"Failed to retrieve sample id for {cls}")
-
-        sample_id = cls.id_type.sample_id(cls)
+            sample_id = ""
         return str(sample_id)  # jsonapi ids must always be strings
 
     @classmethod

@@ -15,6 +15,34 @@ from .util import classproperty
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
 
 
+def _static_column_sample(column: Any) -> Any:
+    """Static documentation sample for a column (SEC-06: never read the DB).
+
+    Mirrors ``SAFRSBase._s_sample_dict``: explicit ``sample`` attribute first,
+    then a non-callable column ``default``, then a type-inferred placeholder.
+    """
+    sample = getattr(column, "sample", None)
+    if sample is not None:
+        return sample
+    default = getattr(column, "default", None)
+    arg = getattr(default, "arg", None) if default is not None else None
+    if arg is not None and not callable(arg):
+        return arg
+    python_type = getattr(column.type, "python_type", None)
+    if python_type is int:
+        return 0
+    if python_type is datetime.datetime:
+        return str(datetime.datetime.min)
+    if python_type is datetime.date:
+        return str(datetime.datetime.min.date())
+    if python_type is None:
+        return ""
+    try:
+        return python_type()
+    except Exception:
+        return ""
+
+
 class SAFRSID:
     """
     This class creates a jsonapi "id" from the classes PKs
@@ -161,18 +189,25 @@ class SAFRSID:
 
     @classmethod
     def sample_id(cls: Any, obj: Any) -> Any:
+        """
+        Static sample id for API documentation (SEC-06: never read the DB).
+
+        Values are derived from primary-key column ``sample``/``default``
+        metadata or inferred from the column type; composite ids are joined
+        with the id delimiter.
+        """
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return 0
-        sample = None
-        try:
-            sample = obj.query.first()
-        except Exception as exc:
-            safrs.log.debug(exc)
-            pass
-        if sample:
-            return sample.jsonapi_id
-
-        return "jsonapi_id_string"
+        table = getattr(obj, "__table__", None)
+        if table is not None:
+            parts = [
+                str(_static_column_sample(column))
+                for column in table.columns
+                if column.primary_key
+            ]
+            if parts:
+                return cls.delimiter.join(parts)
+        return ""
 
 
 def get_id_type(cls: Any, Super: Any=SAFRSID, delimiter: Any='_') -> Any:
