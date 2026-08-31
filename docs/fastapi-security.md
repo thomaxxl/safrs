@@ -37,6 +37,12 @@ api.expose_object(
 )
 ```
 
+Per-model dependencies are also applied to routes for models that can expose
+that model through a relationship. This prevents a less-restricted parent
+resource from bypassing the target model's policy through relationship links,
+compound `include` responses, or relationship data in create requests. Model
+exposure order does not affect this propagation.
+
 Use `Security(...)` in the same positions when the dependency needs OAuth2
 scopes or another FastAPI security scheme:
 

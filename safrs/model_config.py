@@ -25,6 +25,8 @@ class SAFRSModelConfig:
     """
 
     expose: bool = True
+    # Permit collection POST to update an existing client-supplied id. HTTP
+    # adapters authorize that update branch separately from ordinary creation.
     upsert: bool = True
     allow_add_rels: bool = True
     pk_delimiter: str = "_"

@@ -14,7 +14,9 @@ def _json_safe(value: Any) -> Any:
 
 
 def _included_attribute_names(Model: Type[Any], *, writable_only: bool = False) -> set[str]:
-    attrs = getattr(Model, "_s_jsonapi_attrs", {})
+    attrs = getattr(Model, "_s_jsonapi_writable_attrs", None) if writable_only else None
+    if attrs is None:
+        attrs = getattr(Model, "_s_jsonapi_attrs", {})
     included: set[str] = set()
     for attr_name, column_or_attr in attrs.items():
         if not is_jsonapi_attr(column_or_attr):

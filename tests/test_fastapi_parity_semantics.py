@@ -31,7 +31,7 @@ def _request(path: str = "/", query: str = "", method: str = "GET") -> Request:
 class _SortModel:
     _s_type = "Order"
     _s_collection_name = "Order"
-    _s_jsonapi_attrs = {"CustomerId": object(), "OrderDate": object(), "id": object()}
+    _s_jsonapi_attrs = {"CustomerId": object(), "OrderDate": object(), "CategoryId": object(), "id": object()}
     id = object()
     CategoryId = object()
 
@@ -171,12 +171,91 @@ def test_bracket_filter_csv_in_behavior_on_collections() -> None:
     assert [item.CategoryId for item in filtered] == [1, 2]
 
 
+def test_bracket_filter_rejects_fields_outside_jsonapi_read_attributes() -> None:
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    items = [SimpleNamespace(secret="hunter2"), SimpleNamespace(secret="decoy")]
+
+    filtered = api._apply_filter(_SortModel, _request("/api/Order/", "filter[secret]=hunter2"), items)
+
+    assert filtered == []
+
+
+def test_bracket_filter_applies_instance_level_read_permissions() -> None:
+    class _TypedAttribute:
+        type = SimpleNamespace(python_type=str)
+
+    class _InstanceScopedModel:
+        secret = _TypedAttribute()
+        _s_jsonapi_attrs = {"secret": secret}
+
+        def __init__(self, object_id: int, secret: str) -> None:
+            self.id = object_id
+            self.secret = secret
+
+        def _s_check_perm(self, property_name: str, permission: str = "r") -> bool:
+            return not (property_name == "secret" and permission == "r" and self.id == 1)
+
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    items = [_InstanceScopedModel(1, "hunter2"), _InstanceScopedModel(2, "decoy")]
+
+    denied = api._apply_filter(
+        _InstanceScopedModel,
+        _request("/api/Account/", "filter[secret]=hunter2"),
+        items,
+    )
+    allowed = api._apply_filter(
+        _InstanceScopedModel,
+        _request("/api/Account/", "filter[secret]=decoy"),
+        items,
+    )
+
+    assert denied == []
+    assert [item.id for item in allowed] == [2]
+
+
 def test_error_response_docs_include_415_and_422() -> None:
     api = SafrsFastAPI(FastAPI(), prefix="/api")
     responses = api._jsonapi_error_responses()
 
     assert 415 in responses
     assert 422 in responses
+
+
+def test_fastapi_post_upsert_uses_existing_update_path() -> None:
+    updates: list[dict[str, Any]] = []
+
+    class Existing:
+        def _s_update_from_post(self, **params: Any) -> Existing:
+            updates.append(params)
+            return self
+
+    existing = Existing()
+
+    class UpsertModel:
+        _s_type = "UpsertModel"
+
+        @classmethod
+        def _s_get_upsert_target(cls, jsonapi_id: Any, **_attrs: Any) -> Existing | None:
+            return existing if jsonapi_id == "1" else None
+
+        @classmethod
+        def _s_post(cls, **_params: Any) -> Any:
+            raise AssertionError("existing upserts must not call the create hook")
+
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    result, created = api._create_post_object(
+        UpsertModel,
+        {
+            "type": "UpsertModel",
+            "id": "1",
+            "attributes": {"name": "updated"},
+            "relationships": {"owner": {"data": None}},
+        },
+    )
+
+    assert result is existing
+    assert created is False
+    assert updates == [{"name": "updated", "owner": {"data": None}}]
 
 
 def test_invalid_custom_filter_result_raises_validation_error() -> None:

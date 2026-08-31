@@ -30,8 +30,12 @@ def jsonapi_filter_list(relation: Any) -> Any:
             # item is not a SAFRSBase instance
             result.add(instance)
             continue
-        pks = {col.name: getattr(instance, col.name) for col in instance.id_type.columns}
         filter_query = instance.__class__.jsonapi_filter()
+        if isinstance(filter_query, list):
+            if any(item is instance for item in filter_query):
+                result.add(instance)
+            continue
+        pks = {col.name: getattr(instance, col.name) for col in instance.id_type.columns}
         result.update(filter_query.filter_by(**pks).all())  # this should only contain zero or one items
     return list(result)
 
@@ -45,6 +49,9 @@ def jsonapi_filter_query(object_query: Any, safrs_object: Any) -> Any:
     Called when filtering a relationship query
     """
     filter_query = safrs_object.jsonapi_filter()
+    if isinstance(filter_query, list):
+        allowed = {id(item) for item in filter_query}
+        return [item for item in object_query.all() if id(item) in allowed]
     result = object_query.intersect(filter_query)
     return result
 

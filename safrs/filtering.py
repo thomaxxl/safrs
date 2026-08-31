@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 import safrs
 from sqlalchemy import and_, not_, or_
@@ -44,6 +44,115 @@ class LegacyPayload:
 
 FilterNode = ClauseNode | AndNode | OrNode | NotNode
 ParsedFilter = FilterNode | LegacyPayload
+
+
+def get_filterable_attribute(cls: Any, attr_name: str) -> Any:
+    """Return a readable/filterable model attribute, or ``None`` when denied.
+
+    Filtering is an observable read operation: matching rows and collection
+    counts reveal information even when an attribute is omitted from the
+    serialized response.  Every built-in filter entry point uses this helper
+    so ``_s_check_perm``/``_s_jsonapi_attrs`` and the column ``filterable``
+    flag are authorization boundaries, not documentation-only hints.
+    """
+
+    if not isinstance(attr_name, str) or not attr_name or "." in attr_name:
+        return None
+
+    exposed_attr: Any = None
+    if attr_name == "id":
+        exposed_attr = getattr(cls, "id", None)
+        if exposed_attr is None:
+            id_type = getattr(cls, "id_type", None)
+            primary_keys: Sequence[Any] = getattr(id_type, "primary_keys", []) if id_type is not None else []
+            if len(primary_keys) == 1:
+                exposed_attr = getattr(cls, primary_keys[0], None)
+    else:
+        jsonapi_attrs = getattr(cls, "_s_jsonapi_attrs", {})
+        if attr_name not in jsonapi_attrs:
+            return None
+        exposed_attr = jsonapi_attrs[attr_name]
+
+    column_dict = getattr(cls, "_s_column_dict", {}) or {}
+    column = column_dict.get(attr_name, exposed_attr)
+    if getattr(exposed_attr, "filterable", True) is False or getattr(column, "filterable", True) is False:
+        return None
+    return getattr(cls, attr_name, exposed_attr)
+
+
+def filter_attribute_names(raw_filter: str) -> set[str]:
+    """Return every attribute referenced by a built-in JSON filter."""
+
+    parsed = parse_filter_json(raw_filter)
+    if isinstance(parsed, LegacyPayload):
+        filters = parsed.raw if isinstance(parsed.raw, list) else [parsed.raw]
+        return {
+            name
+            for item in filters
+            if isinstance(item, dict) and isinstance((name := item.get("name")), str) and name
+        }
+    return _node_attribute_names(parsed)
+
+
+def uses_builtin_json_filter(cls: Any) -> bool:
+    """Whether ``cls._s_filter`` is SAFRS' structured JSON implementation."""
+
+    current = getattr(cls, "_s_filter", None)
+    builtin = getattr(getattr(safrs, "SAFRSBase", None), "_s_filter", None)
+    return getattr(current, "__func__", current) is getattr(builtin, "__func__", builtin)
+
+
+def apply_filter_read_permissions(cls: Any, result: Any, attr_names: Iterable[str]) -> Any:
+    """Remove matches that cannot read every field used by the filter.
+
+    A class-level permission check controls whether a field may be queried at
+    all.  Models may additionally implement row-dependent permissions in the
+    instance side of the ``_s_check_perm`` hybrid.  SQL cannot express that
+    arbitrary Python policy, so only those models are materialized and checked
+    before counts and pagination are calculated.  Other models keep their
+    database query unchanged.
+    """
+
+    names = tuple(dict.fromkeys(name for name in attr_names if name != "id"))
+    if not names or not _has_custom_instance_permission_check(cls):
+        return result
+
+    if hasattr(result, "all") and callable(result.all):
+        items = list(result.all())
+    elif isinstance(result, (list, tuple, set)):
+        items = list(result)
+    else:
+        items = [result] if result is not None else []
+
+    authorized: list[Any] = []
+    for item in items:
+        check_perm = getattr(item, "_s_check_perm", None)
+        if not callable(check_perm):
+            continue
+        try:
+            if all(bool(check_perm(name, "r")) for name in names):
+                authorized.append(item)
+        except Exception as exc:  # A failing authorization hook must fail closed.
+            safrs.log.warning("Filter permission check failed for %s: %s", type(item).__name__, exc)
+    return authorized
+
+
+def _has_custom_instance_permission_check(cls: Any) -> bool:
+    owner = next((base for base in getattr(cls, "__mro__", ()) if "_s_check_perm" in base.__dict__), None)
+    if owner is None:
+        return False
+    return owner is not getattr(safrs, "SAFRSBase", None)
+
+
+def _node_attribute_names(node: FilterNode) -> set[str]:
+    if isinstance(node, ClauseNode):
+        return {node.name}
+    if isinstance(node, NotNode):
+        return _node_attribute_names(node.item)
+    names: set[str] = set()
+    for item in node.items:
+        names.update(_node_attribute_names(item))
+    return names
 
 
 def apply_filter_json(cls: Any, raw_filter: str, query: Any) -> Any:
@@ -239,11 +348,10 @@ def _resolve_filter_attr(cls: Any, clause: dict[str, Any], attr_name: Any) -> An
         raise ValidationError(
             f'Invalid filter "{clause}", relationship-path filtering is not supported for "{attr_name}"'
         )
-    if attr_name == "id":
-        return cls.id
-    if attr_name not in cls._s_jsonapi_attrs:
+    attr = get_filterable_attribute(cls, attr_name)
+    if attr is None:
         raise ValidationError(f'Invalid filter "{clause}", unknown attribute "{attr_name}"')
-    return cls._s_jsonapi_attrs[attr_name]
+    return attr
 
 
 def _is_sequence_like(value: Any) -> bool:
