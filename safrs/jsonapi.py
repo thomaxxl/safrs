@@ -26,7 +26,8 @@ from http import HTTPStatus
 from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY
 from urllib.parse import urljoin
 from .api_doc import is_public
-from .errors import ValidationError, NotFoundError
+from . import base as _safrs_base
+from .errors import ValidationError, NotFoundError, UnAuthorizedError
 from .jsonapi_attr import jsonapi_attr_is_write_only
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
@@ -150,14 +151,16 @@ class Resource(FRSResource):
             decorated_callback = decorator(decorated_callback)
         return decorated_callback()
 
-    def _parse_target_data(self: Any, target_data: Any) -> Any:
+    def _parse_target_data(self: Any, target_data: Any, action: str = "link") -> Any:
         """
         Validate the jsonapi payload for patch requests (to self.target):
         - the payload must contain "id" and "type" keys.
         - the type must match the target type
         - an object with the specified id must exist
+        - the target's object-level policy (SEC-02) must allow the row
 
         :param target_data: jsonapi instance payload
+        :param action: relationship operation for the object-level policy
         :return: sqla/safrs orm instance
         """
         if not isinstance(target_data, dict):
@@ -175,6 +178,7 @@ class Resource(FRSResource):
         target = self.target.get_instance(target_id)
         if not target:
             raise ValidationError(f"invalid target id {target_id}")
+        _safrs_base.run_instance_access_check(self.target, target, action)
         return target
 
     @classmethod
@@ -344,6 +348,9 @@ class SAFRSRestAPI(Resource):
             # Retrieve a single instance
             id = kwargs[self._s_object_id]
             instance = self.SAFRSObject.get_instance(id)
+            if instance is not None:
+                # SEC-02: object-level policies apply to direct reads too.
+                _safrs_base.run_instance_access_check(self.SAFRSObject, instance, "read")
             data = instance
             count = 1
             if instance is not None:
@@ -935,13 +942,18 @@ class SAFRSRestRelationshipAPI(Resource):
                 tmp_rel.append(child)
 
             existing_children = list(relation)
+            removed_children = [child for child in existing_children if child not in tmp_rel]
             if not tmp_rel and existing_children:
                 # Explicit "replace with []" is a disassociation request.
                 needs_disassociation = True
             else:
-                needs_disassociation = any(child not in tmp_rel for child in existing_children)
+                needs_disassociation = bool(removed_children)
             if needs_disassociation:
                 self._ensure_disassociation_allowed("patch")
+                # SEC-02: removals are authorized like additions, for every
+                # member of the replacement.
+                for child in removed_children:
+                    _safrs_base.run_instance_access_check(self.target, child, "unlink")
 
             if isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
                 relation[:] = tmp_rel
@@ -952,7 +964,8 @@ class SAFRSRestRelationshipAPI(Resource):
             # { data : null } //=> clear the relationship
             child = getattr(parent, self.SAFRSObject.relationship.key)
             if child:
-                pass
+                # SEC-02: the cleared target row is a removal, authorize it.
+                _safrs_base.run_instance_access_check(self.target, child, "unlink")
             self._ensure_disassociation_allowed("patch")
             setattr(parent, self.rel_name, None)
         else:
@@ -1097,6 +1110,7 @@ class SAFRSRestRelationshipAPI(Resource):
             child = self.target.get_instance(child_id)
             if child == relation and getattr(parent, self.rel_name, None) == child:
                 # Delete the item from the many-to-one relationship
+                _safrs_base.run_instance_access_check(self.target, child, "unlink")
                 self._ensure_disassociation_allowed("delete")
                 delattr(parent, self.rel_name)
             else:
@@ -1121,6 +1135,8 @@ class SAFRSRestRelationshipAPI(Resource):
 
                 child = self.target.get_instance(child_id)
                 if child in relation:
+                    # SEC-02: every removed member is authorized.
+                    _safrs_base.run_instance_access_check(self.target, child, "unlink")
                     relation.remove(child)
                 else:
                     safrs.log.warning(f"Item with id {child_id} not in relation")

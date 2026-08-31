@@ -294,6 +294,9 @@ class SAFRSAPI(FRSApiBase):
         relationship_target_models = _relationship_target_models(safrs_object)
 
         properties["SAFRSObject"] = safrs_object
+        # SEC-02: allow per-row policy checks (run_instance_access_check) to
+        # find this API instance's method decorators from the model class.
+        safrs_object._safrs_api = self
         properties["http_methods"] = safrs_object.http_methods
         properties["_s_relationship_target_decorators"] = _relationship_target_decorators(safrs_object)
         safrs_object.url_prefix = url_prefix

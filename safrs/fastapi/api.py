@@ -13,6 +13,7 @@ from urllib.parse import quote
 import safrs
 import anyio
 from safrs import tx
+from safrs.base import run_instance_access_check
 from safrs.api_doc import (
     FILTERABLE,
     PAGEABLE,
@@ -2549,7 +2550,14 @@ class SafrsFastAPI:
             self._jsonapi_error(400, "ValidationError", f"Invalid id '{raw_id}'")
         return raw_id
 
-    def _lookup_related_instance(self, target_model: Type[Any], payload: Dict[str, Any], strict: bool = True) -> Any:
+    def _lookup_related_instance(
+        self,
+        target_model: Type[Any],
+        payload: Dict[str, Any],
+        strict: bool = True,
+        request: Optional[Request] = None,
+        action: str = "link",
+    ) -> Any:
         if not isinstance(payload, dict):
             self._jsonapi_error(400, "ValidationError", "Invalid data payload")
         rel_id = payload.get("id")
@@ -2567,7 +2575,38 @@ class SafrsFastAPI:
             self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
         if target is None:
             self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
+        # SEC-02: object-level authorization for the loaded target row.
+        self._authorize_loaded_target(target_model, target, request, action)
         return target
+
+    def _authorize_loaded_target(
+        self,
+        target_model: Type[Any],
+        target: Any,
+        request: Optional[Request],
+        action: str,
+    ) -> None:
+        """SEC-02: authorize a target row loaded from a relationship payload.
+
+        Replays the target's instance-GET dependency graph (per row) and runs
+        the model's object-level ``_s_check_instance_access`` hook. A denial
+        raises before the unit of work commits, so the mutation rolls back.
+        """
+        if target is None:
+            return
+        if request is not None:
+            self._authorize_instance_response(target_model, target, request)
+        try:
+            run_instance_access_check(target_model, target, action)
+        except (JSONAPIHTTPError, StarletteHTTPException):
+            raise
+        except Exception as exc:
+            safrs.log.debug("Target row authorization denied for %s: %s", getattr(target_model, "__name__", target_model), exc)
+            self._jsonapi_error(
+                int(getattr(exc, "status_code", None) or HTTPStatus.FORBIDDEN.value),
+                "Forbidden",
+                "The related resource is not authorized",
+            )
 
     def _clear_relationship(self, rel_value: Any) -> None:
         current_items = self._iter_related_items(rel_value)
@@ -2825,6 +2864,8 @@ class SafrsFastAPI:
                 obj = Model.get_instance(object_id)
                 # Validate include paths early so invalid relationships fail with 400.
                 self._parse_include_paths(Model, request)
+                # SEC-02: object-level policies apply to direct reads too.
+                self._authorize_loaded_target(Model, obj, request, "read")
                 links = self._instance_links(request, Model, obj)
                 return self._jsonapi_data_response(
                     data=obj,
@@ -2857,6 +2898,8 @@ class SafrsFastAPI:
         get_upsert_target = getattr(Model, "_s_get_upsert_target", None)
         upsert_target = get_upsert_target(jsonapi_id, **attrs) if callable(get_upsert_target) else None
         if upsert_target is not None:
+            # SEC-02: upsert rewrites an existing row; enforce its policy.
+            run_instance_access_check(Model, upsert_target, "link")
             return upsert_target._s_update_from_post(**attrs, **rels), False
         create_method = getattr(Model, "_s_post_prechecked", Model._s_post)
         return create_method(jsonapi_id=jsonapi_id, **attrs, **rels), True
@@ -3127,7 +3170,7 @@ class SafrsFastAPI:
                     self._validate_collection_size(data, "Relationship PATCH")
                     self._clear_relationship(rel_value)
                     for item in data:
-                        target = self._lookup_related_instance(target_model, item)
+                        target = self._lookup_related_instance(target_model, item, request=request_obj, action="link")
                         self._append_relationship_item(rel_value, target)
                     if tx.in_request():
                         safrs.DB.session.flush()
@@ -3148,7 +3191,7 @@ class SafrsFastAPI:
                     return Response(status_code=204)
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                target = self._lookup_related_instance(target_model, data)
+                target = self._lookup_related_instance(target_model, data, request=request_obj, action="link")
                 setattr(parent, rel_name, target)
                 if tx.in_request():
                     safrs.DB.session.flush()
@@ -3189,7 +3232,7 @@ class SafrsFastAPI:
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                     self._validate_collection_size(data, "Relationship POST")
                     for item in data:
-                        target = self._lookup_related_instance(target_model, item)
+                        target = self._lookup_related_instance(target_model, item, request=request_obj, action="link")
                         self._append_relationship_item(rel_value, target)
                     if tx.in_request():
                         safrs.DB.session.flush()
@@ -3197,7 +3240,7 @@ class SafrsFastAPI:
 
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                target = self._lookup_related_instance(target_model, data)
+                target = self._lookup_related_instance(target_model, data, request=request_obj, action="link")
                 setattr(parent, rel_name, target)
                 if tx.in_request():
                     safrs.DB.session.flush()
@@ -3210,8 +3253,13 @@ class SafrsFastAPI:
         return handler
 
     def _delete_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: ObjectIdParam, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(
+            object_id: ObjectIdParam,
+            payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
+            request: Annotated[Request, "safrs-sec02"] = None,  # type: ignore[assignment]
+        ):
             try:
+                request_obj: Optional[Request] = request if isinstance(request, Request) else None
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
@@ -3226,7 +3274,7 @@ class SafrsFastAPI:
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                     self._validate_collection_size(data, "Relationship DELETE")
                     for item in data:
-                        target = self._lookup_related_instance(target_model, item)
+                        target = self._lookup_related_instance(target_model, item, request=request_obj, action="unlink")
                         self._remove_relationship_item(rel_value, target)
                     if tx.in_request():
                         safrs.DB.session.flush()
@@ -3240,7 +3288,7 @@ class SafrsFastAPI:
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                target = self._lookup_related_instance(target_model, data, strict=True)
+                target = self._lookup_related_instance(target_model, data, strict=True, request=request_obj, action="unlink")
                 current = getattr(parent, rel_name, None)
                 if current is not None and str(current.jsonapi_id) == str(target.jsonapi_id):
                     setattr(parent, rel_name, None)

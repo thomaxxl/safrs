@@ -184,7 +184,7 @@ import datetime
 import sqlalchemy
 import json
 from http import HTTPStatus
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote
 from flask import request, url_for, has_request_context, has_app_context, current_app, g
 from flask_sqlalchemy.model import Model
 from sqlalchemy.orm.session import make_transient
@@ -196,7 +196,8 @@ from functools import lru_cache
 
 # safrs dependencies:
 import safrs
-from .errors import GenericError, IntegerOverflowError, NotFoundError, ValidationError, SystemValidationError
+from werkzeug.exceptions import HTTPException
+from .errors import GenericError, IntegerOverflowError, JsonapiError, NotFoundError, UnAuthorizedError, ValidationError, SystemValidationError
 from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
@@ -348,6 +349,108 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 # casting of swagger types to python types
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
+
+
+def _instance_get_decorators(model: Any) -> list[Any]:
+    """Route decorators protecting the model's instance GET endpoint (SEC-02).
+
+    Combines the decorators configured when the model was exposed
+    (``method_decorators`` recorded by the SafrsApi instance) and the
+    model's class-level ``decorators``/``custom_decorators``.
+    """
+    decorators: list[Any] = []
+    safrs_api = getattr(model, "_safrs_api", None)
+    if safrs_api is not None:
+        configured = getattr(safrs_api, "_model_method_decorators", {}).get(model, [])
+        if isinstance(configured, dict):
+            configured = configured.get("get", [])
+        decorators.extend(list(configured or []))
+    decorators.extend(list(getattr(model, "custom_decorators", []) or []))
+    decorators.extend(list(getattr(model, "decorators", []) or []))
+    seen: set[int] = set()
+    result: list[Any] = []
+    for decorator in decorators:
+        if id(decorator) in seen:
+            continue
+        seen.add(id(decorator))
+        result.append(decorator)
+    return result
+
+
+def run_instance_access_check(
+    model: Any,
+    instance: Any,
+    action: str = "read",
+    quiet: bool = False,
+) -> bool:
+    """SEC-02: authorize a row loaded through a relationship payload, an
+    include traversal, a nested write or a cascade operation.
+
+    Two policies are evaluated against the concrete row:
+
+    1. the model's object-level hook ``_s_check_instance_access(action)``;
+    2. the model's instance-GET route decorators, replayed with the row's id
+       in the view kwargs so row-aware policies see the target row, not the
+       parent.
+
+    Fail closed: an unexpected error in either policy denies access. With
+    ``quiet=True`` (non-mutating include traversal) a denied row is reported
+    as ``False`` instead of raising so it can be omitted from the response.
+    """
+    if instance is None:
+        return True
+
+    def deny() -> None:
+        if not quiet:
+            raise UnAuthorizedError(
+                f"{getattr(model, '_s_type', model)} instance is not authorized for '{action}'"
+            )
+
+    hook = getattr(instance, "_s_check_instance_access", None)
+    if not callable(hook):
+        hook = None
+    if hook is not None:
+        try:
+            allowed = hook(action)
+        except JsonapiError:
+            if quiet:
+                return False
+            raise
+        except Exception as exc:
+            safrs.log.debug("Instance access check failed for %s: %s", getattr(model, "__name__", model), exc)
+            deny()
+            return quiet
+        if not allowed:
+            deny()
+            return quiet
+
+    if not has_request_context():
+        return True
+    decorators = _instance_get_decorators(model)
+    if not decorators:
+        return True
+
+    object_id_name = str(getattr(model, "_s_object_id", "id"))
+
+    def _authorized_view(*args: Any, **kwargs: Any) -> Any:
+        return instance
+
+    _authorized_view.__name__ = "get"
+    setattr(_authorized_view, "SAFRSObject", model)
+    decorated = _authorized_view
+    for decorator in decorators:
+        decorated = decorator(decorated)
+    try:
+        decorated(**{object_id_name: quote(str(getattr(instance, "jsonapi_id", "")), safe="")})
+    except (JsonapiError, HTTPException):
+        if quiet:
+            return False
+        raise
+    except Exception as exc:
+        safrs.log.debug("Instance GET policy check failed for %s: %s", getattr(model, "__name__", model), exc)
+        deny()
+        return quiet
+    return True
 
 
 #
@@ -851,7 +954,7 @@ class SAFRSBase(Model):
         Delete the instance from the database
         """
         if _request_uow_active():
-            self.__class__._s_validate_cascade_delete_methods()
+            self.__class__._s_validate_cascade_delete_methods(self)
         tx.note_write(self.__class__)
         safrs.DB.session.delete(self)
         if _request_uow_active():
@@ -882,6 +985,9 @@ class SAFRSBase(Model):
                             f"PATCH is not allowed for related resource {target_class.__name__}",
                             HTTPStatus.METHOD_NOT_ALLOWED.value,
                         )
+                    # SEC-02: the nested upsert reads and rewrites an existing
+                    # target row; enforce its object-level policy first.
+                    run_instance_access_check(target_class, upsert_target, "link")
                     return upsert_target._s_update_from_post(**attributes, **relationships)
                 if not target_class._s_supports_http_method("POST"):
                     raise ValidationError(
@@ -889,6 +995,11 @@ class SAFRSBase(Model):
                         HTTPStatus.METHOD_NOT_ALLOWED.value,
                     )
                 return target_class._s_post_prechecked(data["id"], **attributes, **relationships)
+            existing = target_class._s_get_upsert_target(data["id"], **attributes)
+            if existing is not None:
+                # SEC-02: the nested payload rewrites an existing row; the
+                # target row's object-level policy must authorize it.
+                run_instance_access_check(target_class, existing, "link")
             return target_class._s_post(data["id"], **attributes, **relationships)
 
         for rel_name, rel_val in params.items():
@@ -958,8 +1069,13 @@ class SAFRSBase(Model):
         return str(method).upper() in {str(item).upper() for item in cls.http_methods}
 
     @classmethod
-    def _s_validate_cascade_delete_methods(cls: Any) -> None:
-        """Prevent a parent DELETE from bypassing target DELETE restrictions."""
+    def _s_validate_cascade_delete_methods(cls: Any, instance: Any = None) -> None:
+        """Prevent a parent DELETE from bypassing target DELETE restrictions
+        and target object-level policies (SEC-02).
+
+        With ``instance`` given, every row doomed by the cascade is also
+        checked against its model's ``_s_check_instance_access`` hook.
+        """
         visited: set[Any] = {cls}
 
         def visit(current_model: Any) -> None:
@@ -987,6 +1103,42 @@ class SAFRSBase(Model):
                 visit(target_model)
 
         visit(cls)
+        if instance is None:
+            return
+
+        # SEC-02: object-level check for every row the cascade will delete.
+        visited_rows: set[Any] = {instance}
+
+        def visit_row(current: Any) -> None:
+            mapper = getattr(current, "__mapper__", None)
+            if mapper is None:
+                return
+            for relationship in mapper.relationships:
+                cascade = getattr(relationship, "cascade", None)
+                cascades_delete = bool(
+                    cascade is not None
+                    and (getattr(cascade, "delete", False) or getattr(cascade, "delete_orphan", False))
+                )
+                if not cascades_delete:
+                    continue
+                related = getattr(current, relationship.key, None)
+                if related is None:
+                    continue
+                if hasattr(related, "__iter__") and not isinstance(related, (str, bytes)):
+                    items = list(related)
+                else:
+                    items = [related]  # to-one relationship
+                for item in items:
+                    if item is None or id(item) in visited_rows:
+                        continue
+                    visited_rows.add(id(item))
+                    if not run_instance_access_check(relationship.mapper.class_, item, "cascade_delete", quiet=True):
+                        raise UnAuthorizedError(
+                            f"Cascaded delete is not authorized for {relationship.mapper.class_.__name__}"
+                        )
+                    visit_row(item)
+
+        visit_row(instance)
 
     @classproperty
     def _s_columns(cls: Any) -> list:
@@ -1111,6 +1263,19 @@ class SAFRSBase(Model):
             return False
 
         raise SystemValidationError(f"Invalid property {property_name}")
+
+    def _s_check_instance_access(self: Any, action: str = "read") -> bool:
+        """
+        Object-level (per-row) access check, used when this row is loaded
+        through a relationship payload, an include traversal, a nested write
+        or a cascade operation (SEC-02).
+
+        :param action: one of ``read``, ``link``, ``unlink``, ``cascade_delete``.
+        :return: True when the row may be used. Deny by returning False or by
+            raising a :class:`safrs.errors.JsonapiError` (e.g. 401/403).
+            Unexpected exceptions fail closed as 403.
+        """
+        return True
 
     @hybrid_property
     def _s_jsonapi_attrs(self: Any) -> Any:
@@ -1527,8 +1692,12 @@ class SAFRSBase(Model):
 
         meta["count"] = meta["total"] = count
         meta["limit"] = limit
+        target_model = self._s_relationships[rel_name].mapper.class_
         for rel_item in items:
-            data.append(Included(rel_item, next_included_list))
+            # SEC-02: rows denied by the target's object-level policy are
+            # omitted from include results (non-mutating read, quiet mode).
+            if run_instance_access_check(target_model, rel_item, "read", quiet=True):
+                data.append(Included(rel_item, next_included_list))
         return data, meta
 
     def _s_get_related(self: Any) -> Any:
@@ -1596,7 +1765,9 @@ class SAFRSBase(Model):
                 if relationship.direction == MANYTOONE:
                     # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
-                    if rel_item:
+                    if rel_item and run_instance_access_check(
+                        relationship.mapper.class_, rel_item, "read", quiet=True
+                    ):
                         # create an Included instance that will be used for serialization eventually
                         data = Included(rel_item, next_included_list)
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):

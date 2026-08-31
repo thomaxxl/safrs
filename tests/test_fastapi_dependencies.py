@@ -299,7 +299,10 @@ def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
         assert {method for method, _path, _principal in dependency_calls} == {"GET"}
         assert ("GET", "/ReadProtectedResources/new", "alice") in dependency_calls
         assert ("GET", "/ReadProtectedResources/existing", "alice") in dependency_calls
-        assert ("GET", "/ReadProtectedParents/1/children", "alice") in dependency_calls
+        # SEC-02: the relationship write is denied by the target row's own
+        # instance-GET replay (which runs before the relationship's response
+        # authorization).
+        assert ("GET", "/ReadProtectedChildren/1", "alice") in dependency_calls
     finally:
         Session.remove()
         secure_base.metadata.drop_all(engine)
