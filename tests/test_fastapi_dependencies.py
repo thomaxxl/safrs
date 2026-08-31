@@ -7,9 +7,11 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.routing import APIRoute
-from sqlalchemy import Column, ForeignKey, Integer, String
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, ForeignKey, Integer, String, create_engine
+from sqlalchemy.orm import declarative_base, relationship, scoped_session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
+import safrs
 from safrs import SAFRSBase, jsonapi_rpc
 from safrs.fastapi.api import JSONAPIHTTPError, SafrsFastAPI
 
@@ -134,6 +136,174 @@ def test_security_dependencies_are_preserved() -> None:
             item for item in route.dependant.dependencies if item.call is _require_user
         )
         assert route_dependency.own_oauth_scopes == ["read"]
+
+
+def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
+    secure_base = declarative_base()
+
+    class ProtectedResource(SAFRSBase, secure_base):
+        __tablename__ = "fastapi_read_protected_resources"
+        _s_type = "ReadProtectedResource"
+        _s_collection_name = "ReadProtectedResources"
+        allow_client_generated_ids = True
+
+        id = Column(String, primary_key=True)
+        name = Column(String)
+
+        @classmethod
+        @jsonapi_rpc(http_methods=["POST"])
+        def first_resource(cls) -> Any:
+            return cls.query.order_by(cls.id).first()
+
+    class ProtectedParent(SAFRSBase, secure_base):
+        __tablename__ = "fastapi_read_protected_parents"
+        _s_type = "ReadProtectedParent"
+        _s_collection_name = "ReadProtectedParents"
+
+        id = Column(Integer, primary_key=True)
+        children = relationship("ProtectedChild", back_populates="parent")
+
+    class ProtectedChild(SAFRSBase, secure_base):
+        __tablename__ = "fastapi_read_protected_children"
+        _s_type = "ReadProtectedChild"
+        _s_collection_name = "ReadProtectedChildren"
+
+        id = Column(Integer, primary_key=True)
+        parent_id = Column(Integer, ForeignKey("fastapi_read_protected_parents.id"))
+        parent = relationship(ProtectedParent, back_populates="children")
+
+    class DBWrapper:
+        def __init__(self, session: Any) -> None:
+            self.session = session
+            self.Model = secure_base
+
+    original_db = safrs.DB
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Session = scoped_session(sessionmaker(bind=engine, autoflush=False, autocommit=False))
+    safrs.DB = DBWrapper(Session)
+    secure_base.metadata.create_all(engine)
+    dependency_calls: list[tuple[str, str, str]] = []
+
+    async def load_principal(request: Request) -> str:
+        return request.headers.get("x-principal", "")
+
+    async def require_read_access(
+        request: Request,
+        principal: str = Security(load_principal, scopes=["read"]),
+    ) -> None:
+        dependency_calls.append((request.method, request.url.path, principal))
+        if principal != "alice":
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if request.method == "GET":
+            raise HTTPException(status_code=403, detail="Read forbidden")
+
+    try:
+        Session.add_all(
+            [
+                ProtectedResource(id="existing", name="original"),
+                ProtectedParent(id=1),
+                ProtectedChild(id=1),
+            ]
+        )
+        Session.commit()
+
+        app = FastAPI()
+        api = SafrsFastAPI(app, cleanup_session=False)
+        dependency = Depends(require_read_access)
+        api.expose_object(ProtectedResource, dependencies=[dependency])
+        api.expose_object(ProtectedParent, dependencies=[dependency])
+        api.expose_object(ProtectedChild)
+
+        def write_request(method: str, path: str) -> Request:
+            return Request(
+                {
+                    "type": "http",
+                    "app": app,
+                    "method": method,
+                    "path": path,
+                    "raw_path": path.encode(),
+                    "query_string": b"",
+                    "headers": [(b"x-principal", b"alice")],
+                    "scheme": "http",
+                    "server": ("testserver", 80),
+                },
+            )
+
+        with pytest.raises(HTTPException) as create_error:
+            api._post_collection(ProtectedResource)(
+                write_request("POST", "/ReadProtectedResources"),
+                {
+                    "data": {
+                        "type": "ReadProtectedResource",
+                        "id": "new",
+                        "attributes": {"name": "created"},
+                    }
+                },
+            )
+        assert create_error.value.status_code == 403
+
+        with pytest.raises(HTTPException) as upsert_error:
+            api._post_collection(ProtectedResource)(
+                write_request("POST", "/ReadProtectedResources"),
+                {
+                    "data": {
+                        "type": "ReadProtectedResource",
+                        "id": "existing",
+                        "attributes": {"name": "upserted"},
+                    }
+                },
+            )
+        assert upsert_error.value.status_code == 403
+
+        with pytest.raises(HTTPException) as patch_error:
+            api._patch_instance(ProtectedResource)(
+                "existing",
+                write_request("PATCH", "/ReadProtectedResources/existing"),
+                {
+                    "data": {
+                        "type": "ReadProtectedResource",
+                        "id": "existing",
+                        "attributes": {"name": "patched"},
+                    }
+                },
+            )
+        assert patch_error.value.status_code == 403
+
+        with pytest.raises(HTTPException) as rpc_error:
+            api._dispatch_rpc_call(
+                ProtectedResource,
+                "first_resource",
+                write_request("POST", "/ReadProtectedResources/first_resource"),
+                class_level=True,
+                payload={},
+            )
+        assert rpc_error.value.status_code == 403
+
+        with pytest.raises(HTTPException) as relationship_error:
+            api._patch_relationship(ProtectedParent, "children")(
+                "1",
+                write_request("PATCH", "/ReadProtectedParents/1/children"),
+                {"data": [{"type": "ReadProtectedChild", "id": "1"}]},
+            )
+        assert relationship_error.value.status_code == 403
+
+        Session.expire_all()
+        assert Session.get(ProtectedResource, "new") is None
+        assert Session.get(ProtectedResource, "existing").name == "original"
+        assert Session.get(ProtectedChild, 1).parent_id is None
+        assert dependency_calls
+        assert {method for method, _path, _principal in dependency_calls} == {"GET"}
+        assert ("GET", "/ReadProtectedResources/new", "alice") in dependency_calls
+        assert ("GET", "/ReadProtectedResources/existing", "alice") in dependency_calls
+        assert ("GET", "/ReadProtectedParents/1/children", "alice") in dependency_calls
+    finally:
+        Session.remove()
+        secure_base.metadata.drop_all(engine)
+        safrs.DB = original_db
 
 
 @pytest.mark.parametrize("target_first", [False, True])

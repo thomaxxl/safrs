@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import datetime as dt
 import inspect
 import re
+from contextlib import AsyncExitStack
 from enum import Enum
 from http import HTTPStatus
 from typing import Annotated, Any, Callable, Dict, Iterable, List, NoReturn, Optional, Sequence, Set, Tuple, Type, Union, cast, get_args, get_origin
 from urllib.parse import quote
 
 import safrs
+import anyio
 from safrs import tx
 from safrs.api_doc import (
     FILTERABLE,
@@ -38,13 +41,16 @@ from safrs.filtering import (
 )
 from safrs.rpc import (
     bind_rpc_kwargs as shared_bind_rpc_kwargs,
+    is_resource_instance as shared_is_resource_instance,
     normalize_rpc_result as shared_normalize_rpc_result,
     parse_rpc_args as shared_parse_rpc_args,
+    unwrap_formatted_response as shared_unwrap_formatted_response,
 )
 from safrs.config import is_debug
 
 from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Path, Request, Response
-from fastapi.dependencies.utils import get_parameterless_sub_dependant
+from fastapi.dependencies.models import Dependant
+from fastapi.dependencies.utils import get_parameterless_sub_dependant, solve_dependencies
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
@@ -285,6 +291,7 @@ class SafrsFastAPI:
         )
         self._openapi_payload_models: Set[Type[BaseModel]] = set()
         self._model_dependencies: Dict[Type[Any], List[DependsParam]] = {}
+        self._models_by_resource_type: Dict[str, Type[Any]] = {}
         self._authorization_routes: List[Tuple[APIRoute, Set[Type[Any]]]] = []
         self.default_dependencies = [
             FastAPIDepends(self._jsonapi_context_dependency),
@@ -448,6 +455,160 @@ class SafrsFastAPI:
 
         if changed:
             self.app.openapi_schema = None
+
+    def _is_internal_dependency(self, dependency: DependsParam) -> bool:
+        """Return whether a dependency manages SAFRS request state, not access."""
+        dependency_call = getattr(dependency, "dependency", None)
+        return (
+            dependency_call == self._jsonapi_context_dependency
+            or dependency_call == self._safrs_uow_dependency
+        )
+
+    def _find_route(self, path_template: str, method: str) -> Optional[APIRoute]:
+        normalized_path = path_template.rstrip("/")
+        normalized_method = str(method).upper()
+        for route in self.app.routes:
+            if not isinstance(route, APIRoute):
+                continue
+            if str(route.path_format).rstrip("/") != normalized_path:
+                continue
+            if normalized_method in {str(item).upper() for item in route.methods}:
+                return route
+        return None
+
+    async def _solve_read_authorization_dependencies(
+        self,
+        route: APIRoute,
+        request: Request,
+        concrete_path: str,
+        path_params: Dict[str, Any],
+    ) -> None:
+        """Solve an actual GET route's access dependencies against a cloned request."""
+        authorization_dependencies = [
+            dependency
+            for dependency in route.dependencies
+            if not self._is_internal_dependency(dependency)
+        ]
+        if not authorization_dependencies:
+            return
+
+        scope = dict(request.scope)
+        scope.update(
+            {
+                "app": request.scope.get("app", self.app),
+                "endpoint": route.endpoint,
+                "method": "GET",
+                "path": concrete_path,
+                "path_params": dict(path_params),
+                "raw_path": concrete_path.encode("utf-8"),
+                "route": route,
+            }
+        )
+
+        # Every active sync endpoint already occupies a default worker token.
+        # Reserve one additional token while replaying so a synchronous policy
+        # cannot deadlock when the server's normal worker pool is saturated.
+        worker_limiter = anyio.to_thread.current_default_thread_limiter()
+        worker_limiter.total_tokens += 1
+        try:
+            # Use fresh stacks so yield-based access checks are finalized without
+            # closing request resources owned by the active write operation.
+            async with AsyncExitStack() as request_stack:
+                async with AsyncExitStack() as function_stack:
+                    scope["fastapi_inner_astack"] = request_stack
+                    scope["fastapi_function_astack"] = function_stack
+                    read_request = Request(scope, receive=request.receive)
+                    dependant = Dependant(path=route.path_format)
+                    dependant.dependencies = [
+                        get_parameterless_sub_dependant(
+                            depends=dependency,
+                            path=route.path_format,
+                        )
+                        for dependency in authorization_dependencies
+                    ]
+                    solved = await solve_dependencies(
+                        request=read_request,
+                        dependant=dependant,
+                        body=None,
+                        dependency_overrides_provider=self.app,
+                        dependency_cache={},
+                        async_exit_stack=request_stack,
+                        embed_body_fields=False,
+                    )
+                    if solved.errors:
+                        raise RequestValidationError(solved.errors)
+        finally:
+            worker_limiter.total_tokens -= 1
+
+    def _run_read_authorized(
+        self,
+        *,
+        path_template: str,
+        concrete_path: str,
+        path_params: Dict[str, Any],
+        request: Request,
+        exposed_model: Type[Any],
+    ) -> None:
+        """Apply the corresponding GET route's authorization before returning data.
+
+        Write handlers are synchronous and run in AnyIO worker threads. Re-enter
+        FastAPI's dependency solver on the application event loop so async,
+        nested, generator, and Security dependencies keep their normal behavior.
+        A rejection is raised before the unit-of-work dependency can commit.
+        """
+        route = self._find_route(path_template, "GET")
+        if route is None:
+            # Unexposed stand-in models are used by unit tests and internal
+            # helpers. An exposed write-only resource, however, has no readable
+            # representation and must not return one from another method.
+            if str(getattr(exposed_model, "_s_type", "")) in self._models_by_resource_type:
+                raise StarletteHTTPException(
+                    status_code=HTTPStatus.FORBIDDEN.value,
+                    detail="The response resource is not authorized for GET",
+                )
+            return
+
+        args = (route, request, concrete_path, path_params)
+        try:
+            # Generated SAFRS endpoints run in AnyIO workers. Re-entering the
+            # application loop preserves the normal loop affinity of async
+            # authorization dependencies and their request-scoped resources.
+            anyio.from_thread.run(self._solve_read_authorization_dependencies, *args)
+        except RuntimeError as exc:
+            if "AnyIO worker thread" not in str(exc):
+                raise
+            # Direct handler calls in unit tests do not have an AnyIO portal.
+            asyncio.run(self._solve_read_authorization_dependencies(*args))
+
+    def _authorize_instance_response(self, Model: Type[Any], obj_or_id: Any, request: Request) -> None:
+        object_id = getattr(obj_or_id, "jsonapi_id", obj_or_id)
+        encoded_id = quote(str(object_id), safe="")
+        collection_path = self._collection_path(Model).rstrip("/")
+        self._run_read_authorized(
+            path_template=f"{collection_path}/{{object_id}}",
+            concrete_path=f"{collection_path}/{encoded_id}",
+            path_params={"object_id": str(object_id)},
+            request=request,
+            exposed_model=Model,
+        )
+
+    def _authorize_relationship_response(
+        self,
+        Model: Type[Any],
+        object_id: Any,
+        rel_name: str,
+        request: Request,
+    ) -> None:
+        encoded_id = quote(str(object_id), safe="")
+        collection_path = self._collection_path(Model).rstrip("/")
+        relationship_path = f"{collection_path}/{{object_id}}/{rel_name}"
+        self._run_read_authorized(
+            path_template=relationship_path,
+            concrete_path=f"{collection_path}/{encoded_id}/{rel_name}",
+            path_params={"object_id": str(object_id)},
+            request=request,
+            exposed_model=Model,
+        )
 
     def _build_jsonapi_context(self, request: Request) -> JsonApiContext:
         return JsonApiContext(
@@ -1392,6 +1553,7 @@ class SafrsFastAPI:
 
         model_dependencies = self._normalize_dependencies(dependencies)
         self._model_dependencies[Model] = model_dependencies
+        self._models_by_resource_type[str(Model._s_type)] = Model
         route_dependencies = self.default_dependencies + model_dependencies
         tag = str(Model._s_collection_name)
         self._ensure_tag_metadata(Model, tag)
@@ -1509,6 +1671,9 @@ class SafrsFastAPI:
 
     def _handle_safrs_exception(self, exc: Exception) -> None:
         if isinstance(exc, JSONAPIHTTPError):
+            raise exc
+        if isinstance(exc, StarletteHTTPException):
+            self._rollback_session_quietly()
             raise exc
         expected_validation_exception = _coerce_expected_validation_exception(
             exc,
@@ -1729,6 +1894,64 @@ class SafrsFastAPI:
             jsonapi_doc=self._jsonapi_doc,
         )
 
+    def _rpc_result_resources(self, result: Any) -> List[Tuple[Type[Any], Any]]:
+        """Find resource representations in an RPC result before it is encoded."""
+        payload = shared_unwrap_formatted_response(result)
+        resources: List[Tuple[Type[Any], Any]] = []
+        seen_containers: Set[int] = set()
+        seen_resources: Set[Tuple[Type[Any], str]] = set()
+
+        def append_resource(resource_model: Type[Any], resource_or_id: Any) -> None:
+            resource_id = getattr(resource_or_id, "jsonapi_id", resource_or_id)
+            key = (resource_model, str(resource_id))
+            if key in seen_resources:
+                return
+            seen_resources.add(key)
+            resources.append((resource_model, resource_or_id))
+
+        def visit(value: Any, *, accept_identifier: bool = False) -> None:
+            if shared_is_resource_instance(value):
+                append_resource(value.__class__, value)
+                return
+            if isinstance(value, dict):
+                container_id = id(value)
+                if container_id in seen_containers:
+                    return
+                seen_containers.add(container_id)
+                if accept_identifier and "type" in value and "id" in value:
+                    resource_type = str(value["type"])
+                    resource_model = self._models_by_resource_type.get(resource_type)
+                    if resource_model is None:
+                        raise StarletteHTTPException(
+                            status_code=HTTPStatus.FORBIDDEN.value,
+                            detail=f"Cannot authorize RPC response resource type '{resource_type}'",
+                        )
+                    append_resource(resource_model, value["id"])
+                    return
+                for key, nested in value.items():
+                    visit(nested, accept_identifier=key in {"data", "included"})
+                return
+            if isinstance(value, (list, tuple, set)):
+                container_id = id(value)
+                if container_id in seen_containers:
+                    return
+                seen_containers.add(container_id)
+                for nested in value:
+                    visit(nested, accept_identifier=accept_identifier)
+
+        visit(payload)
+        return resources
+
+    def _authorize_rpc_result(self, result: Any, request: Request) -> None:
+        for resource_model, resource_or_id in self._rpc_result_resources(result):
+            registered_model = self._models_by_resource_type.get(str(resource_model._s_type))
+            if registered_model is not resource_model:
+                raise StarletteHTTPException(
+                    status_code=HTTPStatus.FORBIDDEN.value,
+                    detail=f"Cannot authorize RPC response resource type '{resource_model._s_type}'",
+                )
+            self._authorize_instance_response(resource_model, resource_or_id, request)
+
     def _call_class_rpc(
         self,
         Model: Type[Any],
@@ -1742,6 +1965,7 @@ class SafrsFastAPI:
         bound_args = shared_bind_rpc_kwargs(method, args)
         with self._rpc_request_context(request):
             result = method(**bound_args)
+        self._authorize_rpc_result(result, request)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -1762,6 +1986,7 @@ class SafrsFastAPI:
         bound_args = shared_bind_rpc_kwargs(method, args)
         with self._rpc_request_context(request):
             result = method(**bound_args)
+        self._authorize_rpc_result(result, request)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -2663,6 +2888,8 @@ class SafrsFastAPI:
                     created.append(obj)
                     created_flags.append(was_created)
                     self._append_auto_include_paths(include_paths, obj)
+                for obj in created:
+                    self._authorize_instance_response(Model, obj, request)
                 deduped_include_paths = self._dedupe_include_paths(include_paths)
                 included = self._collect_included_for_created(Model, created, deduped_include_paths, fields_map)
                 return self._build_post_response(
@@ -2707,6 +2934,7 @@ class SafrsFastAPI:
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)
                 obj = obj._s_patch(**attrs)
+                self._authorize_instance_response(Model, obj, request)
                 self._parse_include_paths(Model, request)
                 links = self._instance_links(request, Model, obj)
                 return self._jsonapi_data_response(
@@ -2842,6 +3070,8 @@ class SafrsFastAPI:
                     if tx.in_request():
                         safrs.DB.session.flush()
                     items = self._iter_related_items(rel_value)
+                    if request_obj is not None:
+                        self._authorize_relationship_response(Model, object_id, rel_name, request_obj)
                     return self._jsonapi_data_response(
                         data=items,
                         meta={"count": len(items)},
@@ -2861,6 +3091,8 @@ class SafrsFastAPI:
                 if tx.in_request():
                     safrs.DB.session.flush()
                 if rel_name == "thing":
+                    if request_obj is not None:
+                        self._authorize_relationship_response(Model, object_id, rel_name, request_obj)
                     return self._jsonapi_data_response(data=target, count=1, request=request_obj)
                 return Response(status_code=204)
             except Exception as exc:
@@ -2869,14 +3101,24 @@ class SafrsFastAPI:
         return handler
 
     def _post_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: ObjectIdParam, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(
+            object_id: ObjectIdParam,
+            request: Request,
+            payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
+        ):
             try:
+                request_obj: Optional[Request] = request if isinstance(request, Request) else None
+                payload_obj: Any = payload
+                if not isinstance(request, Request):
+                    payload_obj = request
+                if not isinstance(payload_obj, dict):
+                    self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (expected object)")
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
-                data = payload.get("data")
+                data = payload_obj.get("data")
                 rel_value = getattr(parent, rel_name, None)
                 self._note_write(Model)
 
@@ -2897,6 +3139,8 @@ class SafrsFastAPI:
                 setattr(parent, rel_name, target)
                 if tx.in_request():
                     safrs.DB.session.flush()
+                if request_obj is not None:
+                    self._authorize_relationship_response(Model, object_id, rel_name, request_obj)
                 return self._jsonapi_response(self._jsonapi_doc(data=self._encode_resource(target_model, target)))
             except Exception as exc:
                 self._handle_safrs_exception(exc)
