@@ -30,6 +30,12 @@ from safrs.errors import (
 )
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
+from safrs.filtering import (
+    apply_filter_read_permissions,
+    filter_attribute_names,
+    get_filterable_attribute,
+    uses_builtin_json_filter,
+)
 from safrs.rpc import (
     bind_rpc_kwargs as shared_bind_rpc_kwargs,
     normalize_rpc_result as shared_normalize_rpc_result,
@@ -2208,7 +2214,7 @@ class SafrsFastAPI:
             if bracket_filters:
                 filtered_query = base_query
                 for attr_name, attr_value in bracket_filters.items():
-                    model_attr = getattr(Model, attr_name, None)
+                    model_attr = get_filterable_attribute(Model, attr_name)
                     if model_attr is None:
                         return []
                     filter_values = self._coerce_filter_values(model_attr, attr_value)
@@ -2223,7 +2229,7 @@ class SafrsFastAPI:
                         items = self._coerce_items(filtered_query)
                         accepted = {str(value) for value in filter_values}
                         filtered_query = [item for item in items if str(getattr(item, attr_name, None)) in accepted]
-                return filtered_query
+                return apply_filter_read_permissions(Model, filtered_query, bracket_filters.keys())
             return base_query
 
         try:
@@ -2231,6 +2237,8 @@ class SafrsFastAPI:
                 filtered = Model.filter(raw_filter)
             else:
                 filtered = Model._s_filter(raw_filter)
+                if uses_builtin_json_filter(Model):
+                    filtered = apply_filter_read_permissions(Model, filtered, filter_attribute_names(raw_filter))
         except ValidationError as exc:
             self._jsonapi_error(400, "ValidationError", str(exc))
         except JsonapiError as exc:

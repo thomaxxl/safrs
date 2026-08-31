@@ -10,7 +10,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.ext.hybrid import hybrid_method
 
 from safrs import SAFRSBase, SafrsApi
-from safrs.errors import ValidationError
+from safrs.api_methods import search as safrs_search
+from safrs.api_methods import startswith as safrs_startswith
+from safrs.errors import SystemValidationError, ValidationError
 from safrs.fastapi.schemas import SchemaRegistry
 from safrs.jsonapi_context import JsonApiContext, reset_jsonapi_context, set_jsonapi_context
 from safrs.config import get_config
@@ -28,6 +30,115 @@ def _jsonapi_document(model: type[Any], *, attributes: dict[str, Any], resource_
     if resource_id is not None:
         data["id"] = resource_id
     return {"data": data}
+
+
+def test_filters_reject_class_hidden_and_non_filterable_fields() -> None:
+    db = SQLAlchemy()
+
+    class FilterPolicyAccount(SAFRSBase, db.Model):
+        __tablename__ = "security_filter_policy_accounts"
+
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String)
+        secret = db.Column(db.String)
+        internal = db.Column(db.String)
+        startswith = safrs_startswith
+
+    FilterPolicyAccount.__table__.c.secret.permissions = "w"
+    FilterPolicyAccount.__table__.c.internal.filterable = False
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+        db.session.add(FilterPolicyAccount(id=1, name="alice", secret="hunter2", internal="marker"))
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False, app_db=db)
+        api.expose_object(FilterPolicyAccount)
+
+    client = app.test_client()
+    collection_url = f"/{FilterPolicyAccount._s_collection_name}/"
+
+    hidden = client.get(collection_url, query_string={"filter[secret]": "hunter2"})
+    non_filterable = client.get(collection_url, query_string={"filter[internal]": "marker"})
+    structured = client.get(
+        collection_url,
+        query_string={"filter": '{"name":"secret","op":"eq","val":"hunter2"}'},
+    )
+
+    assert hidden.status_code == HTTPStatus.OK
+    assert hidden.get_json()["data"] == []
+    assert hidden.get_json()["meta"]["total"] == 0
+    assert non_filterable.status_code == HTTPStatus.OK
+    assert non_filterable.get_json()["data"] == []
+    assert structured.status_code == HTTPStatus.BAD_REQUEST
+
+    with app.test_request_context("/"):
+        with pytest.raises(SystemValidationError):
+            FilterPolicyAccount.startswith(secret="hunter2")
+
+
+def test_filters_cannot_probe_instance_hidden_fields() -> None:
+    db = SQLAlchemy()
+
+    class InstanceFilterAccount(SAFRSBase, db.Model):
+        __tablename__ = "security_instance_filter_accounts"
+
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String)
+        secret = db.Column(db.String)
+        startswith = safrs_startswith
+        search = safrs_search
+
+        @hybrid_method
+        def _s_check_perm(self: Any, property_name: str, permission: str = "r") -> bool:
+            return not (property_name == "secret" and permission == "r" and self.id == 1)
+
+        @_s_check_perm.expression
+        def _s_check_perm(cls: Any, property_name: str, permission: str = "r") -> bool:
+            return True
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+        db.session.add_all(
+            [
+                InstanceFilterAccount(id=1, name="alice", secret="hunter2"),
+                InstanceFilterAccount(id=2, name="bob", secret="decoy"),
+            ]
+        )
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False, app_db=db)
+        api.expose_object(InstanceFilterAccount)
+
+    client = app.test_client()
+    collection_url = f"/{InstanceFilterAccount._s_collection_name}/"
+
+    direct = client.get(f"{collection_url}1/")
+    denied = client.get(collection_url, query_string={"filter[secret]": "hunter2"})
+    allowed = client.get(collection_url, query_string={"filter[secret]": "decoy"})
+    structured = client.get(
+        collection_url,
+        query_string={"filter": '{"name":"secret","op":"eq","val":"hunter2"}'},
+    )
+
+    assert "secret" not in direct.get_json()["data"]["attributes"]
+    assert denied.get_json()["data"] == []
+    assert denied.get_json()["meta"]["total"] == 0
+    assert structured.get_json()["data"] == []
+    assert structured.get_json()["meta"]["total"] == 0
+    assert [item["id"] for item in allowed.get_json()["data"]] == ["2"]
+
+    with app.test_request_context("/"):
+        prefix_result = InstanceFilterAccount.startswith(secret="hunter")
+        search_result = InstanceFilterAccount.search(query="hunter2")
+    assert prefix_result.to_dict()["data"] == []
+    assert prefix_result.to_dict()["meta"]["total"] == 0
+    assert search_result.to_dict()["data"] == []
+    assert search_result.to_dict()["meta"]["total"] == 0
 
 
 def test_post_and_patch_enforce_column_write_permissions() -> None:

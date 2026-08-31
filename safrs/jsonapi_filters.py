@@ -12,6 +12,12 @@ from sqlalchemy.orm import joinedload
 from .jsonapi_context import maybe_jsonapi_context
 from .config import get_config
 from .errors import ValidationError
+from .filtering import (
+    apply_filter_read_permissions,
+    filter_attribute_names,
+    get_filterable_attribute,
+    uses_builtin_json_filter,
+)
 
 flask_request: Any = None
 
@@ -162,6 +168,8 @@ def jsonapi_filter(cls: Any) -> Any:
             result = safrs_object_filter(filter_args)
         else:
             result = cls._s_filter(filter_args)
+            if uses_builtin_json_filter(cls):
+                result = apply_filter_read_permissions(cls, result, filter_attribute_names(filter_args))
         return result
 
     expressions: list[tuple[Any, Any]] = []
@@ -172,6 +180,9 @@ def jsonapi_filter(cls: Any) -> Any:
 
     for attr_name, val in filters.items():
         if attr_name == "id":
+            if get_filterable_attribute(cls, attr_name) is None:
+                safrs.log.warning(f"Invalid filter {attr_name}")
+                return []
             attr = getattr(cls, "id", None)
             if attr is None:
                 # todo!!: add support for composite pkeys using `cls.id_type.get_pks`
@@ -183,12 +194,12 @@ def jsonapi_filter(cls: Any) -> Any:
                     attr = getattr(cls, attr_name, None)
                 else:
                     return cls._s_get_instance_by_id(val)
-        elif attr_name not in cls._s_jsonapi_attrs:
+        else:
+            attr = get_filterable_attribute(cls, attr_name)
+        if attr is None:
             # validation failed: this attribute can't be queried
             safrs.log.warning(f"Invalid filter {attr_name}")
             return []
-        else:
-            attr = cls._s_jsonapi_attrs[attr_name]
         if is_jsonapi_attr(attr):
             # to do
             safrs.log.debug(f"Filtering not implemented for {attr}")
@@ -204,7 +215,7 @@ def jsonapi_filter(cls: Any) -> Any:
             else:
                 safrs.log.warning(f"'{cls}.{column}' is not a column ({type(column)})")
         result_query = result_query.filter(*_expressions)
-    return result_query
+    return apply_filter_read_permissions(cls, result_query, filters.keys())
 
 
 @classmethod  # type: ignore[misc]

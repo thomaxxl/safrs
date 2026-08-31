@@ -31,7 +31,7 @@ def _request(path: str = "/", query: str = "", method: str = "GET") -> Request:
 class _SortModel:
     _s_type = "Order"
     _s_collection_name = "Order"
-    _s_jsonapi_attrs = {"CustomerId": object(), "OrderDate": object(), "id": object()}
+    _s_jsonapi_attrs = {"CustomerId": object(), "OrderDate": object(), "CategoryId": object(), "id": object()}
     id = object()
     CategoryId = object()
 
@@ -169,6 +169,48 @@ def test_bracket_filter_csv_in_behavior_on_collections() -> None:
     filtered = api._apply_filter(_SortModel, _request("/api/Product/", "filter[CategoryId]=1,2"), items)
 
     assert [item.CategoryId for item in filtered] == [1, 2]
+
+
+def test_bracket_filter_rejects_fields_outside_jsonapi_read_attributes() -> None:
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    items = [SimpleNamespace(secret="hunter2"), SimpleNamespace(secret="decoy")]
+
+    filtered = api._apply_filter(_SortModel, _request("/api/Order/", "filter[secret]=hunter2"), items)
+
+    assert filtered == []
+
+
+def test_bracket_filter_applies_instance_level_read_permissions() -> None:
+    class _TypedAttribute:
+        type = SimpleNamespace(python_type=str)
+
+    class _InstanceScopedModel:
+        secret = _TypedAttribute()
+        _s_jsonapi_attrs = {"secret": secret}
+
+        def __init__(self, object_id: int, secret: str) -> None:
+            self.id = object_id
+            self.secret = secret
+
+        def _s_check_perm(self, property_name: str, permission: str = "r") -> bool:
+            return not (property_name == "secret" and permission == "r" and self.id == 1)
+
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    items = [_InstanceScopedModel(1, "hunter2"), _InstanceScopedModel(2, "decoy")]
+
+    denied = api._apply_filter(
+        _InstanceScopedModel,
+        _request("/api/Account/", "filter[secret]=hunter2"),
+        items,
+    )
+    allowed = api._apply_filter(
+        _InstanceScopedModel,
+        _request("/api/Account/", "filter[secret]=decoy"),
+        items,
+    )
+
+    assert denied == []
+    assert [item.id for item in allowed] == [2]
 
 
 def test_error_response_docs_include_415_and_422() -> None:

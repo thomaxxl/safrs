@@ -7,6 +7,7 @@ from flask import Flask
 
 from safrs import jsonapi_filters
 from safrs.jsonapi_context import JsonApiContext, reset_jsonapi_context, set_jsonapi_context
+from safrs.jsonapi_formatting import jsonapi_filter_list, jsonapi_filter_query
 from safrs.request import SAFRSRequest
 
 
@@ -47,8 +48,9 @@ class _FakeQuery:
 
 
 class _FakeColumn:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, *, filterable: bool = True) -> None:
         self.name = name
+        self.filterable = filterable
 
     def in_(self, values: list[str]) -> tuple[str, tuple[str, ...]]:
         return (self.name, tuple(values))
@@ -176,3 +178,44 @@ def test_jsonapi_filter_prefers_jsonapi_context_when_flask_request_has_no_filter
 
     assert result is query
     assert query.filter_calls == [("name", ("beta",))]
+
+
+def test_jsonapi_filter_enforces_filterable_column_flag() -> None:
+    query = _FakeQuery()
+    internal_column = _FakeColumn("internal", filterable=False)
+
+    class _FilterModel:
+        _s_query = query
+        _s_relationships: dict[str, Any] = {}
+        _s_jsonapi_attrs = {"internal": internal_column}
+
+    token = set_jsonapi_context(JsonApiContext(query_params=_QueryParams([("filter[internal]", "value")])))
+    try:
+        result = jsonapi_filters.jsonapi_filter.__func__(_FilterModel)
+    finally:
+        reset_jsonapi_context(token)
+
+    assert result == []
+    assert query.filter_calls == []
+
+
+def test_relationship_filtering_accepts_permission_filtered_lists() -> None:
+    class _Item:
+        allowed: list[Any] = []
+        id_type = object()
+
+        @classmethod
+        def jsonapi_filter(cls) -> list[Any]:
+            return cls.allowed
+
+    denied = _Item()
+    allowed = _Item()
+    _Item.allowed = [allowed]
+
+    class _RelationshipQuery:
+        @staticmethod
+        def all() -> list[Any]:
+            return [denied, allowed]
+
+    assert set(jsonapi_filter_list(["raw", denied, allowed])) == {"raw", allowed}
+    assert jsonapi_filter_query(_RelationshipQuery(), _Item) == [allowed]
