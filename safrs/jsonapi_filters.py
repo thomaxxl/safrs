@@ -10,6 +10,8 @@ from .jsonapi_attr import is_jsonapi_attr
 from sqlalchemy.orm import joinedload
 
 from .jsonapi_context import maybe_jsonapi_context
+from .config import get_config
+from .errors import ValidationError
 
 flask_request: Any = None
 
@@ -76,14 +78,27 @@ def _get_bracket_filters() -> dict[str, str]:
 
 def _included_paths(cls: Any, included_csv: str) -> list[str]:
     included_list: list[str] = []
-    for include_name in included_csv.split(","):
-        include_name = include_name.strip()
-        if not include_name:
-            continue
+    include_names = [include_name.strip() for include_name in included_csv.split(",") if include_name.strip()]
+    max_paths_config = get_config("MAX_INCLUDE_PATHS")
+    max_include_paths = int(
+        max_paths_config if max_paths_config is not None else safrs.SAFRS.MAX_INCLUDE_PATHS
+    )
+    if max_include_paths > 0 and len(include_names) > max_include_paths:
+        raise ValidationError(f"Too many include paths (maximum {max_include_paths})")
+    max_depth_config = get_config("MAX_INCLUDE_DEPTH")
+    max_include_depth = int(
+        max_depth_config if max_depth_config is not None else safrs.SAFRS.MAX_INCLUDE_DEPTH
+    )
+    for include_name in include_names:
         if include_name == safrs.SAFRS.INCLUDE_ALL:
             included_list.extend(str(rel_name) for rel_name in cls._s_relationships.keys())
             continue
+        include_depth = len([segment for segment in include_name.split(".") if segment])
+        if max_include_depth > 0 and include_depth > max_include_depth:
+            raise ValidationError(f"Include path exceeds maximum depth {max_include_depth}")
         included_list.append(include_name)
+    if max_include_paths > 0 and len(included_list) > max_include_paths:
+        raise ValidationError(f"Too many include paths (maximum {max_include_paths})")
     return included_list
 
 
@@ -97,16 +112,16 @@ def create_query(cls: Any) -> Any:
     """
     query = cls._s_query
 
-    if not safrs.SAFRS.OPTIMIZED_LOADING:
+    if not get_config("OPTIMIZED_LOADING"):
         return query
-    included_csv = _get_include_csv(safrs.SAFRS.DEFAULT_INCLUDED)
+    included_csv = _get_include_csv(str(get_config("DEFAULT_INCLUDED") or ""))
     included_list = _included_paths(cls, included_csv)
 
     for inc in included_list:
         current_cls = cls
         options = None
         for inc_rel_name in inc.split("."):
-            if inc_rel_name == safrs.SAFRS.INCLUDE_ALL:
+            if inc_rel_name == str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL):
                 continue
             if inc_rel_name not in current_cls._s_relationships:
                 safrs.log.warning(f"Invalid relationship : {current_cls}.{inc_rel_name}")

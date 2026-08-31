@@ -47,6 +47,19 @@ def _model_decorators(model: Any) -> list[Any]:
     return list(getattr(model, "custom_decorators", [])) + list(getattr(model, "decorators", []))
 
 
+def _dedupe_decorators(decorators: Any) -> list[Any]:
+    """Deduplicate decorators by identity while preserving configured order."""
+    result: list[Any] = []
+    seen: set[int] = set()
+    for decorator in decorators:
+        decorator_id = id(decorator)
+        if decorator_id in seen:
+            continue
+        seen.add(decorator_id)
+        result.append(decorator)
+    return result
+
+
 def _relationship_target_models(model: Any) -> list[Any]:
     """Collect every model reachable through relationships, excluding the source."""
     result: list[Any] = []
@@ -87,7 +100,8 @@ def _relationship_target_decorators(model: Any) -> list[Any]:
 def _method_decorators_for_method(method_decorators: Any, method_name: str) -> list[Any]:
     """Return decorators using flask-restful's list or per-method mapping rules."""
     if isinstance(method_decorators, Mapping):
-        configured_decorators = method_decorators.get(method_name, [])
+        operation_name = "get" if method_name == "head" and "head" not in method_decorators else method_name
+        configured_decorators = method_decorators.get(operation_name, [])
     else:
         configured_decorators = method_decorators
     return list(configured_decorators or [])
@@ -99,6 +113,10 @@ def _upsert_method_decorators(method_decorators: Any) -> list[Any]:
         return []
     operation_name = "upsert" if "upsert" in method_decorators else "patch"
     return list(method_decorators.get(operation_name, []) or [])
+
+
+def _http_method_set(methods: Any) -> set[str]:
+    return {str(method).upper() for method in methods or []}
 
 
 class SAFRSAPI(FRSApiBase):
@@ -128,6 +146,8 @@ class SAFRSAPI(FRSApiBase):
         """
 
         self._custom_swagger = kwargs.pop("custom_swagger", {})
+        self._operation_ids = {}
+        self._als_resources = []
         self._model_method_decorators: dict[Any, Any] = {}
         self._authorization_resources: list[tuple[Any, list[Any]]] = []
         self.swaggerui_blueprint = swaggerui_blueprint
@@ -188,7 +208,12 @@ class SAFRSAPI(FRSApiBase):
         rest_api = safrs_object._rest_api  # => SAFRSRestAPI
 
         SAFRSAPI._ensure_authorization_state(self)
-        self._model_method_decorators[safrs_object] = properties.get("method_decorators", [])
+        configured_method_decorators = properties.get("method_decorators", [])
+        if isinstance(configured_method_decorators, Mapping) and "head" not in configured_method_decorators:
+            configured_method_decorators = dict(configured_method_decorators)
+            configured_method_decorators["head"] = list(configured_method_decorators.get("get", []) or [])
+            properties["method_decorators"] = configured_method_decorators
+        self._model_method_decorators[safrs_object] = configured_method_decorators
         SAFRSAPI._sync_target_method_decorators(self)
         relationship_target_models = _relationship_target_models(safrs_object)
 
@@ -236,16 +261,10 @@ class SAFRSAPI(FRSApiBase):
         for relationship in safrs_object._s_relationships.values():
             self.expose_relationship(relationship, url, tags, properties)
 
-        # add newly created schema references to the "definitions"
-        for def_name, definition in Schema._references.items():
-            if self._swagger_object["definitions"].get(def_name):
-                continue
-            try:
-                validate_definitions_object(definition.properties)
-            except Exception as exc:  # pragma: no cover
-                safrs.log.warning(f"Failed to validate {definition}:{exc}")
-                continue
-            self._swagger_object["definitions"][def_name] = {"properties": definition.properties}
+        # Add only definitions reachable from this API's paths. Schema's
+        # registry is process-global in flask-restful-swagger-2; copying every
+        # entry would disclose model schemas belonging to another Flask app.
+        SAFRSAPI._sync_swagger_definitions(self)
 
         self.update_spec()
         self._als_resources.append(safrs_object)
@@ -374,6 +393,8 @@ class SAFRSAPI(FRSApiBase):
         rel_name = relationship.key
         parent_class = relationship.parent.class_
         parent_name = parent_class.__name__
+        configured_methods = _http_method_set(getattr(relationship, "http_methods", parent_class.http_methods))
+        allowed_methods = configured_methods & _http_method_set(parent_class.http_methods) & _http_method_set(target_object.http_methods)
 
         # Name of the endpoint class
         RELATIONSHIP_URL_FMT = cast(str, get_config("RELATIONSHIP_URL_FMT"))
@@ -384,7 +405,7 @@ class SAFRSAPI(FRSApiBase):
         endpoint = ENDPOINT_FMT.format(url_prefix, rel_name)
 
         # Relationship object
-        decorators = set(
+        decorators = _dedupe_decorators(
             getattr(parent_class, "custom_decorators", [])
             + getattr(parent_class, "decorators", [])
             + getattr(relationship, "decorators", [])
@@ -399,14 +420,15 @@ class SAFRSAPI(FRSApiBase):
                 # Merge the relationship decorators from the classes
                 # This makes things really complicated!!!
                 # TODO: simplify this by creating a proper superclass
-                "custom_decorators": list(decorators),
+                "custom_decorators": decorators,
                 "parent": parent_class,
                 "_target": target_object,
+                "http_methods": allowed_methods,
             },
         )
 
         properties["SAFRSObject"] = rel_object
-        properties["http_methods"] = target_object.http_methods
+        properties["http_methods"] = allowed_methods
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
         api_class = api_decorator(type(api_class_name, (relationship_api,), properties), swagger_decorator)
         SAFRSAPI._register_authorization_resource(self, api_class, _relationship_target_models(parent_class))
@@ -415,8 +437,7 @@ class SAFRSAPI(FRSApiBase):
         # GET requests to this endpoint retrieve all item ids
         safrs.log.info(f"Exposing relationship {rel_name} on {url}, endpoint: {endpoint}")
         # Check if there are custom http methods specified
-        methods = getattr(relationship, "http_methods", parent_class.http_methods)
-        self.add_resource(api_class, url, endpoint=endpoint, methods=methods, relationship=relationship)
+        self.add_resource(api_class, url, endpoint=endpoint, methods=sorted(allowed_methods), relationship=relationship)
 
         try:
             target_object_id = target_object._s_object_id
@@ -439,12 +460,13 @@ class SAFRSAPI(FRSApiBase):
         endpoint = f"{url_prefix}api.{rel_name}Id"
 
         safrs.log.info(f"Exposing {parent_name} relationship {rel_name} on {url}, endpoint: {endpoint}")
+        item_methods = [method for method in ["GET", "PATCH", "DELETE"] if method in allowed_methods]
         self.add_resource(
             api_class,
             url,
             relationship=cast(Any, rel_object).relationship,
             endpoint=endpoint,
-            methods=["GET", "PATCH", "DELETE"],
+            methods=item_methods,
             deprecated=True,
         )
 
@@ -554,10 +576,13 @@ class SAFRSAPI(FRSApiBase):
 
     @staticmethod
     def _set_method_not_allowed_handlers(resource: Any) -> None:
+        def method_not_allowed(*_args: Any, **_kwargs: Any) -> tuple[dict[str, Any], HTTPStatus]:
+            return {}, HTTPStatus.METHOD_NOT_ALLOWED
+
         for http_method in HTTP_METHODS:
             hm = http_method.lower()
             if hm not in SAFRSAPI.get_resource_methods(resource):
-                setattr(resource, hm, lambda x: ({}, HTTPStatus.METHOD_NOT_ALLOWED))
+                setattr(resource, hm, method_not_allowed)
 
     def add_resource(self: Any, resource: Any, *urls: Any, **kwargs: Any) -> Any:
         """
@@ -708,17 +733,61 @@ class SAFRSAPI(FRSApiBase):
 
         self._swagger_object["definitions"].update(definitions)
 
-    @classmethod
-    def _get_operation_id(cls: Any, summary: str) -> str:
+    @staticmethod
+    def _referenced_definition_names(value: Any) -> set[str]:
+        result: set[str] = set()
+        if isinstance(value, dict):
+            reference = value.get("$ref")
+            prefix = "#/definitions/"
+            if isinstance(reference, str) and reference.startswith(prefix):
+                result.add(reference[len(prefix) :])
+            for nested_value in value.values():
+                result.update(SAFRSAPI._referenced_definition_names(nested_value))
+        elif isinstance(value, list):
+            for nested_value in value:
+                result.update(SAFRSAPI._referenced_definition_names(nested_value))
+        return result
+
+    def _sync_swagger_definitions(self) -> None:
+        pending = list(
+            SAFRSAPI._referenced_definition_names(self._swagger_object.get("paths", {}))
+        )
+        visited: set[str] = set()
+        while pending:
+            def_name = pending.pop()
+            if def_name in visited:
+                continue
+            visited.add(def_name)
+            if def_name in self._swagger_object["definitions"]:
+                definition_value = self._swagger_object["definitions"][def_name]
+                pending.extend(
+                    SAFRSAPI._referenced_definition_names(definition_value) - visited
+                )
+                continue
+            definition = Schema._references.get(def_name)
+            if definition is None:
+                continue
+            try:
+                validate_definitions_object(definition.properties)
+            except Exception as exc:  # pragma: no cover
+                safrs.log.warning(f"Failed to validate {definition}:{exc}")
+                continue
+            definition_value = {"properties": definition.properties}
+            self._swagger_object["definitions"][def_name] = definition_value
+            pending.extend(
+                SAFRSAPI._referenced_definition_names(definition_value) - visited
+            )
+
+    def _get_operation_id(self: Any, summary: str) -> str:
         """
         :param summary:
         """
         summary = "".join(c for c in summary if c.isalnum())
-        if summary not in cls._operation_ids:
-            cls._operation_ids[summary] = 0
+        if summary not in self._operation_ids:
+            self._operation_ids[summary] = 0
         else:
-            cls._operation_ids[summary] += 1
-        return f"{summary}_{cls._operation_ids[summary]}"
+            self._operation_ids[summary] += 1
+        return f"{summary}_{self._operation_ids[summary]}"
 
     def expose_als_schema(self: Any, api_root: Any='/api', schema_loc: Any='/als_schema') -> Any:
         """
@@ -780,6 +849,7 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
         "delete",
         "get",
         "put",
+        "head",
         "options",
     ]:  # HTTP methods, "put" may be used by a custom implementation
         method = getattr(cls, method_name, None)
@@ -803,7 +873,7 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
         decorated_method = http_method_decorator(decorated_method)
         setattr(decorated_method, "SAFRSObject", cls.SAFRSObject)
 
-        if method_name != "options":
+        if method_name not in {"head", "options"}:
             try:
                 # Add swagger documentation
                 decorated_method = swagger_decorator(decorated_method)
@@ -821,11 +891,24 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
                 getattr(cls.SAFRSObject, "decorators", [])
             )
             custom_decorators += list(getattr(cls, "_s_relationship_target_decorators", []))
-            for custom_decorator in set(custom_decorators):
+            for custom_decorator in _dedupe_decorators(custom_decorators):
                 # update_wrapper(custom_decorator, decorated_method)
                 swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
                 decorated_method = custom_decorator(decorated_method)
                 decorated_method.__swagger_operation_object = swagger_operation_object
+
+        elif method_name == "head":
+            custom_decorators = list(getattr(cls.SAFRSObject, "custom_decorators", [])) + list(
+                getattr(cls.SAFRSObject, "decorators", [])
+            )
+            custom_decorators += list(getattr(cls, "_s_relationship_target_decorators", []))
+            # HEAD inherits GET authorization semantics. Temporarily expose a
+            # GET function name so conditional decorators such as the
+            # documented per-method pattern select their read policy.
+            decorated_method.__name__ = "get"
+            for custom_decorator in _dedupe_decorators(custom_decorators):
+                decorated_method = custom_decorator(decorated_method)
+            decorated_method.__name__ = "head"
 
         setattr(cls, method_name, decorated_method)
     return cls

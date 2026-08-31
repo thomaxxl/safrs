@@ -71,9 +71,13 @@ class SAFRS:
     """
 
     # Configuration settings are stored as class variables
-    MAX_PAGE_LIMIT = 100000
+    MAX_PAGE_LIMIT = 1000
     DEFAULT_PAGE_LIMIT = 250
     MAX_PAGE_OFFSET = 2**31
+    MAX_BULK_ITEMS = 1000
+    MAX_INCLUDE_DEPTH = 5
+    MAX_INCLUDE_PATHS = 25
+    MAX_INCLUDED_RESOURCES = 1000
     ENABLE_RELATIONSHIPS = True
     ENABLE_METHODS = True
     LOGLEVEL = logging.WARNING
@@ -133,11 +137,23 @@ class SAFRS:
             )
             app.register_blueprint(swagger_bp, url_prefix=prefix)
 
+        # Snapshot SAFRS defaults per Flask application. ``get_config`` reads
+        # this app-local mapping before the backward-compatible process-global
+        # class attributes, preventing one app from inheriting another app's
+        # pagination, CORS, or relationship configuration.
+        app_safrs_config = {
+            conf_name: conf_val
+            for conf_name, conf_val in vars(SAFRS).items()
+            if conf_name.isupper() and not callable(conf_val)
+        }
+
         for conf_name, conf_val in kwargs.items():
-            setattr(SAFRS, conf_name, conf_val)
+            app_safrs_config[conf_name] = conf_val
 
         for conf_name, conf_val in app.config.items():
-            setattr(SAFRS, conf_name, conf_val)
+            app_safrs_config[conf_name] = conf_val
+
+        app.extensions["safrs_config"] = app_safrs_config
 
         @app.before_request
         def handle_invalid_usage() -> Any:

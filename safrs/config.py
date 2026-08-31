@@ -4,13 +4,11 @@
 import os
 import logging
 from flask import current_app, request
-from functools import lru_cache
 import safrs
-from typing import Optional, Union, Any
+from typing import Any
 
 
-@lru_cache(maxsize=128)
-def get_config(option: str) -> Optional[Union[bool, str]]:
+def get_config(option: str) -> Any:
     """Retrieve a configuration parameter from the app
     :param option: configuration parameter
     :return: configuration value
@@ -20,8 +18,13 @@ def get_config(option: str) -> Optional[Union[bool, str]]:
     try:
         result = current_app.config[option]
     except (KeyError, RuntimeError):
-        #
-        result = getattr(safrs.SAFRS, option, os.environ.get(option, None))
+        try:
+            app_config = current_app.extensions.get("safrs_config", {})
+            result = app_config.get(option)
+        except RuntimeError:
+            result = None
+        if result is None:
+            result = getattr(safrs.SAFRS, option, os.environ.get(option, None))
     if result is not None:
         return result
     # pylint: disable=invalid-name, unused-variable, pointless-string-statement
@@ -65,6 +68,12 @@ def get_config(option: str) -> Optional[Union[bool, str]]:
     UNLIMITED = int(os.environ.get("SAFRS_UNLIMITED", safrs.SAFRS.MAX_PAGE_LIMIT))
     MAX_PAGE_LIMIT = int(os.environ.get("MAX_PAGE_LIMIT", safrs.SAFRS.MAX_PAGE_LIMIT))
     MAX_PAGE_OFFSET = int(os.environ.get("MAX_PAGE_OFFSET", safrs.SAFRS.MAX_PAGE_OFFSET))
+    MAX_BULK_ITEMS = int(os.environ.get("MAX_BULK_ITEMS", safrs.SAFRS.MAX_BULK_ITEMS))
+    MAX_INCLUDE_DEPTH = int(os.environ.get("MAX_INCLUDE_DEPTH", safrs.SAFRS.MAX_INCLUDE_DEPTH))
+    MAX_INCLUDE_PATHS = int(os.environ.get("MAX_INCLUDE_PATHS", safrs.SAFRS.MAX_INCLUDE_PATHS))
+    MAX_INCLUDED_RESOURCES = int(
+        os.environ.get("MAX_INCLUDED_RESOURCES", safrs.SAFRS.MAX_INCLUDED_RESOURCES)
+    )
     # This is the default query limit
     # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
     BIG_QUERY_THRESHOLD = 1000  # Warning level

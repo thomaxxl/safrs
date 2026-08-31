@@ -5,13 +5,13 @@ from typing import Any
 import pytest
 
 pytest.importorskip("fastapi")
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.routing import APIRoute
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import declarative_base, relationship
 
 from safrs import SAFRSBase, jsonapi_rpc
-from safrs.fastapi.api import SafrsFastAPI
+from safrs.fastapi.api import JSONAPIHTTPError, SafrsFastAPI
 
 
 Base = declarative_base()
@@ -183,3 +183,108 @@ def test_model_decorators_are_rejected() -> None:
         ),
     ):
         api.expose_object(_DecoratedModel)
+
+
+def test_target_http_methods_restrict_fastapi_relationship_routes() -> None:
+    restricted_base = declarative_base()
+
+    class RestrictedParent(SAFRSBase, restricted_base):
+        __tablename__ = "fastapi_restricted_method_parents"
+        _s_type = "RestrictedParent"
+        _s_collection_name = "RestrictedParents"
+
+        id = Column(Integer, primary_key=True)
+        children = relationship("RestrictedChild", back_populates="parent")
+
+    class RestrictedChild(SAFRSBase, restricted_base):
+        __tablename__ = "fastapi_restricted_method_children"
+        _s_type = "RestrictedChild"
+        _s_collection_name = "RestrictedChildren"
+        http_methods = ["GET"]
+
+        id = Column(Integer, primary_key=True)
+        parent_id = Column(Integer, ForeignKey("fastapi_restricted_method_parents.id"))
+        parent = relationship(RestrictedParent, back_populates="children")
+
+    app = FastAPI()
+    api = SafrsFastAPI(app, prefix="/api")
+    api.expose_object(RestrictedParent)
+    api.expose_object(RestrictedChild)
+
+    relationship_routes = [
+        route
+        for route in app.routes
+        if isinstance(route, APIRoute) and route.path == "/api/RestrictedParents/{object_id}/children"
+    ]
+    assert relationship_routes
+    assert {method for route in relationship_routes for method in route.methods} == {"GET"}
+
+
+def test_fastapi_bulk_and_include_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = FastAPI()
+    api = SafrsFastAPI(app, prefix="/api")
+    monkeypatch.setattr("safrs.SAFRS.MAX_BULK_ITEMS", 1)
+    monkeypatch.setattr("safrs.SAFRS.MAX_INCLUDE_DEPTH", 1)
+    monkeypatch.setattr("safrs.SAFRS.MAX_INCLUDE_PATHS", 1)
+
+    with pytest.raises(JSONAPIHTTPError) as bulk_error:
+        api._coerce_post_items(
+            _DependencyParent,
+            {
+                "data": [
+                    {"type": _DependencyParent._s_type},
+                    {"type": _DependencyParent._s_type},
+                ]
+            },
+        )
+    assert bulk_error.value.status_code == 400
+
+    deep_request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/DependencyParents",
+            "query_string": b"include=children.parent",
+            "headers": [],
+        }
+    )
+    with pytest.raises(JSONAPIHTTPError) as include_error:
+        api._parse_include_paths(_DependencyParent, deep_request)
+    assert include_error.value.status_code == 400
+
+    class Query:
+        applied_limit: int | None = None
+
+        def limit(self, value: int) -> "Query":
+            self.applied_limit = value
+            return self
+
+        def all(self) -> list[int]:
+            return [1, 2, 3][: self.applied_limit]
+
+    query = Query()
+    assert api._iter_related_items(query, limit=1) == [1]
+    assert query.applied_limit == 1
+
+
+def test_fastapi_default_pagination_and_empty_method_policy_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    monkeypatch.setattr("safrs.SAFRS.DEFAULT_PAGE_LIMIT", 2)
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/DependencyParents",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+    class NoMethods:
+        http_methods: list[str] = []
+
+    assert api._apply_pagination([1, 2, 3], request) == [1, 2]
+    assert api._model_http_methods(NoMethods) == set()

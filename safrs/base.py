@@ -177,6 +177,7 @@ Type: classmethod
 Description: Applies filters to the query.
 """
 from __future__ import annotations
+from contextvars import ContextVar, Token
 from typing import Any, cast, Callable, Optional
 import inspect
 import datetime
@@ -216,6 +217,7 @@ from . import tx
 
 _MISSING_FLASK_ADAPTER_DEPS = {"flask_restful", "flask_restful_swagger_2"}
 _safrs_jsonapi: Any = None
+_POST_UPSERT_PRECHECKED: ContextVar[Any] = ContextVar("safrs_post_upsert_prechecked", default=None)
 
 try:
     from . import jsonapi as _loaded_safrs_jsonapi
@@ -461,7 +463,7 @@ class SAFRSBase(Model):
         """
         If an object with given arguments already exists, this object is instantiated
         """
-        if "id" not in kwargs or not cls._s_upsert:
+        if _POST_UPSERT_PRECHECKED.get() is cls or "id" not in kwargs or not cls._s_upsert:
             return object.__new__(cls)
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.extract_pks(kwargs)
@@ -678,6 +680,22 @@ class SAFRSBase(Model):
         return self
 
     @classmethod
+    def _s_post_prechecked(cls: Any, jsonapi_id: Any=None, **params: Any) -> SAFRSBase:
+        """Create after an HTTP adapter has already resolved the upsert id.
+
+        The context flag suppresses both lookup sites used by the historical
+        programmatic upsert path: ``_s_post`` and ``__new__``. If another
+        transaction inserts the id after the adapter's lookup, the insert now
+        fails with a constraint conflict instead of silently updating a row
+        without update authorization.
+        """
+        token: Token[Any] = _POST_UPSERT_PRECHECKED.set(cls)
+        try:
+            return cls._s_post(jsonapi_id=jsonapi_id, **params)
+        finally:
+            _POST_UPSERT_PRECHECKED.reset(token)
+
+    @classmethod
     def _s_post(cls: Any, jsonapi_id: Any=None, **params: Any) -> SAFRSBase:
         """
         This method is called when a new item is created with a POST to the json api
@@ -692,9 +710,10 @@ class SAFRSBase(Model):
         programmatic calls update it through ``_s_patch``. HTTP adapters detect
         and authorize this branch before invoking it.
         """
-        upsert_target = cls._s_get_upsert_target(jsonapi_id, **params)
-        if upsert_target is not None:
-            return upsert_target._s_update_from_post(**params)
+        if _POST_UPSERT_PRECHECKED.get() is not cls:
+            upsert_target = cls._s_get_upsert_target(jsonapi_id, **params)
+            if upsert_target is not None:
+                return upsert_target._s_update_from_post(**params)
 
         readonly_jsonapi_attrs = {
             attr_name
@@ -740,7 +759,34 @@ class SAFRSBase(Model):
         # pylint: disable=not-callable
         instance = cls(**attributes)
 
-        instance._add_rels(**params)
+        # Class-level permission checks select the candidate constructor
+        # fields. Re-check them on the initialized instance because documented
+        # permission hooks may make caller- or row-dependent decisions. PATCH
+        # already performs this instance check before assigning each field.
+        protected_id_names = {"id", *cls.id_type.column_names}
+        denied_attributes = [
+            attr_name
+            for attr_name in attributes
+            if attr_name not in protected_id_names and not instance._s_check_perm(attr_name, "w")
+        ]
+        if denied_attributes:
+            denied_csv = ", ".join(sorted(denied_attributes))
+            raise ValidationError(
+                f"Write access denied for attribute(s): {denied_csv}",
+                HTTPStatus.FORBIDDEN.value,
+            )
+
+        # Nested resources need their own lookup/authorization decision. Do
+        # not let this create's precheck suppress an upsert lookup for a
+        # relationship payload (including a self-referential relationship).
+        relationship_token: Optional[Token[Any]] = None
+        if _POST_UPSERT_PRECHECKED.get() is cls:
+            relationship_token = _POST_UPSERT_PRECHECKED.set(None)
+        try:
+            instance._add_rels(**params)
+        finally:
+            if relationship_token is not None:
+                _POST_UPSERT_PRECHECKED.reset(relationship_token)
 
         if not instance in safrs.DB.session:
             safrs.DB.session.add(instance)
@@ -804,6 +850,8 @@ class SAFRSBase(Model):
         """
         Delete the instance from the database
         """
+        if _request_uow_active():
+            self.__class__._s_validate_cascade_delete_methods()
         tx.note_write(self.__class__)
         safrs.DB.session.delete(self)
         if _request_uow_active():
@@ -826,6 +874,21 @@ class SAFRSBase(Model):
             relationships = data.get("relationships", {})
             if not isinstance(attributes, dict) or not isinstance(relationships, dict):
                 raise ValidationError(f"Invalid relationship payload: {data}")
+            if _request_uow_active():
+                upsert_target = target_class._s_get_upsert_target(data["id"], **attributes)
+                if upsert_target is not None:
+                    if not target_class._s_supports_http_method("PATCH"):
+                        raise ValidationError(
+                            f"PATCH is not allowed for related resource {target_class.__name__}",
+                            HTTPStatus.METHOD_NOT_ALLOWED.value,
+                        )
+                    return upsert_target._s_update_from_post(**attributes, **relationships)
+                if not target_class._s_supports_http_method("POST"):
+                    raise ValidationError(
+                        f"POST is not allowed for related resource {target_class.__name__}",
+                        HTTPStatus.METHOD_NOT_ALLOWED.value,
+                    )
+                return target_class._s_post_prechecked(data["id"], **attributes, **relationships)
             return target_class._s_post(data["id"], **attributes, **relationships)
 
         for rel_name, rel_val in params.items():
@@ -842,6 +905,14 @@ class SAFRSBase(Model):
             self.included_list += [rel_name]
             rel_data = rel_val["data"]
             if isinstance(rel_data, list) and rel.direction in (ONETOMANY, MANYTOMANY):
+                max_items_config = get_config("MAX_BULK_ITEMS")
+                max_items = int(
+                    max_items_config if max_items_config is not None else safrs.SAFRS.MAX_BULK_ITEMS
+                )
+                if _request_uow_active() and max_items > 0 and len(rel_data) > max_items:
+                    raise ValidationError(
+                        f"Nested relationship POST exceeds maximum item count {max_items}"
+                    )
                 rel_inst = [data2inst(rd, target_class) for rd in rel_data]
                 setattr(self, rel_name, rel_inst)
             elif isinstance(rel_data, dict) and rel.direction == MANYTOONE:
@@ -881,8 +952,43 @@ class SAFRSBase(Model):
         """
         return ["GET", "POST", "PATCH", "DELETE", "PUT", "HEAD", "OPTIONS"]
 
+    @classmethod
+    def _s_supports_http_method(cls: Any, method: str) -> bool:
+        """Return whether the model exposes an HTTP operation."""
+        return str(method).upper() in {str(item).upper() for item in cls.http_methods}
+
+    @classmethod
+    def _s_validate_cascade_delete_methods(cls: Any) -> None:
+        """Prevent a parent DELETE from bypassing target DELETE restrictions."""
+        visited: set[Any] = {cls}
+
+        def visit(current_model: Any) -> None:
+            mapper = getattr(current_model, "__mapper__", None)
+            if mapper is None:
+                return
+            for relationship in mapper.relationships:
+                cascade = getattr(relationship, "cascade", None)
+                cascades_delete = bool(
+                    cascade is not None
+                    and (getattr(cascade, "delete", False) or getattr(cascade, "delete_orphan", False))
+                )
+                if not cascades_delete:
+                    continue
+                target_model = relationship.mapper.class_
+                if target_model in visited:
+                    continue
+                visited.add(target_model)
+                supports_method = getattr(target_model, "_s_supports_http_method", None)
+                if callable(supports_method) and not supports_method("DELETE"):
+                    raise ValidationError(
+                        f"DELETE is not allowed for cascaded resource {target_model.__name__}",
+                        HTTPStatus.METHOD_NOT_ALLOWED.value,
+                    )
+                visit(target_model)
+
+        visit(cls)
+
     @classproperty
-    @lru_cache(maxsize=32)
     def _s_columns(cls: Any) -> list:
         """
         :return: list of columns that are exposed by the api
@@ -1065,7 +1171,6 @@ class SAFRSBase(Model):
         return result
 
     @_s_jsonapi_attrs.expression  # type: ignore[no-redef]
-    @lru_cache(maxsize=32)
     def _s_jsonapi_attrs(cls: Any) -> Any:  # type: ignore[no-redef]
         """
         :return: dict of jsonapi attributes
@@ -1073,8 +1178,10 @@ class SAFRSBase(Model):
         Things will go south if this isn't the case and we should use
         the cls.__mapper__._polymorphic_properties instead
         """
-        # Cache this for better performance (a bit faster than lru_cache :)
-        cached_attrs = getattr(cls, "_cached_jsonapi_attrs", None)
+        # Preserve an explicit class-level override used by extensions. SAFRS
+        # no longer populates this value automatically because doing so would
+        # cache caller-dependent permission results across requests.
+        cached_attrs = cls.__dict__.get("_cached_jsonapi_attrs")
         if cached_attrs is not None:
             return cached_attrs
 
@@ -1094,7 +1201,6 @@ class SAFRSBase(Model):
         for attr_name, attr_val in get_jsonapi_attrs(cls).items():
             result[attr_name] = attr_val
 
-        cls._cached_jsonapi_attrs = result
         return result
 
     @classproperty
@@ -1106,10 +1212,6 @@ class SAFRSBase(Model):
                 for attr_name, attr_val in cls._s_jsonapi_attrs.items()
                 if not is_jsonapi_attr(attr_val) or not jsonapi_attr_is_read_only(attr_val)
             }
-
-        cached_attrs = cls.__dict__.get("_cached_jsonapi_writable_attrs")
-        if cached_attrs is not None:
-            return cast(dict[str, Any], cached_attrs)
 
         result: dict[str, Any] = {}
         for column in cls.__mapper__.columns:
@@ -1128,7 +1230,6 @@ class SAFRSBase(Model):
             if not jsonapi_attr_is_read_only(attr_val):
                 result[attr_name] = attr_val
 
-        cls._cached_jsonapi_writable_attrs = result
         return result
 
     def _s_expunge(self: Any) -> Any:
@@ -1331,14 +1432,38 @@ class SAFRSBase(Model):
     def _s_get_include_settings(self: Any) -> tuple[list[str], set[str], list[str]]:
         included_list = getattr(self, "included_list", None)
         ctx = maybe_jsonapi_context()
+        default_included = str(get_config("DEFAULT_INCLUDED") or "")
         if included_list is None:
             if ctx is not None:
-                included_csv = ctx.get_include_csv(safrs.SAFRS.DEFAULT_INCLUDED)
+                included_csv = ctx.get_include_csv(default_included)
             elif has_request_context():
-                included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+                included_csv = request.args.get("include", default_included)
             else:
-                included_csv = safrs.SAFRS.DEFAULT_INCLUDED
+                included_csv = default_included
             included_list = [inc for inc in included_csv.split(",") if inc]
+
+        max_paths_config = get_config("MAX_INCLUDE_PATHS")
+        max_include_paths = int(
+            max_paths_config
+            if max_paths_config is not None
+            else safrs.SAFRS.MAX_INCLUDE_PATHS
+        )
+        effective_path_count = len(included_list)
+        include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
+        if include_all in included_list:
+            effective_path_count += max(0, len(self._s_relationships) - 1)
+        if max_include_paths > 0 and effective_path_count > max_include_paths:
+            raise ValidationError(f"Too many include paths (maximum {max_include_paths})")
+        max_depth_config = get_config("MAX_INCLUDE_DEPTH")
+        max_include_depth = int(
+            max_depth_config
+            if max_depth_config is not None
+            else safrs.SAFRS.MAX_INCLUDE_DEPTH
+        )
+        for include_path in included_list:
+            include_depth = len([segment for segment in str(include_path).split(".") if segment])
+            if max_include_depth > 0 and include_depth > max_include_depth:
+                raise ValidationError(f"Include path exceeds maximum depth {max_include_depth}")
 
         if ctx is not None:
             excluded_csv = ctx.get_exclude_csv("")
@@ -1351,8 +1476,9 @@ class SAFRSBase(Model):
         return included_list, included_rels, excluded_list
 
     def _s_validate_included_relationships(self: Any, included_rels: set[str], included_list: list[str]) -> None:
+        include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
         for rel_name in included_rels:
-            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
+            if rel_name != include_all and rel_name not in self._s_relationships:
                 raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
 
     @staticmethod
@@ -1432,6 +1558,7 @@ class SAFRSBase(Model):
         included_list, included_rels, excluded_list = self._s_get_include_settings()
         relationships = {}
         self._s_validate_included_relationships(included_rels, included_list)
+        include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
 
         for rel_name, relationship in self._s_relationships.items():
             """
@@ -1463,7 +1590,7 @@ class SAFRSBase(Model):
                 # TODO: document this
                 # continue
                 pass
-            if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
+            if rel_name in included_rels or include_all in included_list:
                 # next_included_list contains the recursive relationship names
                 next_included_list = self._s_nested_included_list(included_list, rel_name)
                 if relationship.direction == MANYTOONE:
@@ -1787,12 +1914,23 @@ class Included:
             ja_data = set()
         already_included = set()
         result = []
+        max_included_config = get_config("MAX_INCLUDED_RESOURCES")
+        max_included = int(
+            max_included_config
+            if max_included_config is not None
+            else safrs.SAFRS.MAX_INCLUDED_RESOURCES
+        )
         while True:
             if not ja_included:
                 break
             instance = ja_included.pop()
             if instance in already_included or instance in ja_data:
                 continue
+            if max_included > 0 and len(result) >= max_included:
+                raise ValidationError(
+                    f"Included resources exceed maximum item count {max_included}"
+                )
+            already_included.add(instance)
             included = instance._s_jsonapi_encode()
             result.append(included)
 

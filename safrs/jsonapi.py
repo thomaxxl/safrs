@@ -31,6 +31,7 @@ from .jsonapi_attr import jsonapi_attr_is_write_only
 from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsonapi_sort, jsonapi_format_response, paginate
 from .jsonapi_filters import get_swagger_filters
 from .rpc import bind_rpc_kwargs, normalize_rpc_result, parse_rpc_args
+from .config import get_config
 
 
 def make_response(*args: Any, **kwargs: Any) -> Any:
@@ -80,6 +81,18 @@ def _build_location_header(endpoint: str, instance: Any) -> str:
     return str(url_for(endpoint, **{object_id: instance.jsonapi_id}))
 
 
+def _validate_collection_size(data: Any, label: str) -> None:
+    """Bound attacker-controlled bulk and relationship arrays."""
+    if not isinstance(data, list):
+        return
+    configured_max = get_config("MAX_BULK_ITEMS")
+    max_items = int(
+        configured_max if configured_max is not None else safrs.SAFRS.MAX_BULK_ITEMS
+    )
+    if max_items > 0 and len(data) > max_items:
+        raise ValidationError(f"{label} exceeds maximum item count {max_items}")
+
+
 class Resource(FRSResource):
     """
     Superclass for the exposed endpoints
@@ -117,6 +130,25 @@ class Resource(FRSResource):
         else:
             response = make_response()
         return response
+
+    def _run_read_authorized(self: Any, callback: Callable[[], Any]) -> Any:
+        """Authorize a representation returned from a non-GET operation.
+
+        Model and relationship decorators are already embedded in ``self.get``.
+        Flask-RESTful mapping decorators are normally applied only by request
+        dispatch, so internal POST/PATCH calls must apply the mapping's GET
+        policy explicitly before serializing a resource.
+        """
+        method_decorators = getattr(self, "method_decorators", [])
+        if not isinstance(method_decorators, Mapping):
+            return callback()
+
+        callback.__name__ = "get"
+        setattr(callback, "SAFRSObject", self.SAFRSObject)
+        decorated_callback = callback
+        for decorator in list(method_decorators.get("get", []) or []):
+            decorated_callback = decorator(decorated_callback)
+        return decorated_callback()
 
     def _parse_target_data(self: Any, target_data: Any) -> Any:
         """
@@ -359,6 +391,7 @@ class SAFRSRestAPI(Resource):
         data = payload.get("data")
         if id is None and isinstance(data, list):
             # Bulk patch request
+            _validate_collection_size(data, "Bulk PATCH")
             for item in data:
                 if not isinstance(item, dict):
                     raise ValidationError("Invalid Data Object")
@@ -374,7 +407,7 @@ class SAFRSRestAPI(Resource):
             # object id is the endpoint parameter, for example "UserId" for a User SAFRSObject
             obj_args = {instance._s_object_id: instance.jsonapi_id}
             # Retrieve the jsonapi encoded object and return it to the client
-            obj_data = self.get(**obj_args)
+            obj_data = self._run_read_authorized(lambda: self.get(**obj_args))
             response = make_response(obj_data, HTTPStatus.OK)
             # Set the Location header to the newly created object
             response.headers["Location"] = url_for(self.endpoint, **obj_args)
@@ -478,6 +511,7 @@ class SAFRSRestAPI(Resource):
             # Accept it by default now
             if not cast(Any, request).is_bulk:
                 safrs.log.warning("Client sent a bulk POST but did not specify the bulk extension")
+            _validate_collection_size(data, "Bulk POST")
             instances = []
             for item in data:
                 self._s_last_post_created = True
@@ -497,7 +531,7 @@ class SAFRSRestAPI(Resource):
                 # object_id is the endpoint parameter, for example "UserId" for a User SAFRSObject
                 obj_args = {instance._s_object_id: instance.jsonapi_id}
                 # Retrieve the object json and return it to the client
-                resp_data = self.get(**obj_args)
+                resp_data = self._run_read_authorized(lambda: self.get(**obj_args))
                 if created:
                     location = _build_location_header(self.endpoint, instance)
             else:
@@ -570,7 +604,7 @@ class SAFRSRestAPI(Resource):
             self._s_last_post_created = False
             return instance
 
-        instance = self.SAFRSObject._s_post(**attributes, **relationships)
+        instance = self.SAFRSObject._s_post_prechecked(**attributes, **relationships)
         self._s_last_post_created = True
         return instance
 
@@ -894,6 +928,7 @@ class SAFRSRestRelationshipAPI(Resource):
             # we should empty the relationship by setting it to []
             # otherwise it is an instance of InstrumentedList and we have to empty it
             # (we could loop all items but this is slower for large collections)
+            _validate_collection_size(data, "Relationship PATCH")
             tmp_rel = []
             for child_data in data:
                 child = self._parse_target_data(child_data)
@@ -994,9 +1029,9 @@ class SAFRSRestRelationshipAPI(Resource):
             if child_data:
                 child = self._parse_target_data(child_data)
                 setattr(parent, self.rel_name, child)
-            data = {"data": child}
-            status_code = HTTPStatus.OK
+            return self._run_read_authorized(lambda: self.get(**kwargs))
         else:  # direction is TOMANY => append the items to the relationship
+            _validate_collection_size(data, "Relationship POST")
             for child_data in data:
                 child = self._parse_target_data(child_data)
                 if child not in relation:
@@ -1072,6 +1107,7 @@ class SAFRSRestRelationshipAPI(Resource):
             children = data
             if not isinstance(data, list) or not children:
                 raise ValidationError("Invalid data payload")
+            _validate_collection_size(data, "Relationship DELETE")
             self._ensure_disassociation_allowed("delete")
             for child in children:
                 child_id = child.get("id", None)

@@ -1106,16 +1106,17 @@ class SafrsFastAPI:
         elif isinstance(raw_methods, (set, list, tuple, frozenset)):
             candidates = cast(Iterable[Any], raw_methods)
         else:
-            candidates = [raw_methods]
+            try:
+                candidates = list(cast(Iterable[Any], raw_methods))
+            except TypeError:
+                candidates = [raw_methods]
 
         normalized: Set[str] = set()
         for method in candidates:
             method_name = str(method).upper()
             if method_name in DEFAULT_HTTP_METHODS:
                 normalized.add(method_name)
-        if normalized:
-            return normalized
-        return set(DEFAULT_HTTP_METHODS)
+        return normalized
 
     @staticmethod
     def _rpc_annotation_schema(annotation: Any, default: Any = inspect._empty) -> Dict[str, Any]:
@@ -1618,13 +1619,17 @@ class SafrsFastAPI:
         return "PATCH" in self._model_http_methods(Model)
 
     def _relationship_methods(self, Model: Type[Any], rel: Any) -> Set[str]:
-        methods: Set[str] = {"GET"}
+        parent_methods = self._model_http_methods(Model)
+        target_model = rel.mapper.class_
+        target_methods = self._model_http_methods(target_model)
+        methods: Set[str] = {"GET"} if "GET" in parent_methods and "GET" in target_methods else set()
         if not self._relationship_mutations_enabled(Model, rel):
             return methods
         if self._is_to_many_relationship(rel):
-            methods.update({"POST", "PATCH", "DELETE"})
+            candidate_methods = {"POST", "PATCH", "DELETE"}
         else:
-            methods.update({"PATCH", "DELETE"})
+            candidate_methods = {"PATCH", "DELETE"}
+        methods.update(candidate_methods & target_methods)
         return methods
 
     def _resolve_relationship_properties(self, Model: Type[Any]) -> Dict[str, Any]:
@@ -1872,6 +1877,11 @@ class SafrsFastAPI:
         if not include_values:
             return []
 
+        max_include_paths = int(getattr(safrs.SAFRS, "MAX_INCLUDE_PATHS", 0) or 0)
+        if max_include_paths > 0 and len(include_values) > max_include_paths:
+            self._jsonapi_error(400, "ValidationError", f"Too many include paths (maximum {max_include_paths})")
+        max_include_depth = int(getattr(safrs.SAFRS, "MAX_INCLUDE_DEPTH", 0) or 0)
+
         root_rels = self._resolve_relationship_properties(Model)
         paths: List[List[str]] = []
         for inc in include_values:
@@ -1881,6 +1891,12 @@ class SafrsFastAPI:
             path = [part for part in inc.split(".") if part]
             if not path:
                 continue
+            if max_include_depth > 0 and len(path) > max_include_depth:
+                self._jsonapi_error(
+                    400,
+                    "ValidationError",
+                    f"Include path exceeds maximum depth {max_include_depth}",
+                )
             current_model = Model
             for segment in path:
                 rels = self._resolve_relationship_properties(current_model)
@@ -1888,16 +1904,27 @@ class SafrsFastAPI:
                     self._jsonapi_error(400, "ValidationError", f"Invalid relationship '{segment}' in include")
                 current_model = rels[segment].mapper.class_
             paths.append(path)
+        if max_include_paths > 0 and len(paths) > max_include_paths:
+            self._jsonapi_error(400, "ValidationError", f"Too many include paths (maximum {max_include_paths})")
         return paths
 
-    def _iter_related_items(self, rel_value: Any) -> List[Any]:
+    def _iter_related_items(self, rel_value: Any, *, limit: Optional[int] = None) -> List[Any]:
         if rel_value is None:
             return []
         if hasattr(rel_value, "all") and callable(rel_value.all):
-            return list(rel_value.all())
+            query = rel_value.limit(limit) if limit is not None and hasattr(rel_value, "limit") else rel_value
+            return list(query.all())
         if isinstance(rel_value, (list, tuple, set)):
-            return list(rel_value)
+            items = list(rel_value)
+            return items[:limit] if limit is not None else items
         return [rel_value]
+
+    def _validate_collection_size(self, data: Any, label: str) -> None:
+        if not isinstance(data, list):
+            return
+        max_items = int(getattr(safrs.SAFRS, "MAX_BULK_ITEMS", 0) or 0)
+        if max_items > 0 and len(data) > max_items:
+            self._jsonapi_error(400, "ValidationError", f"{label} exceeds maximum item count {max_items}")
 
     @staticmethod
     def _parse_sort_terms(raw_sort: Optional[str]) -> List[Tuple[str, bool]]:
@@ -2084,13 +2111,6 @@ class SafrsFastAPI:
         return 1
 
     def _apply_pagination(self, value: Any, request: Request) -> Any:
-        has_offset = "page[offset]" in request.query_params
-        has_limit = "page[limit]" in request.query_params
-        has_number = "page[number]" in request.query_params
-        has_size = "page[size]" in request.query_params
-        if not has_offset and not has_limit and not has_number and not has_size:
-            return value
-
         offset, limit = self._pagination_args(request)
         raw_limit = request.query_params.get("page[limit]")
         if raw_limit is not None:
@@ -2299,7 +2319,9 @@ class SafrsFastAPI:
             if not hasattr(target_model, "_s_type"):
                 continue
             rel_value = getattr(obj, rel_name, None)
-            rel_items = self._iter_related_items(rel_value)
+            context = maybe_jsonapi_context()
+            rel_limit = context.get_relationship_page_limit(rel_name) if context is not None else None
+            rel_items = self._iter_related_items(rel_value, limit=rel_limit)
             for rel_obj in rel_items:
                 if rel_obj is None:
                     continue
@@ -2308,6 +2330,13 @@ class SafrsFastAPI:
                 if len(path) > 1:
                     next_include_names.add(str(path[1]))
                 if key not in seen:
+                    max_included = int(getattr(safrs.SAFRS, "MAX_INCLUDED_RESOURCES", 0) or 0)
+                    if max_included > 0 and len(included) >= max_included:
+                        self._jsonapi_error(
+                            400,
+                            "ValidationError",
+                            f"Included resources exceed maximum item count {max_included}",
+                        )
                     seen.add(key)
                     included.append(
                         self._encode_resource(
@@ -2517,6 +2546,7 @@ class SafrsFastAPI:
     def _coerce_post_items(self, Model: Type[Any], payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         raw_data = payload.get("data")
         if isinstance(raw_data, list):
+            self._validate_collection_size(raw_data, "Bulk POST")
             return raw_data
         self._require_type(Model, payload)
         return [payload.get("data") or {}]
@@ -2533,7 +2563,8 @@ class SafrsFastAPI:
         upsert_target = get_upsert_target(jsonapi_id, **attrs) if callable(get_upsert_target) else None
         if upsert_target is not None:
             return upsert_target._s_update_from_post(**attrs, **rels), False
-        return Model._s_post(jsonapi_id=jsonapi_id, **attrs, **rels), True
+        create_method = getattr(Model, "_s_post_prechecked", Model._s_post)
+        return create_method(jsonapi_id=jsonapi_id, **attrs, **rels), True
 
     @staticmethod
     def _append_auto_include_paths(include_paths: List[List[str]], obj: Any) -> None:
@@ -2795,6 +2826,7 @@ class SafrsFastAPI:
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "PATCH a TOMANY relationship with a list")
+                    self._validate_collection_size(data, "Relationship PATCH")
                     self._clear_relationship(rel_value)
                     for item in data:
                         target = self._lookup_related_instance(target_model, item)
@@ -2843,6 +2875,7 @@ class SafrsFastAPI:
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    self._validate_collection_size(data, "Relationship POST")
                     for item in data:
                         target = self._lookup_related_instance(target_model, item)
                         self._append_relationship_item(rel_value, target)
@@ -2877,6 +2910,7 @@ class SafrsFastAPI:
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    self._validate_collection_size(data, "Relationship DELETE")
                     for item in data:
                         target = self._lookup_related_instance(target_model, item)
                         self._remove_relationship_item(rel_value, target)
