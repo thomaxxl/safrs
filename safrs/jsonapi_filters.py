@@ -135,12 +135,16 @@ def create_query(cls: Any) -> Any:
                 safrs.log.warning(f"Invalid relationship : {current_cls}.{inc_rel_name}")
                 break
             inc_rel = getattr(current_cls, inc_rel_name)  # == current_cls._s_relationships[inc_rel_name]
-            if not hasattr(inc_rel, "lazy") or inc_rel.lazy not in ["select", "joined", "subquery", "selectin"]:
+            # Loader configuration lives on RelationshipProperty, not the
+            # class's InstrumentedAttribute. Inspecting inc_rel.lazy silently
+            # skipped eager loading for real mapped models.
+            relationship = current_cls._s_relationships[inc_rel_name]
+            if relationship.lazy not in ["select", "joined", "subquery", "selectin"]:
                 # we can't set options for lazy_load 'dynamic'/'eager'/'raise' relationships
                 # not setting them on 'noload' either
                 break
             options = options.joinedload(inc_rel) if options else joinedload(inc_rel)
-            current_cls = inc_rel.mapper.class_
+            current_cls = relationship.mapper.class_
         if options:
             query = query.options(options)
 
