@@ -1,12 +1,10 @@
 """
 JSON:API filtering strategies
 """
-import re
 from typing import Any, cast
 
 import sqlalchemy
 import safrs
-from .jsonapi_attr import is_jsonapi_attr
 from sqlalchemy.orm import joinedload
 
 from .jsonapi_context import maybe_jsonapi_context
@@ -14,11 +12,15 @@ from .config import get_config
 from .errors import ValidationError
 from .filtering import (
     apply_filter_read_permissions,
+    bracket_filter_expression,
+    coerce_filter_values,
     custom_filter_read_fields,
     filter_attribute_names,
-    get_filterable_attribute,
+    parse_bracket_filter_name,
+    require_filterable_attribute,
     uses_builtin_json_filter,
-    validate_filter_value_count,
+    validate_bracket_filter_count,
+    validate_filter_result,
 )
 
 flask_request: Any = None
@@ -59,16 +61,22 @@ def _get_filter_arg() -> str:
 
 def _get_bracket_filters() -> dict[str, str]:
     if has_request_context():
+        filter_error = getattr(flask_request, "filter_validation_error", "")
+        if filter_error:
+            raise ValidationError(str(filter_error).removeprefix("Validation Error: "))
         filters = getattr(flask_request, "filters", None)
         if isinstance(filters, dict) and filters:
-            return {str(key): str(value) for key, value in filters.items()}
+            request_filters = {str(key): str(value) for key, value in filters.items()}
+            validate_bracket_filter_count(request_filters)
+            return request_filters
         query_items = flask_request.args.items()
         flask_filters: dict[str, str] = {}
         for key, value in query_items:
-            match = re.search(r"filter\[(\w+)\]", str(key))
-            if match:
-                flask_filters[match.group(1)] = str(value)
+            attr_name = parse_bracket_filter_name(key)
+            if attr_name is not None:
+                flask_filters[attr_name] = str(value)
         if flask_filters:
+            validate_bracket_filter_count(flask_filters)
             return flask_filters
 
     context = maybe_jsonapi_context()
@@ -78,9 +86,10 @@ def _get_bracket_filters() -> dict[str, str]:
 
     result: dict[str, str] = {}
     for key, value in query_items:
-        match = re.search(r"filter\[(\w+)\]", str(key))
-        if match:
-            result[match.group(1)] = str(value)
+        attr_name = parse_bracket_filter_name(key)
+        if attr_name is not None:
+            result[attr_name] = str(value)
+    validate_bracket_filter_count(result)
     return result
 
 
@@ -184,7 +193,7 @@ def jsonapi_filter(cls: Any) -> Any:
                 result = apply_filter_read_permissions(cls, result, filter_attribute_names(filter_args))
             else:
                 result = apply_filter_read_permissions(cls, result, declared_fields)
-        return result
+        return validate_filter_result(result)
 
     expressions: list[tuple[Any, Any]] = []
     filters = _get_bracket_filters()
@@ -193,42 +202,15 @@ def jsonapi_filter(cls: Any) -> Any:
         return cls
 
     for attr_name, val in filters.items():
-        validate_filter_value_count(val)
-        if attr_name == "id":
-            if get_filterable_attribute(cls, attr_name) is None:
-                safrs.log.warning(f"Invalid filter {attr_name}")
-                return []
-            attr = getattr(cls, "id", None)
-            if attr is None:
-                # todo!!: add support for composite pkeys using `cls.id_type.get_pks`
-                if "," in val:
-                    if len(cls.id_type.column_names) > 1:
-                        safrs.log.warning('CSV search is not implemented for non-default composite "id" types')
-                        return []
-                    attr_name = cls.id_type.column_names[0]
-                    attr = getattr(cls, attr_name, None)
-                else:
-                    return cls._s_get_instance_by_id(val)
-        else:
-            attr = get_filterable_attribute(cls, attr_name)
-        if attr is None:
-            # validation failed: this attribute can't be queried
-            safrs.log.warning(f"Invalid filter {attr_name}")
-            return []
-        if is_jsonapi_attr(attr):
-            # to do
-            safrs.log.debug(f"Filtering not implemented for {attr}")
-        else:
-            expressions.append((attr, val))
+        attr = require_filterable_attribute(cls, attr_name)
+        expressions.append((attr, coerce_filter_values(attr, val, attr_name)))
 
     result_query = create_query(cls)
     if expressions:
         _expressions = []
-        for column, val in expressions:
-            if hasattr(column, "in_"):
-                _expressions.append(cast(Any, column).in_(val.split(",")))
-            else:
-                safrs.log.warning(f"'{cls}.{column}' is not a column ({type(column)})")
+        for column, values in expressions:
+            attr_name = str(getattr(column, "key", getattr(column, "name", "<unknown>")))
+            _expressions.append(bracket_filter_expression(cast(Any, column), values, attr_name))
         result_query = result_query.filter(*_expressions)
     return apply_filter_read_permissions(cls, result_query, filters.keys())
 

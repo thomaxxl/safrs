@@ -1,4 +1,8 @@
+import datetime as dt
+from types import SimpleNamespace
+
 import pytest
+from sqlalchemy.exc import ArgumentError
 
 from safrs.errors import ValidationError
 from safrs import filtering
@@ -178,3 +182,108 @@ def test_operator_attribute_and_sequence_helpers_cover_edge_values():
     assert filtering._is_sequence_like([1])
     assert filtering._is_sequence_like({1})
     assert not filtering._is_sequence_like(1)
+
+
+@pytest.mark.parametrize(
+    "raw_filter",
+    [
+        "1",
+        "[]",
+        '[{"name":"field","op":"eq","val":1},null]',
+    ],
+)
+def test_legacy_filter_rejects_invalid_payload_instead_of_failing_open(raw_filter):
+    with pytest.raises(ValidationError) as exc:
+        filtering.parse_filter_json(raw_filter)
+    assert "expected a clause object or non-empty array" in exc.value.message
+
+
+@pytest.mark.parametrize(
+    "clause, message",
+    [
+        ({"name": "field", "op": "in", "val": "1,2"}, "requires an array"),
+        ({"name": "field", "op": "like", "val": 42}, "requires a string"),
+    ],
+)
+def test_legacy_filter_validates_operator_value_types(clause, message):
+    with pytest.raises(ValidationError) as exc:
+        filtering._compile_clause_expression(FilterModel, clause, strict_mode=False)
+    assert message in exc.value.message
+
+
+@pytest.mark.parametrize(
+    "key, expected",
+    [
+        ("filter[name]", "name"),
+        ("filter[user-name]", "user-name"),
+        ("sort", None),
+        ("xfilter[name]", None),
+    ],
+)
+def test_bracket_filter_name_parser_uses_the_complete_parameter_name(key, expected):
+    assert filtering.parse_bracket_filter_name(key) == expected
+
+
+@pytest.mark.parametrize("key", ["filter[]", "filter[name", "filter[name]junk", "filter[[name]]"])
+def test_bracket_filter_name_parser_rejects_malformed_filter_parameters(key):
+    with pytest.raises(ValidationError) as exc:
+        filtering.parse_bracket_filter_name(key)
+    assert "Invalid bracket filter parameter" in exc.value.message
+
+
+def test_bracket_filter_rejects_computed_and_unknown_attributes_identically():
+    computed_attr = SimpleNamespace(_s_is_jsonapi_attr=True)
+
+    class Model:
+        _s_jsonapi_attrs = {"computed": computed_attr}
+        computed = computed_attr
+
+    messages = []
+    for attr_name in ("computed", "missing"):
+        with pytest.raises(ValidationError) as exc:
+            filtering.require_filterable_attribute(Model, attr_name)
+        messages.append(exc.value.message.replace(attr_name, "attribute"))
+    assert messages[0] == messages[1]
+
+
+@pytest.mark.parametrize(
+    "model_type, raw_value, expected",
+    [
+        (int, "1, 2", [1, 2]),
+        (bool, "true,off", [True, False]),
+        (dt.date, "2026-09-08", [dt.date(2026, 9, 8)]),
+    ],
+)
+def test_bracket_filter_values_are_coerced_to_the_column_type(model_type, raw_value, expected):
+    attr = SimpleNamespace(type=SimpleNamespace(python_type=model_type))
+    assert filtering.coerce_filter_values(attr, raw_value, "field") == expected
+
+
+@pytest.mark.parametrize(
+    "model_type, raw_value",
+    [(int, "nope"), (bool, "maybe"), (int, " , "), (int, "1,,2")],
+)
+def test_bracket_filter_values_reject_invalid_or_empty_csv(model_type, raw_value):
+    attr = SimpleNamespace(type=SimpleNamespace(python_type=model_type))
+    with pytest.raises(ValidationError) as exc:
+        filtering.coerce_filter_values(attr, raw_value, "field")
+    assert "field" in exc.value.message
+
+
+def test_filter_expression_errors_are_reported_as_validation_errors():
+    class BadAttribute:
+        @staticmethod
+        def in_(_values):
+            raise ArgumentError("SQLAlchemy detail that should not escape")
+
+    with pytest.raises(ValidationError) as exc:
+        filtering.bracket_filter_expression(BadAttribute(), [1], "field")
+    assert exc.value.message.endswith('attribute "field"')
+    assert "SQLAlchemy" not in exc.value.message
+
+
+def test_custom_filter_result_must_be_a_query_or_collection():
+    assert filtering.validate_filter_result(["ok"]) == ["ok"]
+    with pytest.raises(ValidationError) as exc:
+        filtering.validate_filter_result({"not": "a collection result"})
+    assert "Invalid filter result" in exc.value.message

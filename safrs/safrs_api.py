@@ -18,7 +18,7 @@ import safrs
 from .swagger_doc import swagger_doc, swagger_method_doc, default_paging_parameters
 from .swagger_doc import parse_object_doc, swagger_relationship_doc
 from .api_doc import get_http_methods
-from .errors import GenericError, JsonapiError, SystemValidationError, log_integrity_error_details
+from .errors import GenericError, JsonapiError, SystemValidationError, ValidationError, log_integrity_error_details
 from .config import get_config
 from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
@@ -974,6 +974,11 @@ def http_method_decorator(fun: Callable) -> Callable:
         token = tx.begin_request()
         try:
             try:
+                filter_error = getattr(cast(Any, request), "filter_validation_error", "")
+                if filter_error:
+                    raise ValidationError(
+                        str(filter_error).removeprefix("Validation Error: ")
+                    )
                 if not cast(Any, request).is_jsonapi and fun.__name__ not in ["get", "head", "options", "delete"]:  # pragma: no cover
                     # reuire jsonapi content type for requests to these routes
                     raise GenericError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description, HTTPStatus.UNSUPPORTED_MEDIA_TYPE.value)

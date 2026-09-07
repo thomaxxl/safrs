@@ -14,7 +14,10 @@ Behavior:
 - `filter[<attr>]` is parsed as a CSV list and translated to SQL `IN (...)`.
 - Multiple `filter[<attr>]` parameters are combined with `AND`.
 - `id` is supported as a special case.
-- Unknown attributes are rejected.
+- Unknown, unreadable, non-filterable, and computed attributes are rejected
+  with the same validation error. Use a custom filter for computed attributes.
+- Empty CSV values, malformed `filter[...]` parameter names, and values that
+  cannot be converted to the model column type are rejected.
 
 This mode is simple and fast for exact-value matching.
 
@@ -81,7 +84,9 @@ If `filter` JSON does not use group keys, SAFRS keeps legacy behavior:
 - A single clause object works.
 - A list of clauses is treated as `OR` between clauses.
 
-For backward compatibility, legacy `in` / `notin` handling is preserved exactly as before.
+Legacy `in` / `notin` clauses keep their historical query-combination behavior,
+but malformed clauses and non-array membership values are rejected rather than
+being ignored or passed through to SQLAlchemy.
 
 ## 5) Validation behavior
 

@@ -136,6 +136,46 @@ def build(**kwargs: Any) -> tuple[FastAPI, SafrsFastAPI]:
     return app, SafrsFastAPI(app, cleanup_session=False, **kwargs)
 
 
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"filter": "1"},
+        {"filter": "[]"},
+        {"filter": '[{"name":"name","op":"eq","val":"original"},null]'},
+        {"filter": '{"name":"name","op":"in","val":"original"}'},
+        {"filter[missing]": "value"},
+        {"filter[]": "value"},
+        {"filter[name]": ""},
+    ],
+)
+def test_filter_validation_errors_are_jsonapi_400_documents(
+    database: Any, params: dict[str, str]
+) -> None:
+    app, api = build()
+    api.expose_object(Parent)
+
+    response = TestClient(app).get("/ContractParents", params=params)
+
+    assert response.status_code == 400
+    assert "application/vnd.api+json" in response.headers["content-type"]
+    error = response.json()["errors"][0]
+    assert error["status"] == "400"
+    assert error["title"] == "ValidationError"
+    assert error["detail"]
+
+
+def test_valid_bracket_filter_still_matches_typed_collection_rows(database: Any) -> None:
+    app, api = build()
+    api.expose_object(Parent)
+
+    response = TestClient(app).get(
+        "/ContractParents", params={"filter[name]": "original"}
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == ["p1"]
+
+
 @pytest.mark.parametrize("target_first", [False, True])
 def test_public_parent_and_multihop_graph_are_not_globally_restricted(database: Any, target_first: bool) -> None:
     app, api = build()

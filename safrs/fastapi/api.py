@@ -38,13 +38,18 @@ from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_j
 from safrs.jsonapi_formatting import jsonapi_format_response
 from safrs.filtering import (
     apply_filter_read_permissions,
+    bracket_filter_expression,
+    coerce_filter_values,
     custom_filter_read_fields,
     filter_attribute_names,
     get_filterable_attribute,
     has_custom_instance_permission_check,
     materialize_for_authorization,
+    parse_bracket_filter_name,
+    require_filterable_attribute,
     uses_builtin_json_filter,
-    validate_filter_value_count,
+    validate_bracket_filter_count,
+    validate_filter_result,
 )
 from safrs.rpc import (
     bind_rpc_kwargs as shared_bind_rpc_kwargs,
@@ -2562,60 +2567,24 @@ class SafrsFastAPI:
                 sorted_items = candidate_items
         return sorted_items
 
-    @staticmethod
-    def _coerce_filter_values(model_attr: Any, raw_value: str) -> List[Any]:
-        values = [part.strip() for part in str(raw_value).split(",") if part.strip()]
-        if not values:
-            return []
-
-        model_type = getattr(getattr(model_attr, "type", None), "python_type", None)
-        coerced: List[Any] = []
-        for value in values:
-            if model_type is None:
-                coerced.append(value)
-                continue
-            try:
-                if model_type is bool:
-                    lowered = value.lower()
-                    if lowered in {"1", "true", "yes", "on"}:
-                        coerced.append(True)
-                        continue
-                    if lowered in {"0", "false", "no", "off"}:
-                        coerced.append(False)
-                        continue
-                coerced.append(model_type(value))
-            except Exception:
-                coerced.append(value)
-        return coerced
-
     def _apply_filter(self, Model: Type[Any], request: Request, base_query: Any) -> Any:
         raw_filter = request.query_params.get("filter")
         bracket_filters: Dict[str, str] = {}
         for key, value in request.query_params.items():
-            if key.startswith("filter[") and key.endswith("]"):
-                bracket_filters[key[len("filter[") : -1]] = value
-        max_bracket_filters = int(get_config("MAX_BRACKET_FILTERS") or 0)
-        if max_bracket_filters > 0 and len(bracket_filters) > max_bracket_filters:
-            raise ValidationError(
-                f"Too many bracket filters (maximum {max_bracket_filters})"
-            )
+            attr_name = parse_bracket_filter_name(key)
+            if attr_name is not None:
+                bracket_filters[attr_name] = value
+        validate_bracket_filter_count(bracket_filters)
 
         if raw_filter is None:
             if bracket_filters:
                 filtered_query = base_query
                 for attr_name, attr_value in bracket_filters.items():
-                    validate_filter_value_count(attr_value)
-                    model_attr = get_filterable_attribute(Model, attr_name)
-                    if model_attr is None:
-                        return []
-                    filter_values = self._coerce_filter_values(model_attr, attr_value)
-                    if not filter_values:
-                        return []
+                    model_attr = require_filterable_attribute(Model, attr_name)
+                    filter_values = coerce_filter_values(model_attr, attr_value, attr_name)
                     if self._is_query_like(filtered_query):
-                        if hasattr(model_attr, "in_"):
-                            filtered_query = filtered_query.filter(model_attr.in_(filter_values))
-                        else:
-                            filtered_query = filtered_query.filter(model_attr == filter_values[0])
+                        expression = bracket_filter_expression(model_attr, filter_values, attr_name)
+                        filtered_query = filtered_query.filter(expression)
                     else:
                         items = self._coerce_items(filtered_query)
                         accepted = {str(value) for value in filter_values}
@@ -2640,14 +2609,12 @@ class SafrsFastAPI:
                 else:
                     filtered = apply_filter_read_permissions(Model, filtered, declared_fields)
         except ValidationError as exc:
-            self._jsonapi_error(400, "ValidationError", str(exc))
+            self._jsonapi_error(400, "ValidationError", str(exc.message))
         except JsonapiError as exc:
             self._handle_safrs_exception(exc)
         except Exception as exc:
             self._handle_safrs_exception(exc)
-        if self._is_query_like(filtered) or isinstance(filtered, (list, tuple, set)):
-            return filtered
-        raise ValidationError("Invalid filter result")
+        return validate_filter_result(filtered)
 
     def _normalize_jsonapi_id(self, Model: Type[Any], raw_id: Any) -> Any:
         id_type = getattr(Model, "id_type", None)

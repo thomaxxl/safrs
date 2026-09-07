@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 
 from safrs.errors import ValidationError
+from safrs.filtering import jsonapi_filter_fields
 from safrs.fastapi.api import JSONAPIHTTPError, SafrsFastAPI, install_jsonapi_exception_handlers
 from safrs.jsonapi_context import maybe_jsonapi_context
 
@@ -175,9 +176,9 @@ def test_bracket_filter_rejects_fields_outside_jsonapi_read_attributes() -> None
     api = SafrsFastAPI(FastAPI(), prefix="/api")
     items = [SimpleNamespace(secret="hunter2"), SimpleNamespace(secret="decoy")]
 
-    filtered = api._apply_filter(_SortModel, _request("/api/Order/", "filter[secret]=hunter2"), items)
-
-    assert filtered == []
+    with pytest.raises(ValidationError) as exc:
+        api._apply_filter(_SortModel, _request("/api/Order/", "filter[secret]=hunter2"), items)
+    assert "unknown attribute" in exc.value.message
 
 
 def test_bracket_filter_applies_instance_level_read_permissions() -> None:
@@ -265,11 +266,59 @@ def test_invalid_custom_filter_result_raises_validation_error() -> None:
         _s_jsonapi_attrs: dict[str, Any] = {}
 
         @staticmethod
+        @jsonapi_filter_fields()
         def filter(_raw: str) -> dict[str, str]:
             return {"invalid": "result"}
 
     with pytest.raises(ValidationError):
         api._apply_filter(_BadFilterModel, _request("/api/Order/", "filter=bad"), [])
+
+
+@pytest.mark.parametrize(
+    "query, message",
+    [
+        ("filter[CategoryId]=not-an-integer", "Invalid filter value"),
+        ("filter[CategoryId]=", "requires a value"),
+        ("filter[CategoryId]junk=1", "Invalid bracket filter parameter"),
+    ],
+)
+def test_fastapi_bracket_filter_rejects_invalid_values_and_names(query: str, message: str) -> None:
+    class _IntegerAttribute:
+        type = SimpleNamespace(python_type=int)
+
+    class _TypedModel:
+        CategoryId = _IntegerAttribute()
+        _s_jsonapi_attrs = {"CategoryId": CategoryId}
+
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    with pytest.raises(ValidationError) as exc:
+        api._apply_filter(_TypedModel, _request("/api/Product/", query), [])
+    assert message in exc.value.message
+
+
+@pytest.mark.parametrize(
+    "raw_filter",
+    ["1", "[]", '[{"name":"CategoryId","op":"eq","val":1},null]'],
+)
+def test_fastapi_legacy_filter_errors_include_a_jsonapi_detail(raw_filter: str) -> None:
+    class _FilterModel:
+        _s_jsonapi_attrs = {"CategoryId": object()}
+
+        @classmethod
+        @jsonapi_filter_fields()
+        def _s_filter(cls, raw: str) -> Any:
+            from safrs.filtering import parse_filter_json
+
+            parse_filter_json(raw)
+            return []
+
+    api = SafrsFastAPI(FastAPI(), prefix="/api")
+    with pytest.raises(JSONAPIHTTPError) as exc:
+        api._apply_filter(_FilterModel, _request("/api/Product/", f"filter={raw_filter}"), [])
+    error = exc.value.payload["errors"][0]
+    assert error["status"] == "400"
+    assert error["title"] == "ValidationError"
+    assert "expected a clause object" in error["detail"]
 
 
 def test_get_collection_uses_model_s_get(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -287,6 +336,7 @@ def test_get_collection_uses_model_s_get(monkeypatch: pytest.MonkeyPatch) -> Non
             return ["shared-query"]
 
     monkeypatch.setattr(api, "_parse_include_paths", lambda Model, request: [])
+    monkeypatch.setattr(api, "_authorize_collection_before_metadata", lambda Model, value, request: value)
     monkeypatch.setattr(api, "_apply_sort_query_or_items", lambda Model, value, request: value)
     monkeypatch.setattr(api, "_query_or_items_count", lambda value: len(value))
     monkeypatch.setattr(api, "_pagination_args", lambda request: (0, 250))

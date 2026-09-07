@@ -17,6 +17,7 @@ from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
 from .errors import ValidationError
+from .filtering import parse_bracket_filter_name
 
 HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE", "PUT"}
 
@@ -57,6 +58,7 @@ class SAFRSRequest(Request):
     _extensions: set[str] = set()
     filters: dict[str, str] = {}
     filter: str = ""  # filter is the custom filter, used as an argument by _s_filter
+    filter_validation_error: str = ""
     includes: list[str] = []
     secure: bool = True
 
@@ -173,15 +175,22 @@ class SAFRSRequest(Request):
 
         self.filters = {}
         self.fields = {}
+        self.filter_validation_error = ""
 
         # Parse the jsonapi filter[] and fields[] args
         for arg, val in self.args.items():
             if arg == "filter":
                 self.filter = val
 
-            filter_attr = re.search(r"filter\[(\w+)\]", arg)
-            if filter_attr:
-                attr_name = filter_attr.group(1)
+            try:
+                attr_name = parse_bracket_filter_name(arg)
+            except ValidationError as exc:
+                # Request construction happens outside SAFRS' JSON:API error
+                # wrapper. Defer the error so clients receive a normal 400
+                # document rather than an uncaught exception.
+                self.filter_validation_error = exc.message
+                attr_name = None
+            if attr_name is not None:
                 self.filters[attr_name] = val
 
             # https://jsonapi.org/format/#fetching-sparse-fieldsets
@@ -192,9 +201,3 @@ class SAFRSRequest(Request):
 
             if arg == "include":
                 self.includes = val.split(",")
-
-        max_bracket_filters = int(get_config("MAX_BRACKET_FILTERS") or 0)
-        if max_bracket_filters > 0 and len(self.filters) > max_bracket_filters:
-            raise ValidationError(
-                f"Too many bracket filters (maximum {max_bracket_filters})"
-            )

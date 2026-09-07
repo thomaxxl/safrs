@@ -48,7 +48,9 @@ def test_filters_reject_class_hidden_and_non_filterable_fields() -> None:
     FilterPolicyAccount.__table__.c.internal.filterable = False
 
     app = Flask(__name__)
-    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    app.config.update(
+        SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True, MAX_BRACKET_FILTERS=1
+    )
     db.init_app(app)
     with app.app_context():
         db.create_all()
@@ -66,13 +68,25 @@ def test_filters_reject_class_hidden_and_non_filterable_fields() -> None:
         collection_url,
         query_string={"filter": '{"name":"secret","op":"eq","val":"hunter2"}'},
     )
+    malformed_name = client.get(collection_url, query_string={"filter[]": "alice"})
+    empty_value = client.get(collection_url, query_string={"filter[name]": ""})
+    invalid_id = client.get(collection_url, query_string={"filter[id]": "not-an-integer"})
+    too_many = client.get(
+        collection_url,
+        query_string={"filter[id]": "1", "filter[name]": "alice"},
+    )
+    valid = client.get(collection_url, query_string={"filter[name]": "alice"})
 
-    assert hidden.status_code == HTTPStatus.OK
-    assert hidden.get_json()["data"] == []
-    assert hidden.get_json()["meta"]["total"] == 0
-    assert non_filterable.status_code == HTTPStatus.OK
-    assert non_filterable.get_json()["data"] == []
+    assert hidden.status_code == HTTPStatus.BAD_REQUEST
+    assert hidden.get_json()["errors"][0]["code"] == str(HTTPStatus.BAD_REQUEST.value)
+    assert non_filterable.status_code == HTTPStatus.BAD_REQUEST
+    assert non_filterable.get_json()["errors"][0]["code"] == str(HTTPStatus.BAD_REQUEST.value)
     assert structured.status_code == HTTPStatus.BAD_REQUEST
+    assert malformed_name.status_code == HTTPStatus.BAD_REQUEST
+    assert empty_value.status_code == HTTPStatus.BAD_REQUEST
+    assert invalid_id.status_code == HTTPStatus.BAD_REQUEST
+    assert too_many.status_code == HTTPStatus.BAD_REQUEST
+    assert [item["id"] for item in valid.get_json()["data"]] == ["1"]
 
     with app.test_request_context("/"):
         with pytest.raises(SystemValidationError):

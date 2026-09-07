@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Sequence, TypeVar
 
 import safrs
 from sqlalchemy import and_, not_, or_
+from sqlalchemy.exc import ArgumentError
+
+from .jsonapi_attr import is_jsonapi_attr
 
 from .errors import ValidationError
 from .config import get_config
@@ -13,6 +18,7 @@ from .config import get_config
 _FILTER_FORMAT_ERROR = "Invalid filter format (see https://github.com/thomaxxl/safrs/wiki)"
 _GROUP_KEYS = ("and", "or", "not")
 _LEAF_KEYS = {"name", "op", "val"}
+_BRACKET_FILTER_RE = re.compile(r"filter\[([^\[\]]+)\]")
 
 
 @dataclass(frozen=True)
@@ -108,6 +114,31 @@ def get_filterable_attribute(cls: Any, attr_name: str) -> Any:
     return getattr(cls, attr_name, exposed_attr)
 
 
+def parse_bracket_filter_name(raw_key: Any) -> str | None:
+    """Return a bracket-filter attribute name and reject malformed filter keys."""
+    key = str(raw_key)
+    if not key.startswith("filter["):
+        return None
+    match = _BRACKET_FILTER_RE.fullmatch(key)
+    if match is None:
+        raise ValidationError("Invalid bracket filter parameter")
+    return match.group(1)
+
+
+def require_filterable_attribute(cls: Any, attr_name: str) -> Any:
+    """Resolve an attribute supported by exact-value bracket filtering.
+
+    Unknown, unreadable, non-filterable, and computed attributes deliberately
+    share one error.  This prevents protected model metadata from becoming an
+    attribute-discovery oracle.  Computed ``jsonapi_attr`` values need an
+    explicit custom filter because they do not necessarily have a SQL form.
+    """
+    attr = get_filterable_attribute(cls, attr_name)
+    if attr is None or is_jsonapi_attr(attr):
+        raise ValidationError(f'Invalid filter, unknown attribute "{attr_name}"')
+    return attr
+
+
 def filter_attribute_names(raw_filter: str) -> set[str]:
     """Return every attribute referenced by a built-in JSON filter."""
 
@@ -188,6 +219,77 @@ def validate_filter_value_count(raw_value: Any) -> None:
         raise ValidationError(f"Filter value list exceeds maximum size {max_values}")
 
 
+def validate_bracket_filter_count(filters: Any) -> None:
+    """Bound the number of exact-value filters in the active app context."""
+    max_filters = int(get_config("MAX_BRACKET_FILTERS") or 0)
+    if max_filters > 0 and len(filters) > max_filters:
+        raise ValidationError(
+            f"Too many bracket filters (maximum {max_filters})"
+        )
+
+
+def coerce_filter_values(model_attr: Any, raw_value: Any, attr_name: str) -> list[Any]:
+    """Parse a non-empty CSV filter value list using the model column type."""
+    validate_filter_value_count(raw_value)
+    values = [part.strip() for part in str(raw_value).split(",")]
+    if not values or any(not value for value in values):
+        raise ValidationError(f'Filter for attribute "{attr_name}" requires a value')
+
+    try:
+        model_type = model_attr.type.python_type
+    except (AttributeError, NotImplementedError):
+        return values
+    if model_type in {dict, list}:
+        return values
+
+    coerced: list[Any] = []
+    for value in values:
+        try:
+            if model_type is bool:
+                lowered = value.lower()
+                if lowered in {"1", "true", "yes", "on"}:
+                    coerced.append(True)
+                    continue
+                if lowered in {"0", "false", "no", "off"}:
+                    coerced.append(False)
+                    continue
+                raise ValueError("invalid boolean")
+            if model_type is dt.datetime:
+                coerced.append(dt.datetime.fromisoformat(value))
+            elif model_type is dt.date:
+                coerced.append(dt.date.fromisoformat(value))
+            elif model_type is dt.time:
+                coerced.append(dt.time.fromisoformat(value))
+            else:
+                coerced.append(model_type(value))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValidationError(
+                f'Invalid filter value for attribute "{attr_name}"'
+            ) from exc
+    return coerced
+
+
+def bracket_filter_expression(model_attr: Any, values: list[Any], attr_name: str) -> Any:
+    """Build an exact-value expression while normalizing client value errors."""
+    try:
+        if hasattr(model_attr, "in_"):
+            return model_attr.in_(values)
+        return model_attr == values[0]
+    except (ArgumentError, TypeError, ValueError, OverflowError) as exc:
+        raise ValidationError(
+            f'Invalid filter value for attribute "{attr_name}"'
+        ) from exc
+
+
+def validate_filter_result(result: Any) -> Any:
+    """Reject custom filters that return neither a query nor a collection."""
+    if (hasattr(result, "all") and callable(result.all)) or isinstance(
+        result, (list, tuple, set)
+    ):
+        return result
+    raise ValidationError("Invalid filter result")
+
+
 def _has_custom_instance_permission_check(cls: Any) -> bool:
     owner = next((base for base in getattr(cls, "__mro__", ()) if "_s_check_perm" in base.__dict__), None)
     if owner is None:
@@ -213,10 +315,15 @@ def _node_attribute_names(node: FilterNode) -> set[str]:
 
 def apply_filter_json(cls: Any, raw_filter: str, query: Any) -> Any:
     parsed = parse_filter_json(raw_filter)
-    if isinstance(parsed, LegacyPayload):
-        return _apply_legacy_payload(cls, parsed.raw, query)
-    expression = _compile_node_to_expression(cls, parsed)
-    return query.filter(expression)
+    try:
+        if isinstance(parsed, LegacyPayload):
+            return _apply_legacy_payload(cls, parsed.raw, query)
+        expression = _compile_node_to_expression(cls, parsed)
+        return query.filter(expression)
+    except ValidationError:
+        raise
+    except (ArgumentError, TypeError, ValueError, OverflowError) as exc:
+        raise ValidationError("Invalid filter value") from exc
 
 
 def parse_filter_json(raw_filter: str) -> ParsedFilter:
@@ -231,7 +338,14 @@ def parse_filter_json(raw_filter: str) -> ParsedFilter:
 
     if isinstance(decoded, dict) and _contains_group_key(decoded):
         return _parse_grouped_node(decoded)
+    _validate_legacy_payload(decoded)
     return LegacyPayload(decoded)
+
+
+def _validate_legacy_payload(payload: Any) -> None:
+    filters = payload if isinstance(payload, list) else [payload]
+    if not filters or any(not isinstance(item, dict) for item in filters):
+        raise ValidationError("Invalid filter, expected a clause object or non-empty array")
 
 
 def _validate_filter_complexity(payload: Any) -> None:
@@ -325,24 +439,20 @@ def _apply_legacy_payload(cls: Any, payload: Any, query: Any) -> Any:
     expressions: list[Any] = []
 
     for filt in filters:
-        if not isinstance(filt, dict):
-            safrs.log.warning("Invalid legacy filter clause")
-            continue
-
         op_name = _normalized_op_name(filt.get("op"))
         attr = _resolve_filter_attr(cls, filt, filt.get("name"))
         value = filt.get("val")
 
         if op_name in {"in", "notin"}:
-            op = getattr(attr, op_name + "_", None)
-            if not callable(op):
-                raise ValidationError(f'Invalid filter, unknown operator "{op_name}"')
-            query = query.filter(op(value))
+            expression = _compile_membership_clause_expression(
+                attr, op_name, value, filt, strict_mode=False
+            )
+            query = query.filter(expression)
             continue
 
         expressions.append(_compile_clause_expression(cls, filt, strict_mode=False))
 
-    return query.filter(or_(*expressions))
+    return query.filter(or_(*expressions)) if expressions else query
 
 
 def _compile_clause_expression(cls: Any, clause: dict[str, Any], *, strict_mode: bool) -> Any:
@@ -374,7 +484,7 @@ def _compile_string_clause_expression(
     op = getattr(attr, op_name, None)
     if not callable(op):
         raise ValidationError(f'Invalid filter, unknown operator "{op_name}"')
-    if strict_mode and not isinstance(value, str):
+    if not isinstance(value, str):
         raise ValidationError(f'Invalid filter, "{op_name}" requires a string value')
     return op(value)
 
@@ -382,7 +492,7 @@ def _compile_string_clause_expression(
 def _compile_membership_clause_expression(
     attr: Any, op_name: str, value: Any, clause: dict[str, Any], *, strict_mode: bool
 ) -> Any:
-    if strict_mode and not _is_sequence_like(value):
+    if not _is_sequence_like(value):
         raise ValidationError(f'Invalid filter, "{op_name}" requires an array value')
     op = getattr(attr, op_name + "_", None)
     if not callable(op):
