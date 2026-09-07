@@ -138,7 +138,7 @@ def test_security_dependencies_are_preserved() -> None:
         assert route_dependency.own_oauth_scopes == ["read"]
 
 
-def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
+def test_write_responses_evaluate_explicit_read_policy_and_roll_back() -> None:
     secure_base = declarative_base()
 
     class ProtectedResource(SAFRSBase, secure_base):
@@ -198,8 +198,7 @@ def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
         dependency_calls.append((request.method, request.url.path, principal))
         if principal != "alice":
             raise HTTPException(status_code=401, detail="Authentication required")
-        if request.method == "GET":
-            raise HTTPException(status_code=403, detail="Read forbidden")
+        raise HTTPException(status_code=403, detail="Read forbidden")
 
     try:
         Session.add_all(
@@ -214,8 +213,8 @@ def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
         app = FastAPI()
         api = SafrsFastAPI(app, cleanup_session=False)
         dependency = Depends(require_read_access)
-        api.expose_object(ProtectedResource, dependencies=[dependency])
-        api.expose_object(ProtectedParent, dependencies=[dependency])
+        api.expose_object(ProtectedResource, read_dependencies=[dependency])
+        api.expose_object(ProtectedParent, read_dependencies=[dependency])
         api.expose_object(ProtectedChild)
 
         def write_request(method: str, path: str) -> Request:
@@ -296,13 +295,10 @@ def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
         assert Session.get(ProtectedResource, "existing").name == "original"
         assert Session.get(ProtectedChild, 1).parent_id is None
         assert dependency_calls
-        assert {method for method, _path, _principal in dependency_calls} == {"GET"}
-        assert ("GET", "/ReadProtectedResources/new", "alice") in dependency_calls
-        assert ("GET", "/ReadProtectedResources/existing", "alice") in dependency_calls
-        # SEC-02: the relationship write is denied by the target row's own
-        # instance-GET replay (which runs before the relationship's response
-        # authorization).
-        assert ("GET", "/ReadProtectedChildren/1", "alice") in dependency_calls
+        assert {method for method, _path, _principal in dependency_calls} == {"POST", "PATCH"}
+        assert ("POST", "/ReadProtectedResources", "alice") in dependency_calls
+        assert ("PATCH", "/ReadProtectedResources/existing", "alice") in dependency_calls
+        assert ("PATCH", "/ReadProtectedParents/1/children", "alice") in dependency_calls
     finally:
         Session.remove()
         secure_base.metadata.drop_all(engine)
@@ -310,7 +306,7 @@ def test_write_responses_replay_get_dependencies_and_roll_back() -> None:
 
 
 @pytest.mark.parametrize("target_first", [False, True])
-def test_target_dependencies_protect_related_model_routes_regardless_of_exposure_order(target_first: bool) -> None:
+def test_ordinary_target_dependencies_do_not_spread_to_parent_routes(target_first: bool) -> None:
     app = FastAPI()
     api = SafrsFastAPI(app, prefix="/api")
 
@@ -324,7 +320,7 @@ def test_target_dependencies_protect_related_model_routes_regardless_of_exposure
     parent_routes = _model_routes(app)
     assert parent_routes
     assert all(
-        _require_child_user in {dependency.call for dependency in route.dependant.dependencies}
+        _require_child_user not in {dependency.call for dependency in route.dependant.dependencies}
         for route in parent_routes
     )
 

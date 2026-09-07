@@ -5,10 +5,11 @@ A caller who may edit a parent must not be able to link, unlink, traverse,
 update, or cascade-delete a target row that the target's object-level
 policy denies.
 
-Two policy styles are covered per adapter:
+Policy styles covered:
 - an object-level model hook (``_s_check_instance_access``);
-- the target's instance-GET route policy (Flask decorators / FastAPI
-  dependencies), replayed with the target row's id.
+- Flask instance-GET route decorators, replayed with the target row's id.
+  FastAPI uses explicit operation policies and concrete object callbacks;
+  ordinary dependencies are never replayed.
 """
 
 from __future__ import annotations
@@ -402,7 +403,7 @@ def fastapi_app() -> Any:
         app = FastAPI()
         api = SafrsFastAPI(app, cleanup_session=False)
         api.expose_object(_FastTargetParent)
-        api.expose_object(_FastTargetChild, dependencies=[Depends(_require_child_row)])
+        api.expose_object(_FastTargetChild)
         yield app
     finally:
         _FASTAPI_DENIED.clear()
@@ -411,7 +412,8 @@ def fastapi_app() -> Any:
         safrs.DB = original_db
 
 
-def test_fastapi_linkage_denies_target_rows_denied_by_dependency(fastapi_app: Any) -> None:
+def test_fastapi_linkage_denies_target_rows_denied_by_object_hook(fastapi_app: Any) -> None:
+    _FASTAPI_DENIED.add(1)
     client = TestClient(fastapi_app)
 
     add = client.patch(

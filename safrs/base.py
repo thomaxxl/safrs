@@ -400,6 +400,12 @@ def run_instance_access_check(
     if instance is None:
         return True
 
+    ctx = maybe_jsonapi_context()
+    if ctx is not None and ctx.resource_authorizer is not None:
+        # Explicit response policies reject the whole document, even for
+        # includes: quietly dropping a row would leave counts/links observable.
+        ctx.resource_authorizer(model, instance, action)
+
     def deny() -> None:
         if not quiet:
             raise UnAuthorizedError(
@@ -994,6 +1000,9 @@ class SAFRSBase(Model):
                         f"POST is not allowed for related resource {target_class.__name__}",
                         HTTPStatus.METHOD_NOT_ALLOWED.value,
                     )
+                ctx = maybe_jsonapi_context()
+                if ctx is not None and ctx.operation_authorizer is not None:
+                    ctx.operation_authorizer(target_class, "create")
                 return target_class._s_post_prechecked(data["id"], **attributes, **relationships)
             existing = target_class._s_get_upsert_target(data["id"], **attributes)
             if existing is not None:
@@ -1581,6 +1590,8 @@ class SAFRSBase(Model):
         """
         ctx = maybe_jsonapi_context()
         if ctx is not None:
+            if ctx.resource_authorizer is not None:
+                ctx.resource_authorizer(self.__class__, self, "read")
             self_link = ctx.instance_path(self.__class__, self)
         else:
             self_link = self._s_url
@@ -1760,6 +1771,9 @@ class SAFRSBase(Model):
                 # continue
                 pass
             if rel_name in included_rels or include_all in included_list:
+                ctx = maybe_jsonapi_context()
+                if ctx is not None and ctx.operation_authorizer is not None:
+                    ctx.operation_authorizer(relationship.mapper.class_, "read")
                 # next_included_list contains the recursive relationship names
                 next_included_list = self._s_nested_included_list(included_list, rel_name)
                 if relationship.direction == MANYTOONE:
