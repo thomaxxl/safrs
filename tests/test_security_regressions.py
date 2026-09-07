@@ -1258,3 +1258,97 @@ def test_decorator_deduplication_preserves_configured_order() -> None:
         return function
 
     assert _dedupe_decorators([first, second, first]) == [first, second]
+
+
+def test_constructor_validation_failure_never_retries_with_database_defaults() -> None:
+    from sqlalchemy.orm import validates
+
+    db = SQLAlchemy()
+
+    class ConstructorPolicyAccount(SAFRSBase, db.Model):
+        __tablename__ = "security_constructor_policy_accounts"
+
+        id = db.Column(db.Integer, primary_key=True)
+        role = db.Column(db.String, default="admin")
+
+        @validates("role")
+        def validate_role(self: Any, _key: str, value: str) -> str:
+            if value == "attacker":
+                raise ValueError("forbidden role")
+            return value
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False, app_db=db)
+        api.expose_object(ConstructorPolicyAccount)
+
+    response = app.test_client().post(
+        f"/{ConstructorPolicyAccount._s_collection_name}/",
+        headers=JSONAPI_HEADERS,
+        json=_jsonapi_document(ConstructorPolicyAccount, attributes={"role": "attacker"}),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    with app.app_context():
+        assert db.session.execute(db.select(ConstructorPolicyAccount)).scalars().all() == []
+
+
+def test_relationship_write_permission_blocks_direct_and_nested_mutation() -> None:
+    db = SQLAlchemy()
+
+    class RelationshipPolicyParent(SAFRSBase, db.Model):
+        __tablename__ = "security_relationship_policy_parents"
+        _s_allow_add_rels = True
+
+        id = db.Column(db.Integer, primary_key=True)
+        children = db.relationship("RelationshipPolicyChild", back_populates="parent")
+
+        @hybrid_method
+        def _s_check_perm(self: Any, property_name: str, permission: str = "r") -> bool:
+            return not (property_name == "children" and permission == "w")
+
+        @_s_check_perm.expression
+        def _s_check_perm(cls: Any, property_name: str, permission: str = "r") -> bool:
+            return not (property_name == "children" and permission == "w")
+
+    class RelationshipPolicyChild(SAFRSBase, db.Model):
+        __tablename__ = "security_relationship_policy_children"
+
+        id = db.Column(db.Integer, primary_key=True)
+        parent_id = db.Column(db.Integer, db.ForeignKey("security_relationship_policy_parents.id"))
+        parent = db.relationship(RelationshipPolicyParent, back_populates="children")
+
+    app = Flask(__name__)
+    app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+        db.session.add_all([RelationshipPolicyParent(id=1), RelationshipPolicyChild(id=2)])
+        db.session.commit()
+        api = SafrsApi(app, host="localhost", swaggerui_blueprint=False, app_db=db)
+        api.expose_object(RelationshipPolicyParent)
+        api.expose_object(RelationshipPolicyChild)
+
+    client = app.test_client()
+    relationship_url = (
+        f"/{RelationshipPolicyParent._s_collection_name}/1/children"
+    )
+    linkage = {"data": [{"type": RelationshipPolicyChild._s_type, "id": "2"}]}
+    direct = client.patch(relationship_url, headers=JSONAPI_HEADERS, json=linkage)
+    nested_document = _jsonapi_document(RelationshipPolicyParent, attributes={})
+    nested_document["data"]["relationships"] = {
+        "children": {"data": [{"type": RelationshipPolicyChild._s_type, "id": "2"}]}
+    }
+    nested = client.post(
+        f"/{RelationshipPolicyParent._s_collection_name}/",
+        headers=JSONAPI_HEADERS,
+        json=nested_document,
+    )
+
+    assert direct.status_code == HTTPStatus.FORBIDDEN
+    assert nested.status_code == HTTPStatus.FORBIDDEN
+    with app.app_context():
+        assert db.session.get(RelationshipPolicyChild, 2).parent_id is None

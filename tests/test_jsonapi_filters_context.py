@@ -7,6 +7,7 @@ from flask import Flask
 
 from safrs import jsonapi_filters
 from safrs.jsonapi_context import JsonApiContext, reset_jsonapi_context, set_jsonapi_context
+from safrs.filtering import jsonapi_filter_fields
 from safrs.jsonapi_formatting import jsonapi_filter_list, jsonapi_filter_query
 from safrs.request import SAFRSRequest
 
@@ -126,6 +127,7 @@ def test_jsonapi_filter_uses_jsonapi_context_custom_filter() -> None:
         called_with = ""
 
         @staticmethod
+        @jsonapi_filter_fields()
         def filter(raw: str) -> list[str]:
             _FilterModel.called_with = raw
             return ["custom"]

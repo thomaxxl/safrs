@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence, TypeVar
 
 import safrs
 from sqlalchemy import and_, not_, or_
 
 from .errors import ValidationError
+from .config import get_config
 
 _FILTER_FORMAT_ERROR = "Invalid filter format (see https://github.com/thomaxxl/safrs/wiki)"
 _GROUP_KEYS = ("and", "or", "not")
@@ -44,6 +45,33 @@ class LegacyPayload:
 
 FilterNode = ClauseNode | AndNode | OrNode | NotNode
 ParsedFilter = FilterNode | LegacyPayload
+FilterCallable = TypeVar("FilterCallable", bound=Callable[..., Any])
+
+
+def jsonapi_filter_fields(*field_names: str) -> Callable[[FilterCallable], FilterCallable]:
+    """Declare every model field a custom ``filter`` callable may inspect."""
+    def decorate(function: FilterCallable) -> FilterCallable:
+        setattr(function, "safrs_filter_fields", tuple(field_names))
+        return function
+
+    return decorate
+
+
+def custom_filter_read_fields(cls: Any, custom_filter: Any) -> tuple[str, ...]:
+    """Validate and return the declared read set for a custom filter."""
+    function = getattr(custom_filter, "__func__", custom_filter)
+    fields = getattr(custom_filter, "safrs_filter_fields", None)
+    if fields is None:
+        fields = getattr(function, "safrs_filter_fields", None)
+    if fields is None:
+        raise ValidationError(
+            "Custom filters must declare readable fields with @jsonapi_filter_fields(...)"
+        )
+    names = tuple(str(name) for name in fields)
+    denied = [name for name in names if get_filterable_attribute(cls, name) is None]
+    if denied:
+        raise ValidationError(f"Custom filter uses protected fields: {', '.join(denied)}")
+    return names
 
 
 def get_filterable_attribute(cls: Any, attr_name: str) -> Any:
@@ -117,12 +145,7 @@ def apply_filter_read_permissions(cls: Any, result: Any, attr_names: Iterable[st
     if not names or not _has_custom_instance_permission_check(cls):
         return result
 
-    if hasattr(result, "all") and callable(result.all):
-        items = list(result.all())
-    elif isinstance(result, (list, tuple, set)):
-        items = list(result)
-    else:
-        items = [result] if result is not None else []
+    items = materialize_for_authorization(result)
 
     authorized: list[Any] = []
     for item in items:
@@ -133,8 +156,36 @@ def apply_filter_read_permissions(cls: Any, result: Any, attr_names: Iterable[st
             if all(bool(check_perm(name, "r")) for name in names):
                 authorized.append(item)
         except Exception as exc:  # A failing authorization hook must fail closed.
-            safrs.log.warning("Filter permission check failed for %s: %s", type(item).__name__, exc)
+            safrs.log.warning(
+                "Filter permission check failed for %s (%s)",
+                type(item).__name__,
+                type(exc).__name__,
+            )
     return authorized
+
+
+def materialize_for_authorization(result: Any) -> list[Any]:
+    """Materialize a policy scan with a configurable fail-closed bound."""
+    max_items = int(get_config("MAX_AUTHORIZATION_SCAN") or 0)
+    if hasattr(result, "all") and callable(result.all):
+        bounded = result.limit(max_items + 1) if max_items > 0 and hasattr(result, "limit") else result
+        items = list(bounded.all())
+    elif isinstance(result, (list, tuple, set)):
+        items = list(result)
+    else:
+        items = [result] if result is not None else []
+    if max_items > 0 and len(items) > max_items:
+        raise ValidationError(
+            f"Authorization scan exceeds maximum resource count {max_items}; implement _s_query_scope"
+        )
+    return items
+
+
+def validate_filter_value_count(raw_value: Any) -> None:
+    """Bound comma-separated bracket filter membership values."""
+    max_values = int(get_config("MAX_FILTER_VALUES") or 0)
+    if max_values > 0 and len(str(raw_value).split(",")) > max_values:
+        raise ValidationError(f"Filter value list exceeds maximum size {max_values}")
 
 
 def _has_custom_instance_permission_check(cls: Any) -> bool:
@@ -142,6 +193,11 @@ def _has_custom_instance_permission_check(cls: Any) -> bool:
     if owner is None:
         return False
     return owner is not getattr(safrs, "SAFRSBase", None)
+
+
+def has_custom_instance_permission_check(cls: Any) -> bool:
+    """Whether field visibility can vary between rows of ``cls``."""
+    return _has_custom_instance_permission_check(cls)
 
 
 def _node_attribute_names(node: FilterNode) -> set[str]:
@@ -164,14 +220,43 @@ def apply_filter_json(cls: Any, raw_filter: str, query: Any) -> Any:
 
 
 def parse_filter_json(raw_filter: str) -> ParsedFilter:
+    max_length = int(get_config("MAX_FILTER_LENGTH") or 0)
+    if max_length > 0 and len(raw_filter) > max_length:
+        raise ValidationError(f"Filter exceeds maximum length {max_length}")
     try:
         decoded = json.loads(raw_filter)
     except json.decoder.JSONDecodeError:
         raise ValidationError(_FILTER_FORMAT_ERROR)
+    _validate_filter_complexity(decoded)
 
     if isinstance(decoded, dict) and _contains_group_key(decoded):
         return _parse_grouped_node(decoded)
     return LegacyPayload(decoded)
+
+
+def _validate_filter_complexity(payload: Any) -> None:
+    """Bound parser/SQL complexity before recursively compiling a filter."""
+    max_depth = int(get_config("MAX_FILTER_DEPTH") or 0)
+    max_clauses = int(get_config("MAX_FILTER_CLAUSES") or 0)
+    max_values = int(get_config("MAX_FILTER_VALUES") or 0)
+    clauses = 0
+    stack: list[tuple[Any, int]] = [(payload, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if max_depth > 0 and depth > max_depth:
+            raise ValidationError(f"Filter exceeds maximum depth {max_depth}")
+        if isinstance(node, dict):
+            if "name" in node or "op" in node:
+                clauses += 1
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    stack.append((value, depth + 1))
+        elif isinstance(node, list):
+            if max_values > 0 and len(node) > max_values:
+                raise ValidationError(f"Filter array exceeds maximum size {max_values}")
+            stack.extend((value, depth + 1) for value in node if isinstance(value, (dict, list)))
+        if max_clauses > 0 and clauses > max_clauses:
+            raise ValidationError(f"Filter exceeds maximum clause count {max_clauses}")
 
 
 def _contains_group_key(node: dict[str, Any]) -> bool:
@@ -180,46 +265,46 @@ def _contains_group_key(node: dict[str, Any]) -> bool:
 
 def _parse_grouped_node(node: Any) -> FilterNode:
     if not isinstance(node, dict):
-        raise ValidationError(f'Invalid filter "{node}", expected object')
+        raise ValidationError("Invalid filter, expected object")
 
     group_keys = [key for key in _GROUP_KEYS if key in node]
     if not group_keys:
         return _parse_clause_node(node)
     if len(group_keys) != 1:
-        raise ValidationError(f'Invalid filter "{node}", expected exactly one of and/or/not')
+        raise ValidationError("Invalid filter, expected exactly one of and/or/not")
 
     group_key = group_keys[0]
     unknown_keys = [key for key in node if key != group_key]
     if unknown_keys:
-        raise ValidationError(f'Invalid filter "{node}", unknown keys {unknown_keys}')
+        raise ValidationError(f"Invalid filter, unknown keys {unknown_keys}")
 
     payload = node[group_key]
     if group_key in {"and", "or"}:
         if not isinstance(payload, list) or not payload:
-            raise ValidationError(f'Invalid filter "{node}", "{group_key}" requires a non-empty array')
+            raise ValidationError(f'Invalid filter, "{group_key}" requires a non-empty array')
         children = [_parse_grouped_node(child) for child in payload]
         if group_key == "and":
             return AndNode(children)
         return OrNode(children)
 
     if isinstance(payload, list):
-        raise ValidationError(f'Invalid filter "{node}", "not" requires a single object')
+        raise ValidationError('Invalid filter, "not" requires a single object')
     return NotNode(_parse_grouped_node(payload))
 
 
 def _parse_clause_node(node: Any) -> ClauseNode:
     if not isinstance(node, dict):
-        raise ValidationError(f'Invalid filter "{node}", expected clause object')
+        raise ValidationError("Invalid filter, expected clause object")
     unknown = [key for key in node if key not in _LEAF_KEYS]
     if unknown:
-        raise ValidationError(f'Invalid filter "{node}", unknown keys {unknown}')
+        raise ValidationError(f"Invalid filter, unknown keys {unknown}")
 
     name = node.get("name")
     op = node.get("op")
     if not isinstance(name, str) or not name:
-        raise ValidationError(f'Invalid filter "{node}", unknown attribute "{name}"')
+        raise ValidationError(f'Invalid filter, unknown attribute "{name}"')
     if not isinstance(op, str) or not op:
-        raise ValidationError(f'Invalid filter "{node}", unknown operator "{op}"')
+        raise ValidationError(f'Invalid filter, unknown operator "{op}"')
     return ClauseNode(name=name, op=op, val=node.get("val"), raw=dict(node))
 
 
@@ -232,7 +317,7 @@ def _compile_node_to_expression(cls: Any, node: FilterNode) -> Any:
         return or_(*[_compile_node_to_expression(cls, child) for child in node.items])
     if isinstance(node, NotNode):
         return not_(_compile_node_to_expression(cls, node.item))
-    raise ValidationError(f'Invalid filter node "{node}"')
+    raise ValidationError("Invalid filter node")
 
 
 def _apply_legacy_payload(cls: Any, payload: Any, query: Any) -> Any:
@@ -241,7 +326,7 @@ def _apply_legacy_payload(cls: Any, payload: Any, query: Any) -> Any:
 
     for filt in filters:
         if not isinstance(filt, dict):
-            safrs.log.warning(f"Invalid filter '{filt}'")
+            safrs.log.warning("Invalid legacy filter clause")
             continue
 
         op_name = _normalized_op_name(filt.get("op"))
@@ -251,7 +336,7 @@ def _apply_legacy_payload(cls: Any, payload: Any, query: Any) -> Any:
         if op_name in {"in", "notin"}:
             op = getattr(attr, op_name + "_", None)
             if not callable(op):
-                raise ValidationError(f'Invalid filter "{filt}", unknown operator "{op_name}"')
+                raise ValidationError(f'Invalid filter, unknown operator "{op_name}"')
             query = query.filter(op(value))
             continue
 
@@ -280,7 +365,7 @@ def _compile_clause_expression(cls: Any, clause: dict[str, Any], *, strict_mode:
     if identity_expression is not None:
         return identity_expression
 
-    raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+    raise ValidationError(f'Invalid filter, unknown operator "{op_name}"')
 
 
 def _compile_string_clause_expression(
@@ -288,9 +373,9 @@ def _compile_string_clause_expression(
 ) -> Any:
     op = getattr(attr, op_name, None)
     if not callable(op):
-        raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+        raise ValidationError(f'Invalid filter, unknown operator "{op_name}"')
     if strict_mode and not isinstance(value, str):
-        raise ValidationError(f'Invalid filter "{clause}", "{op_name}" requires a string value')
+        raise ValidationError(f'Invalid filter, "{op_name}" requires a string value')
     return op(value)
 
 
@@ -298,10 +383,10 @@ def _compile_membership_clause_expression(
     attr: Any, op_name: str, value: Any, clause: dict[str, Any], *, strict_mode: bool
 ) -> Any:
     if strict_mode and not _is_sequence_like(value):
-        raise ValidationError(f'Invalid filter "{clause}", "{op_name}" requires an array value')
+        raise ValidationError(f'Invalid filter, "{op_name}" requires an array value')
     op = getattr(attr, op_name + "_", None)
     if not callable(op):
-        raise ValidationError(f'Invalid filter "{clause}", unknown operator "{op_name}"')
+        raise ValidationError(f'Invalid filter, unknown operator "{op_name}"')
     return op(value)
 
 
@@ -343,14 +428,14 @@ def _normalized_op_name(raw: Any) -> str:
 
 def _resolve_filter_attr(cls: Any, clause: dict[str, Any], attr_name: Any) -> Any:
     if not isinstance(attr_name, str) or not attr_name:
-        raise ValidationError(f'Invalid filter "{clause}", unknown attribute "{attr_name}"')
+        raise ValidationError(f'Invalid filter, unknown attribute "{attr_name}"')
     if "." in attr_name:
         raise ValidationError(
-            f'Invalid filter "{clause}", relationship-path filtering is not supported for "{attr_name}"'
+            f'Relationship-path filtering is not supported for "{attr_name}"'
         )
     attr = get_filterable_attribute(cls, attr_name)
     if attr is None:
-        raise ValidationError(f'Invalid filter "{clause}", unknown attribute "{attr_name}"')
+        raise ValidationError(f'Invalid filter, unknown attribute "{attr_name}"')
     return attr
 
 

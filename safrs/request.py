@@ -21,6 +21,28 @@ from .errors import ValidationError
 HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE", "PUT"}
 
 
+def validate_json_payload(payload: Any) -> None:
+    """Bound nesting and total JSON:API resource objects in one request."""
+    max_depth = int(get_config("MAX_JSON_DEPTH") or 0)
+    max_resources = int(get_config("MAX_REQUEST_RESOURCES") or 0)
+    resources = 0
+    stack: list[tuple[Any, int]] = [(payload, 1)]
+    while stack:
+        value, depth = stack.pop()
+        if max_depth > 0 and depth > max_depth:
+            raise ValidationError(f"JSON payload exceeds maximum depth {max_depth}")
+        if isinstance(value, dict):
+            if "type" in value and any(key in value for key in ("id", "attributes", "relationships")):
+                resources += 1
+                if max_resources > 0 and resources > max_resources:
+                    raise ValidationError(
+                        f"JSON payload exceeds maximum resource count {max_resources}"
+                    )
+            stack.extend((nested, depth + 1) for nested in value.values())
+        elif isinstance(value, list):
+            stack.extend((nested, depth + 1) for nested in value)
+
+
 # pylint: disable=too-many-ancestors, logging-format-interpolation
 class SAFRSRequest(Request):
     """
@@ -136,7 +158,8 @@ class SAFRSRequest(Request):
             abort(500)
         result = self.get_json()
         if not isinstance(result, dict):
-            raise ValidationError(f"Invalid JSON Payload : {result}")
+            raise ValidationError("Invalid JSON payload (expected object)")
+        validate_json_payload(result)
         return result
 
     def parse_jsonapi_args(self: Any) -> Any:
@@ -169,3 +192,9 @@ class SAFRSRequest(Request):
 
             if arg == "include":
                 self.includes = val.split(",")
+
+        max_bracket_filters = int(get_config("MAX_BRACKET_FILTERS") or 0)
+        if max_bracket_filters > 0 and len(self.filters) > max_bracket_filters:
+            raise ValidationError(
+                f"Too many bracket filters (maximum {max_bracket_filters})"
+            )

@@ -20,7 +20,7 @@ import safrs
 import sqlalchemy
 import sqlalchemy.orm.dynamic
 import sqlalchemy.orm.collections
-from flask import jsonify, make_response as flask_make_response, url_for, request
+from flask import current_app, jsonify, make_response as flask_make_response, url_for, request
 from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
 from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY
@@ -33,6 +33,7 @@ from .jsonapi_formatting import jsonapi_filter_query, jsonapi_filter_list, jsona
 from .jsonapi_filters import get_swagger_filters
 from .rpc import bind_rpc_kwargs, normalize_rpc_result, parse_rpc_args
 from .config import get_config
+from .request import validate_json_payload
 
 
 def make_response(*args: Any, **kwargs: Any) -> Any:
@@ -164,20 +165,20 @@ class Resource(FRSResource):
         :return: sqla/safrs orm instance
         """
         if not isinstance(target_data, dict):
-            raise ValidationError(f"Invalid data type {target_data}")
+            raise ValidationError("Invalid relationship data type")
         target_id = target_data.get("id", None)
         if target_id is None:
-            raise ValidationError(f"no target id {target_data}")
+            raise ValidationError("Missing relationship target id")
         target_type = target_data.get("type")
         if not target_id:
             raise ValidationError("Invalid id in data", HTTPStatus.FORBIDDEN)
         if not target_type:
             raise ValidationError("Invalid type in data", HTTPStatus.FORBIDDEN)
         if target_type != self.target._s_type:
-            raise ValidationError(f"Invalid type {target_type} != {self.target._s_type}", HTTPStatus.FORBIDDEN)
+            raise ValidationError("Invalid relationship target type", HTTPStatus.FORBIDDEN)
         target = self.target.get_instance(target_id)
         if not target:
-            raise ValidationError(f"invalid target id {target_id}")
+            raise ValidationError("Invalid relationship target id")
         _safrs_base.run_instance_access_check(self.target, target, action)
         return target
 
@@ -361,6 +362,7 @@ class SAFRSRestAPI(Resource):
         else:
             # retrieve a collection, filter and sort
             instances = self.SAFRSObject._s_get()
+            instances = _safrs_base.authorize_collection_before_metadata(self.SAFRSObject, instances)
             instances = jsonapi_sort(instances, self.SAFRSObject)
             links, data, count = paginate(instances, self.SAFRSObject)
 
@@ -437,7 +439,7 @@ class SAFRSRestAPI(Resource):
 
         body_id = self.SAFRSObject.id_type.validate_id(body_id)
         if path_id is not None and path_id != body_id:
-            raise ValidationError(f"Invalid ID {type(path_id)} {path_id} != {type(body_id)} {body_id}")
+            raise ValidationError("Body id does not match path id")
 
         attributes = data.get("attributes", {})
         attributes["id"] = body_id
@@ -503,7 +505,7 @@ class SAFRSRestAPI(Resource):
         if id is not None:
             # POSTing to an instance isn't jsonapi-compliant (https://jsonapi.org/format/#crud-creating-client-ids)
             # to do: modify Allow header
-            raise ValidationError(f"POSTing to instance is not allowed {self}", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
+            raise ValidationError("POSTing to an instance is not allowed", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
         # Create a new instance or explicitly authorize and update an upsert target.
         data = payload.get("data")
@@ -526,7 +528,13 @@ class SAFRSRestAPI(Resource):
                 created = bool(self._s_last_post_created)
                 instances.append(instance)
                 created_flags.append(created)
-            resp_data = jsonify({"data": instances})
+            for instance in instances:
+                _safrs_base.run_instance_access_check(
+                    self.SAFRSObject, instance, "read"
+                )
+            resp_data = self._run_read_authorized(
+                lambda: jsonify({"data": instances})
+            )
             location = None
         else:
             self._s_last_post_created = True
@@ -542,7 +550,7 @@ class SAFRSRestAPI(Resource):
                 if created:
                     location = _build_location_header(self.endpoint, instance)
             else:
-                safrs.log.warning(f"Created instance '{instance}' cannot be serialized")
+                safrs.log.warning("Created %s instance cannot be serialized", type(instance).__name__)
 
         status_code = HTTPStatus.CREATED if all(created_flags) else HTTPStatus.OK
         response = make_response(resp_data, status_code)
@@ -590,7 +598,7 @@ class SAFRSRestAPI(Resource):
 
         obj_type = data.get("type", None)
         if not obj_type or not obj_type == self.SAFRSObject._s_type:
-            raise ValidationError(f"Invalid type member: {obj_type} != {self.SAFRSObject._s_type}")
+            raise ValidationError("Invalid resource type")
 
         attributes = dict(data.get("attributes") or {})
         client_generated_id = data.get("id", None)
@@ -807,6 +815,10 @@ class SAFRSRestRelationshipAPI(Resource):
             HTTPStatus.CONFLICT.value,
         )
 
+    def _authorize_relationship_write(self: Any, parent: Any) -> None:
+        """Enforce the parent's relationship-specific write policy."""
+        _safrs_base.check_relationship_write_permission(parent, self.rel_name)
+
     # Retrieve relationship data
     def get(self: Any, **kwargs: Any) -> Any:
         """
@@ -824,6 +836,9 @@ class SAFRSRestRelationshipAPI(Resource):
         The top-level links object MAY contain self and related links,
         as described above for relationship objects.
         """
+        ctx = _safrs_base.maybe_jsonapi_context()
+        if ctx is not None and ctx.operation_authorizer is not None:
+            ctx.operation_authorizer(self.target, "read")
         _, relation = self.parse_args(**kwargs)
         child_id = kwargs.get(self.child_object_id)
         errors: dict[str, Any] = {}
@@ -853,12 +868,14 @@ class SAFRSRestRelationshipAPI(Resource):
                 links = {"self": request.url, "related": child._s_url}
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
             instances = jsonapi_filter_list(relation)
+            instances = _safrs_base.authorize_collection_before_metadata(self.target, instances)
             instances = jsonapi_sort(instances, self.target)
             links, data, count = paginate(instances, self.target)
             count = len(data)
         else:
             # lazy='dynamic' relationships
             instances = jsonapi_filter_query(relation, self.target)
+            instances = _safrs_base.authorize_collection_before_metadata(self.target, instances)
             instances = jsonapi_sort(instances, self.target)
             links, data, count = paginate(instances, self.target)
 
@@ -898,6 +915,7 @@ class SAFRSRestRelationshipAPI(Resource):
         """
         changed = False
         parent, relation = self.parse_args(**kwargs)
+        self._authorize_relationship_write(parent)
         payload = cast(Any, request).get_jsonapi_payload()
         data = payload.get("data")
         relation = getattr(parent, self.rel_name)
@@ -913,6 +931,7 @@ class SAFRSRestRelationshipAPI(Resource):
             if self.SAFRSObject.relationship.direction != MANYTOONE:
                 raise ValidationError("Provide a list to PATCH a TOMANY relationship")
             child = self._parse_target_data(data)
+            _safrs_base.run_instance_access_check(self.target, child, "read")
             if getattr(parent, self.rel_name) != child:
                 # change the relationship, i.e. add the child
                 setattr(parent, self.rel_name, child)
@@ -940,6 +959,8 @@ class SAFRSRestRelationshipAPI(Resource):
             for child_data in data:
                 child = self._parse_target_data(child_data)
                 tmp_rel.append(child)
+            for child in tmp_rel:
+                _safrs_base.run_instance_access_check(self.target, child, "read")
 
             existing_children = list(relation)
             removed_children = [child for child in existing_children if child not in tmp_rel]
@@ -1021,6 +1042,7 @@ class SAFRSRestRelationshipAPI(Resource):
         of the resource in the request matches the result.
         """
         parent, relation = self.parse_args(**kwargs)
+        self._authorize_relationship_write(parent)
         payload = cast(Any, request).get_jsonapi_payload()
         data = payload.get("data", None)
 
@@ -1078,6 +1100,7 @@ class SAFRSRestRelationshipAPI(Resource):
         # pylint: disable=unused-variable
         # (parent is unused)
         parent, relation = self.parse_args(**kwargs)
+        self._authorize_relationship_write(parent)
 
         # No child id=> delete specified items from the relationship
         payload = cast(Any, request).get_jsonapi_payload()
@@ -1139,7 +1162,7 @@ class SAFRSRestRelationshipAPI(Resource):
                     _safrs_base.run_instance_access_check(self.target, child, "unlink")
                     relation.remove(child)
                 else:
-                    safrs.log.warning(f"Item with id {child_id} not in relation")
+                    safrs.log.warning("Requested item is not present in relationship")
 
         return make_response(jsonify({}), HTTPStatus.NO_CONTENT)
 
@@ -1225,6 +1248,7 @@ class SAFRSJSONRPCAPI(Resource):
             payload = cast(Any, request).get_jsonapi_payload()
         else:
             payload = request.get_json()
+            validate_json_payload(payload)
         args = parse_rpc_args(
             http_method=request.method,
             valid_jsonapi=bool(getattr(method, "valid_jsonapi", True)),
@@ -1274,11 +1298,16 @@ class SAFRSJSONRPCAPI(Resource):
         return self._create_rpc_response(method, args)
 
     def _create_rpc_response(self: Any, method: Any, args: Any) -> Any:
-        safrs.log.debug(f"method {self.method_name} args {args}")
+        safrs.log.debug(
+            "RPC method %s argument names: %s",
+            self.method_name,
+            sorted(args) if isinstance(args, dict) else [],
+        )
         if not isinstance(args, dict):
             raise ValidationError("Invalid RPC args (expected object)")
         bound_args = bind_rpc_kwargs(method, args)
         result = method(**bound_args)
+        self._authorize_rpc_resources(result)
 
         response = normalize_rpc_result(
             result,
@@ -1289,3 +1318,34 @@ class SAFRSJSONRPCAPI(Resource):
         )
 
         return make_response(jsonify(response), HTTPStatus.OK)
+
+    def _authorize_rpc_resources(self: Any, value: Any, seen: Optional[set[int]] = None) -> None:
+        """Authorize concrete resources embedded anywhere in an RPC result."""
+        if seen is None:
+            seen = set()
+        value_id = id(value)
+        if value_id in seen:
+            return
+        seen.add(value_id)
+
+        if isinstance(value, safrs.SAFRSBase):
+            _safrs_base.run_instance_access_check(value.__class__, value, "read")
+            return
+        if isinstance(value, dict):
+            resource_type = value.get("type")
+            resource_id = value.get("id")
+            api = current_app.extensions.get("safrs_api")
+            models = getattr(api, "_model_method_decorators", {}) if api is not None else {}
+            model = next(
+                (candidate for candidate in models if candidate._s_type == resource_type),
+                None,
+            )
+            if model is not None and resource_id is not None:
+                instance = model.get_instance(resource_id)
+                _safrs_base.run_instance_access_check(model, instance, "read")
+            for nested in value.values():
+                self._authorize_rpc_resources(nested, seen)
+            return
+        if isinstance(value, (list, tuple, set)):
+            for nested in value:
+                self._authorize_rpc_resources(nested, seen)

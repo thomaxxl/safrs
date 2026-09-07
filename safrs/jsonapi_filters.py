@@ -14,9 +14,11 @@ from .config import get_config
 from .errors import ValidationError
 from .filtering import (
     apply_filter_read_permissions,
+    custom_filter_read_fields,
     filter_attribute_names,
     get_filterable_attribute,
     uses_builtin_json_filter,
+    validate_filter_value_count,
 )
 
 flask_request: Any = None
@@ -165,11 +167,19 @@ def jsonapi_filter(cls: Any) -> Any:
             result = cls
         elif callable(safrs_object_filter):
             # pylint: disable=not-callable
+            declared_fields = custom_filter_read_fields(cls, safrs_object_filter)
             result = safrs_object_filter(filter_args)
+            result = apply_filter_read_permissions(cls, result, declared_fields)
         else:
-            result = cls._s_filter(filter_args)
+            custom_filter = cls._s_filter
+            declared_fields = (
+                () if uses_builtin_json_filter(cls) else custom_filter_read_fields(cls, custom_filter)
+            )
+            result = custom_filter(filter_args)
             if uses_builtin_json_filter(cls):
                 result = apply_filter_read_permissions(cls, result, filter_attribute_names(filter_args))
+            else:
+                result = apply_filter_read_permissions(cls, result, declared_fields)
         return result
 
     expressions: list[tuple[Any, Any]] = []
@@ -179,6 +189,7 @@ def jsonapi_filter(cls: Any) -> Any:
         return cls
 
     for attr_name, val in filters.items():
+        validate_filter_value_count(val)
         if attr_name == "id":
             if get_filterable_attribute(cls, attr_name) is None:
                 safrs.log.warning(f"Invalid filter {attr_name}")
@@ -188,7 +199,7 @@ def jsonapi_filter(cls: Any) -> Any:
                 # todo!!: add support for composite pkeys using `cls.id_type.get_pks`
                 if "," in val:
                     if len(cls.id_type.column_names) > 1:
-                        safrs.log.warning(f'Csv search not implemented for non-default composite "id" types: {val}')
+                        safrs.log.warning('CSV search is not implemented for non-default composite "id" types')
                         return []
                     attr_name = cls.id_type.column_names[0]
                     attr = getattr(cls, attr_name, None)

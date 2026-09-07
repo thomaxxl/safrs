@@ -41,7 +41,11 @@ def attributes_example(Model: Type[Any], *, writable_only: bool = False) -> Dict
                 sample = {key: value for key, value in sample.items() if key in allowed}
                 return _json_safe(sample) or {}
         except Exception as exc:
-            safrs.log.debug("Failed to build attributes example for %s: %s", getattr(Model, "__name__", Model), exc)
+            safrs.log.debug(
+                "Failed to build attributes example for %s (%s)",
+                getattr(Model, "__name__", Model),
+                type(exc).__name__,
+            )
     return {}
 
 
@@ -54,7 +58,11 @@ def resource_identifier_example(Model: Type[Any]) -> Dict[str, str]:
             if generated is not None:
                 sample_id = generated
         except Exception as exc:
-            safrs.log.debug("Failed to build sample id for %s: %s", getattr(Model, "__name__", Model), exc)
+            safrs.log.debug(
+                "Failed to build sample id for %s (%s)",
+                getattr(Model, "__name__", Model),
+                type(exc).__name__,
+            )
     json_safe_id = _json_safe(sample_id)
     return {
         "type": str(getattr(Model, "_s_type", getattr(Model, "__name__", "Resource"))),

@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Security
 from fastapi.security import SecurityScopes
 from fastapi.testclient import TestClient
 from sqlalchemy import Column, ForeignKey, String, create_engine
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker, validates
 from sqlalchemy.pool import StaticPool
 
 import safrs
@@ -24,6 +24,17 @@ from safrs.fastapi.authorization import AuthorizationContext
 Base = declarative_base()
 
 
+class _PermissionDescriptor:
+    """Expose distinct class- and instance-level permission decisions."""
+
+    def __init__(self, rule: Any) -> None:
+        self.rule = rule
+
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        subject = owner if instance is None else instance
+        return lambda property_name, permission="r": self.rule(subject, property_name, permission)
+
+
 class Parent(SAFRSBase, Base):
     __tablename__ = "auth_contract_parents"
     _s_collection_name = "ContractParents"
@@ -31,8 +42,14 @@ class Parent(SAFRSBase, Base):
     allow_client_generated_ids = True
     _s_allow_add_rels = True
     id = Column(String, primary_key=True)
-    name = Column(String)
+    name = Column(String, default="admin")
     children = relationship("Child", back_populates="parent")
+
+    @validates("name")
+    def validate_name(self, _key: str, value: str) -> str:
+        if value == "rejected":
+            raise ValueError("rejected value")
+        return value
 
     @classmethod
     @jsonapi_rpc(http_methods=["POST", "GET"])
@@ -431,3 +448,124 @@ def test_concurrent_policies_do_not_change_or_deadlock_default_worker_limiter() 
             default_limiter.total_tokens = original
 
     asyncio.run(exercise())
+
+
+def test_relationship_write_permission_blocks_direct_and_nested_mutation(
+    database: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def permission(_owner: Any, property_name: str, permission: str = "r") -> bool:
+        return not (property_name == "children" and permission == "w")
+
+    monkeypatch.setattr(Parent, "_s_check_perm", _PermissionDescriptor(permission))
+    app, api = build()
+    api.expose_object(Parent)
+    api.expose_object(Child)
+    client = TestClient(app)
+    linkage = {"data": [{"type": Child._s_type, "id": "c2"}]}
+
+    direct = client.patch("/ContractParents/p2/children", json=linkage)
+    nested_payload = document(Parent, "new")
+    nested_payload["data"]["relationships"] = {
+        "children": {"data": [document(Child, "new-child")["data"]]}
+    }
+    nested = client.post("/ContractParents", json=nested_payload)
+
+    assert direct.status_code == 403, direct.text
+    assert nested.status_code == 403, nested.text
+    database.expire_all()
+    assert database.get(Child, "c2").parent_id == "p1"
+    assert database.get(Parent, "new") is None
+
+
+def test_constructor_validator_failure_cannot_fall_through_to_default(database: Any) -> None:
+    app, api = build()
+    api.expose_object(Parent)
+    response = TestClient(app).post(
+        "/ContractParents", json=document(Parent, "rejected-row", "rejected")
+    )
+    assert response.status_code == 400, response.text
+    database.expire_all()
+    assert database.get(Parent, "rejected-row") is None
+
+
+def test_query_scope_precedes_fastapi_count_sort_and_pagination(
+    database: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def scope(cls: Any, query: Any) -> Any:
+        return query.filter(cls.id == "p2")
+
+    monkeypatch.setattr(Parent, "_s_query_scope", classmethod(scope))
+    app, api = build()
+    api.expose_object(Parent)
+    response = TestClient(app).get("/ContractParents?page[offset]=0&page[limit]=1")
+    assert response.status_code == 200, response.text
+    assert response.json()["meta"]["total"] == 1
+    assert [item["id"] for item in response.json()["data"]] == ["p2"]
+
+
+def test_fastapi_sort_rejects_row_dependent_field_permissions(
+    database: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def permission(owner: Any, property_name: str, permission: str = "r") -> bool:
+        if isinstance(owner, Parent) and owner.id == "p1" and property_name == "name":
+            return False
+        return True
+
+    monkeypatch.setattr(Parent, "_s_check_perm", _PermissionDescriptor(permission))
+    app, api = build()
+    api.expose_object(Parent)
+    client = TestClient(app)
+    assert client.get("/ContractParents?sort=name").status_code == 400
+    assert client.get("/ContractParents?sort=-name").status_code == 400
+
+
+def test_fastapi_request_body_limit_rejects_oversized_payload(
+    database: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(safrs.SAFRS, "MAX_REQUEST_BODY_BYTES", 128)
+    app, api = build()
+    api.expose_object(Parent)
+    response = TestClient(app).post(
+        "/ContractParents", json=document(Parent, "large", "x" * 300)
+    )
+    assert response.status_code == 413, response.text
+    assert database.get(Parent, "large") is None
+
+
+def test_fastapi_instances_keep_their_captured_database_binding(monkeypatch: pytest.MonkeyPatch) -> None:
+    first_engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    second_engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(first_engine)
+    Base.metadata.create_all(second_engine)
+    first_session = sessionmaker(bind=first_engine, expire_on_commit=False)()
+    second_session = sessionmaker(bind=second_engine, expire_on_commit=False)()
+    first_session.add(Parent(id="same", name="first"))
+    second_session.add(Parent(id="same", name="second"))
+    first_session.commit()
+    second_session.commit()
+
+    monkeypatch.setattr(safrs, "DB", SimpleNamespace(session=first_session, Model=Base))
+    first_app = FastAPI()
+    first_api = SafrsFastAPI(
+        first_app, cleanup_session=False,
+        app_db=SimpleNamespace(session=first_session, Model=Base),
+    )
+    first_api.expose_object(Parent)
+    monkeypatch.setattr(safrs, "DB", SimpleNamespace(session=second_session, Model=Base))
+    second_app = FastAPI()
+    second_api = SafrsFastAPI(
+        second_app, cleanup_session=False,
+        app_db=SimpleNamespace(session=second_session, Model=Base),
+    )
+    second_api.expose_object(Parent)
+
+    assert TestClient(first_app).get("/ContractParents/same").json()["data"]["attributes"]["name"] == "first"
+    assert TestClient(second_app).get("/ContractParents/same").json()["data"]["attributes"]["name"] == "second"
+    first_session.close()
+    second_session.close()
+    first_engine.dispose()
+    second_engine.dispose()

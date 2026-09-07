@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from safrs import SAFRSBase
+from safrs import SAFRSBase, jsonapi_filter_fields
 from safrs.fastapi.api import SafrsFastAPI
 from sqlalchemy import Column, ForeignKey, String, create_engine
 from sqlalchemy.orm import declarative_base, relationship, scoped_session, sessionmaker
@@ -68,6 +68,7 @@ class User(SAFRSBase, Base):
     items = relationship("Item", back_populates="user", lazy="dynamic")
 
     @classmethod
+    @jsonapi_filter_fields("username")
     def filter(cls, *args: Any, **kwargs: Any) -> Any:
         _ = kwargs
         return cls.query.filter_by(username=args[0])

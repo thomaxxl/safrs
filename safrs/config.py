@@ -74,6 +74,24 @@ def get_config(option: str) -> Any:
     MAX_INCLUDED_RESOURCES = int(
         os.environ.get("MAX_INCLUDED_RESOURCES", safrs.SAFRS.MAX_INCLUDED_RESOURCES)
     )
+    MAX_FILTER_LENGTH = int(os.environ.get("MAX_FILTER_LENGTH", safrs.SAFRS.MAX_FILTER_LENGTH))
+    MAX_FILTER_DEPTH = int(os.environ.get("MAX_FILTER_DEPTH", safrs.SAFRS.MAX_FILTER_DEPTH))
+    MAX_FILTER_CLAUSES = int(os.environ.get("MAX_FILTER_CLAUSES", safrs.SAFRS.MAX_FILTER_CLAUSES))
+    MAX_FILTER_VALUES = int(os.environ.get("MAX_FILTER_VALUES", safrs.SAFRS.MAX_FILTER_VALUES))
+    MAX_BRACKET_FILTERS = int(
+        os.environ.get("MAX_BRACKET_FILTERS", safrs.SAFRS.MAX_BRACKET_FILTERS)
+    )
+    MAX_SORT_TERMS = int(os.environ.get("MAX_SORT_TERMS", safrs.SAFRS.MAX_SORT_TERMS))
+    MAX_AUTHORIZATION_SCAN = int(
+        os.environ.get("MAX_AUTHORIZATION_SCAN", safrs.SAFRS.MAX_AUTHORIZATION_SCAN)
+    )
+    MAX_REQUEST_BODY_BYTES = int(
+        os.environ.get("MAX_REQUEST_BODY_BYTES", safrs.SAFRS.MAX_REQUEST_BODY_BYTES)
+    )
+    MAX_JSON_DEPTH = int(os.environ.get("MAX_JSON_DEPTH", safrs.SAFRS.MAX_JSON_DEPTH))
+    MAX_REQUEST_RESOURCES = int(
+        os.environ.get("MAX_REQUEST_RESOURCES", safrs.SAFRS.MAX_REQUEST_RESOURCES)
+    )
     # This is the default query limit
     # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
     BIG_QUERY_THRESHOLD = 1000  # Warning level

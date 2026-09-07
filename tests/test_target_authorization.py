@@ -203,19 +203,36 @@ def test_flask_nested_write_denies_target_rows() -> None:
         assert flask_db.session.query(_TargetChild).count() == 3
 
 
-def test_flask_include_omits_denied_target_rows() -> None:
+def test_flask_include_rejects_document_with_denied_target_rows() -> None:
     app = _build_flask_app()
     _FLASK_DENIED.add(1)
     client = app.test_client()
 
     response = client.get("/sec02_target_parents/1/", query_string={"include": "children"})
-    assert response.status_code == 200
-    payload = response.get_json()
-    included_ids = {item["id"] for item in payload.get("included", [])}
-    assert included_ids == {"2"}
+    assert response.status_code == 403
 
     allowed = client.get("/sec02_target_parents/2/", query_string={"include": "children"})
     assert {item["id"] for item in allowed.get_json()["included"]} == {"3"}
+
+
+def test_flask_to_one_include_rejects_document_with_denied_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _build_flask_app()
+
+    def deny_first_parent(self: Any, _action: str = "read") -> bool:
+        return self.id != 1
+
+    monkeypatch.setattr(
+        _TargetParent,
+        "_s_check_instance_access",
+        deny_first_parent,
+        raising=False,
+    )
+    response = app.test_client().get(
+        "/sec02_target_children/2/", query_string={"include": "parent"}
+    )
+    assert response.status_code == 403
 
 
 def test_flask_direct_read_denies_denied_rows() -> None:
@@ -259,21 +276,11 @@ def test_flask_allowed_target_rows_keep_working() -> None:
     assert {item["id"] for item in include.get_json()["included"]} == {"1"}
 
 
-def test_flask_row_aware_get_decorator_denies_target_rows() -> None:
-    """The target's instance-GET policy is replayed with the target row's id
-    in the view kwargs (row-aware decorators see the target, not the parent)."""
+def test_flask_response_authorizer_denies_actual_target_rows() -> None:
+    """Per-row response checks use the explicit response callback."""
 
-    def make_row_denier(child_id: int) -> Any:
-        def decorator(function: Any) -> Any:
-            @wraps(function)
-            def wrapped(*args: Any, **kwargs: Any) -> Any:
-                if str(kwargs.get(_TargetChild._s_object_id, "")) == str(child_id):
-                    abort(401)
-                return function(*args, **kwargs)
-
-            return wrapped
-
-        return decorator
+    def deny_child(_model: Any, instance: Any, _request: Any) -> bool:
+        return instance.id != 1
 
     app = Flask(__name__)
     app.config.update(SQLALCHEMY_DATABASE_URI="sqlite://", TESTING=True)
@@ -291,7 +298,7 @@ def test_flask_row_aware_get_decorator_denies_target_rows() -> None:
         flask_db.session.commit()
         api = SafrsApi(app, host="localhost", swaggerui_blueprint=False, app_db=flask_db)
         api.expose_object(_TargetParent)
-        api.expose_object(_TargetChild, method_decorators={"get": [make_row_denier(1)]})
+        api.expose_object(_TargetChild, response_authorizer=deny_child)
     client = app.test_client()
 
     denied = client.patch(
@@ -299,7 +306,7 @@ def test_flask_row_aware_get_decorator_denies_target_rows() -> None:
         json={"data": [{"type": "TargetChild", "id": "1"}]},
         headers=JSONAPI_HEADERS,
     )
-    assert denied.status_code == 401
+    assert denied.status_code == 403
     allowed = client.post(
         "/sec02_target_parents/1/children",
         json={"data": [{"type": "TargetChild", "id": "3"}]},
@@ -444,13 +451,11 @@ def test_fastapi_allowed_target_rows_keep_working(fastapi_app: Any) -> None:
     assert safrs.DB.session.get(_FastTargetChild, 2).parent_id == 2
 
 
-def test_fastapi_include_omits_denied_target_rows(fastapi_app: Any) -> None:
+def test_fastapi_include_denies_the_entire_document_for_a_denied_target(fastapi_app: Any) -> None:
     _FASTAPI_DENIED.add(1)
     client = TestClient(fastapi_app)
     response = client.get("/FastTargetParents/1", params={"include": "children"})
-    assert response.status_code == 200
-    included_ids = {item["id"] for item in response.json().get("included", [])}
-    assert included_ids == {"2"}
+    assert response.status_code == 403
 
 
 def test_fastapi_direct_read_denies_denied_rows(fastapi_app: Any) -> None:

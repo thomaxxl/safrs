@@ -71,6 +71,14 @@ pagination/counting when rows must be hidden, not merely denied on retrieval.
 Arbitrary scalar RPC payloads are application-owned and cannot be recognized as
 protected model representations by the framework.
 
+Override `Model._s_query_scope(query_or_items)` to apply the current
+principal's SQL predicate. SAFRS invokes it before ordering, totals, page
+links, and slicing for collections, relationships, and includes. If a model
+has a per-object policy but no database scope, SAFRS performs a bounded
+fail-closed scan (`MAX_AUTHORIZATION_SCAN`) and rejects a document containing a
+denied row. This fallback is safe but intentionally not a substitute for an
+efficient tenant/owner predicate.
+
 ## Request and dependency lifecycle
 
 Explicit policies receive the **original request**, with its original method,
@@ -98,6 +106,13 @@ dependencies. It never changes AnyIO's shared worker capacity. Async policies
 run on the application's event loop. A body-reading dependency observes the
 original cached body, never a POST stream relabelled as GET.
 
+`docs_dependencies` are installed as native FastAPI route dependencies for
+`/docs`, `/redoc`, `/openapi.json`, and `/swagger.json`. Nested `Depends` and
+`Security`, overrides, caching, and generator cleanup therefore work normally.
+Configured documentation protection is never disabled by DEBUG logging. SAFRS
+warns once if model authorization is configured while documentation remains
+public.
+
 ## Migration from PR #200's implicit replay
 
 Keep auditing, rate limiting, client setup, and ordinary route authentication in
@@ -114,10 +129,14 @@ may require both permissions, and denial rolls back the entire request.
 GET route availability and permission to return a representation are distinct;
 write-only APIs can set a read policy for their write responses.
 
-This revision changes only the FastAPI authorization contract and the shared
-callback plumbing it needs. The earlier PR also changed pagination defaults,
-filter permissions, attribute writes, Flask authorization and schema exposure.
-Those changes still require their own migration review and compatibility tests;
-this authorization suite is not evidence that the whole PR is merge-ready.
-Suggested review boundaries are FastAPI authorization, relationship/include
-hooks, Flask/upsert hardening, filters/limits, and application/schema isolation.
+Request bodies are limited by `MAX_REQUEST_BODY_BYTES`; JSON nesting and total
+resource objects are limited by `MAX_JSON_DEPTH` and
+`MAX_REQUEST_RESOURCES`. Set these before constructing `SafrsFastAPI` when an
+application needs different bounds.
+
+Pass `app_db=` to bind an API instance to its database explicitly. Requests
+activate that binding automatically. For a background task or script, use
+`with api.runtime_context():` so model operations cannot select another API's
+session after multiple applications have been initialized. If `app_db` is
+omitted, the current legacy `safrs.DB` value is captured once at adapter
+construction; it is never looked up again during a request.

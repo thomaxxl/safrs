@@ -6,7 +6,7 @@ import hashlib
 import re
 import json
 import safrs
-from sqlalchemy.types import PickleType, String
+from sqlalchemy.types import String
 from sqlalchemy.types import TypeDecorator, BLOB
 from .errors import ValidationError
 from .util import classproperty
@@ -97,7 +97,7 @@ class SAFRSID:
             try:
                 result = cls.columns[0].type.python_type(id)
             except Exception:
-                raise ValidationError(f"Invalid id: '{id}'.")
+                raise ValidationError("Invalid id")
         else:
             pass
             # safrs.log.debug("ID Validation not implemented for {}".format(cls))
@@ -140,7 +140,7 @@ class SAFRSID:
         else:
             values = str(jsonapi_id).split(cls.delimiter)
         if len(values) != len(cls.columns):
-            raise ValidationError(f"PK values ({values}) do not match columns ({cls.columns})")
+            raise ValidationError("Primary-key values do not match the model identifier")
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
@@ -158,7 +158,7 @@ class SAFRSID:
                 else:
                     result[col_name] = ""
             except Exception as exc:  # pragma: no cover
-                safrs.log.warning(f"PK Error: {exc}")
+                safrs.log.warning("Primary-key conversion failed (%s)", type(exc).__name__)
                 result[col_name] = ""
 
         return result
@@ -250,24 +250,26 @@ class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
         return _id
 
 
-class JSONType(PickleType):  # pragma: no cover
+class JSONType(TypeDecorator):  # pragma: no cover
     """
     JSON DB type is used to store JSON objects in the database
     """
 
     impl = BLOB
+    cache_ok = True
 
     def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
-        # kwargs['pickler'] = json
         super(JSONType, self).__init__(*args, **kwargs)
 
     def process_bind_param(self: Any, value: Any, dialect: Any) -> Any:
         if value is not None:
-            value = json.dumps(value, ensure_ascii=True)
+            value = json.dumps(value, ensure_ascii=True).encode("utf-8")
         return value
 
     def process_result_value(self: Any, value: Any, dialect: Any) -> Any:
         if value is not None:
+            if isinstance(value, bytes):
+                value = value.decode("utf-8")
             value = json.loads(value)
         return value
 
@@ -308,6 +310,6 @@ class UUIDType(TypeDecorator):  # pragma: no cover
         try:
             uuid.UUID(value, version=4)
         except Exception as exc:
-            raise ValidationError(f"UUID Validation Error {value} ({exc})")
+            raise ValidationError("Invalid UUID") from exc
 
         return value

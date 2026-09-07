@@ -23,11 +23,13 @@ from .config import get_config
 from .json_encoder import SAFRSJSONProvider, SAFRSJSONEncoder
 from ._safrs_relationship import SAFRSRelationshipObject
 from . import tx
+from .runtime import bind_db, get_db
 from sqlalchemy.orm.interfaces import MANYTOONE
 import sqlalchemy
 from flask import current_app, Response
 import json
 import yaml  # type: ignore[import-untyped]
+from contextlib import contextmanager
 from flask.app import Flask
 from typing import Any, Callable, Optional, Type, cast
 from sqlalchemy.orm.exc import FlushError
@@ -84,61 +86,6 @@ def _dedupe_decorators(decorators: Any) -> list[Any]:
     return result
 
 
-def _relationship_target_models(model: Any) -> list[Any]:
-    """Collect every model reachable through relationships, excluding the source."""
-    result: list[Any] = []
-    visited: set[Any] = {model}
-
-    def visit(current_model: Any) -> None:
-        for relationship in getattr(current_model, "_s_relationships", {}).values():
-            target_model = relationship.mapper.class_
-            if target_model in visited:
-                continue
-            visited.add(target_model)
-            result.append(target_model)
-            visit(target_model)
-
-    visit(model)
-    return result
-
-
-def _relationship_target_decorators(model: Any) -> list[Any]:
-    """Collect relationship and model decorators for every reachable model."""
-    result: list[Any] = []
-    visited: set[Any] = {model}
-
-    def visit(current_model: Any) -> None:
-        for relationship in getattr(current_model, "_s_relationships", {}).values():
-            result.extend(getattr(relationship, "decorators", []))
-            target_model = relationship.mapper.class_
-            if target_model in visited:
-                continue
-            visited.add(target_model)
-            result.extend(_model_decorators(target_model))
-            visit(target_model)
-
-    visit(model)
-    return result
-
-
-def _method_decorators_for_method(method_decorators: Any, method_name: str) -> list[Any]:
-    """Return decorators using flask-restful's list or per-method mapping rules."""
-    if isinstance(method_decorators, Mapping):
-        operation_name = "get" if method_name == "head" and "head" not in method_decorators else method_name
-        configured_decorators = method_decorators.get(operation_name, [])
-    else:
-        configured_decorators = method_decorators
-    return list(configured_decorators or [])
-
-
-def _upsert_method_decorators(method_decorators: Any) -> list[Any]:
-    """Return an explicit upsert policy or fall back to the PATCH policy."""
-    if not isinstance(method_decorators, Mapping):
-        return []
-    operation_name = "upsert" if "upsert" in method_decorators else "patch"
-    return list(method_decorators.get(operation_name, []) or [])
-
-
 def _http_method_set(methods: Any) -> set[str]:
     return {str(method).upper() for method in methods or []}
 
@@ -155,6 +102,15 @@ class SAFRSAPI(FRSApiBase):
     _als_resources: list[Any] = []
     client_uri = ""
 
+    def runtime_context(self: Any) -> Any:
+        """Bind this API's database for work outside a Flask request."""
+        @contextmanager
+        def context() -> Any:
+            with self._safrs_app.app_context(), bind_db(self.db):
+                yield
+
+        return context()
+
     def __init__(self: Any, app: Flask, host: str='localhost', port: int=5000, prefix: str='', description: str='SAFRSAPI', json_encoder: Optional[Type[SAFRSJSONProvider]]=None, swaggerui_blueprint: bool=True, docs_decorators: Any=None, **kwargs: Any) -> None:
         """
         http://jsonapi.org/format/#content-negotiation-servers
@@ -170,13 +126,16 @@ class SAFRSAPI(FRSApiBase):
         """
 
         self._custom_swagger = kwargs.pop("custom_swagger", {})
+        self._safrs_app = app
         self._operation_ids = {}
         self._als_resources = []
         self._model_method_decorators: dict[Any, Any] = {}
-        self._authorization_resources: list[tuple[Any, list[Any]]] = []
+        self._response_authorizers: dict[Any, list[Any]] = {}
+        self._model_url_prefix: dict[Any, str] = {}
         self.swaggerui_blueprint = swaggerui_blueprint
         kwargs["default_mediatype"] = "application/vnd.api+json"
         app_db = kwargs.pop("app_db", None)
+        self.db = app_db if app_db is not None else app.extensions["sqlalchemy"]
         safrs.SAFRS(app, app_db=app_db, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, docs_decorators=docs_decorators, **kwargs)
         # the host shown in the swagger ui
         # this host may be different from the hostname of the server and
@@ -201,6 +160,7 @@ class SAFRSAPI(FRSApiBase):
         self.representations = OrderedDict(DEFAULT_REPRESENTATIONS)
         self.update_spec()
         self._register_public_docs_warning(app)
+        app.extensions["safrs_api"] = self
         SAFRSAPI.client_uri = host
 
     def _protect_docs_views(self: Any, app: Any) -> None:
@@ -245,7 +205,7 @@ class SAFRSAPI(FRSApiBase):
             safrs.log.warning(
                 "SAFRS API documentation routes are publicly accessible although models %s "
                 "carry SAFRS authorization policies. Protect them with docs_decorators=... "
-                "(applied automatically outside DEBUG mode). Authentication configured outside "
+                "Authentication configured outside "
                 "SAFRS hooks (middleware, before_request, app-level dependencies) is not detected, "
                 "so verify the docs routes match your authentication boundary.",
                 protected,
@@ -285,22 +245,24 @@ class SAFRSAPI(FRSApiBase):
 
         SAFRSAPI._ensure_authorization_state(self)
         configured_method_decorators = properties.get("method_decorators", [])
+        response_authorizer = properties.pop("response_authorizer", None)
+        self._response_authorizers[safrs_object] = (
+            [response_authorizer] if response_authorizer is not None else []
+        )
         if isinstance(configured_method_decorators, Mapping) and "head" not in configured_method_decorators:
             configured_method_decorators = dict(configured_method_decorators)
             configured_method_decorators["head"] = list(configured_method_decorators.get("get", []) or [])
             properties["method_decorators"] = configured_method_decorators
         self._model_method_decorators[safrs_object] = configured_method_decorators
-        SAFRSAPI._sync_target_method_decorators(self)
-        relationship_target_models = _relationship_target_models(safrs_object)
+        self._model_url_prefix[safrs_object] = str(url_prefix)
+        # Policies registered for a related model must not be copied onto all
+        # routes of the parent.  Concrete related resources are authorized
+        # when they are serialized, and relationship routes carry only their
+        # direct parent/relationship/target decorators.
 
         properties["SAFRSObject"] = safrs_object
-        # SEC-02: allow per-row policy checks (run_instance_access_check) to
-        # find this API instance's method decorators from the model class.
-        safrs_object._safrs_api = self
         properties["http_methods"] = safrs_object.http_methods
-        properties["_s_relationship_target_decorators"] = _relationship_target_decorators(safrs_object)
-        safrs_object.url_prefix = url_prefix
-        endpoint = safrs_object.get_endpoint()
+        endpoint = SAFRSAPI._get_model_endpoint(safrs_object, url_prefix)
 
         # tags indicate where in the swagger hierarchy the endpoint will be shown
         tags = [safrs_object._s_collection_name]
@@ -314,25 +276,23 @@ class SAFRSAPI(FRSApiBase):
         url = RESOURCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name)
         swagger_decorator = swagger_doc(safrs_object) if self.swaggerui_blueprint else lambda x: x
         api_class = api_decorator(type(api_class_name, (rest_api,), properties), swagger_decorator)
-        SAFRSAPI._register_authorization_resource(self, api_class, relationship_target_models)
 
         safrs.log.info(f"Exposing {safrs_object._s_collection_name} on {url}, endpoint: {endpoint}")
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "POST"])
 
         INSTANCE_URL_FMT = cast(str, get_config("INSTANCE_URL_FMT"))
         url = INSTANCE_URL_FMT.format(url_prefix, safrs_object._s_collection_name, safrs_object.__name__)
-        endpoint = safrs_object.get_endpoint(type="instance")
+        endpoint = SAFRSAPI._get_model_endpoint(safrs_object, url_prefix, type="instance")
 
         # Expose the instances
         safrs.log.info(f"Exposing {safrs_object._s_type} instances on {url}, endpoint: {endpoint}")
         api_class = api_decorator(type(api_class_name + "_i", (rest_api,), properties), swagger_decorator)
-        SAFRSAPI._register_authorization_resource(self, api_class, relationship_target_models)
         self.add_resource(api_class, url, endpoint=endpoint, methods=["GET", "PATCH", "DELETE"])
 
         try:
             object_doc = parse_object_doc(safrs_object)
         except Exception as exc:
-            safrs.log.error(f"Failed to parse docstring {exc}")
+            safrs.log.error("Failed to parse model documentation (%s)", type(exc).__name__)
             object_doc = {}
         object_doc["name"] = safrs_object._s_collection_name
         self._swagger_object["tags"].append(object_doc)
@@ -381,7 +341,6 @@ class SAFRSAPI(FRSApiBase):
             swagger_decorator = swagger_method_doc(safrs_object, method_name, tags)
             properties.update({"method_name": method_name, "http_methods": safrs_object.http_methods})
             api_class = api_decorator(type(api_method_class_name, (rpc_api,), properties), swagger_decorator)
-            SAFRSAPI._register_authorization_resource(self, api_class, _relationship_target_models(safrs_object))
             meth_name = safrs_object._s_class_name + "." + api_method.__name__
             safrs.log.info(f"Exposing method {meth_name} on {url}, endpoint: {endpoint}")
             self.add_resource(api_class, url, endpoint=endpoint, methods=get_http_methods(api_method), jsonapi_rpc=True)
@@ -395,51 +354,22 @@ class SAFRSAPI(FRSApiBase):
             return True
         return getattr(api_method, "__self__", None) is safrs_object
 
-    def _register_authorization_resource(self, resource: Any, target_models: list[Any]) -> None:
-        """Track a generated resource and apply policies already registered for its targets."""
-        SAFRSAPI._ensure_authorization_state(self)
-        self._authorization_resources.append((resource, target_models))
-        SAFRSAPI._sync_target_method_decorators(self)
-
     def _ensure_authorization_state(self) -> None:
         """Initialize policy state for normal and partially constructed API instances."""
         if not hasattr(self, "_model_method_decorators"):
             self._model_method_decorators = {}
-        if not hasattr(self, "_authorization_resources"):
-            self._authorization_resources = []
+        if not hasattr(self, "_response_authorizers"):
+            self._response_authorizers = {}
+        if not hasattr(self, "_model_url_prefix"):
+            self._model_url_prefix = {}
 
-    def _sync_target_method_decorators(self) -> None:
-        """Apply newly registered target policies to every affected generated resource."""
-        SAFRSAPI._ensure_authorization_state(self)
-        for resource, target_models in self._authorization_resources:
-            applied_by_method = resource.__dict__.get("_s_applied_target_method_decorators")
-            if applied_by_method is None:
-                applied_by_method = {}
-                resource._s_applied_target_method_decorators = applied_by_method
-
-            for method_name in RESOURCE_METHODS:
-                method = getattr(resource, method_name, None)
-                if method is None:
-                    continue
-                applied_decorators = applied_by_method.setdefault(method_name, set())
-                for target_model in target_models:
-                    configured = self._model_method_decorators.get(target_model, [])
-                    configured_decorators = _method_decorators_for_method(configured, method_name)
-                    # Parent POST routes may upsert an existing related model.
-                    # Apply that target's update policy up front; direct model
-                    # upserts are authorized after their id resolves.
-                    if method_name == "post":
-                        configured_decorators += _upsert_method_decorators(configured)
-                    for decorator in configured_decorators:
-                        decorator_id = id(decorator)
-                        if decorator_id in applied_decorators:
-                            continue
-                        swagger_operation_object = getattr(method, "__swagger_operation_object", None)
-                        method = decorator(method)
-                        if swagger_operation_object is not None:
-                            method.__swagger_operation_object = swagger_operation_object
-                        applied_decorators.add(decorator_id)
-                setattr(resource, method_name, method)
+    @staticmethod
+    def _get_model_endpoint(model: Any, url_prefix: str, **kwargs: Any) -> str:
+        """Resolve an endpoint without storing the prefix on a shared model."""
+        parameters = inspect.signature(model.get_endpoint).parameters
+        if "url_prefix" in parameters:
+            kwargs["url_prefix"] = url_prefix
+        return str(model.get_endpoint(**kwargs))
 
     def expose_relationship(self: Any, relationship: Any, url_prefix: Any, tags: Any, properties: Any) -> Any:
         """
@@ -489,7 +419,6 @@ class SAFRSAPI(FRSApiBase):
             + getattr(parent_class, "decorators", [])
             + getattr(relationship, "decorators", [])
             + _model_decorators(target_object)
-            + _relationship_target_decorators(target_object)
         )
         rel_object = type(
             f"{parent_name}.{rel_name}",  # Name of the class we're creating here
@@ -510,7 +439,6 @@ class SAFRSAPI(FRSApiBase):
         properties["http_methods"] = allowed_methods
         swagger_decorator = swagger_relationship_doc(rel_object, tags)
         api_class = api_decorator(type(api_class_name, (relationship_api,), properties), swagger_decorator)
-        SAFRSAPI._register_authorization_resource(self, api_class, _relationship_target_models(parent_class))
 
         # Expose the relationship for the parent class:
         # GET requests to this endpoint retrieve all item ids
@@ -521,7 +449,7 @@ class SAFRSAPI(FRSApiBase):
         try:
             target_object_id = target_object._s_object_id
         except Exception as exc:
-            safrs.log.exception(exc)
+            safrs.log.error("Failed to resolve relationship target identifier (%s)", type(exc).__name__)
             safrs.log.error(f"No object id for {target_object}")
             target_object_id = target_object.__name__
 
@@ -606,8 +534,9 @@ class SAFRSAPI(FRSApiBase):
         try:  # pragma: no cover
             validate_path_item_object(path_item)
         except FRSValidationError as exc:
-            safrs.log.exception(exc)
-            safrs.log.critical(f"Validation failed for {path_item}")
+            # Path items can contain user-supplied examples.  Never echo the
+            # generated document or validator message into logs.
+            safrs.log.critical("OpenAPI path validation failed (%s)", type(exc).__name__)
             exit(1)
 
     def _build_swagger_path_item(
@@ -849,7 +778,7 @@ class SAFRSAPI(FRSApiBase):
             try:
                 validate_definitions_object(definition.properties)
             except Exception as exc:  # pragma: no cover
-                safrs.log.warning(f"Failed to validate {definition}:{exc}")
+                safrs.log.warning("Failed to validate OpenAPI definition (%s)", type(exc).__name__)
                 continue
             definition_value = {"properties": definition.properties}
             self._swagger_object["definitions"][def_name] = definition_value
@@ -968,7 +897,7 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
                 safrs.log.error(f"Failed to generate documentation for {cls} {decorated_method} (Recursion Error)")
 
             except Exception as exc:
-                safrs.log.exception(exc)
+                safrs.log.error("Failed to generate documentation (%s)", type(exc).__name__)
                 safrs.log.error(f"Failed to generate documentation for {decorated_method}")
 
             # The user can add custom decorators
@@ -976,7 +905,6 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
             custom_decorators = list(getattr(cls.SAFRSObject, "custom_decorators", [])) + list(
                 getattr(cls.SAFRSObject, "decorators", [])
             )
-            custom_decorators += list(getattr(cls, "_s_relationship_target_decorators", []))
             for custom_decorator in _dedupe_decorators(custom_decorators):
                 # update_wrapper(custom_decorator, decorated_method)
                 swagger_operation_object = getattr(decorated_method, "__swagger_operation_object", {})
@@ -987,7 +915,6 @@ def api_decorator(cls: Any, swagger_decorator: Any) -> Any:
             custom_decorators = list(getattr(cls.SAFRSObject, "custom_decorators", [])) + list(
                 getattr(cls.SAFRSObject, "decorators", [])
             )
-            custom_decorators += list(getattr(cls, "_s_relationship_target_decorators", []))
             # HEAD inherits GET authorization semantics. Temporarily expose a
             # GET function name so conditional decorators such as the
             # documented per-method pattern select their read policy.
@@ -1055,9 +982,9 @@ def http_method_decorator(fun: Callable) -> Callable:
 
                 result = fun(*args, **kwargs)
                 if request_method in WRITE_HTTP_METHODS and tx.should_autocommit():
-                    safrs.DB.session.commit()
+                    get_db().session.commit()
                 else:
-                    safrs.DB.session.rollback()
+                    get_db().session.rollback()
                 return result
 
             except werkzeug.exceptions.NotFound as exc:
@@ -1067,7 +994,7 @@ def http_method_decorator(fun: Callable) -> Callable:
                 message = HTTPStatus.NOT_FOUND.description
 
             except JsonapiError as exc:
-                safrs.log.exception(exc)
+                safrs.log.info("JSON:API request rejected (%s)", type(exc).__name__)
                 safrs_exception = exc
 
             except sqlalchemy.exc.IntegrityError as exc:
@@ -1076,7 +1003,7 @@ def http_method_decorator(fun: Callable) -> Callable:
                     resource=str(resource_name) if resource_name else None,
                     object_id=str(object_id) if object_id is not None else None,
                 )
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 errors = dict(
                     title=HTTPStatus.CONFLICT.description,
                     detail="Database constraint violation",
@@ -1085,7 +1012,7 @@ def http_method_decorator(fun: Callable) -> Callable:
                 abort(HTTPStatus.CONFLICT.value, errors=[errors])
 
             except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError, OverflowError):
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 errors = dict(
                     title=HTTPStatus.BAD_REQUEST.description,
                     detail="Invalid attribute value",
@@ -1094,7 +1021,7 @@ def http_method_decorator(fun: Callable) -> Callable:
                 abort(HTTPStatus.BAD_REQUEST.value, errors=[errors])
 
             except (FlushError, sqlalchemy.exc.InvalidRequestError):
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 errors = dict(
                     title=HTTPStatus.CONFLICT.description,
                     detail="Relationship update violates DB constraints",
@@ -1105,7 +1032,7 @@ def http_method_decorator(fun: Callable) -> Callable:
             except AssertionError as exc:
                 if not _is_relationship_pk_disassociation_assertion(exc):
                     raise
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 errors = dict(
                     title=HTTPStatus.CONFLICT.description,
                     detail="Relationship update violates DB constraints",
@@ -1116,22 +1043,19 @@ def http_method_decorator(fun: Callable) -> Callable:
             except werkzeug.exceptions.HTTPException as exc:
                 status_code = cast(int, exc.code)
                 message = cast(str, exc.description)
-                safrs.log.error(message)
+                safrs.log.info("HTTP request rejected (%s)", status_code)
 
             except Exception as exc:
-                safrs.log.exception(exc)
+                safrs.log.error("Unhandled request failure (%s)", type(exc).__name__)
                 safrs_exception = exc
-                if safrs.log.getEffectiveLevel() > logging.DEBUG:
-                    safrs_exception.message = "Logging Disabled"
-                else:
-                    safrs_exception.message = str(exc)
+                safrs_exception.message = "Internal Server Error"
 
             status_code = getattr(safrs_exception, "status_code", status_code)
             api_code = getattr(safrs_exception, "api_code", status_code)
             title = getattr(safrs_exception, "message", message)
             detail = getattr(safrs_exception, "detail", title)
 
-            safrs.DB.session.rollback()
+            get_db().session.rollback()
             errors = dict(title=title, detail=detail, code=str(api_code))
             abort(status_code, errors=[errors])
         finally:

@@ -1,10 +1,7 @@
 from contextvars import ContextVar, Token
 import logging
 from typing import Any, Optional
-# Exception Handlers
-#
-# The application loglevel determines the level of detail dhown to the user.
-# If set to debug, too much sensitive info might be shown !
+# Exception handlers keep client diagnostics independent from logger level.
 #
 # The exceptions will be caught in http_method_decorator and formatted, for example:
 # {
@@ -13,14 +10,12 @@ from typing import Any, Optional
 #      "code": 401
 # }
 #
-import traceback
 from flask import has_request_context, request
 from werkzeug.exceptions import NotFound
 import safrs
 from sqlalchemy.exc import DontWrapMixin
 from http import HTTPStatus
 from urllib.parse import urlsplit
-from .config import is_debug
 
 HIDDEN_LOG = "(debug logging disabled)"
 _FASTAPI_REQUEST_URL: ContextVar[Optional[str]] = ContextVar("safrs_fastapi_request_url", default=None)
@@ -94,13 +89,11 @@ def log_integrity_error_details(
     effective_resource = resource or inferred_resource
     effective_object_id = object_id or inferred_object_id
     safrs.log.debug(
-        "IntegrityError diagnostics: url=%s resource=%s object_id=%s orig=%r statement=%r params=%r",
-        url,
+        "IntegrityError diagnostics: path=%s resource=%s object_present=%s exception=%s",
+        urlsplit(url).path if url else None,
         effective_resource,
-        effective_object_id,
-        getattr(exc, "orig", None),
-        getattr(exc, "statement", None),
-        getattr(exc, "params", None),
+        effective_object_id is not None,
+        type(exc).__name__,
     )
 
 
@@ -124,11 +117,8 @@ class NotFoundError(JsonapiError, NotFound):
         """
         JsonapiError.__init__(self)
         self.status_code = status_code
-        safrs.log.error("Not found: %s", message)
-        if is_debug():
-            self.message += message
-        else:
-            self.message += HIDDEN_LOG
+        safrs.log.info("Resource not found")
+        self.message += "Resource not found"
 
 
 class UnAuthorizedError(JsonapiError):
@@ -143,11 +133,8 @@ class UnAuthorizedError(JsonapiError):
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.FORBIDDEN.value, api_code: Any=None) -> None:
         super().__init__()
         self.status_code = status_code
-        safrs.log.error("UnAuthorizedError: %s", message)
-        if is_debug():
-            self.message += message
-        else:
-            self.message += HIDDEN_LOG
+        safrs.log.warning("Authorization denied")
+        self.message += "Access denied"
 
 
 class GenericError(JsonapiError):
@@ -161,17 +148,8 @@ class GenericError(JsonapiError):
     def __init__(self: Any, message: Any, status_code: Any=HTTPStatus.INTERNAL_SERVER_ERROR.value, api_code: Any=None) -> None:
         super().__init__()
         self.status_code = status_code
-        safrs.log.error("Generic Error: %s", message)
-        if is_debug():
-            url = _current_request_url()
-            if url:
-                safrs.log.info("Error in %s", url)
-            else:
-                safrs.log.info("Error location unavailable")
-            safrs.log.debug(traceback.format_exc(120))
-            self.message += str(message)
-        else:
-            self.message += HIDDEN_LOG
+        safrs.log.error("Generic request failure (%s)", type(message).__name__)
+        self.message += "Internal Server Error"
 
 
 class SystemValidationError(JsonapiError):  # pragma: no cover
@@ -185,11 +163,8 @@ class SystemValidationError(JsonapiError):  # pragma: no cover
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
         super().__init__()
         self.status_code = status_code
-        safrs.log.error("ValidationError: %s", message)
-        if is_debug():
-            self.message += message
-        else:
-            self.message += HIDDEN_LOG
+        safrs.log.error("Server-side validation failure")
+        self.message += "Invalid server configuration"
 
 
 class ValidationError(JsonapiError):
@@ -204,7 +179,7 @@ class ValidationError(JsonapiError):
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
         super().__init__()
         self.status_code = status_code
-        safrs.log.warning("ValidationError: %s", message)
+        safrs.log.warning("Client validation failed")
         self.message += message
 
 
@@ -219,5 +194,5 @@ class IntegerOverflowError(ValidationError):
     def __init__(self: Any, message: Any='', status_code: Any=HTTPStatus.BAD_REQUEST.value, api_code: Any=None) -> None:
         JsonapiError.__init__(self)
         self.status_code = status_code
-        safrs.log.warning("IntegerOverflowError: %s", message)
+        safrs.log.warning("Client integer validation failed")
         self.message += message

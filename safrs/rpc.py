@@ -74,7 +74,7 @@ def bind_rpc_kwargs(callable_obj: Callable[..., Any], kwargs: Dict[str, Any]) ->
         signature = inspect.signature(callable_obj)
         bound = signature.bind(**kwargs)
     except TypeError as exc:
-        raise ValidationError(f"Invalid RPC args: {exc}") from exc
+        raise ValidationError("Invalid RPC arguments") from exc
     bound_kwargs: Dict[str, Any] = {}
     for name, parameter in signature.parameters.items():
         if name not in bound.arguments:

@@ -2,6 +2,7 @@ from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
+from .runtime import get_db
 from . import tx
 from .jsonapi_formatting import paginate, jsonapi_sort
 from .json_encoder import SAFRSFormattedResponse
@@ -24,7 +25,7 @@ def duplicate(self: Any) -> SAFRSFormattedResponse:
     """
     description: Duplicate an object - copy it and give it a new id
     """
-    session = safrs.DB.session
+    session = get_db().session
     session.expunge(self)
     make_transient(self)
     self.id = self.id_type()
@@ -52,7 +53,7 @@ def lookup_re_mysql(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragm
         try:
             result = result.filter(column.op("regexp")(value))
         except Exception as exc:
-            raise GenericError(f"Failed to execute query {exc}")
+            raise GenericError("Failed to execute query") from exc
 
     instances = apply_filter_read_permissions(cls, result, kwargs.keys())
     if hasattr(instances, "all") and callable(instances.all):
@@ -80,7 +81,7 @@ def startswith(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no
         errors = None
         response = SAFRSFormattedResponse(data, meta, links, errors, count)
     except Exception as exc:
-        raise GenericError(f"Failed to execute query {exc}")
+        raise GenericError("Failed to execute query") from exc
 
     for key, value in kwargs.items():
         column = _filter_column(cls, key)
@@ -93,7 +94,7 @@ def startswith(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no
             errors = None
             response = SAFRSFormattedResponse(data, meta, links, errors, count)
         except Exception as exc:
-            raise GenericError(f"Failed to execute query {exc}")
+            raise GenericError("Failed to execute query") from exc
     return response
 
 

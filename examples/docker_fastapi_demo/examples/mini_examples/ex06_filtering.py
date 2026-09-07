@@ -6,7 +6,7 @@ import operator
 import os
 from typing import Any
 
-from safrs import SAFRSBase, ValidationError
+from safrs import SAFRSBase, ValidationError, jsonapi_filter_fields
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import declarative_base
 
@@ -39,6 +39,7 @@ class Person(SAFRSBase, Base):
     email = Column(String, default="")
 
     @classmethod
+    @jsonapi_filter_fields("id", "name", "email")
     def filter(cls, raw_filter: str) -> Any:
         try:
             payload = json.loads(raw_filter)

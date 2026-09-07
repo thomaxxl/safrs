@@ -89,7 +89,7 @@ def encode_schema(obj: Any) -> Any:
         try:
             result = json.loads(json.dumps(obj, cls=cast(Any, flask.current_app).json_encoder))
         except Exception as exc:
-            safrs.log.warning(f"Json encoding failed for {obj}, type {type(obj)} ({exc})")
+            safrs.log.warning("JSON encoding failed for type %s (%s)", type(obj).__name__, type(exc).__name__)
             result = str(obj)
 
     return result
@@ -869,7 +869,7 @@ def apply_fstring(swagger_obj: Any, vars: Any, k: Any=None) -> Any:
         try:
             result = swagger_obj.format(**vars)
         except Exception as exc:
-            safrs.log.error(f"Failed to format ({exc})")
+            safrs.log.error("Failed to format documentation (%s)", type(exc).__name__)
         return result
     elif isinstance(swagger_obj, list):
         for i in swagger_obj:

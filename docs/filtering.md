@@ -104,18 +104,38 @@ You can customize filtering in three ways:
 2. Override `SAFRSBase._s_filter(cls, *args, **kwargs)`.
 3. Provide a custom `jsonapi_filter` strategy for the model/API.
 
-Example override:
+Custom `filter` and `_s_filter` implementations must declare every resource
+field they inspect. SAFRS validates that declaration before calling the custom
+code and applies row-dependent field permissions to its result:
 
 ```python
+from safrs import jsonapi_filter_fields
+
 class User(SAFRSBase, db.Model):
     id = db.Column(db.String, primary_key=True)
     username = db.Column(db.String(32))
 
     @classmethod
+    @jsonapi_filter_fields("username")
     def _s_filter(cls, *args, **kwargs):
         value = args[0] if args else ""
         return cls.query.filter_by(username=value)
 ```
+
+Use `@jsonapi_filter_fields()` for a tenant/query-scope filter which does not
+inspect a resource field. Undeclared custom filters are rejected. This is a
+security migration for applications which previously treated arbitrary custom
+filter code as implicitly trusted.
+
+Sorting uses the same readable/filterable field resolver. A non-id sort is
+rejected when `_s_check_perm` makes field visibility row-dependent, because SQL
+ordering would otherwise reveal a protected value.
+
+Filter work is bounded by `MAX_FILTER_LENGTH`, `MAX_FILTER_DEPTH`,
+`MAX_FILTER_CLAUSES`, `MAX_FILTER_VALUES`, `MAX_BRACKET_FILTERS`, and
+`MAX_SORT_TERMS`. Policy-driven materialization is bounded by
+`MAX_AUTHORIZATION_SCAN`; implement `_s_query_scope` for large protected
+collections.
 
 ## 7) URL encoding tip
 

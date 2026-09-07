@@ -7,7 +7,7 @@ import sys
 from flask import Flask, jsonify, request
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 from flask_sqlalchemy import SQLAlchemy
-from safrs import SAFRSAPI, SAFRSBase
+from safrs import SAFRSAPI, SAFRSBase, jsonapi_filter_fields
 from sqlalchemy import Column, String, orm
 
 from _shared.cli import parse_host_port
@@ -54,6 +54,7 @@ class User(SAFRSBase, db.Model):
         print(f"reconstruct {self.username}" * 3)
 
     @classmethod
+    @jsonapi_filter_fields("username")
     def filter(cls: Any, *args: Any, **kwargs: Any) -> Any:
         print(args, kwargs)
         return cls.query.filter_by(username=args[0])
@@ -131,4 +132,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

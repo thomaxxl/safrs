@@ -95,7 +95,7 @@ class _SAFRSJSONEncoder:
 
     def _encode_debug_fallback(self, obj: Any) -> Any:
         if not is_debug():  # pragma: no cover
-            safrs.log.warning(f'JSON Encoding Error: Unknown object type "{type(obj)}" for {obj}')
+            safrs.log.warning("JSON encoding failed for object type %s", type(obj).__name__)
             return {"error": "SAFRSJSONEncoder invalid object"}
         if isinstance(obj, DeclarativeMeta):  # pragma: no cover
             return self.sqla_encode(obj)

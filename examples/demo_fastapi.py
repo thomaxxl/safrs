@@ -27,7 +27,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from safrs import SAFRSBase, jsonapi_attr, jsonapi_rpc
+from safrs import SAFRSBase, jsonapi_attr, jsonapi_filter_fields, jsonapi_rpc
 from safrs.api_methods import search, startswith
 from safrs.fastapi.api import SafrsFastAPI
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table, Text, Time, create_engine
@@ -159,6 +159,7 @@ class Publisher(BaseModel):
         return result
 
     @classmethod
+    @jsonapi_filter_fields()
     def filter(cls, arg: Any) -> dict[str, Any]:
         return {"provided": arg}
 

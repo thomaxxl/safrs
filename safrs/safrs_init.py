@@ -1,9 +1,10 @@
 import logging
 import os
 import sys
-from flask import Flask, g, request, url_for
+from flask import Flask, appcontext_pushed, appcontext_tearing_down, g, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
+from .runtime import reset_db, set_db
 from .response import SAFRSResponse
 from .jsonapi_filters import FilteringStrategy
 from .jsonapi_context import JsonApiContext, set_jsonapi_context, reset_jsonapi_context
@@ -102,6 +103,16 @@ class SAFRS:
     MAX_INCLUDE_DEPTH = 5
     MAX_INCLUDE_PATHS = 25
     MAX_INCLUDED_RESOURCES = 1000
+    MAX_FILTER_LENGTH = 16384
+    MAX_FILTER_DEPTH = 10
+    MAX_FILTER_CLAUSES = 100
+    MAX_FILTER_VALUES = 1000
+    MAX_BRACKET_FILTERS = 25
+    MAX_SORT_TERMS = 10
+    MAX_AUTHORIZATION_SCAN = 10000
+    MAX_REQUEST_BODY_BYTES = 1024 * 1024
+    MAX_JSON_DEPTH = 20
+    MAX_REQUEST_RESOURCES = 2000
     ENABLE_RELATIONSHIPS = True
     ENABLE_METHODS = True
     LOGLEVEL = logging.WARNING
@@ -142,15 +153,10 @@ class SAFRS:
 
         safrs.DB = self.db = app_db
 
-        # SEC-06: documentation routes (swagger.json / swagger UI / ALS schema)
-        # can be protected with the same decorators as data routes. In DEBUG
-        # mode the docs stay publicly accessible so development is unaffected.
-        from .config import is_debug
-
+        # Configured documentation policies are security boundaries and stay
+        # active regardless of application or logger DEBUG settings.
         requested_docs_decorators = list(docs_decorators or [])
-        effective_docs_decorators: list[Any] = [] if is_debug() else requested_docs_decorators
-        if requested_docs_decorators and not effective_docs_decorators:
-            safrs.log.info("docs_decorators are ignored in DEBUG mode; API documentation stays public")
+        effective_docs_decorators: list[Any] = requested_docs_decorators
         app.extensions["safrs_docs_decorators"] = effective_docs_decorators
 
         app.request_class = SAFRSRequest
@@ -195,13 +201,34 @@ class SAFRS:
             app_safrs_config[conf_name] = conf_val
 
         app.extensions["safrs_config"] = app_safrs_config
+        if app.config.get("MAX_CONTENT_LENGTH") is None:
+            app.config["MAX_CONTENT_LENGTH"] = int(
+                app_safrs_config.get("MAX_REQUEST_BODY_BYTES", SAFRS.MAX_REQUEST_BODY_BYTES)
+            )
+
+        def bind_app_database(sender: Any, **_extra: Any) -> None:
+            if sender is app:
+                g._safrs_db_token = set_db(self.db)
+
+        def reset_app_database(sender: Any, **_extra: Any) -> None:
+            if sender is not app:
+                return
+            token = getattr(g, "_safrs_db_token", None)
+            if token is not None:
+                reset_db(token)
+                del g._safrs_db_token
+
+        appcontext_pushed.connect(bind_app_database, app, weak=False)
+        appcontext_tearing_down.connect(reset_app_database, app, weak=False)
 
         @app.before_request
         def handle_invalid_usage() -> Any:
-            return
+            return None
 
         @app.before_request
         def init_ja_data() -> Any:
+            from .base import run_model_operation_access_check
+
             def _collection_path(Model: Any) -> str:
                 return str(url_for(Model.get_endpoint()))
 
@@ -219,6 +246,7 @@ class SAFRS:
                 collection_path_builder=_collection_path,
                 instance_path_builder=_instance_path,
                 relationship_path_builder=_relationship_path,
+                operation_authorizer=run_model_operation_access_check,
             )
             g._safrs_jsonapi_context_token = set_jsonapi_context(context)
             # Keep backward-compatible aliases for existing code paths.

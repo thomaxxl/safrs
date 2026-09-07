@@ -4,8 +4,7 @@ exposure and static documentation samples.
 Covers:
 - ``docs_decorators`` (Flask) / ``docs_dependencies`` (FastAPI) protect
   swagger.json, the Swagger UI, the ALS schema and the FastAPI docs routes.
-- In DEBUG mode documentation protection is skipped so development stays
-  frictionless.
+- Configured documentation protection remains active at DEBUG log level.
 - Public specs never contain live database values: id examples are derived
   from static column metadata only (``_s_sample_id`` / ``SAFRSID.sample_id``).
 - A warning is emitted (once) when models carry SAFRS authorization
@@ -78,7 +77,7 @@ def test_flask_docs_routes_are_protected() -> None:
     assert client.get("/api/docs_security_notes/").status_code == 200
 
 
-def test_flask_docs_decorators_are_ignored_in_debug_mode() -> None:
+def test_flask_docs_decorators_remain_active_in_debug_mode() -> None:
     original_level = safrs.log.getEffectiveLevel()
     safrs.log.setLevel(logging.DEBUG)
     try:
@@ -88,8 +87,7 @@ def test_flask_docs_decorators_are_ignored_in_debug_mode() -> None:
     client = app.test_client()
 
     for path in ("/api/swagger.json", "/api/als-schema"):
-        response = client.get(path)
-        assert response.status_code == 200, path
+        assert client.get(path).status_code == 401, path
 
 
 def test_flask_swagger_samples_do_not_read_live_data() -> None:
@@ -143,7 +141,7 @@ def test_flask_public_docs_warning_for_policy_models(caplog: pytest.LogCaptureFi
 # ---------------------------------------------------------------------------
 
 fastapi_tests = pytest.importorskip("fastapi")
-from fastapi import Depends, FastAPI, HTTPException, Request  # noqa: E402
+from fastapi import Depends, FastAPI, Header, HTTPException, Request  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import Column, Integer, String  # noqa: E402
 from sqlalchemy.orm import declarative_base  # noqa: E402
@@ -185,7 +183,7 @@ def test_fastapi_docs_routes_are_protected() -> None:
     assert TestClient(app2).get("/openapi.json").status_code == 401
 
 
-def test_fastapi_docs_dependencies_ignored_in_debug_mode() -> None:
+def test_fastapi_docs_dependencies_remain_active_in_debug_mode() -> None:
     original_level = safrs.log.getEffectiveLevel()
     safrs.log.setLevel(logging.DEBUG)
     try:
@@ -196,8 +194,34 @@ def test_fastapi_docs_dependencies_ignored_in_debug_mode() -> None:
 
     client = TestClient(app)
     for path in ("/openapi.json", "/docs"):
-        response = client.get(path)
-        assert response.status_code == 200, path
+        assert client.get(path).status_code == 401, path
+
+
+def test_fastapi_docs_use_native_dependency_resolution_and_cleanup() -> None:
+    events: list[str] = []
+
+    def principal(x_user: str = Header()) -> str:
+        events.append(f"principal:{x_user}")
+        return x_user
+
+    def replacement() -> str:
+        events.append("override")
+        return "alice"
+
+    def authorize(user: str = Depends(principal)) -> Any:
+        events.append(f"setup:{user}")
+        if user != "alice":
+            raise HTTPException(status_code=403)
+        yield
+        events.append("teardown")
+
+    app = FastAPI()
+    app.dependency_overrides[principal] = replacement
+    SafrsFastAPI(app, docs_dependencies=[Depends(authorize)])
+    response = TestClient(app).get("/openapi.json")
+
+    assert response.status_code == 200
+    assert events == ["override", "setup:alice", "teardown"]
 
 
 def test_fastapi_openapi_uses_static_id_samples() -> None:
