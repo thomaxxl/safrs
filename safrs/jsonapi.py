@@ -23,7 +23,7 @@ import sqlalchemy.orm.collections
 from flask import current_app, jsonify, make_response as flask_make_response, url_for, request
 from flask_restful_swagger_2 import Resource as FRSResource
 from http import HTTPStatus
-from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY
+from sqlalchemy.orm.interfaces import MANYTOONE, MANYTOMANY, ONETOMANY
 from urllib.parse import urljoin
 from .api_doc import is_public
 from . import base as _safrs_base
@@ -141,16 +141,25 @@ class Resource(FRSResource):
         dispatch, so internal POST/PATCH calls must apply the mapping's GET
         policy explicitly before serializing a resource.
         """
-        method_decorators = getattr(self, "method_decorators", [])
-        if not isinstance(method_decorators, Mapping):
-            return callback()
+        ctx = _safrs_base.maybe_jsonapi_context()
+        previous_response_check = False
+        if ctx is not None:
+            previous_response_check = ctx.authorization_response_check
+            ctx.authorization_response_check = True
+        try:
+            method_decorators = getattr(self, "method_decorators", [])
+            if not isinstance(method_decorators, Mapping):
+                return callback()
 
-        callback.__name__ = "get"
-        setattr(callback, "SAFRSObject", self.SAFRSObject)
-        decorated_callback = callback
-        for decorator in list(method_decorators.get("get", []) or []):
-            decorated_callback = decorator(decorated_callback)
-        return decorated_callback()
+            callback.__name__ = "get"
+            setattr(callback, "SAFRSObject", self.SAFRSObject)
+            decorated_callback = callback
+            for decorator in list(method_decorators.get("get", []) or []):
+                decorated_callback = decorator(decorated_callback)
+            return decorated_callback()
+        finally:
+            if ctx is not None:
+                ctx.authorization_response_check = previous_response_check
 
     def _parse_target_data(self: Any, target_data: Any, action: str = "link") -> Any:
         """
@@ -365,6 +374,7 @@ class SAFRSRestAPI(Resource):
             instances = _safrs_base.authorize_collection_before_metadata(self.SAFRSObject, instances)
             instances = jsonapi_sort(instances, self.SAFRSObject)
             links, data, count = paginate(instances, self.SAFRSObject)
+            _safrs_base.prepare_current_readable_fields(self.SAFRSObject, data)
 
         # format the response: add the included objects
         result = jsonapi_format_response(data, meta, links, errors, count)
@@ -668,6 +678,7 @@ class SAFRSRestAPI(Resource):
             # This endpoint shouldn't be exposed so this code is not reachable
             raise ValidationError("", status_code=HTTPStatus.METHOD_NOT_ALLOWED)
 
+        _safrs_base.begin_current_protected_write(self.SAFRSObject)
         instance = self.SAFRSObject.get_instance(id)
         instance._s_delete()
 
@@ -839,7 +850,12 @@ class SAFRSRestRelationshipAPI(Resource):
         ctx = _safrs_base.maybe_jsonapi_context()
         if ctx is not None and ctx.operation_authorizer is not None:
             ctx.operation_authorizer(self.target, "read")
-        _, relation = self.parse_args(**kwargs)
+        parent, relation = self.parse_args(**kwargs)
+        if self.relationship.direction in (ONETOMANY, MANYTOMANY):
+            if _safrs_base.current_model_is_registered(self.target):
+                relation = _safrs_base.get_db().session.query(self.target).with_parent(
+                    parent, property=self.relationship
+                )
         child_id = kwargs.get(self.child_object_id)
         errors: dict[str, Any] = {}
         count = 1
@@ -851,6 +867,7 @@ class SAFRSRestRelationshipAPI(Resource):
             return "Not Found", HTTPStatus.NOT_FOUND
         elif self.SAFRSObject.relationship.direction == MANYTOONE:
             data = instance = relation
+            _safrs_base.run_instance_access_check(self.target, instance, "read")
             links = {"self": request.url}
             if request.url != instance._s_url:
                 links["related"] = instance._s_url
@@ -865,6 +882,7 @@ class SAFRSRestRelationshipAPI(Resource):
             elif child not in relation:
                 raise NotFoundError()
             else:
+                _safrs_base.run_instance_access_check(self.target, child, "read")
                 links = {"self": request.url, "related": child._s_url}
         elif isinstance(relation, sqlalchemy.orm.collections.InstrumentedList):
             instances = jsonapi_filter_list(relation)
@@ -878,6 +896,9 @@ class SAFRSRestRelationshipAPI(Resource):
             instances = _safrs_base.authorize_collection_before_metadata(self.target, instances)
             instances = jsonapi_sort(instances, self.target)
             links, data, count = paginate(instances, self.target)
+
+        if isinstance(data, list):
+            _safrs_base.prepare_current_readable_fields(self.target, data)
 
         result = jsonapi_format_response(data, meta, links, errors, count)
         return make_response(jsonify(result))
@@ -1178,6 +1199,10 @@ class SAFRSRestRelationshipAPI(Resource):
             raise ValidationError("Invalid Parent Id")
 
         parent = self.source_class.get_instance(parent_id)
+        if _safrs_base.has_request_context() and request.method in {"GET", "HEAD"}:
+            _safrs_base.require_current_instance(parent, "read", [self.rel_name])
+        elif _safrs_base.has_request_context():
+            _safrs_base.reject_current_relationship_mutation(self.source_class, self.target)
         relation = getattr(parent, self.rel_name)
 
         return parent, relation
@@ -1243,6 +1268,8 @@ class SAFRSJSONRPCAPI(Resource):
         if not is_public(method):
             raise ValidationError("Method is not public")
 
+        _safrs_base.reject_current_rpc(self.SAFRSObject)
+
         payload: Any
         if getattr(method, "valid_jsonapi", True):
             payload = cast(Any, request).get_jsonapi_payload()
@@ -1288,6 +1315,8 @@ class SAFRSJSONRPCAPI(Resource):
             raise ValidationError(f'Invalid method "{self.method_name}"')
         if not is_public(method):
             raise ValidationError("Method is not public")
+
+        _safrs_base.reject_current_rpc(self.SAFRSObject)
 
         args = parse_rpc_args(
             http_method=request.method,

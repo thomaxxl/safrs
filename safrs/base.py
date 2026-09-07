@@ -214,6 +214,22 @@ from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
 from .jsonapi_context import maybe_jsonapi_context
 from .filtering import apply_filter_json, materialize_for_authorization
+from .authorization import (
+    apply_authorization_scope,
+    begin_current_protected_write,
+    current_model_is_registered,
+    current_query_fields,
+    current_readable_fields,
+    prepare_current_readable_fields,
+    prepare_current_delete,
+    require_current_create,
+    require_current_instance,
+    reject_current_relationship_fields,
+    reject_current_relationship_mutation,
+    reject_current_rpc,
+    reject_current_foreign_key_fields,
+    run_current_after_create,
+)
 from . import tx
 from .runtime import get_db
 
@@ -425,6 +441,13 @@ def run_instance_access_check(
         if cache_key in flask_cache:
             return True
 
+    registry_action = {
+        "link": "update",
+        "unlink": "update",
+        "cascade_delete": "delete",
+    }.get(action, action)
+    require_current_instance(instance, registry_action)
+
     ctx = maybe_jsonapi_context()
     if ctx is not None and ctx.resource_authorizer is not None:
         # Explicit response policies reject the whole document, even for
@@ -610,6 +633,10 @@ def check_relationship_write_permission(instance: Any, relationship_name: str) -
         raise UnAuthorizedError(
             f"{resource_type}.{relationship_name} is not writable"
         )
+    mapper = sqlalchemy.inspect(instance.__class__, raiseerr=False)
+    relationship = mapper.relationships.get(relationship_name) if mapper is not None else None
+    if relationship is not None:
+        reject_current_relationship_mutation(instance.__class__, relationship.mapper.class_)
 
 
 def model_has_resource_authorization(model: Any) -> bool:
@@ -638,6 +665,9 @@ def authorize_collection_before_metadata(model: Any, resources: Any) -> Any:
     Applications with large collections should enforce the same policy in
     their query hook so the database can scope rows efficiently.
     """
+    resources = apply_authorization_scope(
+        model, resources, fields=current_query_fields(model)
+    )
     if not model_has_resource_authorization(model):
         return resources
     items = materialize_for_authorization(resources)
@@ -1020,6 +1050,15 @@ class SAFRSBase(Model):
             if upsert_target is not None:
                 return upsert_target._s_update_from_post(**params)
 
+        mapper = sqlalchemy.inspect(cls)
+        relationship_names = {str(relationship.key) for relationship in mapper.relationships}
+        reject_current_relationship_fields(cls, params.keys())
+        submitted_fields = [
+            name for name in params if name not in relationship_names and name != "id"
+        ]
+        reject_current_foreign_key_fields(cls, submitted_fields)
+        require_current_create(cls, submitted_fields, params)
+
         readonly_jsonapi_attrs = {
             attr_name
             for attr_name, attr in get_jsonapi_attrs(cls).items()
@@ -1114,6 +1153,8 @@ class SAFRSBase(Model):
                 safrs.log.warning("Database write failed (%s)", type(exc).__name__)
                 raise GenericError(str(exc))
 
+        run_current_after_create(instance)
+
         return instance
 
     def _s_patch(self: Any, **attributes: Any) -> SAFRSBase:
@@ -1121,6 +1162,8 @@ class SAFRSBase(Model):
         Update the object attributes
         :param **attributes:
         """
+        reject_current_foreign_key_fields(self.__class__, attributes.keys())
+        require_current_instance(self, "update", attributes.keys())
         for attr_name, attr_val in attributes.items():
             if (
                 attr_name not in self.__class__._s_jsonapi_attrs
@@ -1155,6 +1198,7 @@ class SAFRSBase(Model):
         """
         Delete the instance from the database
         """
+        prepare_current_delete(self)
         if _request_uow_active():
             self.__class__._s_validate_cascade_delete_methods(self)
         tx.note_write(self.__class__)
@@ -1207,6 +1251,7 @@ class SAFRSBase(Model):
                 run_instance_access_check(target_class, existing, "link")
             return target_class._s_post(data["id"], **attributes, **relationships)
 
+        reject_current_relationship_fields(self.__class__, params.keys())
         for rel_name, rel_val in params.items():
             rel = self.__mapper__.relationships.get(rel_name)
             if not rel:
@@ -1505,6 +1550,10 @@ class SAFRSBase(Model):
         elif has_request_context():
             fields = request.fields.get(self._s_class_name, fields)
 
+        readable_fields = current_readable_fields(self)
+        if readable_fields is not None:
+            fields = [field for field in fields if field in readable_fields]
+
         result = {}
         ja_attr_names = [
             name
@@ -1788,6 +1837,7 @@ class SAFRSBase(Model):
                 "type": "..."
                 }`
         """
+        require_current_instance(self, "read")
         ctx = maybe_jsonapi_context()
         if ctx is not None:
             if ctx.resource_authorizer is not None:
@@ -1875,6 +1925,10 @@ class SAFRSBase(Model):
         meta: dict[str, Any] = {}
         rel_query = getattr(self, rel_name)
         target_model = self._s_relationships[rel_name].mapper.class_
+        if current_model_is_registered(target_model):
+            rel_query = get_db().session.query(target_model).with_parent(
+                self, property=self._s_relationships[rel_name]
+            )
         rel_query = target_model._s_query_scope(rel_query)
         rel_query = authorize_collection_before_metadata(target_model, rel_query)
         ctx = maybe_jsonapi_context()
@@ -1907,6 +1961,7 @@ class SAFRSBase(Model):
             count = len(authorized_items)
             items = authorized_items[:limit]
 
+        prepare_current_readable_fields(target_model, items)
         meta["count"] = meta["total"] = count
         meta["limit"] = limit
         for rel_item in items:
@@ -1942,6 +1997,7 @@ class SAFRSBase(Model):
         self._s_validate_included_relationships(included_rels, included_list)
         include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
 
+        readable_fields = current_readable_fields(self)
         for rel_name, relationship in self._s_relationships.items():
             """
             http://jsonapi.org/format/#document-resource-object-relationships:
@@ -1967,6 +2023,8 @@ class SAFRSBase(Model):
             """
             meta: dict[str, Any] = {}
             rel_name = relationship.key
+            if readable_fields is not None and rel_name not in readable_fields:
+                continue
             data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
                 # TODO: document this
@@ -1982,9 +2040,18 @@ class SAFRSBase(Model):
                 if relationship.direction == MANYTOONE:
                     # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
-                    if rel_item and run_instance_access_check(
-                        relationship.mapper.class_, rel_item, "read"
-                    ):
+                    target_visible = False
+                    try:
+                        target_visible = bool(
+                            rel_item
+                            and run_instance_access_check(
+                                relationship.mapper.class_, rel_item, "read"
+                            )
+                        )
+                    except NotFoundError:
+                        if not current_model_is_registered(relationship.mapper.class_):
+                            raise
+                    if target_visible:
                         # create an Included instance that will be used for serialization eventually
                         data = Included(rel_item, next_included_list)
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):

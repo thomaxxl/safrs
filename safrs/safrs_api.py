@@ -132,10 +132,20 @@ class SAFRSAPI(FRSApiBase):
         self._model_method_decorators: dict[Any, Any] = {}
         self._response_authorizers: dict[Any, list[Any]] = {}
         self._model_url_prefix: dict[Any, str] = {}
+        self.authorization = kwargs.pop("authorization", None)
+        self.principal_provider = kwargs.pop("principal_provider", None)
+        if (self.authorization is None) != (self.principal_provider is None):
+            raise ValueError("authorization and principal_provider must be configured together")
         self.swaggerui_blueprint = swaggerui_blueprint
         kwargs["default_mediatype"] = "application/vnd.api+json"
         app_db = kwargs.pop("app_db", None)
         self.db = app_db if app_db is not None else app.extensions["sqlalchemy"]
+        if self.authorization is not None:
+            metadata = getattr(self.db, "metadata", None)
+            if metadata is None:
+                metadata = self.db.Model.metadata
+            self.authorization.bind(metadata)
+            self.authorization.freeze()
         safrs.SAFRS(app, app_db=app_db, prefix=prefix, json_encoder=json_encoder, swaggerui_blueprint=swaggerui_blueprint, docs_decorators=docs_decorators, **kwargs)
         # the host shown in the swagger ui
         # this host may be different from the hostname of the server and
@@ -197,6 +207,10 @@ class SAFRSAPI(FRSApiBase):
                     getattr(model, "_s_collection_name", getattr(model, "__name__", str(model)))
                     for model in self._model_method_decorators
                     if _model_has_authorization_policy(model)
+                    or (
+                        self.authorization is not None
+                        and self.authorization.is_registered(model)
+                    )
                     or _method_decorators_configured(self._model_method_decorators.get(model))
                 }
             )

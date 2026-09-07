@@ -1,6 +1,9 @@
 # Security hardening
 
 SAFRS treats authorization and resource limits as request-boundary contracts.
+
+For optional SQL-backed per-subject row and field grants, see
+[`authorization-registry.md`](authorization-registry.md).
 Applications still provide the actual identity and policy logic: Flask uses
 decorators and `_s_check_perm`, while FastAPI uses dependencies.
 

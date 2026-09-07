@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from flask import Flask, appcontext_pushed, appcontext_tearing_down, g, request, url_for
+from flask import Flask, appcontext_pushed, appcontext_tearing_down, current_app, g, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
 from .runtime import reset_db, set_db
@@ -248,6 +248,14 @@ class SAFRS:
                 relationship_path_builder=_relationship_path,
                 operation_authorizer=run_model_operation_access_check,
             )
+            safrs_api = current_app.extensions.get("safrs_api")
+            registry = getattr(safrs_api, "authorization", None)
+            principal_provider = getattr(safrs_api, "principal_provider", None)
+            if registry is not None and principal_provider is not None:
+                # The application resolves authentication. SAFRS stores only
+                # the resulting trusted context for this request.
+                context.authorization_registry = registry
+                context.authorization_context = registry.validate_context(principal_provider())
             g._safrs_jsonapi_context_token = set_jsonapi_context(context)
             # Keep backward-compatible aliases for existing code paths.
             g.ja_data = context.ja_data

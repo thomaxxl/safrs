@@ -80,6 +80,15 @@ from .responses import JSONAPIResponse
 from .authorization import AuthorizationContext, current_authorization
 from safrs.request import validate_json_payload
 from safrs.runtime import bind_db, get_db, reset_db, set_db
+from safrs.authorization import (
+    apply_authorization_scope,
+    begin_current_protected_write,
+    current_model_is_registered,
+    current_query_fields,
+    prepare_current_readable_fields,
+    reject_current_rpc,
+    require_current_instance,
+)
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
 DEFAULT_HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE"}
@@ -365,12 +374,24 @@ class SafrsFastAPI:
         update_dependencies: Optional[List[Any]] = None,
         delete_dependencies: Optional[List[Any]] = None,
         response_authorizer: Optional[Callable[[Type[Any], Any, Request], Any]] = None,
+        authorization: Any = None,
+        principal_dependency: Optional[Callable[..., Any]] = None,
     ) -> None:
         self.app = app
         # Capture the legacy global once when ``app_db`` is omitted.  Looking
         # it up for every request would let another application silently
         # redirect this API to its session after construction.
         self.db = app_db if app_db is not None else safrs.DB
+        self.authorization = authorization
+        self.principal_dependency = principal_dependency
+        if (self.authorization is None) != (self.principal_dependency is None):
+            raise ValueError("authorization and principal_dependency must be configured together")
+        if self.authorization is not None:
+            metadata = getattr(self.db, "metadata", None)
+            if metadata is None:
+                metadata = self.db.Model.metadata
+            self.authorization.bind(metadata)
+            self.authorization.freeze()
         self.prefix = prefix
         self.cleanup_session = bool(cleanup_session)
         self.expected_validation_exceptions = _normalize_expected_validation_exception_types(
@@ -410,7 +431,11 @@ class SafrsFastAPI:
         self.default_dependencies = [
             FastAPIDepends(self._safrs_uow_dependency, scope="function"),
             FastAPIDepends(self._authorization_context_dependency, scope="function"),
-        ] + self._normalize_dependencies(dependencies)
+        ]
+        if self.authorization is not None and self.principal_dependency is not None:
+            registry_dependency = self._make_registry_context_dependency(self.principal_dependency)
+            self.default_dependencies.append(FastAPIDepends(registry_dependency, scope="function"))
+        self.default_dependencies += self._normalize_dependencies(dependencies)
         self._install_swagger_ui_defaults()
         self._install_swagger_alias()
         self._install_docs_protection(docs_dependencies)
@@ -426,6 +451,30 @@ class SafrsFastAPI:
             self.cleanup_session,
             len(self.expected_validation_exceptions),
         )
+
+    def _make_registry_context_dependency(
+        self, principal_dependency: Callable[..., Any]
+    ) -> Callable[..., Any]:
+        registry = self.authorization
+
+        async def registry_context(
+            request: Request,
+            principal: Any = FastAPIDepends(principal_dependency),
+        ) -> Any:
+            context = maybe_jsonapi_context()
+            if context is None:
+                raise RuntimeError("SAFRS authorization context is not active")
+            context.authorization_registry = registry
+            context.authorization_context = registry.validate_context(principal)
+            request.state.safrs_auth_context = context.authorization_context
+            try:
+                yield
+            finally:
+                context.authorization_context = None
+                context.authorization_field_masks.clear()
+                context.authorization_decisions.clear()
+
+        return registry_context
 
     @staticmethod
     def _coerce_relationship_item_mode(mode: Union[RelationshipItemMode, str]) -> RelationshipItemMode:
@@ -602,6 +651,11 @@ class SafrsFastAPI:
     def _authorize_instance_response(self, Model: Type[Any], obj_or_id: Any, request: Request) -> None:
         self._authorize_operation(Model, "read", request)
         obj = obj_or_id if hasattr(obj_or_id, "jsonapi_id") else Model.get_instance(obj_or_id)
+        require_current_instance(
+            obj,
+            "read",
+            response_check=str(request.method).upper() not in {"GET", "HEAD"},
+        )
         context = current_authorization.get()
         key = (Model, id(obj))
         if context is not None and key in context.checked_resources:
@@ -618,6 +672,9 @@ class SafrsFastAPI:
         self, Model: Type[Any], resources: Any, request: Request
     ) -> Any:
         """Apply object/response policies before exposing totals or ordering."""
+        resources = apply_authorization_scope(
+            Model, resources, fields=current_query_fields(Model)
+        )
         callbacks = self._response_authorizers.get(Model, self._default_response_authorizers)
         if not callbacks and not model_has_resource_authorization(Model):
             return resources
@@ -1628,6 +1685,10 @@ class SafrsFastAPI:
             model_dependencies
             or any(self._operation_dependencies[Model].values())
             or self._response_authorizers[Model]
+            or (
+                self.authorization is not None
+                and self.authorization.is_registered(Model)
+            )
         )
         if (
             has_authorization_policy
@@ -1718,6 +1779,13 @@ class SafrsFastAPI:
                 for obj in data if isinstance(data, (list, tuple, set)) else [data]:
                     if shared_is_resource_instance(obj):
                         self._authorize_loaded_target(obj.__class__, obj, request, "read")
+            primary_items = list(data) if isinstance(data, (list, tuple, set)) else [data]
+            primary_by_model: Dict[Type[Any], List[Any]] = {}
+            for obj in primary_items:
+                if shared_is_resource_instance(obj):
+                    primary_by_model.setdefault(obj.__class__, []).append(obj)
+            for resource_model, instances in primary_by_model.items():
+                prepare_current_readable_fields(resource_model, instances)
             payload = cast(
                 Dict[str, Any],
                 jsonapi_format_response(
@@ -2084,6 +2152,7 @@ class SafrsFastAPI:
         try:
             if payload is not None:
                 validate_json_payload(payload)
+            reject_current_rpc(Model)
             self._authorize_operation(
                 Model, "update" if str(request.method).upper() in WRITE_HTTP_METHODS else "read", request
             )
@@ -3127,6 +3196,7 @@ class SafrsFastAPI:
         def handler(object_id: ObjectIdParam):
             try:
                 self._authorize_operation(Model, "delete")
+                begin_current_protected_write(Model)
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)
                 obj._s_delete()
@@ -3147,10 +3217,15 @@ class SafrsFastAPI:
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
+                require_current_instance(parent, "read", [rel_name])
                 self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
 
                 if self._is_to_many_relationship(rel):
+                    if current_model_is_registered(target_model):
+                        rel_value = get_db().session.query(target_model).with_parent(
+                            parent, property=rel
+                        )
                     query_or_items = self._apply_filter(target_model, request, rel_value)
                     query_or_items = target_model._s_query_scope(query_or_items)
                     query_or_items = self._authorize_collection_before_metadata(
@@ -3197,9 +3272,16 @@ class SafrsFastAPI:
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
+                require_current_instance(parent, "read", [rel_name])
                 normalized_target_id = self._normalize_jsonapi_id(target_model, target_id)
                 self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
+                if current_model_is_registered(target_model) and self._is_to_many_relationship(rel):
+                    rel_value = get_db().session.query(target_model).with_parent(
+                        parent, property=rel
+                    )
+                    rel_value = target_model._s_query_scope(rel_value)
+                    rel_value = apply_authorization_scope(target_model, rel_value)
                 for item in self._iter_related_items(rel_value):
                     item_id = self._normalize_jsonapi_id(target_model, item.jsonapi_id)
                     if item_id == normalized_target_id:
