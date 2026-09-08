@@ -17,8 +17,31 @@ from werkzeug.datastructures import TypeConversionDict
 import safrs
 from .config import get_config
 from .errors import ValidationError
+from .filtering import parse_bracket_filter_name
 
 HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE", "PUT"}
+
+
+def validate_json_payload(payload: Any) -> None:
+    """Bound nesting and total JSON:API resource objects in one request."""
+    max_depth = int(get_config("MAX_JSON_DEPTH") or 0)
+    max_resources = int(get_config("MAX_REQUEST_RESOURCES") or 0)
+    resources = 0
+    stack: list[tuple[Any, int]] = [(payload, 1)]
+    while stack:
+        value, depth = stack.pop()
+        if max_depth > 0 and depth > max_depth:
+            raise ValidationError(f"JSON payload exceeds maximum depth {max_depth}")
+        if isinstance(value, dict):
+            if "type" in value and any(key in value for key in ("id", "attributes", "relationships")):
+                resources += 1
+                if max_resources > 0 and resources > max_resources:
+                    raise ValidationError(
+                        f"JSON payload exceeds maximum resource count {max_resources}"
+                    )
+            stack.extend((nested, depth + 1) for nested in value.values())
+        elif isinstance(value, list):
+            stack.extend((nested, depth + 1) for nested in value)
 
 
 # pylint: disable=too-many-ancestors, logging-format-interpolation
@@ -35,6 +58,7 @@ class SAFRSRequest(Request):
     _extensions: set[str] = set()
     filters: dict[str, str] = {}
     filter: str = ""  # filter is the custom filter, used as an argument by _s_filter
+    filter_validation_error: str = ""
     includes: list[str] = []
     secure: bool = True
 
@@ -136,7 +160,8 @@ class SAFRSRequest(Request):
             abort(500)
         result = self.get_json()
         if not isinstance(result, dict):
-            raise ValidationError(f"Invalid JSON Payload : {result}")
+            raise ValidationError("Invalid JSON payload (expected object)")
+        validate_json_payload(result)
         return result
 
     def parse_jsonapi_args(self: Any) -> Any:
@@ -150,15 +175,22 @@ class SAFRSRequest(Request):
 
         self.filters = {}
         self.fields = {}
+        self.filter_validation_error = ""
 
         # Parse the jsonapi filter[] and fields[] args
         for arg, val in self.args.items():
             if arg == "filter":
                 self.filter = val
 
-            filter_attr = re.search(r"filter\[(\w+)\]", arg)
-            if filter_attr:
-                attr_name = filter_attr.group(1)
+            try:
+                attr_name = parse_bracket_filter_name(arg)
+            except ValidationError as exc:
+                # Request construction happens outside SAFRS' JSON:API error
+                # wrapper. Defer the error so clients receive a normal 400
+                # document rather than an uncaught exception.
+                self.filter_validation_error = exc.message
+                attr_name = None
+            if attr_name is not None:
                 self.filters[attr_name] = val
 
             # https://jsonapi.org/format/#fetching-sparse-fieldsets

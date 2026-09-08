@@ -35,7 +35,12 @@ def relationship_is_exposed(Model: Type[Any], rel_name: str, rel_prop: Any) -> b
         if getattr(mapped, "expose", None) is False:
             return False
     except Exception as exc:
-        safrs.log.debug("Failed mapper relationship exposure check for %s.%s: %s", Model, rel_name, exc)
+        safrs.log.debug(
+            "Failed mapper relationship exposure check for %s.%s (%s)",
+            Model,
+            rel_name,
+            type(exc).__name__,
+        )
 
     try:
         inst = getattr(Model, rel_name, None)
@@ -45,7 +50,12 @@ def relationship_is_exposed(Model: Type[Any], rel_name: str, rel_prop: Any) -> b
         if mapped_inst is not None and getattr(mapped_inst, "expose", None) is False:
             return False
     except Exception as exc:
-        safrs.log.debug("Failed instance relationship exposure check for %s.%s: %s", Model, rel_name, exc)
+        safrs.log.debug(
+            "Failed instance relationship exposure check for %s.%s (%s)",
+            Model,
+            rel_name,
+            type(exc).__name__,
+        )
 
     return True
 

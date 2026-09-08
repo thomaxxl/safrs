@@ -1,9 +1,10 @@
 import logging
 import os
 import sys
-from flask import Flask, g, request, url_for
+from flask import Flask, appcontext_pushed, appcontext_tearing_down, current_app, g, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from .request import SAFRSRequest
+from .runtime import reset_db, set_db
 from .response import SAFRSResponse
 from .jsonapi_filters import FilteringStrategy
 from .jsonapi_context import JsonApiContext, set_jsonapi_context, reset_jsonapi_context
@@ -16,6 +17,30 @@ try:
     from flask_swagger_ui import get_swaggerui_blueprint
 except ModuleNotFoundError:
     get_swaggerui_blueprint = None
+
+
+def _protect_blueprint_registration(deferred_functions: list[Any], decorators: list[Any]) -> Any:
+    """Return a single blueprint registration function that runs all
+    ``deferred_functions`` and then protects the view functions they register
+    with ``decorators`` (SEC-06 documentation protection).
+
+    Wrapping happens after all registrations so Flask's same-endpoint
+    re-registration guard (view-function identity) keeps working.
+    """
+    originals = list(deferred_functions)
+
+    def protected_register(state: Any) -> None:
+        app = getattr(state, "app", state)  # blueprints pass a BlueprintSetupState
+        registered_before = set(app.view_functions)
+        for original in originals:
+            original(state)
+        for endpoint in set(app.view_functions) - registered_before:
+            view = app.view_functions[endpoint]
+            for decorator in reversed(decorators):
+                view = decorator(view)
+            app.view_functions[endpoint] = view
+
+    return protected_register
 
 
 def _is_truthy_env(value: Any) -> bool:
@@ -71,9 +96,23 @@ class SAFRS:
     """
 
     # Configuration settings are stored as class variables
-    MAX_PAGE_LIMIT = 100000
+    MAX_PAGE_LIMIT = 1000
     DEFAULT_PAGE_LIMIT = 250
     MAX_PAGE_OFFSET = 2**31
+    MAX_BULK_ITEMS = 1000
+    MAX_INCLUDE_DEPTH = 5
+    MAX_INCLUDE_PATHS = 25
+    MAX_INCLUDED_RESOURCES = 1000
+    MAX_FILTER_LENGTH = 16384
+    MAX_FILTER_DEPTH = 10
+    MAX_FILTER_CLAUSES = 100
+    MAX_FILTER_VALUES = 1000
+    MAX_BRACKET_FILTERS = 25
+    MAX_SORT_TERMS = 10
+    MAX_AUTHORIZATION_SCAN = 10000
+    MAX_REQUEST_BODY_BYTES = 1024 * 1024
+    MAX_JSON_DEPTH = 20
+    MAX_REQUEST_RESOURCES = 2000
     ENABLE_RELATIONSHIPS = True
     ENABLE_METHODS = True
     LOGLEVEL = logging.WARNING
@@ -102,7 +141,7 @@ class SAFRS:
         if app is not None:
             self.init_app(app, *args, **kwargs)
 
-    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: Any=None, swaggerui_blueprint: bool=True, **kwargs: Any) -> None:
+    def init_app(self: Any, app: flask.app.Flask, host: str='localhost', port: int=5000, prefix: str='', app_db: Any=None, swaggerui_blueprint: bool=True, docs_decorators: Any=None, **kwargs: Any) -> None:
         """
         API and application initialization
         """
@@ -113,6 +152,12 @@ class SAFRS:
             app_db = app.extensions["sqlalchemy"]
 
         safrs.DB = self.db = app_db
+
+        # Configured documentation policies are security boundaries and stay
+        # active regardless of application or logger DEBUG settings.
+        requested_docs_decorators = list(docs_decorators or [])
+        effective_docs_decorators: list[Any] = requested_docs_decorators
+        app.extensions["safrs_docs_decorators"] = effective_docs_decorators
 
         app.request_class = SAFRSRequest
         app.response_class = SAFRSResponse
@@ -131,20 +176,59 @@ class SAFRS:
             swagger_bp = get_swaggerui_blueprint(
                 prefix, f"{prefix}/swagger.json", config={"docExpansion": "none", "defaultModelsExpandDepth": -1}
             )
+            if effective_docs_decorators:
+                swagger_bp.deferred_functions = [
+                    _protect_blueprint_registration(
+                        swagger_bp.deferred_functions, effective_docs_decorators
+                    )
+                ]
             app.register_blueprint(swagger_bp, url_prefix=prefix)
 
+        # Snapshot SAFRS defaults per Flask application. ``get_config`` reads
+        # this app-local mapping before the backward-compatible process-global
+        # class attributes, preventing one app from inheriting another app's
+        # pagination, CORS, or relationship configuration.
+        app_safrs_config = {
+            conf_name: conf_val
+            for conf_name, conf_val in vars(SAFRS).items()
+            if conf_name.isupper() and not callable(conf_val)
+        }
+
         for conf_name, conf_val in kwargs.items():
-            setattr(SAFRS, conf_name, conf_val)
+            app_safrs_config[conf_name] = conf_val
 
         for conf_name, conf_val in app.config.items():
-            setattr(SAFRS, conf_name, conf_val)
+            app_safrs_config[conf_name] = conf_val
+
+        app.extensions["safrs_config"] = app_safrs_config
+        if app.config.get("MAX_CONTENT_LENGTH") is None:
+            app.config["MAX_CONTENT_LENGTH"] = int(
+                app_safrs_config.get("MAX_REQUEST_BODY_BYTES", SAFRS.MAX_REQUEST_BODY_BYTES)
+            )
+
+        def bind_app_database(sender: Any, **_extra: Any) -> None:
+            if sender is app:
+                g._safrs_db_token = set_db(self.db)
+
+        def reset_app_database(sender: Any, **_extra: Any) -> None:
+            if sender is not app:
+                return
+            token = getattr(g, "_safrs_db_token", None)
+            if token is not None:
+                reset_db(token)
+                del g._safrs_db_token
+
+        appcontext_pushed.connect(bind_app_database, app, weak=False)
+        appcontext_tearing_down.connect(reset_app_database, app, weak=False)
 
         @app.before_request
         def handle_invalid_usage() -> Any:
-            return
+            return None
 
         @app.before_request
         def init_ja_data() -> Any:
+            from .base import run_model_operation_access_check
+
             def _collection_path(Model: Any) -> str:
                 return str(url_for(Model.get_endpoint()))
 
@@ -162,7 +246,16 @@ class SAFRS:
                 collection_path_builder=_collection_path,
                 instance_path_builder=_instance_path,
                 relationship_path_builder=_relationship_path,
+                operation_authorizer=run_model_operation_access_check,
             )
+            safrs_api = current_app.extensions.get("safrs_api")
+            registry = getattr(safrs_api, "authorization", None)
+            principal_provider = getattr(safrs_api, "principal_provider", None)
+            if registry is not None and principal_provider is not None:
+                # The application resolves authentication. SAFRS stores only
+                # the resulting trusted context for this request.
+                context.authorization_registry = registry
+                context.authorization_context = registry.validate_context(principal_provider())
             g._safrs_jsonapi_context_token = set_jsonapi_context(context)
             # Keep backward-compatible aliases for existing code paths.
             g.ja_data = context.ja_data

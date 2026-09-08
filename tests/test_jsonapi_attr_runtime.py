@@ -139,7 +139,7 @@ def test_set_jsonapi_attr_maps_type_and_value_errors_to_validation_error() -> No
 
     with pytest.raises(ValidationError) as exc_info:
         instance._s_set_jsonapi_attr("strict", "boom")
-    assert exc_info.value.message.endswith("bad strict value")
+    assert exc_info.value.message.endswith("Invalid value for attribute 'strict'")
 
 
 def test_ignore_unchanged_readonly_jsonapi_attr_requires_exact_match() -> None:

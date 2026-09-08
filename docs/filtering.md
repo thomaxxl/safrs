@@ -14,7 +14,10 @@ Behavior:
 - `filter[<attr>]` is parsed as a CSV list and translated to SQL `IN (...)`.
 - Multiple `filter[<attr>]` parameters are combined with `AND`.
 - `id` is supported as a special case.
-- Unknown attributes are rejected.
+- Unknown, unreadable, non-filterable, and computed attributes are rejected
+  with the same validation error. Use a custom filter for computed attributes.
+- Empty CSV values, malformed `filter[...]` parameter names, and values that
+  cannot be converted to the model column type are rejected.
 
 This mode is simple and fast for exact-value matching.
 
@@ -81,7 +84,9 @@ If `filter` JSON does not use group keys, SAFRS keeps legacy behavior:
 - A single clause object works.
 - A list of clauses is treated as `OR` between clauses.
 
-For backward compatibility, legacy `in` / `notin` handling is preserved exactly as before.
+Legacy `in` / `notin` clauses keep their historical query-combination behavior,
+but malformed clauses and non-array membership values are rejected rather than
+being ignored or passed through to SQLAlchemy.
 
 ## 5) Validation behavior
 
@@ -104,18 +109,38 @@ You can customize filtering in three ways:
 2. Override `SAFRSBase._s_filter(cls, *args, **kwargs)`.
 3. Provide a custom `jsonapi_filter` strategy for the model/API.
 
-Example override:
+Custom `filter` and `_s_filter` implementations must declare every resource
+field they inspect. SAFRS validates that declaration before calling the custom
+code and applies row-dependent field permissions to its result:
 
 ```python
+from safrs import jsonapi_filter_fields
+
 class User(SAFRSBase, db.Model):
     id = db.Column(db.String, primary_key=True)
     username = db.Column(db.String(32))
 
     @classmethod
+    @jsonapi_filter_fields("username")
     def _s_filter(cls, *args, **kwargs):
         value = args[0] if args else ""
         return cls.query.filter_by(username=value)
 ```
+
+Use `@jsonapi_filter_fields()` for a tenant/query-scope filter which does not
+inspect a resource field. Undeclared custom filters are rejected. This is a
+security migration for applications which previously treated arbitrary custom
+filter code as implicitly trusted.
+
+Sorting uses the same readable/filterable field resolver. A non-id sort is
+rejected when `_s_check_perm` makes field visibility row-dependent, because SQL
+ordering would otherwise reveal a protected value.
+
+Filter work is bounded by `MAX_FILTER_LENGTH`, `MAX_FILTER_DEPTH`,
+`MAX_FILTER_CLAUSES`, `MAX_FILTER_VALUES`, `MAX_BRACKET_FILTERS`, and
+`MAX_SORT_TERMS`. Policy-driven materialization is bounded by
+`MAX_AUTHORIZATION_SCAN`; implement `_s_query_scope` for large protected
+collections.
 
 ## 7) URL encoding tip
 

@@ -37,9 +37,9 @@ _TX_STATE: ContextVar[_TxState] = ContextVar("safrs_tx_state", default=_TxState(
 def _active_session_state() -> Optional[MutableMapping[str, Any]]:
     """Return active request state stored on the SQLAlchemy session."""
     try:
-        import safrs
+        from .runtime import get_db
 
-        session = safrs.DB.session
+        session = get_db().session
     except Exception:
         return None
 

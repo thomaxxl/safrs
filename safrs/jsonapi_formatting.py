@@ -13,6 +13,7 @@ import safrs
 from flask import request
 from .jsonapi_attr import is_jsonapi_attr
 from .errors import ValidationError, GenericError
+from .filtering import get_filterable_attribute, has_custom_instance_permission_check
 from .config import get_config, get_request_param
 from .jsonapi_context import maybe_jsonapi_context
 
@@ -30,10 +31,16 @@ def jsonapi_filter_list(relation: Any) -> Any:
             # item is not a SAFRSBase instance
             result.add(instance)
             continue
-        pks = {col.name: getattr(instance, col.name) for col in instance.id_type.columns}
         filter_query = instance.__class__.jsonapi_filter()
+        if isinstance(filter_query, list):
+            if any(item is instance for item in filter_query):
+                result.add(instance)
+            continue
+        pks = {col.name: getattr(instance, col.name) for col in instance.id_type.columns}
         result.update(filter_query.filter_by(**pks).all())  # this should only contain zero or one items
-    return list(result)
+    items = list(result)
+    target_model = next((item.__class__ for item in items if hasattr(item, "_s_query_scope")), None)
+    return target_model._s_query_scope(items) if target_model is not None else items
 
 
 def jsonapi_filter_query(object_query: Any, safrs_object: Any) -> Any:
@@ -45,8 +52,11 @@ def jsonapi_filter_query(object_query: Any, safrs_object: Any) -> Any:
     Called when filtering a relationship query
     """
     filter_query = safrs_object.jsonapi_filter()
+    if isinstance(filter_query, list):
+        allowed = {id(item) for item in filter_query}
+        return [item for item in object_query.all() if id(item) in allowed]
     result = object_query.intersect(filter_query)
-    return result
+    return safrs_object._s_query_scope(result)
 
 
 def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
@@ -58,8 +68,12 @@ def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
     :return: sqla query object
     """
     sort_attrs = request.args.get("sort", "") or "id"
+    sort_terms = sort_attrs.split(",")
+    max_sort_terms = int(get_config("MAX_SORT_TERMS") or 0)
+    if max_sort_terms > 0 and len(sort_terms) > max_sort_terms:
+        raise ValidationError(f"Too many sort terms (maximum {max_sort_terms})")
 
-    for sort_attr in sort_attrs.split(","):
+    for sort_attr in sort_terms:
         reverse = sort_attr.startswith("-")
         if reverse:
             # if the sort column starts with - , then we want to do a reverse sort
@@ -71,6 +85,15 @@ def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
                 attr = attr.desc()
         else:
             attr = getattr(safrs_object, sort_attr, None)
+        if sort_attr != "id":
+            if get_filterable_attribute(safrs_object, sort_attr) is None:
+                raise ValidationError(f"Sorting by '{sort_attr}' is not allowed")
+            if has_custom_instance_permission_check(safrs_object):
+                # A SQL ORDER BY would expose a field hidden on only some
+                # rows.  Reject ambiguous row-dependent visibility instead.
+                raise ValidationError(
+                    f"Sorting by '{sort_attr}' is not allowed with row-dependent field permissions"
+                )
         if sort_attr == "id":
             if attr is None:
                 if safrs_object.id_type.primary_keys:
@@ -94,9 +117,9 @@ def jsonapi_sort(object_query: Any, safrs_object: Any) -> Any:
                 # This may fail on non-sqla objects, eg. properties
                 object_query = object_query.order_by(attr)
             except sqlalchemy.exc.ArgumentError as exc:
-                safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
+                safrs.log.warning("Sort failed for %s.%s (%s)", safrs_object, sort_attr, type(exc).__name__)
             except Exception as exc:
-                safrs.log.warning(f"Sort failed for {safrs_object}.{sort_attr}: {exc}")
+                safrs.log.warning("Sort failed for %s.%s (%s)", safrs_object, sort_attr, type(exc).__name__)
 
     return object_query
 
@@ -139,11 +162,17 @@ def _pagination_args() -> tuple[int, int]:
 
 
 def _pagination_count(object_query: Any, safrs_object: Any) -> int:
-    if isinstance(object_query, (list, sqlalchemy.orm.collections.InstrumentedList)):
+    if isinstance(object_query, (list, tuple, set, dict, sqlalchemy.orm.collections.InstrumentedList)):
         return len(object_query)
-    if safrs_object is None:
-        return object_query.count()
-    return safrs_object._s_count()
+    count = getattr(object_query, "count", None)
+    if callable(count):
+        return int(count())
+    try:
+        return len(object_query)
+    except (TypeError, AttributeError):
+        # Never substitute a model-wide count for an unknown result shape:
+        # doing so can disclose rows excluded by an authorization scope.
+        return 0
 
 
 def _pagination_links(page_offset: int, limit: int, count: int, base_url: str) -> dict[str, str]:
@@ -184,13 +213,13 @@ def _paginate_instances(object_query: Any, page_offset: int, limit: int, safrs_o
     except OverflowError as exc:
         raise ValidationError("Pagination Overflow Error") from exc
     except sqlalchemy.exc.CompileError as exc:  # pragma: no cover
-        safrs.log.warning(f"{exc} / Add a valid sort= URL parameter")
+        safrs.log.warning("Invalid sort parameter (%s)", type(exc).__name__)
         if "MSSQL requires an order_by" in str(exc) and safrs_object and safrs_object.id_type.primary_keys:
             pk = safrs_object.id_type.primary_keys[0]
             return object_query.order_by(getattr(safrs_object, pk)).offset(page_offset).limit(limit).all()
-        raise GenericError(f"{exc}") from exc
+        raise GenericError("Query compilation failed") from exc
     except Exception as exc:
-        raise GenericError(f"{exc}") from exc
+        raise GenericError("Query execution failed") from exc
 
 
 def paginate(object_query: Any, SAFRSObject: Any=None) -> Any:

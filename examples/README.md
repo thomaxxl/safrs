@@ -63,6 +63,8 @@ Examples are grouped by purpose so it is clear where to start.
 - `mini_examples/ex14_flask_dispatch.py`: custom Flask dispatch/routing integration.
 - `mini_examples/ex15_http_hook.py`: HTTP lifecycle hooks around resource operations.
 - `mini_examples/ex16_perm.py`: permission checks with `_s_check_perm`.
+- `mini_examples/ex17_authorization_registry.py`: sparse row/field grants with
+  application-provided identity.
 - `mini_examples/custom_swagger.json`: sample custom swagger payload used by mini examples.
 
 ## `jsonapi_attr` Notes

@@ -23,7 +23,7 @@ from flask import Flask, Response, redirect, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 
-from safrs import SAFRSBase, SAFRSFormattedResponse, SafrsApi, jsonapi_attr, jsonapi_rpc
+from safrs import SAFRSBase, SAFRSFormattedResponse, SafrsApi, jsonapi_attr, jsonapi_filter_fields, jsonapi_rpc
 from safrs.api_methods import search as safrs_search
 from safrs.api_methods import startswith as safrs_startswith
 
@@ -226,6 +226,7 @@ class Publisher(BaseModel):
         return result
 
     @classmethod
+    @jsonapi_filter_fields()
     def filter(cls, arg: Any) -> Any:
         """Sample custom filtering (override to implement custom ORM filtering)."""
         print(arg)

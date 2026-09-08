@@ -9,7 +9,13 @@ from typing import Annotated, Any, Callable, Dict, Iterable, List, NoReturn, Opt
 from urllib.parse import quote
 
 import safrs
+import anyio
 from safrs import tx
+from safrs.base import (
+    check_relationship_write_permission,
+    model_has_resource_authorization,
+    run_instance_access_check,
+)
 from safrs.api_doc import (
     FILTERABLE,
     PAGEABLE,
@@ -30,20 +36,39 @@ from safrs.errors import (
 )
 from safrs.jsonapi_context import JsonApiContext, maybe_jsonapi_context, reset_jsonapi_context, set_jsonapi_context
 from safrs.jsonapi_formatting import jsonapi_format_response
+from safrs.filtering import (
+    apply_filter_read_permissions,
+    bracket_filter_expression,
+    coerce_filter_values,
+    custom_filter_read_fields,
+    filter_attribute_names,
+    get_filterable_attribute,
+    has_custom_instance_permission_check,
+    materialize_for_authorization,
+    parse_bracket_filter_name,
+    require_filterable_attribute,
+    uses_builtin_json_filter,
+    validate_bracket_filter_count,
+    validate_filter_result,
+)
 from safrs.rpc import (
     bind_rpc_kwargs as shared_bind_rpc_kwargs,
+    is_resource_instance as shared_is_resource_instance,
     normalize_rpc_result as shared_normalize_rpc_result,
     parse_rpc_args as shared_parse_rpc_args,
+    unwrap_formatted_response as shared_unwrap_formatted_response,
 )
-from safrs.config import is_debug
+from safrs.config import get_config, is_debug
 
-from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, Path, Request, Response
+from fastapi import APIRouter, Body, Depends as FastAPIDepends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Depends as DependsParam
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import JSONResponse
 from sqlalchemy.exc import CircularDependencyError, DataError, IntegrityError, InvalidRequestError, StatementError
 from sqlalchemy.orm.interfaces import MANYTOMANY, ONETOMANY
 from sqlalchemy.orm.exc import FlushError
@@ -57,6 +82,18 @@ from .schemas.examples import (
     relationship_to_one_example,
 )
 from .responses import JSONAPIResponse
+from .authorization import AuthorizationContext, current_authorization
+from safrs.request import validate_json_payload
+from safrs.runtime import bind_db, get_db, reset_db, set_db
+from safrs.authorization import (
+    apply_authorization_scope,
+    begin_current_protected_write,
+    current_model_is_registered,
+    current_query_fields,
+    prepare_current_readable_fields,
+    reject_current_rpc,
+    require_current_instance,
+)
 
 JSONAPI_MEDIA_TYPE = "application/vnd.api+json"
 DEFAULT_HTTP_METHODS = {"GET", "POST", "PATCH", "DELETE"}
@@ -64,6 +101,78 @@ WRITE_HTTP_METHODS = {"POST", "PATCH", "DELETE", "PUT"}
 NonEmptyPathStr = Annotated[str, Path(min_length=1)]
 ObjectIdParam = NonEmptyPathStr
 TargetIdParam = NonEmptyPathStr
+
+
+class _PayloadTooLarge(Exception):
+    pass
+
+
+class _RequestBodyLimitMiddleware:
+    """Reject oversized ASGI request bodies, including streamed bodies."""
+
+    def __init__(self, app: Any, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http" or self.max_bytes <= 0:
+            await self.app(scope, receive, send)
+            return
+        headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        content_length = headers.get(b"content-length")
+        if content_length is not None:
+            try:
+                if int(content_length) > self.max_bytes:
+                    await self._reject(scope, receive, send)
+                    return
+            except ValueError:
+                await self._reject(scope, receive, send)
+                return
+
+        received = 0
+
+        async def limited_receive() -> Any:
+            nonlocal received
+            message = await receive()
+            if message.get("type") == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_bytes:
+                    raise _PayloadTooLarge
+            return message
+
+        try:
+            await self.app(scope, limited_receive, send)
+        except _PayloadTooLarge:
+            await self._reject(scope, receive, send)
+
+    @staticmethod
+    async def _reject(scope: Any, receive: Any, send: Any) -> None:
+        response = JSONResponse(
+            status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value,
+            content={"errors": [{"status": "413", "title": "Request Entity Too Large"}]},
+            media_type=JSONAPI_MEDIA_TYPE,
+        )
+        await response(scope, receive, send)
+
+
+class _RuntimeBindingMiddleware:
+    """Bind an adapter's database before FastAPI enters worker threads."""
+
+    def __init__(self, app: Any, app_db: Any) -> None:
+        self.app = app
+        self.app_db = app_db
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Context is copied from the ASGI task into synchronous dependencies
+        # and endpoints. Binding here therefore reaches every generated route
+        # without consulting the mutable process-global database per request.
+        db_token = set_db(self.app_db)
+        request_url_token = set_fastapi_request_url(str(scope.get("path", "")))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            reset_fastapi_request_url(request_url_token)
+            reset_db(db_token)
 
 
 class RelationshipItemMode(str, Enum):
@@ -232,10 +341,10 @@ def install_jsonapi_exception_handlers(
     @app.exception_handler(Exception)
     async def _jsonapi_unhandled_exception_handler(_request: Request, exc: Exception):
         try:
-            safrs.DB.session.rollback()
+            get_db().session.rollback()
         except Exception as rollback_error:
-            safrs.log.debug("Rollback during unhandled exception failed: %s", rollback_error)
-        safrs.log.exception("Unhandled FastAPI exception: %s", exc)
+            safrs.log.debug("Rollback during unhandled exception failed (%s)", type(rollback_error).__name__)
+        safrs.log.error("Unhandled FastAPI exception (%s)", type(exc).__name__)
         payload = _jsonapi_error_document(
             [
                 {
@@ -249,6 +358,10 @@ def install_jsonapi_exception_handlers(
 
 
 class SafrsFastAPI:
+    def runtime_context(self) -> Any:
+        """Bind this API's database for a background task or script."""
+        return bind_db(self.db if self.db is not None else get_db())
+
     def __init__(
         self,
         app: FastAPI,
@@ -258,8 +371,32 @@ class SafrsFastAPI:
         include_examples_in_openapi: bool = True,
         cleanup_session: bool = True,
         expected_validation_exceptions: Optional[Sequence[Type[Exception]]] = None,
+        docs_dependencies: Optional[List[Any]] = None,
+        *,
+        app_db: Any = None,
+        read_dependencies: Optional[List[Any]] = None,
+        create_dependencies: Optional[List[Any]] = None,
+        update_dependencies: Optional[List[Any]] = None,
+        delete_dependencies: Optional[List[Any]] = None,
+        response_authorizer: Optional[Callable[[Type[Any], Any, Request], Any]] = None,
+        authorization: Any = None,
+        principal_dependency: Optional[Callable[..., Any]] = None,
     ) -> None:
         self.app = app
+        # Capture the legacy global once when ``app_db`` is omitted.  Looking
+        # it up for every request would let another application silently
+        # redirect this API to its session after construction.
+        self.db = app_db if app_db is not None else safrs.DB
+        self.authorization = authorization
+        self.principal_dependency = principal_dependency
+        if (self.authorization is None) != (self.principal_dependency is None):
+            raise ValueError("authorization and principal_dependency must be configured together")
+        if self.authorization is not None:
+            metadata = getattr(self.db, "metadata", None)
+            if metadata is None:
+                metadata = self.db.Model.metadata
+            self.authorization.bind(metadata)
+            self.authorization.freeze()
         self.prefix = prefix
         self.cleanup_session = bool(cleanup_session)
         self.expected_validation_exceptions = _normalize_expected_validation_exception_types(
@@ -271,22 +408,47 @@ class SafrsFastAPI:
         self.validate_responses = bool(getattr(safrs.SAFRS, "VALIDATE_RESPONSES", False))
         self.include_examples_in_openapi = bool(include_examples_in_openapi)
         self.relationship_item_mode = self._coerce_relationship_item_mode(relationship_item_mode)
+        self.max_request_body_bytes = int(getattr(safrs.SAFRS, "MAX_REQUEST_BODY_BYTES", 0) or 0)
+        self.app.add_middleware(_RuntimeBindingMiddleware, app_db=self.db)
+        self.app.add_middleware(
+            _RequestBodyLimitMiddleware,
+            max_bytes=self.max_request_body_bytes,
+        )
         self.schemas = SchemaRegistry(
             document_relationships=self.document_relationships,
             max_union_included_types=self.max_union_included_types,
         )
         self._openapi_payload_models: Set[Type[BaseModel]] = set()
+        self._model_dependencies: Dict[Type[Any], List[DependsParam]] = {}
+        self._models_by_resource_type: Dict[str, Type[Any]] = {}
+        self._authorization_limiter = anyio.CapacityLimiter(40)
+        self._default_operation_dependencies = {
+            "read": self._normalize_dependencies(read_dependencies),
+            "create": self._normalize_dependencies(create_dependencies),
+            "update": self._normalize_dependencies(update_dependencies),
+            "delete": self._normalize_dependencies(delete_dependencies),
+        }
+        self._operation_dependencies: Dict[Type[Any], Dict[str, List[DependsParam]]] = {}
+        self._default_response_authorizers = [response_authorizer] if response_authorizer else []
+        self._response_authorizers: Dict[Type[Any], List[Callable[[Type[Any], Any, Request], Any]]] = {}
+        self._docs_protected = bool(docs_dependencies)
+        self._public_docs_warning_emitted = False
         self.default_dependencies = [
-            FastAPIDepends(self._jsonapi_context_dependency),
-            FastAPIDepends(self._safrs_uow_dependency),
-        ] + self._normalize_dependencies(dependencies)
+            FastAPIDepends(self._safrs_uow_dependency, scope="function"),
+            FastAPIDepends(self._authorization_context_dependency, scope="function"),
+        ]
+        if self.authorization is not None and self.principal_dependency is not None:
+            registry_dependency = self._make_registry_context_dependency(self.principal_dependency)
+            self.default_dependencies.append(FastAPIDepends(registry_dependency, scope="function"))
+        self.default_dependencies += self._normalize_dependencies(dependencies)
         self._install_swagger_ui_defaults()
+        self._install_swagger_alias()
+        self._install_docs_protection(docs_dependencies)
         install_jsonapi_exception_handlers(
             app,
             expected_validation_exceptions=self.expected_validation_exceptions,
         )
         self._install_openapi_schema_patch()
-        self._install_swagger_alias()
         safrs.log.info(
             "Initialized SafrsFastAPI (prefix=%s, relationship_item_mode=%s, cleanup_session=%s, expected_validation_exceptions=%s)",
             self.prefix,
@@ -294,6 +456,30 @@ class SafrsFastAPI:
             self.cleanup_session,
             len(self.expected_validation_exceptions),
         )
+
+    def _make_registry_context_dependency(
+        self, principal_dependency: Callable[..., Any]
+    ) -> Callable[..., Any]:
+        registry = self.authorization
+
+        async def registry_context(
+            request: Request,
+            principal: Any = FastAPIDepends(principal_dependency),
+        ) -> Any:
+            context = maybe_jsonapi_context()
+            if context is None:
+                raise RuntimeError("SAFRS authorization context is not active")
+            context.authorization_registry = registry
+            context.authorization_context = registry.validate_context(principal)
+            request.state.safrs_auth_context = context.authorization_context
+            try:
+                yield
+            finally:
+                context.authorization_context = None
+                context.authorization_field_masks.clear()
+                context.authorization_decisions.clear()
+
+        return registry_context
 
     @staticmethod
     def _coerce_relationship_item_mode(mode: Union[RelationshipItemMode, str]) -> RelationshipItemMode:
@@ -320,6 +506,48 @@ class SafrsFastAPI:
         params.setdefault("docExpansion", "none")
         params.setdefault("defaultModelsExpandDepth", -1)
         self.app.swagger_ui_parameters = params
+
+    def _install_docs_protection(self, docs_dependencies: Optional[List[Any]]) -> None:
+        """Protect documentation routes using FastAPI's dependency solver.
+
+        Docs dependencies are route dependencies, not manually replayed
+        callables.  This preserves nested ``Depends``/``Security``, dependency
+        overrides, request caching, and generator cleanup.  Configuring a docs
+        policy is security-sensitive and remains effective at DEBUG log level.
+        """
+        if not docs_dependencies:
+            return
+        dependencies = self._normalize_dependencies(list(docs_dependencies))
+        protected_paths = {
+            str(path).rstrip("/")
+            for path in (
+                getattr(self.app, "openapi_url", None),
+                getattr(self.app, "docs_url", None),
+                getattr(self.app, "redoc_url", None),
+                "/swagger.json",
+            )
+            if path
+        }
+
+        original_routes = list(self.app.routes)
+        protected_routes = [
+            route
+            for route in original_routes
+            if str(getattr(route, "path", "")).rstrip("/") in protected_paths
+        ]
+        self.app.router.routes = [route for route in original_routes if route not in protected_routes]
+        for route in protected_routes:
+            endpoint = getattr(route, "endpoint", None)
+            if endpoint is None:
+                continue
+            self.app.add_api_route(
+                str(getattr(route, "path", "")),
+                endpoint,
+                methods=sorted(getattr(route, "methods", None) or {"GET"}),
+                dependencies=dependencies,
+                include_in_schema=False,
+                name=getattr(route, "name", None),
+            )
 
     def _install_openapi_schema_patch(self) -> None:
         if bool(getattr(self.app, "_safrs_openapi_patch_installed", False)):
@@ -354,7 +582,7 @@ class SafrsFastAPI:
                     ref_template="#/components/schemas/{model}",
                 )
             except Exception as exc:
-                safrs.log.debug("Failed to generate payload component schemas: %s", exc)
+                safrs.log.debug("Failed to generate payload component schemas (%s)", type(exc).__name__)
                 return schema
 
             definitions = json_schema.get("$defs", {})
@@ -393,10 +621,112 @@ class SafrsFastAPI:
             raise TypeError("dependencies items must be callables or fastapi.Depends(...) instances")
         return normalized
 
+    @staticmethod
+    def _dependency_key(dependency: DependsParam) -> Tuple[Any, Tuple[str, ...], Any]:
+        return (
+            getattr(dependency, "dependency", None),
+            tuple(getattr(dependency, "scopes", None) or ()),
+            getattr(dependency, "use_cache", True),
+        )
+
+    def _authorize_operation(
+        self, Model: Type[Any], action: str, request: Optional[Request] = None
+    ) -> None:
+        """Evaluate only policies explicitly registered for this operation."""
+        context = current_authorization.get()
+        dependencies = self._operation_dependencies.get(Model, self._default_operation_dependencies).get(action, [])
+        if context is not None and action != "read":
+            context.checked_resources.clear()
+        if not dependencies:
+            return
+        if context is None:
+            if request is None:
+                raise RuntimeError("Authorization requires an active request")
+            context = AuthorizationContext(request, self.app, self._authorization_limiter)
+            async def check_direct() -> None:
+                async with context.stack:
+                    await context.check(dependencies)
+            context.run(check_direct)
+            return
+        key = (Model, action)
+        if key not in context.checked_operations:
+            context.run(context.check, dependencies)
+            context.checked_operations.add(key)
+
+    def _authorize_instance_response(self, Model: Type[Any], obj_or_id: Any, request: Request) -> None:
+        self._authorize_operation(Model, "read", request)
+        obj = obj_or_id if hasattr(obj_or_id, "jsonapi_id") else Model.get_instance(obj_or_id)
+        require_current_instance(
+            obj,
+            "read",
+            response_check=str(request.method).upper() not in {"GET", "HEAD"},
+        )
+        context = current_authorization.get()
+        key = (Model, id(obj))
+        if context is not None and key in context.checked_resources:
+            return
+        callbacks = self._response_authorizers.get(Model, self._default_response_authorizers)
+        if callbacks:
+            callback_context = context or AuthorizationContext(request, self.app, self._authorization_limiter)
+            for callback in callbacks:
+                callback_context.authorize_response(callback, Model, obj)
+        if context is not None:
+            context.checked_resources.add(key)
+
+    def _authorize_collection_before_metadata(
+        self, Model: Type[Any], resources: Any, request: Request
+    ) -> Any:
+        """Apply object/response policies before exposing totals or ordering."""
+        resources = apply_authorization_scope(
+            Model, resources, fields=current_query_fields(Model)
+        )
+        callbacks = self._response_authorizers.get(Model, self._default_response_authorizers)
+        if not callbacks and not model_has_resource_authorization(Model):
+            return resources
+        items = materialize_for_authorization(resources)
+        for item in items:
+            self._authorize_loaded_target(Model, item, request, "read")
+        return items
+
+    def _authorize_relationship_response(
+        self, Model: Type[Any], object_id: Any, rel_name: str, request: Request
+    ) -> None:
+        self._authorize_operation(Model, "read", request)
+        rel = self._resolve_relationship_properties(Model)[rel_name]
+        self._authorize_operation(rel.mapper.class_, "read", request)
+
+    def _authorize_context_resource(self, Model: Type[Any], obj: Any, action: str) -> None:
+        context = current_authorization.get()
+        if context is None:
+            return
+        if action == "read":
+            self._authorize_instance_response(Model, obj, context.request)
+        elif action == "cascade_delete":
+            self._authorize_operation(Model, "delete")
+        else:
+            # Linking and unlinking require target update permission; row-level
+            # decisions remain in _s_check_instance_access(action).
+            self._authorize_operation(Model, "update")
+
+    async def _authorization_context_dependency(self, request: Request):
+        context = AuthorizationContext(request, self.app, self._authorization_limiter)
+        token = current_authorization.set(context)
+        jsonapi_token = set_jsonapi_context(self._build_jsonapi_context(request))
+        try:
+            # This dependency exits before the UOW dependency commits. A policy
+            # generator that rejects during teardown still rolls back the write.
+            async with context.stack:
+                yield
+        finally:
+            reset_jsonapi_context(jsonapi_token)
+            current_authorization.reset(token)
+
     def _build_jsonapi_context(self, request: Request) -> JsonApiContext:
         return JsonApiContext(
             query_params=request.query_params,
             prefix=self.prefix,
+            resource_authorizer=self._authorize_context_resource,
+            operation_authorizer=self._authorize_operation,
         )
 
     def _jsonapi_context_dependency(self, request: Request):
@@ -410,7 +740,7 @@ class SafrsFastAPI:
     def _cleanup_session(self) -> None:
         if not self.cleanup_session:
             return
-        session = safrs.DB.session
+        session = get_db().session
         info = getattr(session, "info", None)
         if isinstance(info, dict) and bool(info.get("_safrs_skip_cleanup", False)):
             return
@@ -425,13 +755,13 @@ class SafrsFastAPI:
     @staticmethod
     def _rollback_session_quietly() -> None:
         try:
-            safrs.DB.session.rollback()
+            get_db().session.rollback()
         except Exception as exc:
-            safrs.log.debug("Session rollback failed: %s", exc)
+            safrs.log.debug("Session rollback failed (%s)", type(exc).__name__)
 
     @staticmethod
     def _uow_session_state() -> Dict[str, Any]:
-        session = safrs.DB.session
+        session = get_db().session
         info = getattr(session, "info", None)
         if isinstance(info, dict):
             return info
@@ -451,7 +781,10 @@ class SafrsFastAPI:
         tx.note_write(Model)
 
     def _safrs_uow_dependency(self, request: Request):
-        request_url_token = set_fastapi_request_url(str(request.url))
+        # The ASGI middleware supplies this binding for real requests.  Keep a
+        # nested token here as well so direct dependency use (tests and custom
+        # integrations) has the same adapter-local database contract.
+        db_token = set_db(self.db)
         self._reset_uow_state()
         try:
             yield
@@ -462,7 +795,7 @@ class SafrsFastAPI:
             try:
                 request_method = str(getattr(request, "method", "")).upper()
                 if request_method in WRITE_HTTP_METHODS and tx.should_autocommit():
-                    safrs.DB.session.commit()
+                    get_db().session.commit()
                 else:
                     self._rollback_session_quietly()
             except Exception:
@@ -473,7 +806,7 @@ class SafrsFastAPI:
             try:
                 self._cleanup_session()
             finally:
-                reset_fastapi_request_url(request_url_token)
+                reset_db(db_token)
 
     @staticmethod
     def _is_class_level_rpc_method(Model: Type[Any], method_name: str, api_method: Any) -> bool:
@@ -497,7 +830,7 @@ class SafrsFastAPI:
                 rpc_methods.append((method_name, class_level, http_methods))
             return rpc_methods
         except Exception as exc:
-            safrs.log.debug(f"RPC method discovery fallback for {Model}: {exc}")
+            safrs.log.debug("RPC method discovery fallback for %s (%s)", Model, type(exc).__name__)
 
         for klass in Model.__mro__:
             if klass is object:
@@ -568,9 +901,10 @@ class SafrsFastAPI:
         error_responses = self._jsonapi_error_responses()
         collection_response_model = self.schemas.document_collection(Model)
         instance_response_model = self.schemas.document_single(Model)
+        post_status_codes = [200, 202] if Model._s_upsert and Model.allow_client_generated_ids else [202]
         collection_post_responses = self._merge_response_docs(
             error_responses,
-            self._jsonapi_status_responses([202]),
+            self._jsonapi_status_responses(post_status_codes),
         )
         instance_patch_responses = self._merge_response_docs(
             error_responses,
@@ -1055,16 +1389,17 @@ class SafrsFastAPI:
         elif isinstance(raw_methods, (set, list, tuple, frozenset)):
             candidates = cast(Iterable[Any], raw_methods)
         else:
-            candidates = [raw_methods]
+            try:
+                candidates = list(cast(Iterable[Any], raw_methods))
+            except TypeError:
+                candidates = [raw_methods]
 
         normalized: Set[str] = set()
         for method in candidates:
             method_name = str(method).upper()
             if method_name in DEFAULT_HTTP_METHODS:
                 normalized.add(method_name)
-        if normalized:
-            return normalized
-        return set(DEFAULT_HTTP_METHODS)
+        return normalized
 
     @staticmethod
     def _rpc_annotation_schema(annotation: Any, default: Any = inspect._empty) -> Dict[str, Any]:
@@ -1316,6 +1651,12 @@ class SafrsFastAPI:
         Model: Type[Any],
         dependencies: Optional[List[Any]] = None,
         method_decorators: Optional[List[Any]] = None,
+        *,
+        read_dependencies: Optional[List[Any]] = None,
+        create_dependencies: Optional[List[Any]] = None,
+        update_dependencies: Optional[List[Any]] = None,
+        delete_dependencies: Optional[List[Any]] = None,
+        response_authorizer: Optional[Callable[[Type[Any], Any, Request], Any]] = None,
     ) -> None:
         """
         Register CRUD routes for a SAFRS model.
@@ -1332,7 +1673,39 @@ class SafrsFastAPI:
                 "FastAPI adapter does not support Flask method_decorators; use dependencies=[...]"
             )
 
-        route_dependencies = self.default_dependencies + self._normalize_dependencies(dependencies)
+        model_dependencies = self._normalize_dependencies(dependencies)
+        self._model_dependencies[Model] = model_dependencies
+        self._models_by_resource_type[str(Model._s_type)] = Model
+        self._operation_dependencies[Model] = {
+            action: self._default_operation_dependencies[action] + self._normalize_dependencies(dependencies)
+            for action, dependencies in {
+                "read": read_dependencies, "create": create_dependencies,
+                "update": update_dependencies, "delete": delete_dependencies,
+            }.items()
+        }
+        self._response_authorizers[Model] = self._default_response_authorizers + (
+            [response_authorizer] if response_authorizer else []
+        )
+        has_authorization_policy = bool(
+            model_dependencies
+            or any(self._operation_dependencies[Model].values())
+            or self._response_authorizers[Model]
+            or (
+                self.authorization is not None
+                and self.authorization.is_registered(Model)
+            )
+        )
+        if (
+            has_authorization_policy
+            and not self._docs_protected
+            and not self._public_docs_warning_emitted
+        ):
+            safrs.log.warning(
+                "FastAPI documentation routes are public while SAFRS authorization policies are configured; "
+                "set docs_dependencies=[Depends(...)] to protect /docs, /redoc, /openapi.json, and /swagger.json"
+            )
+            self._public_docs_warning_emitted = True
+        route_dependencies = self.default_dependencies + model_dependencies
         tag = str(Model._s_collection_name)
         self._ensure_tag_metadata(Model, tag)
 
@@ -1407,6 +1780,17 @@ class SafrsFastAPI:
             query_params = request.query_params if request is not None else {}
             token = set_jsonapi_context(JsonApiContext(query_params=query_params, prefix=self.prefix))
         try:
+            if request is not None:
+                for obj in data if isinstance(data, (list, tuple, set)) else [data]:
+                    if shared_is_resource_instance(obj):
+                        self._authorize_loaded_target(obj.__class__, obj, request, "read")
+            primary_items = list(data) if isinstance(data, (list, tuple, set)) else [data]
+            primary_by_model: Dict[Type[Any], List[Any]] = {}
+            for obj in primary_items:
+                if shared_is_resource_instance(obj):
+                    primary_by_model.setdefault(obj.__class__, []).append(obj)
+            for resource_model, instances in primary_by_model.items():
+                prepare_current_readable_fields(resource_model, instances)
             payload = cast(
                 Dict[str, Any],
                 jsonapi_format_response(
@@ -1442,6 +1826,9 @@ class SafrsFastAPI:
 
     def _handle_safrs_exception(self, exc: Exception) -> None:
         if isinstance(exc, JSONAPIHTTPError):
+            raise exc
+        if isinstance(exc, (StarletteHTTPException, RequestValidationError)):
+            self._rollback_session_quietly()
             raise exc
         expected_validation_exception = _coerce_expected_validation_exception(
             exc,
@@ -1501,10 +1888,7 @@ class SafrsFastAPI:
             msg = str(getattr(exc, "message", str(exc)))
             self._jsonapi_error(status, exc.__class__.__name__, msg)
         self._rollback_session_quietly()
-        if is_debug():
-            safrs.log.exception("Unhandled SAFRS FastAPI error: %s", exc)
-        else:
-            safrs.log.error("Unhandled SAFRS FastAPI error: %s", exc)
+        safrs.log.error("Unhandled SAFRS FastAPI error (%s)", type(exc).__name__)
         self._jsonapi_error(
             HTTPStatus.INTERNAL_SERVER_ERROR.value,
             HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
@@ -1558,13 +1942,17 @@ class SafrsFastAPI:
         return "PATCH" in self._model_http_methods(Model)
 
     def _relationship_methods(self, Model: Type[Any], rel: Any) -> Set[str]:
-        methods: Set[str] = {"GET"}
+        parent_methods = self._model_http_methods(Model)
+        target_model = rel.mapper.class_
+        target_methods = self._model_http_methods(target_model)
+        methods: Set[str] = {"GET"} if "GET" in parent_methods and "GET" in target_methods else set()
         if not self._relationship_mutations_enabled(Model, rel):
             return methods
         if self._is_to_many_relationship(rel):
-            methods.update({"POST", "PATCH", "DELETE"})
+            candidate_methods = {"POST", "PATCH", "DELETE"}
         else:
-            methods.update({"PATCH", "DELETE"})
+            candidate_methods = {"PATCH", "DELETE"}
+        methods.update(candidate_methods & target_methods)
         return methods
 
     def _resolve_relationship_properties(self, Model: Type[Any]) -> Dict[str, Any]:
@@ -1609,12 +1997,12 @@ class SafrsFastAPI:
             from safrs.request import SAFRSRequest
             flask_app.request_class = SAFRSRequest
         except Exception as exc:
-            safrs.log.debug(f"Unable to import SAFRSRequest for rpc context: {exc}")
+            safrs.log.debug("Unable to import SAFRSRequest for rpc context (%s)", type(exc).__name__)
         try:
             from safrs.json_encoder import SAFRSJSONEncoder
             cast(Any, flask_app).json_encoder = SAFRSJSONEncoder
         except Exception as exc:
-            safrs.log.debug(f"Unable to import SAFRSJSONEncoder for rpc context: {exc}")
+            safrs.log.debug("Unable to import SAFRSJSONEncoder for rpc context (%s)", type(exc).__name__)
         query_items = [(str(key), str(value)) for key, value in request.query_params.multi_items()]
         return flask_app.test_request_context(path=request.url.path, query_string=query_items)
 
@@ -1658,6 +2046,64 @@ class SafrsFastAPI:
             jsonapi_doc=self._jsonapi_doc,
         )
 
+    def _rpc_result_resources(self, result: Any) -> List[Tuple[Type[Any], Any]]:
+        """Find resource representations in an RPC result before it is encoded."""
+        payload = shared_unwrap_formatted_response(result)
+        resources: List[Tuple[Type[Any], Any]] = []
+        seen_containers: Set[int] = set()
+        seen_resources: Set[Tuple[Type[Any], str]] = set()
+
+        def append_resource(resource_model: Type[Any], resource_or_id: Any) -> None:
+            resource_id = getattr(resource_or_id, "jsonapi_id", resource_or_id)
+            key = (resource_model, str(resource_id))
+            if key in seen_resources:
+                return
+            seen_resources.add(key)
+            resources.append((resource_model, resource_or_id))
+
+        def visit(value: Any) -> None:
+            if shared_is_resource_instance(value):
+                append_resource(value.__class__, value)
+                return
+            if isinstance(value, dict):
+                container_id = id(value)
+                if container_id in seen_containers:
+                    return
+                seen_containers.add(container_id)
+                if "type" in value and "id" in value:
+                    resource_type = str(value["type"])
+                    resource_model = self._models_by_resource_type.get(resource_type)
+                    if resource_model is None:
+                        raise StarletteHTTPException(
+                            status_code=HTTPStatus.FORBIDDEN.value,
+                            detail=f"Cannot authorize RPC response resource type '{resource_type}'",
+                        )
+                    append_resource(resource_model, value["id"])
+                for key, nested in value.items():
+                    visit(nested)
+                return
+            if isinstance(value, (list, tuple, set)):
+                container_id = id(value)
+                if container_id in seen_containers:
+                    return
+                seen_containers.add(container_id)
+                for nested in value:
+                    visit(nested)
+
+        visit(payload)
+        return resources
+
+    def _authorize_rpc_result(self, result: Any, request: Request) -> None:
+        for resource_model, resource_or_id in self._rpc_result_resources(result):
+            registered_model = self._models_by_resource_type.get(str(resource_model._s_type))
+            if registered_model is not resource_model:
+                raise StarletteHTTPException(
+                    status_code=HTTPStatus.FORBIDDEN.value,
+                    detail=f"Cannot authorize RPC response resource type '{resource_model._s_type}'",
+                )
+            resource = resource_or_id if shared_is_resource_instance(resource_or_id) else resource_model.get_instance(resource_or_id)
+            self._authorize_loaded_target(resource_model, resource, request, "read")
+
     def _call_class_rpc(
         self,
         Model: Type[Any],
@@ -1671,6 +2117,7 @@ class SafrsFastAPI:
         bound_args = shared_bind_rpc_kwargs(method, args)
         with self._rpc_request_context(request):
             result = method(**bound_args)
+        self._authorize_rpc_result(result, request)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -1691,6 +2138,7 @@ class SafrsFastAPI:
         bound_args = shared_bind_rpc_kwargs(method, args)
         with self._rpc_request_context(request):
             result = method(**bound_args)
+        self._authorize_rpc_result(result, request)
         return JSONAPIResponse(
             status_code=200,
             content=self._normalize_rpc_result(Model, result, valid_jsonapi=valid_jsonapi),
@@ -1707,6 +2155,12 @@ class SafrsFastAPI:
         object_id: Optional[ObjectIdParam] = None,
     ) -> JSONAPIResponse:
         try:
+            if payload is not None:
+                validate_json_payload(payload)
+            reject_current_rpc(Model)
+            self._authorize_operation(
+                Model, "update" if str(request.method).upper() in WRITE_HTTP_METHODS else "read", request
+            )
             if str(request.method).upper() in WRITE_HTTP_METHODS:
                 self._note_write(Model)
             if class_level:
@@ -1812,6 +2266,11 @@ class SafrsFastAPI:
         if not include_values:
             return []
 
+        max_include_paths = int(getattr(safrs.SAFRS, "MAX_INCLUDE_PATHS", 0) or 0)
+        if max_include_paths > 0 and len(include_values) > max_include_paths:
+            self._jsonapi_error(400, "ValidationError", f"Too many include paths (maximum {max_include_paths})")
+        max_include_depth = int(getattr(safrs.SAFRS, "MAX_INCLUDE_DEPTH", 0) or 0)
+
         root_rels = self._resolve_relationship_properties(Model)
         paths: List[List[str]] = []
         for inc in include_values:
@@ -1821,6 +2280,12 @@ class SafrsFastAPI:
             path = [part for part in inc.split(".") if part]
             if not path:
                 continue
+            if max_include_depth > 0 and len(path) > max_include_depth:
+                self._jsonapi_error(
+                    400,
+                    "ValidationError",
+                    f"Include path exceeds maximum depth {max_include_depth}",
+                )
             current_model = Model
             for segment in path:
                 rels = self._resolve_relationship_properties(current_model)
@@ -1828,16 +2293,27 @@ class SafrsFastAPI:
                     self._jsonapi_error(400, "ValidationError", f"Invalid relationship '{segment}' in include")
                 current_model = rels[segment].mapper.class_
             paths.append(path)
+        if max_include_paths > 0 and len(paths) > max_include_paths:
+            self._jsonapi_error(400, "ValidationError", f"Too many include paths (maximum {max_include_paths})")
         return paths
 
-    def _iter_related_items(self, rel_value: Any) -> List[Any]:
+    def _iter_related_items(self, rel_value: Any, *, limit: Optional[int] = None) -> List[Any]:
         if rel_value is None:
             return []
         if hasattr(rel_value, "all") and callable(rel_value.all):
-            return list(rel_value.all())
+            query = rel_value.limit(limit) if limit is not None and hasattr(rel_value, "limit") else rel_value
+            return list(query.all())
         if isinstance(rel_value, (list, tuple, set)):
-            return list(rel_value)
+            items = list(rel_value)
+            return items[:limit] if limit is not None else items
         return [rel_value]
+
+    def _validate_collection_size(self, data: Any, label: str) -> None:
+        if not isinstance(data, list):
+            return
+        max_items = int(getattr(safrs.SAFRS, "MAX_BULK_ITEMS", 0) or 0)
+        if max_items > 0 and len(data) > max_items:
+            self._jsonapi_error(400, "ValidationError", f"{label} exceeds maximum item count {max_items}")
 
     @staticmethod
     def _parse_sort_terms(raw_sort: Optional[str]) -> List[Tuple[str, bool]]:
@@ -1854,6 +2330,9 @@ class SafrsFastAPI:
             terms.append((attr_name, reverse))
         if not terms:
             terms.append(("id", False))
+        max_sort_terms = int(get_config("MAX_SORT_TERMS") or 0)
+        if max_sort_terms > 0 and len(terms) > max_sort_terms:
+            raise ValidationError(f"Too many sort terms (maximum {max_sort_terms})")
         return terms
 
     @staticmethod
@@ -1868,7 +2347,11 @@ class SafrsFastAPI:
             return None
 
         model_attrs = getattr(Model, "_s_jsonapi_attrs", {})
-        if attr_name in model_attrs:
+        if attr_name in model_attrs and get_filterable_attribute(Model, attr_name) is not None:
+            if has_custom_instance_permission_check(Model):
+                raise ValidationError(
+                    f"Sorting by '{attr_name}' is not allowed with row-dependent field permissions"
+                )
             return attr_name
         return None
 
@@ -1887,7 +2370,7 @@ class SafrsFastAPI:
                     reverse=reverse,
                 )
             except Exception as exc:
-                safrs.log.debug("Unable to sort list by '%s' (%s): %s", resolved_attr, raw_attr, exc)
+                safrs.log.debug("Unable to sort list by '%s' (%s)", resolved_attr, type(exc).__name__)
             else:
                 sorted_items = candidate_items
         return sorted_items
@@ -2018,19 +2501,12 @@ class SafrsFastAPI:
             try:
                 return int(value.count())
             except Exception as exc:
-                safrs.log.debug("Unable to evaluate count() for %s: %s", type(value).__name__, exc)
+                safrs.log.debug("Unable to evaluate count() for %s (%s)", type(value).__name__, type(exc).__name__)
         if isinstance(value, (list, tuple, set)):
             return len(value)
         return 1
 
     def _apply_pagination(self, value: Any, request: Request) -> Any:
-        has_offset = "page[offset]" in request.query_params
-        has_limit = "page[limit]" in request.query_params
-        has_number = "page[number]" in request.query_params
-        has_size = "page[size]" in request.query_params
-        if not has_offset and not has_limit and not has_number and not has_size:
-            return value
-
         offset, limit = self._pagination_args(request)
         raw_limit = request.query_params.get("page[limit]")
         if raw_limit is not None:
@@ -2064,7 +2540,7 @@ class SafrsFastAPI:
                 try:
                     ordered_query = sorted_query.order_by(model_attr.desc() if reverse else model_attr.asc())
                 except Exception as exc:
-                    safrs.log.debug("Unable to apply query sort for '%s': %s", resolved_attr, exc)
+                    safrs.log.debug("Unable to apply query sort for '%s' (%s)", resolved_attr, type(exc).__name__)
                 else:
                     sorted_query = ordered_query
             return sorted_query
@@ -2086,80 +2562,59 @@ class SafrsFastAPI:
                     reverse=reverse,
                 )
             except Exception as exc:
-                safrs.log.debug("Unable to apply list sort for '%s': %s", attr_name, exc)
+                safrs.log.debug("Unable to apply list sort for '%s' (%s)", attr_name, type(exc).__name__)
             else:
                 sorted_items = candidate_items
         return sorted_items
-
-    @staticmethod
-    def _coerce_filter_values(model_attr: Any, raw_value: str) -> List[Any]:
-        values = [part.strip() for part in str(raw_value).split(",") if part.strip()]
-        if not values:
-            return []
-
-        model_type = getattr(getattr(model_attr, "type", None), "python_type", None)
-        coerced: List[Any] = []
-        for value in values:
-            if model_type is None:
-                coerced.append(value)
-                continue
-            try:
-                if model_type is bool:
-                    lowered = value.lower()
-                    if lowered in {"1", "true", "yes", "on"}:
-                        coerced.append(True)
-                        continue
-                    if lowered in {"0", "false", "no", "off"}:
-                        coerced.append(False)
-                        continue
-                coerced.append(model_type(value))
-            except Exception:
-                coerced.append(value)
-        return coerced
 
     def _apply_filter(self, Model: Type[Any], request: Request, base_query: Any) -> Any:
         raw_filter = request.query_params.get("filter")
         bracket_filters: Dict[str, str] = {}
         for key, value in request.query_params.items():
-            if key.startswith("filter[") and key.endswith("]"):
-                bracket_filters[key[len("filter[") : -1]] = value
+            attr_name = parse_bracket_filter_name(key)
+            if attr_name is not None:
+                bracket_filters[attr_name] = value
+        validate_bracket_filter_count(bracket_filters)
 
         if raw_filter is None:
             if bracket_filters:
                 filtered_query = base_query
                 for attr_name, attr_value in bracket_filters.items():
-                    model_attr = getattr(Model, attr_name, None)
-                    if model_attr is None:
-                        return []
-                    filter_values = self._coerce_filter_values(model_attr, attr_value)
-                    if not filter_values:
-                        return []
+                    model_attr = require_filterable_attribute(Model, attr_name)
+                    filter_values = coerce_filter_values(model_attr, attr_value, attr_name)
                     if self._is_query_like(filtered_query):
-                        if hasattr(model_attr, "in_"):
-                            filtered_query = filtered_query.filter(model_attr.in_(filter_values))
-                        else:
-                            filtered_query = filtered_query.filter(model_attr == filter_values[0])
+                        expression = bracket_filter_expression(model_attr, filter_values, attr_name)
+                        filtered_query = filtered_query.filter(expression)
                     else:
                         items = self._coerce_items(filtered_query)
                         accepted = {str(value) for value in filter_values}
                         filtered_query = [item for item in items if str(getattr(item, attr_name, None)) in accepted]
-                return filtered_query
+                return apply_filter_read_permissions(Model, filtered_query, bracket_filters.keys())
             return base_query
 
         try:
             if "filter" in Model.__dict__ and callable(getattr(Model, "filter")):
-                filtered = Model.filter(raw_filter)
+                custom_filter = getattr(Model, "filter")
+                declared_fields = custom_filter_read_fields(Model, custom_filter)
+                filtered = custom_filter(raw_filter)
+                filtered = apply_filter_read_permissions(Model, filtered, declared_fields)
             else:
-                filtered = Model._s_filter(raw_filter)
+                custom_filter = Model._s_filter
+                declared_fields = (
+                    () if uses_builtin_json_filter(Model) else custom_filter_read_fields(Model, custom_filter)
+                )
+                filtered = custom_filter(raw_filter)
+                if uses_builtin_json_filter(Model):
+                    filtered = apply_filter_read_permissions(Model, filtered, filter_attribute_names(raw_filter))
+                else:
+                    filtered = apply_filter_read_permissions(Model, filtered, declared_fields)
         except ValidationError as exc:
-            self._jsonapi_error(400, "ValidationError", str(exc))
+            self._jsonapi_error(400, "ValidationError", str(exc.message))
         except JsonapiError as exc:
             self._handle_safrs_exception(exc)
         except Exception as exc:
             self._handle_safrs_exception(exc)
-        if self._is_query_like(filtered) or isinstance(filtered, (list, tuple, set)):
-            return filtered
-        raise ValidationError("Invalid filter result")
+        return validate_filter_result(filtered)
 
     def _normalize_jsonapi_id(self, Model: Type[Any], raw_id: Any) -> Any:
         id_type = getattr(Model, "id_type", None)
@@ -2171,10 +2626,17 @@ class SafrsFastAPI:
         except ValidationError as exc:
             self._jsonapi_error(400, "ValidationError", str(exc))
         except Exception:
-            self._jsonapi_error(400, "ValidationError", f"Invalid id '{raw_id}'")
+            self._jsonapi_error(400, "ValidationError", "Invalid id")
         return raw_id
 
-    def _lookup_related_instance(self, target_model: Type[Any], payload: Dict[str, Any], strict: bool = True) -> Any:
+    def _lookup_related_instance(
+        self,
+        target_model: Type[Any],
+        payload: Dict[str, Any],
+        strict: bool = True,
+        request: Optional[Request] = None,
+        action: str = "link",
+    ) -> Any:
         if not isinstance(payload, dict):
             self._jsonapi_error(400, "ValidationError", "Invalid data payload")
         rel_id = payload.get("id")
@@ -2192,7 +2654,44 @@ class SafrsFastAPI:
             self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
         if target is None:
             self._jsonapi_error(404, "NotFound", f"Related object {rel_id} not found")
+        # SEC-02: object-level authorization for the loaded target row.
+        self._authorize_loaded_target(target_model, target, request, action)
         return target
+
+    def _authorize_loaded_target(
+        self,
+        target_model: Type[Any],
+        target: Any,
+        request: Optional[Request],
+        action: str,
+    ) -> None:
+        """SEC-02: authorize a target row loaded from a relationship payload.
+
+        Runs the explicitly configured target operation policy and the
+        model's object-level ``_s_check_instance_access`` hook. A denial
+        raises before the unit of work commits, so the mutation rolls back.
+        """
+        if target is None:
+            return
+        if action == "read" and request is not None:
+            self._authorize_instance_response(target_model, target, request)
+        elif request is not None:
+            self._authorize_operation(target_model, "delete" if action == "cascade_delete" else "update", request)
+        try:
+            run_instance_access_check(target_model, target, action)
+        except (JSONAPIHTTPError, StarletteHTTPException):
+            raise
+        except Exception as exc:
+            safrs.log.debug(
+                "Target row authorization denied for %s (%s)",
+                getattr(target_model, "__name__", target_model),
+                type(exc).__name__,
+            )
+            self._jsonapi_error(
+                int(getattr(exc, "status_code", None) or HTTPStatus.FORBIDDEN.value),
+                "Forbidden",
+                "The related resource is not authorized",
+            )
 
     def _clear_relationship(self, rel_value: Any) -> None:
         current_items = self._iter_related_items(rel_value)
@@ -2200,7 +2699,11 @@ class SafrsFastAPI:
             try:
                 rel_value.remove(item)
             except Exception as exc:
-                safrs.log.debug(f"Ignoring relationship remove error for {item}: {exc}")
+                safrs.log.debug(
+                    "Ignoring relationship remove error for %s (%s)",
+                    type(item).__name__,
+                    type(exc).__name__,
+                )
 
     def _append_relationship_item(self, rel_value: Any, item: Any) -> None:
         if hasattr(rel_value, "append"):
@@ -2239,7 +2742,9 @@ class SafrsFastAPI:
             if not hasattr(target_model, "_s_type"):
                 continue
             rel_value = getattr(obj, rel_name, None)
-            rel_items = self._iter_related_items(rel_value)
+            context = maybe_jsonapi_context()
+            rel_limit = context.get_relationship_page_limit(rel_name) if context is not None else None
+            rel_items = self._iter_related_items(rel_value, limit=rel_limit)
             for rel_obj in rel_items:
                 if rel_obj is None:
                     continue
@@ -2248,6 +2753,13 @@ class SafrsFastAPI:
                 if len(path) > 1:
                     next_include_names.add(str(path[1]))
                 if key not in seen:
+                    max_included = int(getattr(safrs.SAFRS, "MAX_INCLUDED_RESOURCES", 0) or 0)
+                    if max_included > 0 and len(included) >= max_included:
+                        self._jsonapi_error(
+                            400,
+                            "ValidationError",
+                            f"Included resources exceed maximum item count {max_included}",
+                        )
                     seen.add(key)
                     included.append(
                         self._encode_resource(
@@ -2404,11 +2916,13 @@ class SafrsFastAPI:
         def handler(request: Request):
             context_token = None
             try:
+                self._authorize_operation(Model, "read", request)
                 # Validate include paths early so invalid relationships fail with 400.
                 self._parse_include_paths(Model, request)
                 if maybe_jsonapi_context() is None:
                     context_token = set_jsonapi_context(self._build_jsonapi_context(request))
                 query_or_items = Model._s_get()
+                query_or_items = self._authorize_collection_before_metadata(Model, query_or_items, request)
                 query_or_items = self._apply_sort_query_or_items(Model, query_or_items, request)
                 total_count = self._query_or_items_count(query_or_items)
                 page_offset, page_limit = self._pagination_args(request)
@@ -2438,9 +2952,12 @@ class SafrsFastAPI:
     def _get_instance(self, Model: Type[Any]):
         def handler(object_id: ObjectIdParam, request: Request):
             try:
+                self._authorize_operation(Model, "read", request)
                 obj = Model.get_instance(object_id)
                 # Validate include paths early so invalid relationships fail with 400.
                 self._parse_include_paths(Model, request)
+                # SEC-02: object-level policies apply to direct reads too.
+                self._authorize_loaded_target(Model, obj, request, "read")
                 links = self._instance_links(request, Model, obj)
                 return self._jsonapi_data_response(
                     data=obj,
@@ -2455,20 +2972,36 @@ class SafrsFastAPI:
         return handler
 
     def _coerce_post_items(self, Model: Type[Any], payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        validate_json_payload(payload)
         raw_data = payload.get("data")
         if isinstance(raw_data, list):
+            self._validate_collection_size(raw_data, "Bulk POST")
             return raw_data
         self._require_type(Model, payload)
         return [payload.get("data") or {}]
 
-    def _create_post_object(self, Model: Type[Any], data: Dict[str, Any]) -> Any:
+    def _create_post_object(
+        self, Model: Type[Any], data: Dict[str, Any], request: Optional[Request] = None
+    ) -> Tuple[Any, bool]:
         if not isinstance(data, dict):
             self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (data item must be object)")
         if data.get("type") != Model._s_type:
             self._jsonapi_error(400, "ValidationError", "Invalid type: expected " + str(Model._s_type))
         attrs = cast(Dict[str, Any], data.get("attributes") or {})
         rels = data.get("relationships") or {}
-        return Model._s_post(jsonapi_id=data.get("id"), **attrs, **rels)
+        jsonapi_id = data.get("id")
+        get_upsert_target = getattr(Model, "_s_get_upsert_target", None)
+        upsert_target = get_upsert_target(jsonapi_id, **attrs) if callable(get_upsert_target) else None
+        if upsert_target is not None:
+            # POST transport does not grant update permission. The existing-row
+            # branch shares PATCH's explicit policy, even on POST-only models.
+            self._authorize_operation(Model, "update", request)
+            # SEC-02: upsert rewrites an existing row; enforce its policy.
+            run_instance_access_check(Model, upsert_target, "link")
+            return upsert_target._s_update_from_post(**attrs, **rels), False
+        self._authorize_operation(Model, "create", request)
+        create_method = getattr(Model, "_s_post_prechecked", Model._s_post)
+        return create_method(jsonapi_id=jsonapi_id, **attrs, **rels), True
 
     @staticmethod
     def _append_auto_include_paths(include_paths: List[List[str]], obj: Any) -> None:
@@ -2513,6 +3046,7 @@ class SafrsFastAPI:
         include_paths: List[List[str]],
         included: List[Dict[str, Any]],
         request: Optional[Request] = None,
+        all_created: bool = True,
     ) -> JSONAPIResponse:
         _ = wanted_fields
         _ = include_paths
@@ -2522,7 +3056,7 @@ class SafrsFastAPI:
         if len(created) == 1:
             data_doc = created[0]
             collection_name = getattr(Model, "_s_collection_name", None)
-            if collection_name:
+            if collection_name and all_created:
                 prefix = (self.prefix or "").rstrip("/")
                 if prefix and not prefix.startswith("/"):
                     prefix = "/" + prefix
@@ -2534,7 +3068,7 @@ class SafrsFastAPI:
             data_doc = created
         return self._jsonapi_data_response(
             data=data_doc,
-            status_code=201,
+            status_code=201 if all_created else 200,
             headers=headers,
             count=len(created),
             request=request,
@@ -2551,20 +3085,27 @@ class SafrsFastAPI:
                 wanted_fields = fields_map.get(str(Model._s_type)) or self._parse_sparse_fields(Model, request)
                 include_paths = self._parse_include_paths(Model, request)
                 created: List[Any] = []
+                created_flags: List[bool] = []
                 for data in items:
                     self._note_write(Model)
-                    obj = self._create_post_object(Model, data)
+                    obj, was_created = self._create_post_object(Model, data, request)
                     created.append(obj)
+                    created_flags.append(was_created)
                     self._append_auto_include_paths(include_paths, obj)
+                for obj in created:
+                    self._authorize_instance_response(Model, obj, request)
                 deduped_include_paths = self._dedupe_include_paths(include_paths)
-                included = self._collect_included_for_created(Model, created, deduped_include_paths, fields_map)
+                # The shared formatter serializes includes under the same
+                # authorization context. Pre-encoding here marks related rows
+                # as primary data and causes Included.encode() to omit them.
                 return self._build_post_response(
                     Model,
                     created,
                     wanted_fields,
                     deduped_include_paths,
-                    included,
+                    [],
                     request=request,
+                    all_created=all(created_flags),
                 )
             except JSONAPIHTTPError:
                 raise
@@ -2580,6 +3121,8 @@ class SafrsFastAPI:
             payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
         ):
             try:
+                validate_json_payload(payload)
+                self._authorize_operation(Model, "update", request)
                 self._require_type(Model, payload)
                 data = payload.get("data") or {}
 
@@ -2599,6 +3142,7 @@ class SafrsFastAPI:
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)
                 obj = obj._s_patch(**attrs)
+                self._authorize_instance_response(Model, obj, request)
                 self._parse_include_paths(Model, request)
                 links = self._instance_links(request, Model, obj)
                 return self._jsonapi_data_response(
@@ -2618,6 +3162,8 @@ class SafrsFastAPI:
     def _delete_instance(self, Model: Type[Any]):
         def handler(object_id: ObjectIdParam):
             try:
+                self._authorize_operation(Model, "delete")
+                begin_current_protected_write(Model)
                 obj = Model.get_instance(object_id)
                 self._note_write(Model)
                 obj._s_delete()
@@ -2632,16 +3178,26 @@ class SafrsFastAPI:
     def _get_relationship(self, Model: Type[Any], rel_name: str):
         def handler(object_id: ObjectIdParam, request: Request):
             try:
+                self._authorize_relationship_response(Model, object_id, rel_name, request)
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
+                require_current_instance(parent, "read", [rel_name])
                 self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
 
                 if self._is_to_many_relationship(rel):
+                    if current_model_is_registered(target_model):
+                        rel_value = get_db().session.query(target_model).with_parent(
+                            parent, property=rel
+                        )
                     query_or_items = self._apply_filter(target_model, request, rel_value)
+                    query_or_items = target_model._s_query_scope(query_or_items)
+                    query_or_items = self._authorize_collection_before_metadata(
+                        target_model, query_or_items, request
+                    )
                     query_or_items = self._apply_sort_query_or_items(target_model, query_or_items, request)
                     total_count = self._query_or_items_count(query_or_items)
                     page_offset, page_limit = self._pagination_args(request)
@@ -2677,14 +3233,22 @@ class SafrsFastAPI:
     def _get_relationship_item(self, Model: Type[Any], rel_name: str):
         def handler(object_id: ObjectIdParam, target_id: TargetIdParam, request: Request):
             try:
+                self._authorize_relationship_response(Model, object_id, rel_name, request)
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
                 target_model = rel.mapper.class_
+                require_current_instance(parent, "read", [rel_name])
                 normalized_target_id = self._normalize_jsonapi_id(target_model, target_id)
                 self._parse_include_paths(target_model, request)
                 rel_value = getattr(parent, rel_name, None)
+                if current_model_is_registered(target_model) and self._is_to_many_relationship(rel):
+                    rel_value = get_db().session.query(target_model).with_parent(
+                        parent, property=rel
+                    )
+                    rel_value = target_model._s_query_scope(rel_value)
+                    rel_value = apply_authorization_scope(target_model, rel_value)
                 for item in self._iter_related_items(rel_value):
                     item_id = self._normalize_jsonapi_id(target_model, item.jsonapi_id)
                     if item_id == normalized_target_id:
@@ -2712,10 +3276,13 @@ class SafrsFastAPI:
                     payload_obj = request
                 if not isinstance(payload_obj, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (expected object)")
+                validate_json_payload(payload_obj)
+                self._authorize_operation(Model, "update", request_obj)
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                check_relationship_write_permission(parent, rel_name)
                 target_model = rel.mapper.class_
                 if "data" not in payload_obj:
                     self._jsonapi_error(400, "ValidationError", "Missing 'data' member in request body")
@@ -2726,13 +3293,18 @@ class SafrsFastAPI:
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "PATCH a TOMANY relationship with a list")
+                    self._validate_collection_size(data, "Relationship PATCH")
+                    for removed in self._iter_related_items(rel_value):
+                        self._authorize_loaded_target(target_model, removed, request_obj, "unlink")
                     self._clear_relationship(rel_value)
                     for item in data:
-                        target = self._lookup_related_instance(target_model, item)
+                        target = self._lookup_related_instance(target_model, item, request=request_obj, action="link")
                         self._append_relationship_item(rel_value, target)
                     if tx.in_request():
-                        safrs.DB.session.flush()
+                        get_db().session.flush()
                     items = self._iter_related_items(rel_value)
+                    if request_obj is not None:
+                        self._authorize_relationship_response(Model, object_id, rel_name, request_obj)
                     return self._jsonapi_data_response(
                         data=items,
                         meta={"count": len(items)},
@@ -2741,17 +3313,22 @@ class SafrsFastAPI:
                     )
 
                 if data is None:
+                    self._authorize_loaded_target(target_model, rel_value, request_obj, "unlink")
                     setattr(parent, rel_name, None)
                     if tx.in_request():
-                        safrs.DB.session.flush()
+                        get_db().session.flush()
                     return Response(status_code=204)
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                target = self._lookup_related_instance(target_model, data)
+                target = self._lookup_related_instance(target_model, data, request=request_obj, action="link")
+                if rel_value is not None and rel_value is not target:
+                    self._authorize_loaded_target(target_model, rel_value, request_obj, "unlink")
                 setattr(parent, rel_name, target)
                 if tx.in_request():
-                    safrs.DB.session.flush()
+                    get_db().session.flush()
                 if rel_name == "thing":
+                    if request_obj is not None:
+                        self._authorize_relationship_response(Model, object_id, rel_name, request_obj)
                     return self._jsonapi_data_response(data=target, count=1, request=request_obj)
                 return Response(status_code=204)
             except Exception as exc:
@@ -2760,33 +3337,49 @@ class SafrsFastAPI:
         return handler
 
     def _post_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: ObjectIdParam, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(
+            object_id: ObjectIdParam,
+            request: Request,
+            payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
+        ):
             try:
+                request_obj: Optional[Request] = request if isinstance(request, Request) else None
+                payload_obj: Any = payload
+                if not isinstance(request, Request):
+                    payload_obj = request
+                if not isinstance(payload_obj, dict):
+                    self._jsonapi_error(400, "ValidationError", "Invalid JSON:API payload (expected object)")
+                validate_json_payload(payload_obj)
+                self._authorize_operation(Model, "update", request_obj)
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                check_relationship_write_permission(parent, rel_name)
                 target_model = rel.mapper.class_
-                data = payload.get("data")
+                data = payload_obj.get("data")
                 rel_value = getattr(parent, rel_name, None)
                 self._note_write(Model)
 
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    self._validate_collection_size(data, "Relationship POST")
                     for item in data:
-                        target = self._lookup_related_instance(target_model, item)
+                        target = self._lookup_related_instance(target_model, item, request=request_obj, action="link")
                         self._append_relationship_item(rel_value, target)
                     if tx.in_request():
-                        safrs.DB.session.flush()
+                        get_db().session.flush()
                     return Response(status_code=204)
 
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                target = self._lookup_related_instance(target_model, data)
+                target = self._lookup_related_instance(target_model, data, request=request_obj, action="link")
                 setattr(parent, rel_name, target)
                 if tx.in_request():
-                    safrs.DB.session.flush()
+                    get_db().session.flush()
+                if request_obj is not None:
+                    self._authorize_relationship_response(Model, object_id, rel_name, request_obj)
                 return self._jsonapi_response(self._jsonapi_doc(data=self._encode_resource(target_model, target)))
             except Exception as exc:
                 self._handle_safrs_exception(exc)
@@ -2794,12 +3387,20 @@ class SafrsFastAPI:
         return handler
 
     def _delete_relationship(self, Model: Type[Any], rel_name: str):
-        def handler(object_id: ObjectIdParam, payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE)):
+        def handler(
+            object_id: ObjectIdParam,
+            payload: Dict[str, Any] = Body(..., media_type=JSONAPI_MEDIA_TYPE),
+            request: Annotated[Request, "safrs-sec02"] = None,  # type: ignore[assignment]
+        ):
             try:
+                request_obj: Optional[Request] = request if isinstance(request, Request) else None
+                validate_json_payload(payload)
+                self._authorize_operation(Model, "update", request_obj)
                 parent = Model.get_instance(object_id)
                 rel = self._resolve_relationship_properties(Model).get(rel_name)
                 if rel is None:
                     self._jsonapi_error(404, "NotFound", f"Unknown relationship '{rel_name}'")
+                check_relationship_write_permission(parent, rel_name)
                 target_model = rel.mapper.class_
                 data = payload.get("data")
                 rel_value = getattr(parent, rel_name, None)
@@ -2808,11 +3409,12 @@ class SafrsFastAPI:
                 if self._is_to_many_relationship(rel):
                     if not isinstance(data, list):
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
+                    self._validate_collection_size(data, "Relationship DELETE")
                     for item in data:
-                        target = self._lookup_related_instance(target_model, item)
+                        target = self._lookup_related_instance(target_model, item, request=request_obj, action="unlink")
                         self._remove_relationship_item(rel_value, target)
                     if tx.in_request():
-                        safrs.DB.session.flush()
+                        get_db().session.flush()
                     return Response(status_code=204)
 
                 if isinstance(data, list):
@@ -2823,14 +3425,14 @@ class SafrsFastAPI:
                         self._jsonapi_error(400, "ValidationError", "Invalid data payload")
                 if not isinstance(data, dict):
                     self._jsonapi_error(400, "ValidationError", "Invalid data payload")
-                target = self._lookup_related_instance(target_model, data, strict=True)
+                target = self._lookup_related_instance(target_model, data, strict=True, request=request_obj, action="unlink")
                 current = getattr(parent, rel_name, None)
                 if current is not None and str(current.jsonapi_id) == str(target.jsonapi_id):
                     setattr(parent, rel_name, None)
                 else:
                     safrs.log.warning("child not in relation")
                 if tx.in_request():
-                    safrs.DB.session.flush()
+                    get_db().session.flush()
                 return Response(status_code=204)
             except Exception as exc:
                 self._handle_safrs_exception(exc)

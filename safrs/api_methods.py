@@ -2,11 +2,22 @@ from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm.session import make_transient
 import safrs
+from .runtime import get_db
 from . import tx
 from .jsonapi_formatting import paginate, jsonapi_sort
 from .json_encoder import SAFRSFormattedResponse
 from .api_doc import jsonapi_rpc
 from .errors import GenericError, SystemValidationError
+from .filtering import apply_filter_read_permissions, get_filterable_attribute
+
+
+def _filter_column(cls: Any, key: str) -> Any:
+    """Resolve RPC filter fields through the same read policy as HTTP filters."""
+
+    column = get_filterable_attribute(cls, key)
+    if column is None:
+        raise SystemValidationError(f'Invalid Column "{key}"')
+    return column
 
 
 @jsonapi_rpc(http_methods=["POST"])
@@ -14,7 +25,7 @@ def duplicate(self: Any) -> SAFRSFormattedResponse:
     """
     description: Duplicate an object - copy it and give it a new id
     """
-    session = safrs.DB.session
+    session = get_db().session
     session.expunge(self)
     make_transient(self)
     self.id = self.id_type()
@@ -36,17 +47,18 @@ def lookup_re_mysql(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragm
     args:
         name: thom.*
     """
-    result = cls
+    result = cls.query
     for key, value in kwargs.items():
-        column = getattr(cls, key, None)
-        if not column:
-            raise SystemValidationError(f'Invalid Column "{key}"')
+        column = _filter_column(cls, key)
         try:
-            result = result.query.filter(column.op("regexp")(value))
+            result = result.filter(column.op("regexp")(value))
         except Exception as exc:
-            raise GenericError(f"Failed to execute query {exc}")
+            raise GenericError("Failed to execute query") from exc
 
-    return SAFRSFormattedResponse(result.all())
+    instances = apply_filter_read_permissions(cls, result, kwargs.keys())
+    if hasattr(instances, "all") and callable(instances.all):
+        instances = instances.all()
+    return SAFRSFormattedResponse(instances)
 
 
 @classmethod  # type: ignore[misc]
@@ -62,27 +74,27 @@ def startswith(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no
     response = SAFRSFormattedResponse()
     try:
         instances = result.query
+        instances = apply_filter_read_permissions(cls, instances, ())
         links, instances, count = paginate(instances)
         data = [item for item in instances]
         meta: dict[str, Any] = {}
         errors = None
         response = SAFRSFormattedResponse(data, meta, links, errors, count)
     except Exception as exc:
-        raise GenericError(f"Failed to execute query {exc}")
+        raise GenericError("Failed to execute query") from exc
 
     for key, value in kwargs.items():
-        column = getattr(cls, key, None)
-        if not column:
-            raise SystemValidationError(f'Invalid Column "{key}"')
+        column = _filter_column(cls, key)
         try:
             instances = result.query.filter(column.like(value + "%"))
+            instances = apply_filter_read_permissions(cls, instances, (key,))
             links, instances, count = paginate(instances)
             data = [item for item in instances]
             meta = {}
             errors = None
             response = SAFRSFormattedResponse(data, meta, links, errors, count)
         except Exception as exc:
-            raise GenericError(f"Failed to execute query {exc}")
+            raise GenericError("Failed to execute query") from exc
     return response
 
 
@@ -96,13 +108,22 @@ def search(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no cov
         query: val
     """
     query = kwargs.get("query", "")
-    columns = [c for c in cls._s_columns if c.type.python_type in [str, int, float]]
+    columns = [
+        c
+        for c in cls._s_columns
+        if c.type.python_type in [str, int, float]
+        and get_filterable_attribute(cls, cls.colname_to_attrname(c.name)) is not None
+    ]
     if ":" in query:
         column_name, value = query.split(":")
-        result = cls.query.filter(or_(*[column.like("%" + value + "%") for column in columns if column.name == column_name]))
+        searched_columns = [column for column in columns if column.name == column_name]
+        result = cls.query.filter(or_(*[column.like("%" + value + "%") for column in searched_columns]))
     else:
+        searched_columns = columns
         result = cls.query.filter(or_(*[column.like("%" + query + "%") for column in columns]))
-    instances = jsonapi_sort(result, cls)
+    searched_attrs = [cls.colname_to_attrname(column.name) for column in searched_columns]
+    instances = apply_filter_read_permissions(cls, result, searched_attrs)
+    instances = jsonapi_sort(instances, cls)
     links, instances, count = paginate(instances)
     data = [item for item in instances]
     meta: dict[str, Any] = {}
@@ -120,8 +141,17 @@ def re_search(cls: Any, **kwargs: str) -> SAFRSFormattedResponse:  # pragma: no 
         query: search.*all
     """
     query = kwargs.get("query", "")
-    result = cls.query.filter(or_(*[column.op("regexp")(query) for column in cls._s_columns]))
-    instances = result
+    columns = [
+        column
+        for column in cls._s_columns
+        if get_filterable_attribute(cls, cls.colname_to_attrname(column.name)) is not None
+    ]
+    result = cls.query.filter(or_(*[column.op("regexp")(query) for column in columns]))
+    instances = apply_filter_read_permissions(
+        cls,
+        result,
+        [cls.colname_to_attrname(column.name) for column in columns],
+    )
     links, instances, count = paginate(instances)
     data = [item for item in instances]
     meta: dict[str, Any] = {}

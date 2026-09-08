@@ -33,8 +33,10 @@ def parse_object_doc(obj: Callable[..., Any]) -> dict[str, Any]:
 
     try:
         yaml_doc = yaml.safe_load(raw_doc)
-    except (SyntaxError, yaml.scanner.ScannerError) as exc:
-        safrs.log.error("Failed to parse documentation %s (%s)", raw_doc, exc)
+    except (SyntaxError, yaml.YAMLError) as exc:
+        # Documentation strings may contain examples or credentials.  Log only
+        # the failure type so malformed documentation cannot disclose content.
+        safrs.log.error("Failed to parse documentation (%s)", type(exc).__name__)
         yaml_doc = {"description": raw_doc}
     except Exception as exc:
         raise SystemValidationError("Failed to parse api doc") from exc

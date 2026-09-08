@@ -24,17 +24,17 @@ def _parse_temporal_attr(column: Any, attr_val: Any) -> tuple[bool, Any]:
         try:
             return True, _parse_datetime_value(attr_val)
         except (NotImplementedError, TypeError, ValueError) as exc:
-            raise ValidationError(f'Invalid datetime.datetime value "{attr_val}": {exc}') from exc
+            raise ValidationError("Invalid datetime value") from exc
     if column.type.python_type == datetime.date:
         try:
             return True, datetime.datetime.strptime(str(attr_val), "%Y-%m-%d")
         except (NotImplementedError, TypeError, ValueError) as exc:
-            raise ValidationError(f'Invalid datetime.date value "{attr_val}": {exc}') from exc
+            raise ValidationError("Invalid date value") from exc
     if column.type.python_type == datetime.time:
         try:
             return True, _parse_time_value(attr_val)
         except (NotImplementedError, TypeError, ValueError) as exc:
-            raise ValidationError(f'Invalid datetime.time value "{attr_val}": {exc}') from exc
+            raise ValidationError("Invalid time value") from exc
     return False, attr_val
 
 
@@ -59,7 +59,7 @@ def parse_attr(column: Any, attr_val: Any) -> Any:
             attr_val = column.python_type(attr_val)
         except (TypeError, ValueError, OverflowError) as exc:
             column_name = getattr(column, "name", getattr(column, "key", "<unknown>"))
-            raise ValidationError(f'Invalid value "{attr_val}" for attribute "{column_name}"') from exc
+            raise ValidationError(f'Invalid value for attribute "{column_name}"') from exc
 
     try:
         column.type.python_type
@@ -71,7 +71,7 @@ def parse_attr(column: Any, attr_val: Any) -> Any:
         In user defined base classes, abstract methods should raise this exception when they require derived classes to override the method.
         => simply return the attr_val for user-defined classes
         """
-        safrs.log.debug(exc)
+        safrs.log.debug("Attribute parsing failed (%s)", type(exc).__name__)
         return attr_val
 
     # skip type coercion on JSON columns, since they could be anything
@@ -85,6 +85,6 @@ def parse_attr(column: Any, attr_val: Any) -> Any:
         attr_val = column.type.python_type(attr_val)
     except (TypeError, ValueError, OverflowError) as exc:
         column_name = getattr(column, "name", getattr(column, "key", "<unknown>"))
-        raise ValidationError(f'Invalid value "{attr_val}" for attribute "{column_name}"') from exc
+        raise ValidationError(f'Invalid value for attribute "{column_name}"') from exc
 
     return attr_val

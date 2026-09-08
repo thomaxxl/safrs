@@ -6,13 +6,41 @@ import hashlib
 import re
 import json
 import safrs
-from sqlalchemy.types import PickleType, String
+from sqlalchemy.types import String
 from sqlalchemy.types import TypeDecorator, BLOB
 from .errors import ValidationError
 from .util import classproperty
 
 
 STRIP_SPECIAL = r"[^\w|%|:|/|-|_\-_\. ]"
+
+
+def _static_column_sample(column: Any) -> Any:
+    """Static documentation sample for a column (SEC-06: never read the DB).
+
+    Mirrors ``SAFRSBase._s_sample_dict``: explicit ``sample`` attribute first,
+    then a non-callable column ``default``, then a type-inferred placeholder.
+    """
+    sample = getattr(column, "sample", None)
+    if sample is not None:
+        return sample
+    default = getattr(column, "default", None)
+    arg = getattr(default, "arg", None) if default is not None else None
+    if arg is not None and not callable(arg):
+        return arg
+    python_type = getattr(column.type, "python_type", None)
+    if python_type is int:
+        return 0
+    if python_type is datetime.datetime:
+        return str(datetime.datetime.min)
+    if python_type is datetime.date:
+        return str(datetime.datetime.min.date())
+    if python_type is None:
+        return ""
+    try:
+        return python_type()
+    except Exception:
+        return ""
 
 
 class SAFRSID:
@@ -69,7 +97,7 @@ class SAFRSID:
             try:
                 result = cls.columns[0].type.python_type(id)
             except Exception:
-                raise ValidationError(f"Invalid id: '{id}'.")
+                raise ValidationError("Invalid id")
         else:
             pass
             # safrs.log.debug("ID Validation not implemented for {}".format(cls))
@@ -112,7 +140,7 @@ class SAFRSID:
         else:
             values = str(jsonapi_id).split(cls.delimiter)
         if len(values) != len(cls.columns):
-            raise ValidationError(f"PK values ({values}) do not match columns ({cls.columns})")
+            raise ValidationError("Primary-key values do not match the model identifier")
         result = dict()
         for pk_col, val in zip(cls.columns, values):
             if not val:
@@ -130,7 +158,7 @@ class SAFRSID:
                 else:
                     result[col_name] = ""
             except Exception as exc:  # pragma: no cover
-                safrs.log.warning(f"PK Error: {exc}")
+                safrs.log.warning("Primary-key conversion failed (%s)", type(exc).__name__)
                 result[col_name] = ""
 
         return result
@@ -161,18 +189,25 @@ class SAFRSID:
 
     @classmethod
     def sample_id(cls: Any, obj: Any) -> Any:
+        """
+        Static sample id for API documentation (SEC-06: never read the DB).
+
+        Values are derived from primary-key column ``sample``/``default``
+        metadata or inferred from the column type; composite ids are joined
+        with the id delimiter.
+        """
         if cls.columns and len(cls.columns) == 1 and cls.columns[0].type.python_type == int:
             return 0
-        sample = None
-        try:
-            sample = obj.query.first()
-        except Exception as exc:
-            safrs.log.debug(exc)
-            pass
-        if sample:
-            return sample.jsonapi_id
-
-        return "jsonapi_id_string"
+        table = getattr(obj, "__table__", None)
+        if table is not None:
+            parts = [
+                str(_static_column_sample(column))
+                for column in table.columns
+                if column.primary_key
+            ]
+            if parts:
+                return cls.delimiter.join(parts)
+        return ""
 
 
 def get_id_type(cls: Any, Super: Any=SAFRSID, delimiter: Any='_') -> Any:
@@ -215,24 +250,26 @@ class SAFRSSHA256HashID(SAFRSID):  # pragma: no cover
         return _id
 
 
-class JSONType(PickleType):  # pragma: no cover
+class JSONType(TypeDecorator):  # pragma: no cover
     """
     JSON DB type is used to store JSON objects in the database
     """
 
     impl = BLOB
+    cache_ok = True
 
     def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
-        # kwargs['pickler'] = json
         super(JSONType, self).__init__(*args, **kwargs)
 
     def process_bind_param(self: Any, value: Any, dialect: Any) -> Any:
         if value is not None:
-            value = json.dumps(value, ensure_ascii=True)
+            value = json.dumps(value, ensure_ascii=True).encode("utf-8")
         return value
 
     def process_result_value(self: Any, value: Any, dialect: Any) -> Any:
         if value is not None:
+            if isinstance(value, bytes):
+                value = value.decode("utf-8")
             value = json.loads(value)
         return value
 
@@ -273,6 +310,6 @@ class UUIDType(TypeDecorator):  # pragma: no cover
         try:
             uuid.UUID(value, version=4)
         except Exception as exc:
-            raise ValidationError(f"UUID Validation Error {value} ({exc})")
+            raise ValidationError("Invalid UUID") from exc
 
         return value

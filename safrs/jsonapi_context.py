@@ -61,6 +61,16 @@ class JsonApiContext:
     collection_path_builder: Optional[Callable[[Any], str]] = None
     instance_path_builder: Optional[Callable[[Any, Any], str]] = None
     relationship_path_builder: Optional[Callable[[Any, Any, str], str]] = None
+    # Optional adapter callbacks; Flask/programmatic contexts leave these unset.
+    resource_authorizer: Optional[Callable[[Any, Any, str], None]] = None
+    operation_authorizer: Optional[Callable[[Any, str], None]] = None
+    # Optional SQL-backed authorization registry.  These values are bound once
+    # per request and never stored on model classes.
+    authorization_registry: Any = None
+    authorization_context: Any = None
+    authorization_decisions: set[Any] = field(default_factory=set)
+    authorization_field_masks: Dict[Any, frozenset[str]] = field(default_factory=dict)
+    authorization_response_check: bool = False
 
     def get_include_csv(self, default: str = "") -> str:
         value = _get_param(self.query_params, "include", default)

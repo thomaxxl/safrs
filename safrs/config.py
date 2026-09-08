@@ -4,13 +4,11 @@
 import os
 import logging
 from flask import current_app, request
-from functools import lru_cache
 import safrs
-from typing import Optional, Union, Any
+from typing import Any
 
 
-@lru_cache(maxsize=128)
-def get_config(option: str) -> Optional[Union[bool, str]]:
+def get_config(option: str) -> Any:
     """Retrieve a configuration parameter from the app
     :param option: configuration parameter
     :return: configuration value
@@ -20,8 +18,13 @@ def get_config(option: str) -> Optional[Union[bool, str]]:
     try:
         result = current_app.config[option]
     except (KeyError, RuntimeError):
-        #
-        result = getattr(safrs.SAFRS, option, os.environ.get(option, None))
+        try:
+            app_config = current_app.extensions.get("safrs_config", {})
+            result = app_config.get(option)
+        except RuntimeError:
+            result = None
+        if result is None:
+            result = getattr(safrs.SAFRS, option, os.environ.get(option, None))
     if result is not None:
         return result
     # pylint: disable=invalid-name, unused-variable, pointless-string-statement
@@ -65,6 +68,30 @@ def get_config(option: str) -> Optional[Union[bool, str]]:
     UNLIMITED = int(os.environ.get("SAFRS_UNLIMITED", safrs.SAFRS.MAX_PAGE_LIMIT))
     MAX_PAGE_LIMIT = int(os.environ.get("MAX_PAGE_LIMIT", safrs.SAFRS.MAX_PAGE_LIMIT))
     MAX_PAGE_OFFSET = int(os.environ.get("MAX_PAGE_OFFSET", safrs.SAFRS.MAX_PAGE_OFFSET))
+    MAX_BULK_ITEMS = int(os.environ.get("MAX_BULK_ITEMS", safrs.SAFRS.MAX_BULK_ITEMS))
+    MAX_INCLUDE_DEPTH = int(os.environ.get("MAX_INCLUDE_DEPTH", safrs.SAFRS.MAX_INCLUDE_DEPTH))
+    MAX_INCLUDE_PATHS = int(os.environ.get("MAX_INCLUDE_PATHS", safrs.SAFRS.MAX_INCLUDE_PATHS))
+    MAX_INCLUDED_RESOURCES = int(
+        os.environ.get("MAX_INCLUDED_RESOURCES", safrs.SAFRS.MAX_INCLUDED_RESOURCES)
+    )
+    MAX_FILTER_LENGTH = int(os.environ.get("MAX_FILTER_LENGTH", safrs.SAFRS.MAX_FILTER_LENGTH))
+    MAX_FILTER_DEPTH = int(os.environ.get("MAX_FILTER_DEPTH", safrs.SAFRS.MAX_FILTER_DEPTH))
+    MAX_FILTER_CLAUSES = int(os.environ.get("MAX_FILTER_CLAUSES", safrs.SAFRS.MAX_FILTER_CLAUSES))
+    MAX_FILTER_VALUES = int(os.environ.get("MAX_FILTER_VALUES", safrs.SAFRS.MAX_FILTER_VALUES))
+    MAX_BRACKET_FILTERS = int(
+        os.environ.get("MAX_BRACKET_FILTERS", safrs.SAFRS.MAX_BRACKET_FILTERS)
+    )
+    MAX_SORT_TERMS = int(os.environ.get("MAX_SORT_TERMS", safrs.SAFRS.MAX_SORT_TERMS))
+    MAX_AUTHORIZATION_SCAN = int(
+        os.environ.get("MAX_AUTHORIZATION_SCAN", safrs.SAFRS.MAX_AUTHORIZATION_SCAN)
+    )
+    MAX_REQUEST_BODY_BYTES = int(
+        os.environ.get("MAX_REQUEST_BODY_BYTES", safrs.SAFRS.MAX_REQUEST_BODY_BYTES)
+    )
+    MAX_JSON_DEPTH = int(os.environ.get("MAX_JSON_DEPTH", safrs.SAFRS.MAX_JSON_DEPTH))
+    MAX_REQUEST_RESOURCES = int(
+        os.environ.get("MAX_REQUEST_RESOURCES", safrs.SAFRS.MAX_REQUEST_RESOURCES)
+    )
     # This is the default query limit
     # used as default sqla "limit" parameter. -1 works for sqlite but not for mysql
     BIG_QUERY_THRESHOLD = 1000  # Warning level

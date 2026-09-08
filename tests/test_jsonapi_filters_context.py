@@ -4,9 +4,13 @@ from types import SimpleNamespace
 from typing import Any
 
 from flask import Flask
+import pytest
 
 from safrs import jsonapi_filters
+from safrs.errors import ValidationError
 from safrs.jsonapi_context import JsonApiContext, reset_jsonapi_context, set_jsonapi_context
+from safrs.filtering import jsonapi_filter_fields
+from safrs.jsonapi_formatting import jsonapi_filter_list, jsonapi_filter_query
 from safrs.request import SAFRSRequest
 
 
@@ -47,8 +51,9 @@ class _FakeQuery:
 
 
 class _FakeColumn:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, *, filterable: bool = True) -> None:
         self.name = name
+        self.filterable = filterable
 
     def in_(self, values: list[str]) -> tuple[str, tuple[str, ...]]:
         return (self.name, tuple(values))
@@ -124,6 +129,7 @@ def test_jsonapi_filter_uses_jsonapi_context_custom_filter() -> None:
         called_with = ""
 
         @staticmethod
+        @jsonapi_filter_fields()
         def filter(raw: str) -> list[str]:
             _FilterModel.called_with = raw
             return ["custom"]
@@ -176,3 +182,73 @@ def test_jsonapi_filter_prefers_jsonapi_context_when_flask_request_has_no_filter
 
     assert result is query
     assert query.filter_calls == [("name", ("beta",))]
+
+
+def test_jsonapi_filter_enforces_filterable_column_flag() -> None:
+    query = _FakeQuery()
+    internal_column = _FakeColumn("internal", filterable=False)
+
+    class _FilterModel:
+        _s_query = query
+        _s_relationships: dict[str, Any] = {}
+        _s_jsonapi_attrs = {"internal": internal_column}
+
+    token = set_jsonapi_context(JsonApiContext(query_params=_QueryParams([("filter[internal]", "value")])))
+    try:
+        with pytest.raises(ValidationError) as exc:
+            jsonapi_filters.jsonapi_filter.__func__(_FilterModel)
+    finally:
+        reset_jsonapi_context(token)
+
+    assert "unknown attribute" in exc.value.message
+    assert query.filter_calls == []
+
+
+def test_jsonapi_context_rejects_malformed_bracket_filter_name() -> None:
+    token = set_jsonapi_context(JsonApiContext(query_params=_QueryParams([("filter[name]junk", "value")])))
+    try:
+        with pytest.raises(ValidationError) as exc:
+            jsonapi_filters._get_bracket_filters()
+    finally:
+        reset_jsonapi_context(token)
+    assert "Invalid bracket filter parameter" in exc.value.message
+
+
+def test_flask_custom_filter_rejects_invalid_result_shape() -> None:
+    class _FilterModel:
+        _s_jsonapi_attrs: dict[str, Any] = {}
+
+        @staticmethod
+        @jsonapi_filter_fields()
+        def filter(_raw: str) -> dict[str, str]:
+            return {"invalid": "result"}
+
+    token = set_jsonapi_context(JsonApiContext(query_params=_QueryParams([("filter", "custom")])))
+    try:
+        with pytest.raises(ValidationError) as exc:
+            jsonapi_filters.jsonapi_filter.__func__(_FilterModel)
+    finally:
+        reset_jsonapi_context(token)
+    assert "Invalid filter result" in exc.value.message
+
+
+def test_relationship_filtering_accepts_permission_filtered_lists() -> None:
+    class _Item:
+        allowed: list[Any] = []
+        id_type = object()
+
+        @classmethod
+        def jsonapi_filter(cls) -> list[Any]:
+            return cls.allowed
+
+    denied = _Item()
+    allowed = _Item()
+    _Item.allowed = [allowed]
+
+    class _RelationshipQuery:
+        @staticmethod
+        def all() -> list[Any]:
+            return [denied, allowed]
+
+    assert set(jsonapi_filter_list(["raw", denied, allowed])) == {"raw", allowed}
+    assert jsonapi_filter_query(_RelationshipQuery(), _Item) == [allowed]

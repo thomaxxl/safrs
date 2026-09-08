@@ -32,6 +32,7 @@ from safrs import SAFRSBase  # db Mixin
 from safrs import SAFRSFormattedResponse
 from safrs import jsonapi_attr
 from safrs import jsonapi_rpc  # rpc decorator
+from safrs import jsonapi_filter_fields
 from safrs.api_methods import startswith, search  # rpc methods
 from functools import wraps
 from pathlib import Path
@@ -199,6 +200,7 @@ class Publisher(BaseModel):
         return result
 
     @classmethod
+    @jsonapi_filter_fields()
     def filter(cls: Any, arg: Any) -> Any:
         """
         Sample custom filtering, override this method to implement custom filtering

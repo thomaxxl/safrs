@@ -177,13 +177,14 @@ Type: classmethod
 Description: Applies filters to the query.
 """
 from __future__ import annotations
+from contextvars import ContextVar, Token
 from typing import Any, cast, Callable, Optional
 import inspect
 import datetime
 import sqlalchemy
 import json
 from http import HTTPStatus
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote
 from flask import request, url_for, has_request_context, has_app_context, current_app, g
 from flask_sqlalchemy.model import Model
 from sqlalchemy.orm.session import make_transient
@@ -195,7 +196,8 @@ from functools import lru_cache
 
 # safrs dependencies:
 import safrs
-from .errors import GenericError, IntegerOverflowError, NotFoundError, ValidationError, SystemValidationError
+from werkzeug.exceptions import HTTPException
+from .errors import GenericError, IntegerOverflowError, JsonapiError, NotFoundError, UnAuthorizedError, ValidationError, SystemValidationError
 from .safrs_types import get_id_type
 from .attr_parse import parse_attr
 from .config import get_config
@@ -211,11 +213,29 @@ from .api_doc import get_doc
 from .util import ClassPropertyDescriptor, classproperty
 from .model_config import SAFRSModelConfig
 from .jsonapi_context import maybe_jsonapi_context
-from .filtering import apply_filter_json
+from .filtering import apply_filter_json, materialize_for_authorization
+from .authorization import (
+    apply_authorization_scope,
+    begin_current_protected_write,
+    current_model_is_registered,
+    current_query_fields,
+    current_readable_fields,
+    prepare_current_readable_fields,
+    prepare_current_delete,
+    require_current_create,
+    require_current_instance,
+    reject_current_relationship_fields,
+    reject_current_relationship_mutation,
+    reject_current_rpc,
+    reject_current_foreign_key_fields,
+    run_current_after_create,
+)
 from . import tx
+from .runtime import get_db
 
 _MISSING_FLASK_ADAPTER_DEPS = {"flask_restful", "flask_restful_swagger_2"}
 _safrs_jsonapi: Any = None
+_POST_UPSERT_PRECHECKED: ContextVar[Any] = ContextVar("safrs_post_upsert_prechecked", default=None)
 
 try:
     from . import jsonapi as _loaded_safrs_jsonapi
@@ -241,10 +261,14 @@ def _request_uow_active() -> bool:
     if tx.in_request():
         return True
     try:
-        session_info = getattr(safrs.DB.session, "info", None)
+        session_info = getattr(get_db().session, "info", None)
     except Exception:
         return False
     return isinstance(session_info, dict) and bool(session_info.get("_safrs_uow_active", False))
+
+
+def _has_id_value(value: Any) -> bool:
+    return value is not None and (not isinstance(value, str) or value != "")
 
 
 @lru_cache(maxsize=1024)
@@ -342,6 +366,314 @@ SQLALCHEMY_SWAGGER2_TYPE = {
 }
 # casting of swagger types to python types
 SWAGGER2_TYPE_CAST = {"integer": int, "string": str, "number": float, "boolean": bool}
+
+
+def _instance_route_decorators(model: Any, action: str = "read") -> list[Any]:
+    """Route decorators protecting the model operation for ``action``.
+
+    Combines the decorators configured when the model was exposed
+    (``method_decorators`` recorded by the SafrsApi instance) and the
+    model's class-level ``decorators``/``custom_decorators``.
+    """
+    decorators: list[Any] = []
+    safrs_api = None
+    if has_app_context():
+        safrs_api = current_app.extensions.get("safrs_api")
+    if safrs_api is None:
+        safrs_api = getattr(model, "_safrs_api", None)
+    if safrs_api is not None:
+        configured = getattr(safrs_api, "_model_method_decorators", {}).get(model, [])
+        if isinstance(configured, dict):
+            operation = {
+                "read": "get",
+                "link": "patch",
+                "unlink": "patch",
+                "update": "patch",
+                "cascade_delete": "delete",
+            }.get(action, "get")
+            configured = configured.get(operation, [])
+        decorators.extend(list(configured or []))
+    decorators.extend(list(getattr(model, "custom_decorators", []) or []))
+    decorators.extend(list(getattr(model, "decorators", []) or []))
+    seen: set[int] = set()
+    result: list[Any] = []
+    for decorator in decorators:
+        if id(decorator) in seen:
+            continue
+        seen.add(id(decorator))
+        result.append(decorator)
+    return result
+
+
+def run_instance_access_check(
+    model: Any,
+    instance: Any,
+    action: str = "read",
+    quiet: bool = False,
+) -> bool:
+    """SEC-02: authorize a row loaded through a relationship payload, an
+    include traversal, a nested write or a cascade operation.
+
+    Two policies are evaluated against the concrete row:
+
+    1. the model's object-level hook ``_s_check_instance_access(action)``;
+    2. for reads, explicitly registered ``response_authorizer`` callbacks.
+
+    Ordinary Flask route decorators run once at the route/operation boundary;
+    they are never replayed once per returned read resource.  Legacy write
+    target checks continue to use their operation-specific decorators.
+
+    Fail closed: an unexpected error in either policy denies access. With
+    ``quiet=True`` (non-mutating include traversal) a denied row is reported
+    as ``False`` instead of raising so it can be omitted from the response.
+    """
+    if instance is None:
+        return True
+
+    cache_key: Optional[tuple[Any, str, str]] = None
+    flask_cache: Optional[set[tuple[Any, str, str]]] = None
+    if has_request_context():
+        cache_key = (model, str(getattr(instance, "jsonapi_id", "")), action)
+        flask_cache = getattr(g, "_safrs_instance_access_cache", None)
+        if flask_cache is None:
+            flask_cache = set()
+            g._safrs_instance_access_cache = flask_cache
+        if cache_key in flask_cache:
+            return True
+
+    registry_action = {
+        "link": "update",
+        "unlink": "update",
+        "cascade_delete": "delete",
+    }.get(action, action)
+    require_current_instance(instance, registry_action)
+
+    ctx = maybe_jsonapi_context()
+    if ctx is not None and ctx.resource_authorizer is not None:
+        # Explicit response policies reject the whole document, even for
+        # includes: quietly dropping a row would leave counts/links observable.
+        ctx.resource_authorizer(model, instance, action)
+
+    def deny() -> None:
+        if not quiet:
+            raise UnAuthorizedError(
+                f"{getattr(model, '_s_type', model)} instance is not authorized for '{action}'"
+            )
+
+    hook = getattr(instance, "_s_check_instance_access", None)
+    if not callable(hook):
+        hook = None
+    if hook is not None:
+        try:
+            allowed = hook(action)
+        except JsonapiError:
+            if quiet:
+                return False
+            raise
+        except Exception as exc:
+            safrs.log.debug(
+                "Instance access check failed for %s (%s)",
+                getattr(model, "__name__", model),
+                type(exc).__name__,
+            )
+            deny()
+            return False
+        if not allowed:
+            deny()
+            return False
+
+    if action == "read" and has_request_context():
+        safrs_api = current_app.extensions.get("safrs_api")
+        callbacks = getattr(safrs_api, "_response_authorizers", {}).get(model, [])
+        for callback in callbacks:
+            try:
+                allowed = callback(model, instance, request)
+            except JsonapiError:
+                if quiet:
+                    return False
+                raise
+            except Exception as exc:
+                safrs.log.debug(
+                    "Response authorization failed for %s: %s",
+                    getattr(model, "__name__", model),
+                    type(exc).__name__,
+                )
+                deny()
+                return False
+            if allowed is False:
+                deny()
+                return False
+
+    if not has_request_context():
+        return True
+    if action == "read":
+        if flask_cache is not None and cache_key is not None:
+            flask_cache.add(cache_key)
+        return True
+    decorators = _instance_route_decorators(model, action)
+    if not decorators:
+        if flask_cache is not None and cache_key is not None:
+            flask_cache.add(cache_key)
+        return True
+
+    object_id_name = str(getattr(model, "_s_object_id", "id"))
+
+    def _authorized_view(*args: Any, **kwargs: Any) -> Any:
+        return instance
+
+    _authorized_view.__name__ = {
+        "read": "get",
+        "link": "patch",
+        "unlink": "patch",
+        "update": "patch",
+        "cascade_delete": "delete",
+    }.get(action, "get")
+    setattr(_authorized_view, "SAFRSObject", model)
+    decorated = _authorized_view
+    for decorator in decorators:
+        decorated = decorator(decorated)
+    try:
+        decorated(**{object_id_name: quote(str(getattr(instance, "jsonapi_id", "")), safe="")})
+    except (JsonapiError, HTTPException):
+        if quiet:
+            return False
+        raise
+    except Exception as exc:
+        safrs.log.debug(
+            "Instance policy check failed for %s (%s)",
+            getattr(model, "__name__", model),
+            type(exc).__name__,
+        )
+        deny()
+        return False
+    if flask_cache is not None and cache_key is not None:
+        flask_cache.add(cache_key)
+    return True
+
+
+def run_model_operation_access_check(model: Any, action: str) -> None:
+    """Run a Flask model's ordinary decorators once for a routed operation."""
+    if not has_request_context():
+        return
+    cache = getattr(g, "_safrs_operation_access_cache", None)
+    if cache is None:
+        cache = set()
+        g._safrs_operation_access_cache = cache
+    cache_key = (model, action)
+    if cache_key in cache:
+        return
+    decorators = _instance_route_decorators(model, action)
+    if not decorators:
+        cache.add(cache_key)
+        return
+
+    def authorized_operation(*_args: Any, **_kwargs: Any) -> bool:
+        return True
+
+    authorized_operation.__name__ = {
+        "read": "get",
+        "create": "post",
+        "update": "patch",
+        "delete": "delete",
+    }.get(action, "get")
+    setattr(authorized_operation, "SAFRSObject", model)
+    decorated = authorized_operation
+    for decorator in decorators:
+        decorated = decorator(decorated)
+    decorated()
+    cache.add(cache_key)
+
+
+def run_relationship_read_access_check(relationship: Any) -> None:
+    """Run direct relationship decorators when that relationship is included."""
+    if not has_request_context():
+        return
+    decorators = list(getattr(relationship, "decorators", []) or [])
+    if not decorators:
+        return
+    cache = getattr(g, "_safrs_relationship_access_cache", None)
+    if cache is None:
+        cache = set()
+        g._safrs_relationship_access_cache = cache
+    cache_key = id(relationship)
+    if cache_key in cache:
+        return
+
+    def authorized_relationship(*_args: Any, **_kwargs: Any) -> bool:
+        return True
+
+    authorized_relationship.__name__ = "get"
+    decorated = authorized_relationship
+    for decorator in decorators:
+        decorated = decorator(decorated)
+    decorated()
+    cache.add(cache_key)
+
+
+def check_relationship_write_permission(instance: Any, relationship_name: str) -> None:
+    """Authorize mutation of a relationship on its concrete parent row.
+
+    Relationship endpoints and nested JSON:API writes must check the
+    relationship's ``"w"`` permission explicitly.  Looking the relationship
+    up through ``_s_relationships`` is insufficient because that property is
+    filtered using read permission.
+    """
+    try:
+        allowed = bool(instance._s_check_perm(relationship_name, "w"))
+    except Exception as exc:
+        safrs.log.debug(
+            "Relationship write permission check failed for %s.%s: %s",
+            instance.__class__.__name__,
+            relationship_name,
+            type(exc).__name__,
+        )
+        allowed = False
+    if not allowed:
+        resource_type = getattr(instance.__class__, "_s_type", instance.__class__.__name__)
+        raise UnAuthorizedError(
+            f"{resource_type}.{relationship_name} is not writable"
+        )
+    mapper = sqlalchemy.inspect(instance.__class__, raiseerr=False)
+    relationship = mapper.relationships.get(relationship_name) if mapper is not None else None
+    if relationship is not None:
+        reject_current_relationship_mutation(instance.__class__, relationship.mapper.class_)
+
+
+def model_has_resource_authorization(model: Any) -> bool:
+    """Return whether collection metadata requires per-resource checks."""
+    hook_owner = next(
+        (
+            base
+            for base in getattr(model, "__mro__", ())
+            if "_s_check_instance_access" in getattr(base, "__dict__", {})
+        ),
+        None,
+    )
+    callbacks: list[Any] = []
+    if has_app_context():
+        safrs_api = current_app.extensions.get("safrs_api")
+        callbacks = getattr(safrs_api, "_response_authorizers", {}).get(model, [])
+    return hook_owner is not SAFRSBase or bool(callbacks)
+
+
+def authorize_collection_before_metadata(model: Any, resources: Any) -> Any:
+    """Authorize every candidate before count, sorting, and pagination.
+
+    Arbitrary Python object policies cannot be translated to SQL safely.  For
+    models that define one, materialization is the secure fallback: a denied
+    row rejects the document before its existence can leak through metadata.
+    Applications with large collections should enforce the same policy in
+    their query hook so the database can scope rows efficiently.
+    """
+    resources = apply_authorization_scope(
+        model, resources, fields=current_query_fields(model)
+    )
+    if not model_has_resource_authorization(model):
+        return resources
+    items = materialize_for_authorization(resources)
+    for item in items:
+        run_instance_access_check(model, item, "read")
+    return items
 
 
 #
@@ -457,7 +789,7 @@ class SAFRSBase(Model):
         """
         If an object with given arguments already exists, this object is instantiated
         """
-        if "id" not in kwargs or not cls._s_upsert:
+        if _POST_UPSERT_PRECHECKED.get() is cls or "id" not in kwargs or not cls._s_upsert:
             return object.__new__(cls)
         # Fetch the PKs from the kwargs so we can lookup the corresponding object
         primary_keys = cls.id_type.extract_pks(kwargs)
@@ -467,7 +799,7 @@ class SAFRSBase(Model):
         try:
             instance = cls._s_query.filter_by(**primary_keys).one_or_none()
         except Exception as exc:  # pragma: no cover
-            safrs.log.warning(exc)
+            safrs.log.warning("Upsert lookup failed (%s)", type(exc).__name__)
 
         if instance is None:
             instance = object.__new__(cls)
@@ -512,13 +844,11 @@ class SAFRSBase(Model):
         # All subclasses should have the DB.Model as superclass.
         # (SQLAlchemy doesn't work when using DB.Model as SAFRSBase superclass)
         try:
-            safrs.DB.Model.__init__(self, **db_args)
-        except Exception as exc:  # pragma: no cover
-            # OOPS .. things are going bad, this might happen using sqla automap
-            safrs.log.error(f"Failed to instantiate {self}")
-            safrs.log.debug(f"db args: {db_args}")
-            safrs.log.exception(exc)
-            safrs.DB.Model.__init__(self)
+            get_db().Model.__init__(self, **db_args)
+        except (TypeError, ValueError) as exc:
+            # Never retry with an empty constructor.  Doing so can turn a
+            # rejected client value into a privileged database default.
+            raise ValidationError("Invalid model attributes") from exc
 
     def __setattr__(self: Any, attr_name: Any, attr_val: Any) -> Any:
         """
@@ -541,7 +871,7 @@ class SAFRSBase(Model):
         except ValidationError:
             raise
         except (TypeError, ValueError) as exc:
-            raise ValidationError(str(exc)) from exc
+            raise ValidationError(f"Invalid value for attribute '{attr_name}'") from exc
 
     def _s_ignore_unchanged_readonly_jsonapi_attr(self: Any, attr_name: str, attr_val: Any) -> bool:
         """
@@ -565,7 +895,7 @@ class SAFRSBase(Model):
         except ValidationError:
             raise
         except (TypeError, ValueError) as exc:
-            raise ValidationError(str(exc)) from exc
+            raise ValidationError(f"Invalid value for attribute '{attr_name}'") from exc
 
     @staticmethod
     def _s_run_jsonapi_attr_validator(attr_name: str, attr: Any, attr_val: Any) -> Any:
@@ -577,7 +907,7 @@ class SAFRSBase(Model):
         except ValidationError:
             raise
         except (TypeError, ValueError) as exc:
-            raise ValidationError(str(exc)) from exc
+            raise ValidationError(f"Invalid value for attribute '{attr_name}'") from exc
         if is_valid is False:
             raise ValidationError(f"Invalid value for attribute '{attr_name}'")
         return attr_val
@@ -594,7 +924,12 @@ class SAFRSBase(Model):
         if attr_name == "id":
             return attr_val
 
-        attr = cls._s_jsonapi_attrs.get(attr_name, None)
+        attr = cls._s_jsonapi_writable_attrs.get(attr_name)
+
+        if attr is None:
+            if attr_name in cls._s_jsonapi_attrs:
+                raise ValidationError(f"Attribute '{attr_name}' is read-only")
+            raise SystemValidationError(f"Unknown attribute: {attr_name}")
 
         if is_jsonapi_attr(attr):
             if jsonapi_attr_is_read_only(attr):
@@ -629,7 +964,71 @@ class SAFRSBase(Model):
         """
         This method is called when a collection is requested with a HTTP GET to the json api
         """
-        return cls.jsonapi_filter()
+        return cls._s_query_scope(cls.jsonapi_filter())
+
+    @classmethod
+    def _s_query_scope(cls: Any, query_or_items: Any) -> Any:
+        """Return rows whose existence the current caller may observe.
+
+        Override this hook with a SQLAlchemy predicate whenever authorization
+        varies by principal or row.  It runs before sorting, counting, and
+        pagination in both adapters.  Per-object authorization remains a final
+        fail-closed safety check.
+        """
+        return query_or_items
+
+    @classmethod
+    def _s_get_upsert_target(cls: Any, jsonapi_id: Any=None, **params: Any) -> Optional[SAFRSBase]:
+        """Return the existing row selected by an explicitly supplied POST id.
+
+        This lookup does not authorize or mutate the row. HTTP adapters must
+        authorize the upsert operation before calling ``_s_update_from_post``.
+        ``_s_post`` also uses it for trusted programmatic calls.
+        """
+        if not cls._s_upsert or not cls.allow_client_generated_ids:
+            return None
+
+        has_concrete_pks = all(_has_id_value(params.get(pk)) for pk in cls.id_type.column_names)
+        if not _has_id_value(jsonapi_id) and not _has_id_value(params.get("id")) and not has_concrete_pks:
+            return None
+
+        lookup_params = dict(params)
+        if _has_id_value(jsonapi_id):
+            lookup_params["id"] = jsonapi_id
+        try:
+            primary_keys = cls.id_type.extract_pks(lookup_params)
+        except KeyError:
+            return None
+        return cls._s_query.filter_by(**primary_keys).one_or_none()
+
+    def _s_update_from_post(self: Any, **params: Any) -> SAFRSBase:
+        """Apply the update branch of an authorized POST upsert.
+
+        Reusing ``_s_patch`` preserves PATCH parsing, field permissions, hooks,
+        and validation instead of re-running the SQLAlchemy constructor on a
+        persistent instance. Authorization is performed by the HTTP adapter.
+        """
+        relationships = {name: value for name, value in params.items() if name in self._s_relationships}
+        attributes = {name: value for name, value in params.items() if name not in self._s_relationships}
+        self._s_patch(**attributes)
+        self._add_rels(**relationships)
+        return self
+
+    @classmethod
+    def _s_post_prechecked(cls: Any, jsonapi_id: Any=None, **params: Any) -> SAFRSBase:
+        """Create after an HTTP adapter has already resolved the upsert id.
+
+        The context flag suppresses both lookup sites used by the historical
+        programmatic upsert path: ``_s_post`` and ``__new__``. If another
+        transaction inserts the id after the adapter's lookup, the insert now
+        fails with a constraint conflict instead of silently updating a row
+        without update authorization.
+        """
+        token: Token[Any] = _POST_UPSERT_PRECHECKED.set(cls)
+        try:
+            return cls._s_post(jsonapi_id=jsonapi_id, **params)
+        finally:
+            _POST_UPSERT_PRECHECKED.reset(token)
 
     @classmethod
     def _s_post(cls: Any, jsonapi_id: Any=None, **params: Any) -> SAFRSBase:
@@ -641,16 +1040,37 @@ class SAFRSBase(Model):
 
         `_s_post` performs attribute sanitization and calls `cls.__init__`
         The attributes may contain an "id" if `cls.allow_client_generated_ids` is True
-        """
-        # remove attributes that are not declared in _s_jsonapi_attrs
-        attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_attrs}
 
-        def _has_id_value(value: Any) -> bool:
-            if value is None:
-                return False
-            if isinstance(value, str) and value == "":
-                return False
-            return True
+        When upsert is enabled and the explicit id already exists, trusted
+        programmatic calls update it through ``_s_patch``. HTTP adapters detect
+        and authorize this branch before invoking it.
+        """
+        if _POST_UPSERT_PRECHECKED.get() is not cls:
+            upsert_target = cls._s_get_upsert_target(jsonapi_id, **params)
+            if upsert_target is not None:
+                return upsert_target._s_update_from_post(**params)
+
+        mapper = sqlalchemy.inspect(cls)
+        relationship_names = {str(relationship.key) for relationship in mapper.relationships}
+        reject_current_relationship_fields(cls, params.keys())
+        submitted_fields = [
+            name for name in params if name not in relationship_names and name != "id"
+        ]
+        reject_current_foreign_key_fields(cls, submitted_fields)
+        require_current_create(cls, submitted_fields, params)
+
+        readonly_jsonapi_attrs = {
+            attr_name
+            for attr_name, attr in get_jsonapi_attrs(cls).items()
+            if jsonapi_attr_is_read_only(attr)
+        }
+        for attr_name in params:
+            if attr_name in readonly_jsonapi_attrs:
+                raise ValidationError(f"Attribute '{attr_name}' is read-only")
+
+        # Only accept attributes that are explicitly writable.  ``_s_jsonapi_attrs``
+        # is the response/read set and may contain read-only columns.
+        attributes = {attr_name: params[attr_name] for attr_name in params if attr_name in cls._s_jsonapi_writable_attrs}
 
         # Remove 'id' (or other primary keys) from the attributes, unless it is allowed by the
         # SAFRSObject allow_client_generated_ids attribute
@@ -683,28 +1103,57 @@ class SAFRSBase(Model):
         # pylint: disable=not-callable
         instance = cls(**attributes)
 
-        instance._add_rels(**params)
+        # Class-level permission checks select the candidate constructor
+        # fields. Re-check them on the initialized instance because documented
+        # permission hooks may make caller- or row-dependent decisions. PATCH
+        # already performs this instance check before assigning each field.
+        protected_id_names = {"id", *cls.id_type.column_names}
+        denied_attributes = [
+            attr_name
+            for attr_name in attributes
+            if attr_name not in protected_id_names and not instance._s_check_perm(attr_name, "w")
+        ]
+        if denied_attributes:
+            denied_csv = ", ".join(sorted(denied_attributes))
+            raise ValidationError(
+                f"Write access denied for attribute(s): {denied_csv}",
+                HTTPStatus.FORBIDDEN.value,
+            )
 
-        if not instance in safrs.DB.session:
-            safrs.DB.session.add(instance)
+        # Nested resources need their own lookup/authorization decision. Do
+        # not let this create's precheck suppress an upsert lookup for a
+        # relationship payload (including a self-referential relationship).
+        relationship_token: Optional[Token[Any]] = None
+        if _POST_UPSERT_PRECHECKED.get() is cls:
+            relationship_token = _POST_UPSERT_PRECHECKED.set(None)
+        try:
+            instance._add_rels(**params)
+        finally:
+            if relationship_token is not None:
+                _POST_UPSERT_PRECHECKED.reset(relationship_token)
+
+        if not instance in get_db().session:
+            get_db().session.add(instance)
         tx.note_write(cls)
         if _request_uow_active():
             try:
-                safrs.DB.session.flush()
+                get_db().session.flush()
             except sqlalchemy.exc.IntegrityError:
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 raise ValidationError("Database constraint violation", HTTPStatus.CONFLICT.value)
             except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError):
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 raise ValidationError("Invalid attribute value")
             except OverflowError:
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 raise ValidationError("Invalid attribute value")
             except sqlalchemy.exc.SQLAlchemyError as exc:  # pragma: no cover
                 # Keep true server/database failures as 500 responses.
-                safrs.DB.session.rollback()
-                safrs.log.warning(str(exc))
+                get_db().session.rollback()
+                safrs.log.warning("Database write failed (%s)", type(exc).__name__)
                 raise GenericError(str(exc))
+
+        run_current_after_create(instance)
 
         return instance
 
@@ -713,8 +1162,13 @@ class SAFRSBase(Model):
         Update the object attributes
         :param **attributes:
         """
+        reject_current_foreign_key_fields(self.__class__, attributes.keys())
+        require_current_instance(self, "update", attributes.keys())
         for attr_name, attr_val in attributes.items():
-            if attr_name not in self.__class__._s_jsonapi_attrs:
+            if (
+                attr_name not in self.__class__._s_jsonapi_attrs
+                and attr_name not in self.__class__._s_jsonapi_writable_attrs
+            ):
                 continue
             # check if we have permission to write
             if not self._s_check_perm(attr_name, "w"):
@@ -730,12 +1184,12 @@ class SAFRSBase(Model):
         tx.note_write(self.__class__)
         if _request_uow_active():
             try:
-                safrs.DB.session.flush()
+                get_db().session.flush()
             except sqlalchemy.exc.IntegrityError:
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 raise ValidationError("Database constraint violation", HTTPStatus.CONFLICT.value)
             except (sqlalchemy.exc.DataError, sqlalchemy.exc.StatementError, OverflowError):
-                safrs.DB.session.rollback()
+                get_db().session.rollback()
                 raise ValidationError("Invalid attribute value")
         # query ourself, this will also execute sqla hooks
         return self.get_instance(self.jsonapi_id)
@@ -744,10 +1198,13 @@ class SAFRSBase(Model):
         """
         Delete the instance from the database
         """
-        tx.note_write(self.__class__)
-        safrs.DB.session.delete(self)
+        prepare_current_delete(self)
         if _request_uow_active():
-            safrs.DB.session.flush()
+            self.__class__._s_validate_cascade_delete_methods(self)
+        tx.note_write(self.__class__)
+        get_db().session.delete(self)
+        if _request_uow_active():
+            get_db().session.flush()
 
     def _add_rels(self: Any, **params: Any) -> None:
         """
@@ -757,30 +1214,71 @@ class SAFRSBase(Model):
         only works if self._s_allow_add_rels was set.
         """
 
-        def data2inst(data: Any) -> Any:
-            subclasses = self._safrs_subclasses()
-            if not (isinstance(data, dict) and "id" in data and "type" in data and data["type"] in subclasses):
-                raise ValidationError(f"Invalid relationship payload: {data}")
-            target_class = subclasses[data["type"]]
-            return target_class._s_post(data["id"], **data.get("attributes", {}), **data.get("relationships", {}))
+        def data2inst(data: Any, target_class: Any) -> Any:
+            if not isinstance(data, dict) or "id" not in data or "type" not in data:
+                raise ValidationError("Invalid relationship resource identifier")
+            if data["type"] != target_class._s_type:
+                raise ValidationError("Invalid relationship resource type")
+            attributes = data.get("attributes", {})
+            relationships = data.get("relationships", {})
+            if not isinstance(attributes, dict) or not isinstance(relationships, dict):
+                raise ValidationError("Invalid relationship resource payload")
+            if _request_uow_active():
+                upsert_target = target_class._s_get_upsert_target(data["id"], **attributes)
+                if upsert_target is not None:
+                    if not target_class._s_supports_http_method("PATCH"):
+                        raise ValidationError(
+                            f"PATCH is not allowed for related resource {target_class.__name__}",
+                            HTTPStatus.METHOD_NOT_ALLOWED.value,
+                        )
+                    # SEC-02: the nested upsert reads and rewrites an existing
+                    # target row; enforce its object-level policy first.
+                    run_instance_access_check(target_class, upsert_target, "link")
+                    return upsert_target._s_update_from_post(**attributes, **relationships)
+                if not target_class._s_supports_http_method("POST"):
+                    raise ValidationError(
+                        f"POST is not allowed for related resource {target_class.__name__}",
+                        HTTPStatus.METHOD_NOT_ALLOWED.value,
+                    )
+                ctx = maybe_jsonapi_context()
+                if ctx is not None and ctx.operation_authorizer is not None:
+                    ctx.operation_authorizer(target_class, "create")
+                return target_class._s_post_prechecked(data["id"], **attributes, **relationships)
+            existing = target_class._s_get_upsert_target(data["id"], **attributes)
+            if existing is not None:
+                # SEC-02: the nested payload rewrites an existing row; the
+                # target row's object-level policy must authorize it.
+                run_instance_access_check(target_class, existing, "link")
+            return target_class._s_post(data["id"], **attributes, **relationships)
 
+        reject_current_relationship_fields(self.__class__, params.keys())
         for rel_name, rel_val in params.items():
-            rel = self._s_relationships.get(rel_name)
+            rel = self.__mapper__.relationships.get(rel_name)
             if not rel:
                 continue
+            check_relationship_write_permission(self, rel_name)
             if not self._s_allow_add_rels:
                 raise ValidationError("Cannot add relationships (_s_allow_add_rels not set)")
             if not isinstance(rel_val, dict) or not "data" in rel_val:
-                raise ValidationError(f"Invalid relationship payload: {rel_val}")
+                raise ValidationError("Invalid relationship payload")
+            target_class = rel.mapper.class_
             if not self.included_list:
                 self.included_list = []
             self.included_list += [rel_name]
             rel_data = rel_val["data"]
             if isinstance(rel_data, list) and rel.direction in (ONETOMANY, MANYTOMANY):
-                rel_inst = [data2inst(rd) for rd in rel_data]
+                max_items_config = get_config("MAX_BULK_ITEMS")
+                max_items = int(
+                    max_items_config if max_items_config is not None else safrs.SAFRS.MAX_BULK_ITEMS
+                )
+                if _request_uow_active() and max_items > 0 and len(rel_data) > max_items:
+                    raise ValidationError(
+                        f"Nested relationship POST exceeds maximum item count {max_items}"
+                    )
+                rel_inst = [data2inst(rd, target_class) for rd in rel_data]
                 setattr(self, rel_name, rel_inst)
             elif isinstance(rel_data, dict) and rel.direction == MANYTOONE:
-                inst = data2inst(rel_data)
+                inst = data2inst(rel_data, target_class)
                 setattr(self, rel_name, inst)
             else:
                 raise ValidationError("Invalid relationship payload")
@@ -816,8 +1314,83 @@ class SAFRSBase(Model):
         """
         return ["GET", "POST", "PATCH", "DELETE", "PUT", "HEAD", "OPTIONS"]
 
+    @classmethod
+    def _s_supports_http_method(cls: Any, method: str) -> bool:
+        """Return whether the model exposes an HTTP operation."""
+        return str(method).upper() in {str(item).upper() for item in cls.http_methods}
+
+    @classmethod
+    def _s_validate_cascade_delete_methods(cls: Any, instance: Any = None) -> None:
+        """Prevent a parent DELETE from bypassing target DELETE restrictions
+        and target object-level policies (SEC-02).
+
+        With ``instance`` given, every row doomed by the cascade is also
+        checked against its model's ``_s_check_instance_access`` hook.
+        """
+        visited: set[Any] = {cls}
+
+        def visit(current_model: Any) -> None:
+            mapper = getattr(current_model, "__mapper__", None)
+            if mapper is None:
+                return
+            for relationship in mapper.relationships:
+                cascade = getattr(relationship, "cascade", None)
+                cascades_delete = bool(
+                    cascade is not None
+                    and (getattr(cascade, "delete", False) or getattr(cascade, "delete_orphan", False))
+                )
+                if not cascades_delete:
+                    continue
+                target_model = relationship.mapper.class_
+                if target_model in visited:
+                    continue
+                visited.add(target_model)
+                supports_method = getattr(target_model, "_s_supports_http_method", None)
+                if callable(supports_method) and not supports_method("DELETE"):
+                    raise ValidationError(
+                        f"DELETE is not allowed for cascaded resource {target_model.__name__}",
+                        HTTPStatus.METHOD_NOT_ALLOWED.value,
+                    )
+                visit(target_model)
+
+        visit(cls)
+        if instance is None:
+            return
+
+        # SEC-02: object-level check for every row the cascade will delete.
+        visited_rows: set[Any] = {instance}
+
+        def visit_row(current: Any) -> None:
+            mapper = getattr(current, "__mapper__", None)
+            if mapper is None:
+                return
+            for relationship in mapper.relationships:
+                cascade = getattr(relationship, "cascade", None)
+                cascades_delete = bool(
+                    cascade is not None
+                    and (getattr(cascade, "delete", False) or getattr(cascade, "delete_orphan", False))
+                )
+                if not cascades_delete:
+                    continue
+                related = getattr(current, relationship.key, None)
+                if related is None:
+                    continue
+                if hasattr(related, "__iter__") and not isinstance(related, (str, bytes)):
+                    items = list(related)
+                else:
+                    items = [related]  # to-one relationship
+                for item in items:
+                    if item is None or id(item) in visited_rows:
+                        continue
+                    visited_rows.add(id(item))
+                    run_instance_access_check(
+                        relationship.mapper.class_, item, "cascade_delete"
+                    )
+                    visit_row(item)
+
+        visit_row(instance)
+
     @classproperty
-    @lru_cache(maxsize=32)
     def _s_columns(cls: Any) -> list:
         """
         :return: list of columns that are exposed by the api
@@ -941,6 +1514,19 @@ class SAFRSBase(Model):
 
         raise SystemValidationError(f"Invalid property {property_name}")
 
+    def _s_check_instance_access(self: Any, action: str = "read") -> bool:
+        """
+        Object-level (per-row) access check, used when this row is loaded
+        through a relationship payload, an include traversal, a nested write
+        or a cascade operation (SEC-02).
+
+        :param action: one of ``read``, ``link``, ``unlink``, ``cascade_delete``.
+        :return: True when the row may be used. Deny by returning False or by
+            raising a :class:`safrs.errors.JsonapiError` (e.g. 401/403).
+            Unexpected exceptions fail closed as 403.
+        """
+        return True
+
     @hybrid_property
     def _s_jsonapi_attrs(self: Any) -> Any:
         """
@@ -963,6 +1549,10 @@ class SAFRSBase(Model):
                 fields = context_fields
         elif has_request_context():
             fields = request.fields.get(self._s_class_name, fields)
+
+        readable_fields = current_readable_fields(self)
+        if readable_fields is not None:
+            fields = [field for field in fields if field in readable_fields]
 
         result = {}
         ja_attr_names = [
@@ -992,15 +1582,19 @@ class SAFRSBase(Model):
                 else:
                     result[attr_name] = attr_val
             except UnicodeDecodeError:  # pragma: no cover
-                safrs.log.warning(f"UnicodeDecodeError fetching {self}.{attr}")
+                safrs.log.warning("Unicode decode failed for %s.%s", type(self).__name__, attr)
                 result[attr] = ""
             except Exception as exc:
-                safrs.log.warning(f"Failed to fetch {self}.{attr}: {exc}")
+                safrs.log.warning(
+                    "Attribute fetch failed for %s.%s (%s)",
+                    type(self).__name__,
+                    attr,
+                    type(exc).__name__,
+                )
 
         return result
 
     @_s_jsonapi_attrs.expression  # type: ignore[no-redef]
-    @lru_cache(maxsize=32)
     def _s_jsonapi_attrs(cls: Any) -> Any:  # type: ignore[no-redef]
         """
         :return: dict of jsonapi attributes
@@ -1008,8 +1602,10 @@ class SAFRSBase(Model):
         Things will go south if this isn't the case and we should use
         the cls.__mapper__._polymorphic_properties instead
         """
-        # Cache this for better performance (a bit faster than lru_cache :)
-        cached_attrs = getattr(cls, "_cached_jsonapi_attrs", None)
+        # Preserve an explicit class-level override used by extensions. SAFRS
+        # no longer populates this value automatically because doing so would
+        # cache caller-dependent permission results across requests.
+        cached_attrs = cls.__dict__.get("_cached_jsonapi_attrs")
         if cached_attrs is not None:
             return cached_attrs
 
@@ -1029,7 +1625,35 @@ class SAFRSBase(Model):
         for attr_name, attr_val in get_jsonapi_attrs(cls).items():
             result[attr_name] = attr_val
 
-        cls._cached_jsonapi_attrs = result
+        return result
+
+    @classproperty
+    def _s_jsonapi_writable_attrs(cls: Any) -> dict[str, Any]:
+        """Return JSON:API attributes accepted from POST/PATCH requests."""
+        if "__mapper__" not in cls.__dict__:
+            return {
+                attr_name: attr_val
+                for attr_name, attr_val in cls._s_jsonapi_attrs.items()
+                if not is_jsonapi_attr(attr_val) or not jsonapi_attr_is_read_only(attr_val)
+            }
+
+        result: dict[str, Any] = {}
+        for column in cls.__mapper__.columns:
+            attr_name = cls.colname_to_attrname(column.name)
+            # Column permissions historically describe the exposed JSON:API
+            # surface.  A write-only column is hidden completely; write-only
+            # request fields should be implemented with ``jsonapi_attr``.
+            if not cls._s_check_perm(attr_name, "r") or not cls._s_check_perm(attr_name, "w"):
+                continue
+            if attr_name == "type":
+                result["Type"] = column
+            elif attr_name != "id" and attr_name not in cls._s_relationships:
+                result[attr_name] = column
+
+        for attr_name, attr_val in get_jsonapi_attrs(cls).items():
+            if not jsonapi_attr_is_read_only(attr_val):
+                result[attr_name] = attr_val
+
         return result
 
     def _s_expunge(self: Any) -> Any:
@@ -1068,10 +1692,10 @@ class SAFRSBase(Model):
             value = kwargs.get(parameter, None)
             if value is not None:
                 setattr(self, parameter, value)
-        safrs.DB.session.add(self)
+        get_db().session.add(self)
         tx.note_write(self.__class__)
         if _request_uow_active():
-            safrs.DB.session.flush()
+            get_db().session.flush()
         return self
 
     @classmethod
@@ -1103,14 +1727,14 @@ class SAFRSBase(Model):
             try:
                 instance = cls._s_query.filter_by(**primary_keys).first()
             except OverflowError as exc:
-                safrs.log.warning(f"Integer overflow while getting instance with keys {primary_keys}")
+                safrs.log.warning("Integer overflow while resolving resource identifier")
                 raise IntegerOverflowError("Invalid integer value in id filter") from exc
             except Exception as exc:  # pragma: no cover
-                safrs.log.error(f"Failed to get instance with keys {primary_keys}")
-                raise GenericError(f"get_instance : {exc}")
+                safrs.log.error("Resource lookup failed (%s)", type(exc).__name__)
+                raise GenericError("Resource lookup failed") from exc
 
             if not instance and not failsafe:
-                raise NotFoundError(f'Invalid "{cls.__name__}" ID "{id}"')
+                raise NotFoundError()
         return instance
 
     @classmethod
@@ -1155,18 +1779,17 @@ class SAFRSBase(Model):
         result = None
         _table = getattr(cls_or_self, "_table", None)
         try:
-            result = safrs.DB.session.query(cls_or_self)
+            result = get_db().session.query(cls_or_self)
         except (sqlalchemy.exc.InvalidRequestError, sqlalchemy.exc.ArgumentError) as exc:
             # this may happen when exposing a stateless object, in which case
             # the warning can be ignored.
             if getattr(cls_or_self, "_s_stateless", None):
                 safrs.log.warning("Invalid SQLA request")
         except Exception as exc:
-            safrs.log.exception(exc)
-            safrs.log.error(f"Query failed for {cls_or_self}: {exc}")
+            safrs.log.error("Query failed for %s (%s)", cls_or_self, type(exc).__name__)
 
         if _table is not None:
-            result = safrs.DB.session.query(_table)
+            result = get_db().session.query(_table)
 
         return result
 
@@ -1214,10 +1837,15 @@ class SAFRSBase(Model):
                 "type": "..."
                 }`
         """
+        require_current_instance(self, "read")
         ctx = maybe_jsonapi_context()
         if ctx is not None:
+            if ctx.resource_authorizer is not None:
+                ctx.resource_authorizer(self.__class__, self, "read")
             self_link = ctx.instance_path(self.__class__, self)
         else:
+            if has_request_context():
+                run_instance_access_check(self.__class__, self, "read")
             self_link = self._s_url
         attributes = self.to_dict()
         relationships = self._s_get_related()
@@ -1232,14 +1860,38 @@ class SAFRSBase(Model):
     def _s_get_include_settings(self: Any) -> tuple[list[str], set[str], list[str]]:
         included_list = getattr(self, "included_list", None)
         ctx = maybe_jsonapi_context()
+        default_included = str(get_config("DEFAULT_INCLUDED") or "")
         if included_list is None:
             if ctx is not None:
-                included_csv = ctx.get_include_csv(safrs.SAFRS.DEFAULT_INCLUDED)
+                included_csv = ctx.get_include_csv(default_included)
             elif has_request_context():
-                included_csv = request.args.get("include", safrs.SAFRS.DEFAULT_INCLUDED)
+                included_csv = request.args.get("include", default_included)
             else:
-                included_csv = safrs.SAFRS.DEFAULT_INCLUDED
+                included_csv = default_included
             included_list = [inc for inc in included_csv.split(",") if inc]
+
+        max_paths_config = get_config("MAX_INCLUDE_PATHS")
+        max_include_paths = int(
+            max_paths_config
+            if max_paths_config is not None
+            else safrs.SAFRS.MAX_INCLUDE_PATHS
+        )
+        effective_path_count = len(included_list)
+        include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
+        if include_all in included_list:
+            effective_path_count += max(0, len(self._s_relationships) - 1)
+        if max_include_paths > 0 and effective_path_count > max_include_paths:
+            raise ValidationError(f"Too many include paths (maximum {max_include_paths})")
+        max_depth_config = get_config("MAX_INCLUDE_DEPTH")
+        max_include_depth = int(
+            max_depth_config
+            if max_depth_config is not None
+            else safrs.SAFRS.MAX_INCLUDE_DEPTH
+        )
+        for include_path in included_list:
+            include_depth = len([segment for segment in str(include_path).split(".") if segment])
+            if max_include_depth > 0 and include_depth > max_include_depth:
+                raise ValidationError(f"Include path exceeds maximum depth {max_include_depth}")
 
         if ctx is not None:
             excluded_csv = ctx.get_exclude_csv("")
@@ -1252,8 +1904,9 @@ class SAFRSBase(Model):
         return included_list, included_rels, excluded_list
 
     def _s_validate_included_relationships(self: Any, included_rels: set[str], included_list: list[str]) -> None:
+        include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
         for rel_name in included_rels:
-            if rel_name != safrs.SAFRS.INCLUDE_ALL and rel_name not in self._s_relationships:
+            if rel_name != include_all and rel_name not in self._s_relationships:
                 raise GenericError(f"Invalid Relationship '{rel_name}'", status_code=400)
 
     @staticmethod
@@ -1271,6 +1924,13 @@ class SAFRSBase(Model):
         data: list[Any] = []
         meta: dict[str, Any] = {}
         rel_query = getattr(self, rel_name)
+        target_model = self._s_relationships[rel_name].mapper.class_
+        if current_model_is_registered(target_model):
+            rel_query = get_db().session.query(target_model).with_parent(
+                self, property=self._s_relationships[rel_name]
+            )
+        rel_query = target_model._s_query_scope(rel_query)
+        rel_query = authorize_collection_before_metadata(target_model, rel_query)
         ctx = maybe_jsonapi_context()
         if ctx is not None:
             limit = ctx.get_relationship_page_limit(rel_name)
@@ -1297,9 +1957,11 @@ class SAFRSBase(Model):
                 meta["warning"] = warning
             items = rel_query.all()
         else:  # rel_query is an 'InstrumentedList'
-            items = list(rel_query)[:limit]
-            count = len(items)
+            authorized_items = list(rel_query)
+            count = len(authorized_items)
+            items = authorized_items[:limit]
 
+        prepare_current_readable_fields(target_model, items)
         meta["count"] = meta["total"] = count
         meta["limit"] = limit
         for rel_item in items:
@@ -1333,7 +1995,9 @@ class SAFRSBase(Model):
         included_list, included_rels, excluded_list = self._s_get_include_settings()
         relationships = {}
         self._s_validate_included_relationships(included_rels, included_list)
+        include_all = str(get_config("INCLUDE_ALL") or safrs.SAFRS.INCLUDE_ALL)
 
+        readable_fields = current_readable_fields(self)
         for rel_name, relationship in self._s_relationships.items():
             """
             http://jsonapi.org/format/#document-resource-object-relationships:
@@ -1359,18 +2023,35 @@ class SAFRSBase(Model):
             """
             meta: dict[str, Any] = {}
             rel_name = relationship.key
+            if readable_fields is not None and rel_name not in readable_fields:
+                continue
             data: Any = [] if relationship.direction in (ONETOMANY, MANYTOMANY) else None
             if rel_name in excluded_list:
                 # TODO: document this
                 # continue
                 pass
-            if rel_name in included_rels or safrs.SAFRS.INCLUDE_ALL in included_list:
+            if rel_name in included_rels or include_all in included_list:
+                ctx = maybe_jsonapi_context()
+                run_relationship_read_access_check(relationship)
+                if ctx is not None and ctx.operation_authorizer is not None:
+                    ctx.operation_authorizer(relationship.mapper.class_, "read")
                 # next_included_list contains the recursive relationship names
                 next_included_list = self._s_nested_included_list(included_list, rel_name)
                 if relationship.direction == MANYTOONE:
                     # manytoone relationship contains a single instance
                     rel_item = getattr(self, rel_name)
-                    if rel_item:
+                    target_visible = False
+                    try:
+                        target_visible = bool(
+                            rel_item
+                            and run_instance_access_check(
+                                relationship.mapper.class_, rel_item, "read"
+                            )
+                        )
+                    except NotFoundError:
+                        if not current_model_is_registered(relationship.mapper.class_):
+                            raise
+                    if target_visible:
                         # create an Included instance that will be used for serialization eventually
                         data = Included(rel_item, next_included_list)
                 elif relationship.direction in (ONETOMANY, MANYTOMANY):
@@ -1407,7 +2088,7 @@ class SAFRSBase(Model):
             count = cls.jsonapi_filter().count()
         except Exception as exc:
             # May happen for custom types, for ex. the psycopg2 extension
-            safrs.log.warning(f"Can't get count for {cls} ({exc})")
+            safrs.log.warning("Count failed for %s (%s)", cls, type(exc).__name__)
             count = -1
 
         if count > max_table_count:
@@ -1424,22 +2105,16 @@ class SAFRSBase(Model):
     def _s_sample_id(cls: Any) -> Any:
         """
         :return: a sample id for the API documentation
-        """
-        sample = None
-        if cls.query is None:
-            return sample
-        try:
-            sample = cls.query.first()
-        except Exception as exc:
-            safrs.log.debug(exc)
-        if sample:
-            try:
-                sample_id = sample.jsonapi_id
-                return sample_id
-            except Exception:
-                safrs.log.warning(f"Failed to retrieve sample id for {cls}")
 
-        sample_id = cls.id_type.sample_id(cls)
+        Derived from static column metadata only. Live database rows are
+        never read so public API documentation cannot leak application
+        data (SEC-06).
+        """
+        try:
+            sample_id = cls.id_type.sample_id(cls)
+        except Exception as exc:
+            safrs.log.debug("Failed to build sample identifier (%s)", type(exc).__name__)
+            sample_id = ""
         return str(sample_id)  # jsonapi ids must always be strings
 
     @classmethod
@@ -1484,7 +2159,9 @@ class SAFRSBase(Model):
                         safrs.log.debug(f"Failed to get python type for column {column} (NotImplementedError)")
                         arg = None
                     except Exception as exc:
-                        safrs.log.debug(f"Failed to get python type for column {column} ({exc})")
+                        safrs.log.debug(
+                            "Failed to get python type for column %s (%s)", column, type(exc).__name__
+                        )
                         # use an empty string when no type is matched, otherwise we may get json encoding
                         # errors for the swagger generation
                         arg = ""
@@ -1513,14 +2190,16 @@ class SAFRSBase(Model):
             cls_member_names = dir(cls)
         except sqlalchemy.exc.InvalidRequestError as exc:
             # This may happen if there's no sqlalchemy superclass
-            safrs.log.warning(f"Member inspection failed for {cls}: {exc}")
+            safrs.log.warning("Member inspection failed for %s (%s)", cls, type(exc).__name__)
             return result
 
         for member_name in cls_member_names:
             try:
                 method = inspect.getattr_static(cls, member_name)
             except Exception as exc:
-                safrs.log.debug(f"Skipping rpc inspection for {cls}.{member_name}: {exc}")
+                safrs.log.debug(
+                    "Skipping rpc inspection for %s.%s (%s)", cls, member_name, type(exc).__name__
+                )
                 continue
             if isinstance(method, (classmethod, staticmethod)):
                 method = method.__func__
@@ -1557,7 +2236,9 @@ class SAFRSBase(Model):
         :rtype: str
         """
         if url_prefix is None:
-            url_prefix = cls.url_prefix
+            safrs_api = current_app.extensions.get("safrs_api") if has_app_context() else None
+            prefixes = getattr(safrs_api, "_model_url_prefix", {}) if safrs_api is not None else {}
+            url_prefix = prefixes.get(cls, cls.url_prefix)
         if type == "instance":
             INSTANCE_ENDPOINT_FMT = cast(str, get_config("INSTANCE_ENDPOINT_FMT"))
             endpoint = INSTANCE_ENDPOINT_FMT.format(url_prefix, cls._s_type)
@@ -1688,12 +2369,23 @@ class Included:
             ja_data = set()
         already_included = set()
         result = []
+        max_included_config = get_config("MAX_INCLUDED_RESOURCES")
+        max_included = int(
+            max_included_config
+            if max_included_config is not None
+            else safrs.SAFRS.MAX_INCLUDED_RESOURCES
+        )
         while True:
             if not ja_included:
                 break
             instance = ja_included.pop()
             if instance in already_included or instance in ja_data:
                 continue
+            if max_included > 0 and len(result) >= max_included:
+                raise ValidationError(
+                    f"Included resources exceed maximum item count {max_included}"
+                )
+            already_included.add(instance)
             included = instance._s_jsonapi_encode()
             result.append(included)
 

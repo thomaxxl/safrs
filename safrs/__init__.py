@@ -14,6 +14,8 @@ from .jsonapi_attr import jsonapi_attr
 from .jsonapi_formatting import jsonapi_format_response, paginate
 from .api_methods import search, startswith
 from .api_doc import jsonapi_rpc
+from .filtering import jsonapi_filter_fields
+from .authorization import AuthContext, AuthorizationRegistry, authorization_safe
 from . import tx
 from .__about__ import __version__, __description__
 
@@ -51,6 +53,10 @@ __all__ = (
     "SAFRSBase",
     "jsonapi_attr",
     "jsonapi_rpc",
+    "jsonapi_filter_fields",
+    "AuthContext",
+    "AuthorizationRegistry",
+    "authorization_safe",
     # jsonapi:
     "DefaultJSONProvider",
     "paginate",
